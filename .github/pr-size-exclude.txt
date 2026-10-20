@@ -12,3 +12,4 @@ detect/typologies/*.yaml
 docs/sources/bibliography.yaml
 LICENSE
 NOTICE
+.github/CODEOWNERS

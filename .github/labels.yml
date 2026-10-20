@@ -1,0 +1,25 @@
+- { name: agent, color: "7057ff", description: "Drafted by an AI agent; a named human owns it" }
+- { name: phase-1, color: "0e8a16", description: "Phase 1: foundation and contracts" }
+- { name: phase-2, color: "0e8a16", description: "Phase 2: ownership graph" }
+- { name: phase-3, color: "0e8a16", description: "Phase 3: transactions and detection" }
+- { name: phase-4, color: "0e8a16", description: "Phase 4: API and copilot" }
+- { name: phase-5, color: "0e8a16", description: "Phase 5: explorer UI" }
+- { name: phase-6, color: "0e8a16", description: "Phase 6: hardening, docs and launch" }
+- { name: "squad:ingest", color: "1d76db", description: "Data ingestion squad" }
+- { name: "squad:graph", color: "1d76db", description: "Graph and entity resolution squad" }
+- { name: "squad:detect", color: "1d76db", description: "Typologies and detection squad" }
+- { name: "squad:copilot", color: "1d76db", description: "Investigation copilot and API squad" }
+- { name: "squad:ui", color: "1d76db", description: "Explorer UI squad" }
+- { name: "squad:docs", color: "1d76db", description: "Docs, DX and launch squad" }
+- { name: contract-change, color: "b60205", description: "Changes a frozen contract; tech lead approval required" }
+- { name: needs-human-decision, color: "d93f0b", description: "Blocked on a decision only a human can make" }
+- { name: blocked, color: "d93f0b", description: "Cannot proceed" }
+- { name: typology, color: "5319e7", description: "AML typology definition or detection" }
+- { name: data-source, color: "5319e7", description: "Data source, loader or licence" }
+- { name: spike, color: "c5def5", description: "Time-boxed exploration" }
+- { name: adr, color: "c5def5", description: "Architecture decision record" }
+- { name: learning, color: "fbca04", description: "Learning track" }
+- { name: "good first issue", color: "7057ff", description: "Good for newcomers" }
+- { name: "help wanted", color: "008672", description: "Extra attention is needed" }
+- { name: e2e, color: "c5def5", description: "Run the end-to-end demo test on this pull request" }
+- { name: size-exception, color: "c5def5", description: "Milestone allowed to exceed the 400-line limit (see PHASE-1.md 2.3)" }

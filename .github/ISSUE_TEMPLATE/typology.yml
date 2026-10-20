@@ -1,0 +1,27 @@
+name: Typology
+description: Propose or correct an AML typology definition.
+labels: [typology]
+body:
+  - type: markdown
+    attributes:
+      value: "Every factual statement needs a source. Describe patterns and structures, never named real people or companies."
+  - type: input
+    id: slug
+    attributes: { label: Slug, description: "Lowercase snake case, for example circular_flow." }
+    validations: { required: true }
+  - type: textarea
+    id: definition
+    attributes: { label: Definition, description: "Plain-language definition, citing the sources below." }
+    validations: { required: true }
+  - type: textarea
+    id: graph-pattern
+    attributes: { label: Graph pattern, description: "The nodes, relationships and conditions that a detector would look for." }
+    validations: { required: true }
+  - type: textarea
+    id: sources
+    attributes: { label: Sources with links, description: "Primary sources (FATF, Egmont Group, FFIEC, national authorities), with page or section." }
+    validations: { required: true }
+  - type: textarea
+    id: false-positives
+    attributes: { label: False positives, description: "Legitimate activity that produces the same pattern." }
+    validations: { required: true }

@@ -1,0 +1,32 @@
+name: Contract change
+description: Propose a change to a frozen contract (C1 to C4). Needs tech lead approval before any pull request.
+labels: [contract-change]
+body:
+  - type: dropdown
+    id: contract
+    attributes:
+      label: Contract
+      options: ["C1 Record", "C2 Graph schema", "C3 API", "C4 Alert"]
+    validations: { required: true }
+  - type: input
+    id: current-version
+    attributes: { label: Current version, description: "For example 1.0.0." }
+    validations: { required: true }
+  - type: textarea
+    id: proposed-change
+    attributes: { label: Proposed change, description: "What changes and why." }
+    validations: { required: true }
+  - type: dropdown
+    id: classification
+    attributes:
+      label: Classification
+      description: "Patch: wording, examples or docs. Minor: additive and optional. Major: renaming, removing or changing meaning."
+      options: [patch, minor, major]
+    validations: { required: true }
+  - type: textarea
+    id: migration-impact
+    attributes: { label: Migration impact, description: "Loaders, graph migrations, API clients, fixtures or the UI that must change." }
+    validations: { required: true }
+  - type: input
+    id: approved-by
+    attributes: { label: Who approved, description: "@handle of the tech lead who approved the change (left empty until approved)." }

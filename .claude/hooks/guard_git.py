@@ -16,7 +16,9 @@ Blocks (exit 2, reason on stderr):
   `gh alias set|import`, `gh pr update-branch --rebase` and `gh pr close --delete-branch`;
 - any of these commands where the hook cannot check it (inside quotes, `bash -c` or
   `$(...)`): run it as a simple command of its own, and pass text that mentions one with
-  `git commit -F <file>` or `--body-file <file>`.
+  `git commit -F <file>`, `--body-file <file>` or `gh api ... -F body=@<file>`.
+Output redirections (2>&1, >/dev/null, > file) are ignored when a push or merge is checked;
+a redirection to a file is blocked only where a quoted '>' could look the same.
 Everything else passes (exit 0). Standard library only; runs on Python 3.9 or later.
 """
 
@@ -99,6 +101,12 @@ GH_BLOCKED = {
     "alias": {"set", "import"},
 }
 GH_PR_GUARDED = {"merge", "update-branch", "close"}
+FD_DUPLICATIONS = {">&", "<&"}
+REDIRECTIONS = {">", ">>", ">|", "&>", "&>>", ">&", "<"}
+REDIRECT_MESSAGE = (
+    "a redirection to a file cannot be told apart from a quoted '>' argument in this command; "
+    "drop the redirection to a file (2>&1 and >/dev/null are fine)"
+)
 _REPO_FLAG = r"(?:\s+(?:-R|--repo)(?:\s+|=)?\S+)*"
 RAW_GUARDED = re.compile(
     r"\bgit(?:\s+(?:-C|-c|--git-dir|--work-tree|--namespace|--config-env)\s+\S+|\s+-\S+)*"
@@ -144,9 +152,54 @@ def current_branch(cwd):
         return ""
 
 
-def check_push(args, cwd):
+def unquoted_scan(command):
+    """Return the command without fd numbers glued to unquoted redirections (2>&1 becomes
+    >&1), and whether any < or > in it is quoted or escaped, where shlex hides it."""
+    out, quote, escaped, hidden, i = [], None, False, False, 0
+    while i < len(command):
+        ch = command[i]
+        if escaped:
+            escaped, hidden = False, hidden or ch in "<>"
+        elif ch == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            quote = None if ch == quote else quote
+            hidden = hidden or (quote is not None and ch in "<>")
+        elif ch in "'\"":
+            quote = ch
+        elif ch in "0123456789" and (i == 0 or command[i - 1] in " \t\n;&|("):
+            j = i
+            while j < len(command) and command[j] in "0123456789":
+                j += 1
+            if j < len(command) and command[j] in "<>":
+                i = j
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out), hidden
+
+
+def drop_redirects(args, files_ok):
+    """Drop shell redirections, which never name a ref or a pull request: fd duplications
+    (>&1), redirections from or to /dev/null, and, when files_ok, redirections to a file."""
+    out, i = [], 0
+    while i < len(args):
+        op, target = args[i], (args[i + 1] if i + 1 < len(args) else "")
+        duplication = op in FD_DUPLICATIONS and (target.isdigit() or target == "-")
+        redirection = op in REDIRECTIONS and target != "" and (target == "/dev/null" or files_ok)
+        if duplication or redirection:
+            i += 2
+            continue
+        if op in REDIRECTIONS or op in FD_DUPLICATIONS:
+            block(REDIRECT_MESSAGE)
+        out.append(op)
+        i += 1
+    return out
+
+
+def check_push(args, cwd, files_ok):
     positional = []
-    for arg in args:
+    for arg in drop_redirects(args, files_ok):
         if arg.startswith("--"):
             name = arg.split("=", 1)[0]
             if name in FORCE_FLAGS or name.startswith("--force"):
@@ -177,12 +230,13 @@ def check_push(args, cwd):
             block("push destination '" + dst + "' is not a p<phase>/ milestone branch")
 
 
-def check_merge(args, in_subagent):
+def check_merge(args, in_subagent, files_ok):
     if in_subagent:
         block(
             "subagents never merge (OD-3); only the main orchestrating session runs "
             "`gh pr merge <number> --merge`"
         )
+    args = drop_redirects(args, files_ok)
     seen, positional, i = set(), [], 0
     while i < len(args):
         arg = args[i]
@@ -250,7 +304,7 @@ def check_api(args):
         )
 
 
-def check_gh(args, in_subagent):
+def check_gh(args, in_subagent, files_ok):
     """Check one gh command; return 1 if it belongs to a guarded family, else 0."""
     if not args:
         return 0
@@ -263,7 +317,7 @@ def check_gh(args, in_subagent):
     if group == "api":
         check_api(args[1:])
     elif group == "pr" and sub == "merge":
-        check_merge(tail, in_subagent)
+        check_merge(tail, in_subagent, files_ok)
     elif group == "pr" and sub == "update-branch" and "--rebase" in tail:
         block("gh pr update-branch --rebase rewrites the branch, like a force-push")
     elif group == "pr" and sub == "close" and ("-d" in tail or "--delete-branch" in tail):
@@ -290,7 +344,7 @@ def strip_prefix(tokens):
     return tokens
 
 
-def check_command(tokens, cwd, in_subagent):
+def check_command(tokens, cwd, in_subagent, files_ok):
     """Check one simple command; return 1 if it was a guarded command that passed, else 0."""
     tokens = strip_prefix(tokens)
     if not tokens:
@@ -305,10 +359,10 @@ def check_command(tokens, cwd, in_subagent):
                 block("git aliases defined on the command line are not allowed")
             i += 2 if tokens[i] in GIT_VALUE_OPTIONS else 1
         if i < len(tokens) and tokens[i] == "push":
-            check_push(tokens[i + 1 :], cwd)
+            check_push(tokens[i + 1 :], cwd, files_ok)
             return 1
     elif program == "gh":
-        return check_gh(tokens[1:], in_subagent)
+        return check_gh(tokens[1:], in_subagent, files_ok)
     return 0
 
 
@@ -337,19 +391,21 @@ def main():
         return 0
     in_subagent = bool(data.get("agent_id"))
     guarded = len(RAW_GUARDED.findall(re.sub(r"[\\'\"]", "", command)))
-    commands = parse(command)
+    unglued, hidden_redirect = unquoted_scan(command)
+    commands = parse(unglued)
     if commands is None:
         if guarded:
             block("could not parse a command that pushes, merges or calls gh api; simplify it")
         return 0
     checked = 0
     for tokens in commands:
-        checked += check_command(tokens, data.get("cwd"), in_subagent)
+        checked += check_command(tokens, data.get("cwd"), in_subagent, not hidden_redirect)
     if guarded > checked:
         block(
             "a push, merge or gh api/repo/release command appears where it cannot be checked "
             "(quoted text, bash -c, $(...)); run it as a simple command of its own, and pass "
-            "text that mentions one with git commit -F <file> or --body-file <file>"
+            "text that mentions one with git commit -F <file>, --body-file <file> or "
+            "gh api ... -F body=@<file>"
         )
     return 0
 

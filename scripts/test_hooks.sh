@@ -134,6 +134,7 @@ guard 0 "$P1" "${CAT_HEREDOC%$NL}"
 guard 2 "$P1" "gh pr merge 12 --merge" agent-1
 guard 0 "$P1" "gh pr merge 12 --merge"
 guard 0 "$P1" "git push -u origin $BRANCH" agent-1
+guard 2 "$P1" "gh pr merge 4 --merge 2>&1" agent-1
 
 # One case per line: <wanted exit code> <p1|main> <command>. The repository is on branch
 # BRANCH (p1) or main; P1DIR is its path; \n starts a new line of the command.
@@ -288,6 +289,22 @@ done <<'CASES'
 2 p1 git push -u origin BRANCH && bash -c 'git push origin main'
 2 p1 git push origin HEAD:main --dry-run
 2 p1 git commit -m 'docs: never git push to main'
+# Redirections never name a ref or a pull request
+0 p1 git push -u origin p1/m1-3-workspace 2>&1
+0 p1 git push 2>&1 | tail -3
+0 p1 git push -u origin HEAD 2>/dev/null
+0 p1 git push -u origin BRANCH > /tmp/push.log 2>&1
+0 p1 gh pr merge 4 --merge 2>&1
+0 p1 gh pr merge 4 --merge >/dev/null
+2 p1 git push origin main 2>&1
+2 p1 git push origin 2>&1 main
+2 p1 git push --force origin p1/x 2>&1
+2 p1 git push origin main > /tmp/push.log 2>&1
+2 p1 git push origin BRANCH '>' main
+2 p1 gh pr merge 4 --squash 2>&1
+2 p1 gh pr merge 4 2>&1
+2 p1 gh pr merge 4>/dev/null --merge
+2 p1 gh pr merge 4 --merge '>' 5
 CASES
 
 [ "$(git -C "$ROOT" tag -l 'contracts-v*')" = "$tags_before" ]

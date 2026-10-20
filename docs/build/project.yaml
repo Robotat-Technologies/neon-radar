@@ -1,0 +1,46 @@
+# docs/build/project.yaml
+# Filled in by the operator. Claude Code reads it; it never writes secrets here.
+version: 1
+project:
+  name: NeonRadar
+  repo: "neonradar/neon-radar"
+  default_branch: main
+  domain: neonradar.com
+  description: "Open-source, local-first graph investigation for anti-money-laundering and anti-corruption work"
+  security_contact: "TODO@example.com"
+  conduct_contact: "TODO@example.com"
+  licence: Apache-2.0
+people:                               # GitHub handles, with the @
+  project_lead: "@TODO"
+  tech_lead: "@TODO"
+  mentors: ["@TODO", "@TODO", "@TODO"]
+  release_manager: "@TODO"            # rotates weekly; update this line each Monday
+  data_steward: "@TODO"
+  typology_researchers: ["@TODO"]
+  technical_writer: "@TODO"
+  demo_producer: "@TODO"
+  community_manager: "@TODO"
+  interns: ["@TODO", "@TODO"]         # every intern's GitHub handle (15 in the plan)
+squads:                               # team slugs must exist in the org (section 1.1)
+  ingest:  { team: "@neonradar/nr-ingest",  dir: ingest,  mentor: "@TODO" }
+  graph:   { team: "@neonradar/nr-graph",   dir: graph,   mentor: "@TODO" }
+  detect:  { team: "@neonradar/nr-detect",  dir: detect,  mentor: "@TODO" }
+  copilot: { team: "@neonradar/nr-copilot", dir: copilot, mentor: "@TODO" }
+  ui:      { team: "@neonradar/nr-ui",      dir: ui,      mentor: "@TODO" }
+  docs:    { team: "@neonradar/nr-docs",    dir: docs,    mentor: "@TODO" }
+maintainers_team: "@neonradar/nr-maintainers"
+access:
+  companies_house_key: pending        # pending | available  (the key itself lives only in .env)
+  opensanctions: none                 # none | evaluation | licensed | exempt  (see 1.2)
+  spike_cache_days: 7                 # spike output holds personal data; delete it after this many days
+  claude_review_action: off           # off | on
+  codespaces: personal-quota          # personal-quota | org-paid | off
+schedule:                             # Phase 1 shifted 3 working days on 2026-10-21; the dates in PHASE-1.md are the original plan
+  phase_1_start: 2026-10-21
+  assignment_1_due: 2026-10-23
+  assignment_2_due: 2026-10-27
+  gate_1: 2026-10-28
+  gate_2: 2026-11-04
+  gate_3: 2026-11-13
+  gate_4: 2026-11-17
+  gate_5: 2026-11-20

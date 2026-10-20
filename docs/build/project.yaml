@@ -10,24 +10,24 @@ project:
   security_contact: "TODO@example.com"
   conduct_contact: "TODO@example.com"
   licence: Apache-2.0
-people:                               # GitHub handles, with the @
-  project_lead: "@TODO"
-  tech_lead: "@TODO"
-  mentors: ["@TODO", "@TODO", "@TODO"]
-  release_manager: "@TODO"            # rotates weekly; update this line each Monday
-  data_steward: "@TODO"
-  typology_researchers: ["@TODO"]
-  technical_writer: "@TODO"
-  demo_producer: "@TODO"
-  community_manager: "@TODO"
-  interns: ["@TODO", "@TODO"]         # every intern's GitHub handle (15 in the plan)
+people:                               # GitHub handles, with the @. Until the team joins, @robotat-com holds every role (see operator-decisions.md)
+  project_lead: "@robotat-com"
+  tech_lead: "@robotat-com"
+  mentors: ["@robotat-com"]
+  release_manager: "@robotat-com"            # rotates weekly; update this line each Monday
+  data_steward: "@robotat-com"
+  typology_researchers: ["@robotat-com"]
+  technical_writer: "@robotat-com"
+  demo_producer: "@robotat-com"
+  community_manager: "@robotat-com"
+  interns: []                          # every intern's GitHub handle (15 in the plan)
 squads:                               # team slugs must exist in the org (section 1.1)
-  ingest:  { team: "@neonradar/nr-ingest",  dir: ingest,  mentor: "@TODO" }
-  graph:   { team: "@neonradar/nr-graph",   dir: graph,   mentor: "@TODO" }
-  detect:  { team: "@neonradar/nr-detect",  dir: detect,  mentor: "@TODO" }
-  copilot: { team: "@neonradar/nr-copilot", dir: copilot, mentor: "@TODO" }
-  ui:      { team: "@neonradar/nr-ui",      dir: ui,      mentor: "@TODO" }
-  docs:    { team: "@neonradar/nr-docs",    dir: docs,    mentor: "@TODO" }
+  ingest:  { team: "@neonradar/nr-ingest",  dir: ingest,  mentor: "@robotat-com" }
+  graph:   { team: "@neonradar/nr-graph",   dir: graph,   mentor: "@robotat-com" }
+  detect:  { team: "@neonradar/nr-detect",  dir: detect,  mentor: "@robotat-com" }
+  copilot: { team: "@neonradar/nr-copilot", dir: copilot, mentor: "@robotat-com" }
+  ui:      { team: "@neonradar/nr-ui",      dir: ui,      mentor: "@robotat-com" }
+  docs:    { team: "@neonradar/nr-docs",    dir: docs,    mentor: "@robotat-com" }
 maintainers_team: "@neonradar/nr-maintainers"
 access:
   companies_house_key: pending        # pending | available  (the key itself lives only in .env)

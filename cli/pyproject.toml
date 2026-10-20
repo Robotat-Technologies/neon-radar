@@ -1,0 +1,26 @@
+[project]
+name = "neonradar-cli"
+version = "0.1.0"
+description = "NeonRadar command line: the neonradar command."
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+dependencies = [
+    "neonradar-api",
+    "neonradar-contracts",
+    "neonradar-copilot",
+    "neonradar-detect",
+    "neonradar-graph",
+    "neonradar-ingest",
+]
+
+[tool.uv.sources]
+neonradar-api = { workspace = true }
+neonradar-contracts = { workspace = true }
+neonradar-copilot = { workspace = true }
+neonradar-detect = { workspace = true }
+neonradar-graph = { workspace = true }
+neonradar-ingest = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"

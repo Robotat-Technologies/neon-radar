@@ -6,7 +6,7 @@
 
 ## Context
 
-NeonRadar is built in five weeks, mostly by AI agents (Claude Code), working from a build spec one milestone at a time. Phase 1 alone has about 30 agent pull requests in one week, so review capacity is the main constraint (`docs/build/PHASE-1.md` section 9, risk R5). Agent output can be plausible and still wrong (R7), and the interns must still learn by doing (R12).
+NeonRadar is planned over five weeks (16 October to 20 November 2026, `docs/build/PHASE-1.md` section 0.3; under OD-1 these dates are informational). It is built mostly by AI agents (Claude Code), working from a build spec one milestone at a time. Phase 1 alone has about 30 agent pull requests planned for one week (R5), so review capacity is the main constraint (`PHASE-1.md` section 9). Agent output can be plausible and still wrong (R7), and the interns must still learn by doing (R12).
 
 Three further facts shape the workflow:
 
@@ -16,7 +16,7 @@ Three further facts shape the workflow:
 
 ## Options considered
 
-1. **People write the code, with AI help in the editor.** Authorship is clear, but five weeks is not enough for the planned scope, and the project would not show what it set out to show about AI-built software.
+1. **People write the code, with AI help in the editor.** Authorship is clear, but the five planned weeks are not enough for the planned scope, and the project would not show what it set out to show about AI-built software.
 2. **Agents draft; people review and merge every pull request.** This is the workflow `PHASE-1.md` describes (sections 0.2 and 1.9). Every change gets a human gate before it reaches `main`. With one person in every role, though, merges queue behind that one person, and dependent milestones wait.
 3. **Agents draft; an orchestrating session that the operator authorised merges after checks; people review merged work and keep the sign-offs.** The orchestrating session merges only after three things hold: the acceptance commands passed, an independent agent review found nothing left that affects correctness, the requirements or the guardrails, and CI passed. People review merged work afterwards and own every decision that needs human judgement (OD-2 to OD-5).
 4. **Agents do everything, including sign-offs.** Agents would also freeze contracts, approve typologies, accept ADRs and decide licences. This is the fastest option, but nobody would be accountable for those decisions, and it breaks guardrail G4 and the learning track.
@@ -45,7 +45,7 @@ We will use option 3.
   - `.claude/hooks/guard-contracts.sh` blocks edits to `contracts/` and `graph/schema/` once the tag `contracts-v1.0.0` exists.
   - The deny rules in `.claude/settings.json` are a second layer for the common forms of the same mistakes.
   - CI (M1.6) and branch protection, where the GitHub plan allows it, add server-side checks.
-  - `scripts/test_hooks.sh` proves the hooks on every change to them.
+  - `scripts/test_hooks.sh` is the hooks' self-test; every pull request that changes a hook or `.claude/settings.json` runs it and shows the result (M1.6 or later may add it to CI).
 - **We measure the share of agent-drafted work and publish it at launch.** The measure is merged pull requests with the `agent` label against all merged pull requests (`gh pr list --state merged --label agent` against `gh pr list --state merged`), reported in each phase report.
 
 ## Consequences
@@ -72,7 +72,7 @@ We will use option 3.
 ## Sources
 
 - `docs/build/PHASE-1.md`: section 0.2 (how the build runs), 0.5 items 13 and 15, 1.5 (Claude Code settings), 1.8 (parallel work and merge rhythm), 1.9 (what humans do themselves), 2.1 to 2.6 (operating rules), 9 (risks R5, R7, R8 and R12) and milestone M1.2 (the agent kit).
-- `docs/build/operator-decisions.md`: OD-2 (the orchestrating session merges), OD-3 (builders never merge), OD-4 (independent review as a separate agent), OD-5 (human sign-offs stay human), OD-6 (one person holds every role), OD-8 (wording about how the project is built) and OD-9 (the merge guard).
+- `docs/build/operator-decisions.md`: OD-1 (no date targets), OD-2 (the orchestrating session merges), OD-3 (builders never merge), OD-4 (independent review as a separate agent), OD-5 (human sign-offs stay human), OD-6 (one person holds every role), OD-8 (wording about how the project is built) and OD-9 (the merge guard).
 - `docs/research/2026-10-16/synthetic-docs-mcp.md`, part C: the Neo4j MCP server (read-only mode, GPL-3.0, run as an external tool) and the Claude Code GitHub Action.
 - Claude Code documentation, checked on 2026-10-21:
   - hooks (exit code 2 blocks a tool call; `agent_id` and `agent_type` inside subagents; the file watcher): <https://code.claude.com/docs/en/hooks>;

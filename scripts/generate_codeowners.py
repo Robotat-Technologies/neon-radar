@@ -48,6 +48,8 @@ def resolve_owners(roles: list[str], project: dict) -> list[str]:
         else:
             value = people[role]
             found = value if isinstance(value, list) else [value]
+        if not found:
+            raise SystemExit(f"error: role {role!r} in {PROJECT_FILE.name} has no GitHub handles")
         for owner in found:
             if not isinstance(owner, str) or not owner.startswith("@") or "TODO" in owner:
                 raise SystemExit(f"error: role {role!r} in {PROJECT_FILE.name} is not a GitHub handle: {owner!r}")

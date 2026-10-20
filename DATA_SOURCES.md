@@ -2,7 +2,7 @@
 
 > Draft, owned by the data steward (@robotat-com, `people.data_steward` in [docs/build/project.yaml](docs/build/project.yaml)). The data steward approves every licence statement here before it is final.
 
-NeonRadar ships loaders, never data. The repository holds code and synthetic fixtures only; every public source below is fetched by a command you run yourself, into a local cache that is never committed. A database that merges sources is never published or committed. The licence fields that loaders follow are frozen in `contracts/datasets.yaml` (from milestone M1.7a).
+NeonRadar ships loaders, never data. The repository holds code and synthetic fixtures only; every public source below is fetched by a command you run yourself, into a local cache that is never committed. A database that merges sources is never published or committed. The licence fields that loaders follow will live in `contracts/datasets.yaml`, created in milestone M1.7a and frozen with the contracts at Gate 1.
 
 | Dataset slug | Source | Licence | Commercial use | Attribution | Phase 1 use |
 |---|---|---|---|---|---|

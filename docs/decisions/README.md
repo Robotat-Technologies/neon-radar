@@ -21,7 +21,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | 0008 | API gateway and OpenAPI snapshot | M1.7d | not written yet | tech lead |
 | 0009 | Alert object and wording | M1.7c | not written yet | tech lead, typology researchers |
 | 0010 | Copilot: local and template first | M1.10c | not written yet (decided in Phase 4) | tech lead, copilot mentor |
-| 0011 | AI-built workflow | M1.2 | not written yet | project lead, tech lead |
+| [0011](0011-ai-built-workflow.md) | AI-built workflow | M1.2 | proposed | project lead, tech lead |
 | 0012 | Documentation site | M1.10c | not written yet (decided in Phase 6) | technical writer, tech lead |
 
 The roles resolve to people in `docs/build/project.yaml` (`people`); until the team joins, @robotat-com holds every role.

@@ -21,13 +21,14 @@ Operator decisions in docs/build/operator-decisions.md override the spec.
 6. Secrets live in .env or GitHub secrets. Never print, log, commit or ask for them.
 7. contracts/** and graph/schema/** are frozen once tag contracts-v1.0.0 exists. Changes
    need an approved contract-change issue (/contract-change).
-8. Milestone builders never merge. Only the orchestrating session the operator authorised
-   merges, with `gh pr merge <n> --merge`, after the acceptance commands, an independent
-   review and CI pass (docs/build/operator-decisions.md OD-2, OD-3). Never push to main,
-   force-push, delete remote branches or tags, or change repo settings
-   (.claude/hooks/guard_git.py blocks these). Freezing contracts, approving typologies,
-   accepting ADRs, licence decisions and anything written in a person's name stay with
-   humans (OD-5). Update a branch with `git merge origin/main`.
+8. Milestone builders never merge. During the initial build, only the orchestrating session
+   the operator authorised merges, with `gh pr merge <n> --merge`, after the acceptance
+   commands, an independent review and CI (from M1.6 on) pass; humans review merged work
+   (docs/build/operator-decisions.md OD-2, OD-3, OD-8). Never push to main, force-push,
+   delete remote branches or tags, or change repo settings (.claude/hooks/guard_git.py
+   blocks these). Freezing contracts, approving typologies, accepting ADRs, licence
+   decisions and anything written in a person's name stay with humans (OD-5). Update a
+   branch with `git merge origin/main`.
 
 ## Commands
 - `make setup`            install everything (uv sync, npm ci, pre-commit)

@@ -5,7 +5,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | Milestone | Status | Branch | PR | Updated | Evidence | Notes and deviations |
 |---|---|---|---|---|---|---|
 | M1.0 | merged | p1/m1-0-operator-decisions | #1 | 2026-10-20 | gh pr view 1: MERGED | Operator decisions OD-1 to OD-9 recorded; project.yaml roles filled |
-| M1.1 | pr-open | p1/m1-1-bootstrap | #2 | 2026-10-21 | acceptance: 6 of 6 commands pass | .gitignore also ignores .DS_Store (operator request); review by the orchestrator after the PR opens (OD-4); no CI yet; security and conduct contacts still TODO |
+| M1.1 | pr-open | p1/m1-1-bootstrap | #2 | 2026-10-21 | acceptance: 6 of 6 commands pass | .gitignore also ignores .DS_Store (operator request); review by the orchestrator after the PR opens (OD-4); no CI yet; security and conduct contacts still TODO; other deviations listed in PR #2 (Deviations from spec) |
 | M1.2 | todo | - | - | 2026-10-21 | - | - |
 | M1.3 | todo | - | - | 2026-10-21 | - | - |
 | M1.4 | todo | - | - | 2026-10-21 | - | - |

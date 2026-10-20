@@ -1,8 +1,7 @@
 """Generate .github/CODEOWNERS from docs/build/project.yaml and the ownership map.
 
-The ownership map is docs/build/PHASE-1.md section 4.3. GitHub applies the last
-matching CODEOWNERS line, so rows keep the table's order, adjusted so that every
-path comes after any broader path that contains it.
+The ownership map is docs/build/PHASE-1.md section 4.3. GitHub applies the last matching line, so
+rows keep the table's order, adjusted so that every path comes after any broader path containing it.
 
     uv run --no-project --with pyyaml python scripts/generate_codeowners.py [--check]
 """
@@ -68,9 +67,8 @@ def contains(broad: str, specific: str) -> bool:
 
 def ordered_rows(project: dict) -> list[tuple[str, list[str]]]:
     """Rows in table order, moving each path after every broader path that contains it."""
-    rows = [(path, resolve_owners(roles, project)) for paths, roles in OWNERSHIP_MAP for path in paths]
+    pending = [(path, resolve_owners(roles, project)) for paths, roles in OWNERSHIP_MAP for path in paths]
     placed: list[tuple[str, list[str]]] = []
-    pending = list(rows)
     while pending:
         row = next(r for r in pending if not any(contains(other[0], r[0]) for other in pending))
         placed.append(row)
@@ -98,8 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="exit 1 if .github/CODEOWNERS is out of date")
     args = parser.parse_args(argv)
 
-    project = yaml.safe_load(PROJECT_FILE.read_text(encoding="utf-8"))
-    content = render(project)
+    content = render(yaml.safe_load(PROJECT_FILE.read_text(encoding="utf-8")))
 
     if args.check:
         current = CODEOWNERS_FILE.read_text(encoding="utf-8") if CODEOWNERS_FILE.exists() else ""

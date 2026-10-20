@@ -3,19 +3,16 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
-venv/
 /build/
 /dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
-.coverage.*
 htmlcov/
 
 # Node
 node_modules/
-npm-debug.log*
 *.tsbuildinfo
 
 # Editors and operating systems
@@ -23,7 +20,6 @@ npm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 *.swp
-*~
 .DS_Store
 
 # Secrets: never commit them (guardrail G6)

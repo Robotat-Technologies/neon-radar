@@ -2,12 +2,9 @@ name: Data source
 description: Propose a new data source or a change to an existing one.
 labels: [data-source]
 body:
-  - type: markdown
-    attributes:
-      value: "Do not attach data. The repository ships loaders, never data, and the data steward reviews every licence statement."
   - type: input
     id: source
-    attributes: { label: Source, description: "Name, publisher and URL." }
+    attributes: { label: Source, description: "Name, publisher and URL. Do not attach data: the repository ships loaders, never data." }
     validations: { required: true }
   - type: textarea
     id: licence

@@ -1,0 +1,24 @@
+name: Data source
+description: Propose a new data source or a change to an existing one.
+labels: [data-source]
+body:
+  - type: input
+    id: source
+    attributes: { label: Source, description: "Name, publisher and URL. Do not attach data: the repository ships loaders, never data." }
+    validations: { required: true }
+  - type: textarea
+    id: licence
+    attributes: { label: Licence, description: "Licence name, a link to its text, and what it says about commercial use, attribution and redistribution." }
+    validations: { required: true }
+  - type: textarea
+    id: access
+    attributes: { label: Access, description: "Bulk download, API, key or account needed, rate limits." }
+    validations: { required: true }
+  - type: textarea
+    id: personal-data
+    attributes: { label: Personal data, description: "Does it contain data about people? Which fields?" }
+    validations: { required: true }
+  - type: textarea
+    id: adds
+    attributes: { label: What it adds, description: "Which entities, relationships or identifiers it would add to the graph." }
+    validations: { required: true }

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+/build/
+/dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+*.tsbuildinfo
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+
+# Secrets: never commit them (guardrail G6)
+.env
+.env.*
+!.env.example
+secrets/
+
+# Data: only synthetic fixtures are committed (guardrail G2). The order matters:
+# git cannot re-include a file inside an excluded directory.
+data/*
+!data/fixtures/
+!data/README.md
+!data/import/
+data/import/*
+!data/import/.gitkeep
+
+# Claude Code, local only
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/worktrees/
+
+# UI build and test output
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/

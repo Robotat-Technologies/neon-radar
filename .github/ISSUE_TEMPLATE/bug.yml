@@ -1,0 +1,21 @@
+name: Bug report
+description: Something in NeonRadar does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Security issues do not belong here: follow SECURITY.md instead. Never paste personal data, API keys or OpenSanctions rows into an issue."
+  - type: textarea
+    id: what-happened
+    attributes: { label: What happened, description: "What you did, what you expected and what happened instead." }
+    validations: { required: true }
+  - type: textarea
+    id: reproduce
+    attributes: { label: Steps to reproduce, description: "Commands and inputs. Use synthetic data only." }
+    validations: { required: true }
+  - type: textarea
+    id: output
+    attributes: { label: Output or logs, render: text }
+  - type: input
+    id: version
+    attributes: { label: Version, description: "Commit SHA or release, and your operating system." }

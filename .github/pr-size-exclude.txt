@@ -1,0 +1,15 @@
+uv.lock
+ui/package-lock.json
+ui/src/api/schema.d.ts
+contracts/openapi/**
+contracts/schemas/**
+contracts/examples/**
+data/fixtures/**
+**/tests/fixtures/**
+docs/research/**
+**/*.md
+detect/typologies/*.yaml
+docs/sources/bibliography.yaml
+LICENSE
+NOTICE
+.github/CODEOWNERS

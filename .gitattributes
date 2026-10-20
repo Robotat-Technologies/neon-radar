@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.sh text eol=lf
+
+# Generated files: collapsed in diffs
+uv.lock linguist-generated=true
+ui/package-lock.json linguist-generated=true
+ui/src/api/schema.d.ts linguist-generated=true
+contracts/openapi/*.json linguist-generated=true
+contracts/schemas/*.json linguist-generated=true
+
+# Documentation
+docs/research/** linguist-documentation=true

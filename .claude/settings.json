@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(uv run *)",
+      "Bash(uv sync *)",
+      "Bash(uv lock *)",
+      "Bash(uv add *)",
+      "Bash(uv remove *)",
+      "Bash(uv tree *)",
+      "Bash(uv python *)",
+      "Bash(npm ci *)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npx playwright *)",
+      "Bash(npx vue-tsc *)",
+      "Bash(docker compose *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git switch *)",
+      "Bash(git checkout -b *)",
+      "Bash(git fetch *)",
+      "Bash(git pull --ff-only *)",
+      "Bash(git merge origin/main)",
+      "Bash(git merge --no-edit origin/main)",
+      "Bash(git push -u origin p1/*)",
+      "Bash(git push origin p1/*)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh label *)",
+      "Bash(gh run view *)",
+      "Bash(gh run list *)",
+      "Bash(jq *)",
+      "Bash(python3 scripts/*)",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:neo4j.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:developer.company-information.service.gov.uk)",
+      "WebFetch(domain:www.gleif.org)",
+      "WebFetch(domain:followthemoney.tech)",
+      "WebFetch(domain:www.opensanctions.org)",
+      "WebFetch(domain:offshoreleaks.icij.org)",
+      "WebFetch(domain:www.fatf-gafi.org)"
+    ],
+    "ask": [
+      "Bash(docker compose down -v*)",
+      "Bash(docker volume rm *)",
+      "Bash(gh secret *)",
+      "Bash(gh variable *)",
+      "Bash(git reset *)",
+      "Bash(git branch -D *)",
+      "Bash(rm -rf *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./secrets/**)",
+      "Edit(./.env)",
+      "Bash(gh pr merge)",
+      "Bash(gh pr merge *--squash*)",
+      "Bash(gh pr merge *--rebase*)",
+      "Bash(gh pr merge *--admin*)",
+      "Bash(gh pr merge *--auto*)",
+      "Bash(gh pr merge *--delete-branch*)",
+      "Bash(gh pr merge -s*)",
+      "Bash(gh pr merge * -s*)",
+      "Bash(gh pr merge -r*)",
+      "Bash(gh pr merge * -r*)",
+      "Bash(gh pr merge -d*)",
+      "Bash(gh pr merge * -d*)",
+      "Bash(git push --force *)",
+      "Bash(git push --force-with-lease*)",
+      "Bash(git push -f *)",
+      "Bash(git push --delete *)",
+      "Bash(git push * --delete *)",
+      "Bash(git push -d *)",
+      "Bash(git push * -d *)",
+      "Bash(git push * :*)",
+      "Bash(git push --tags*)",
+      "Bash(git push * --tags*)",
+      "Bash(git push origin main*)",
+      "Bash(git push origin HEAD:main*)",
+      "Bash(gh repo edit *)",
+      "Bash(gh repo delete *)",
+      "Bash(npm install typescript@latest*)",
+      "Bash(npm i typescript@latest*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-contracts.sh" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_git.py" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-file.sh" }
+        ]
+      }
+    ]
+  }
+}

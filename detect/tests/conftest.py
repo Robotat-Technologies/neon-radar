@@ -1,11 +1,18 @@
 """Shared helpers for the detect tests: the circular-flow fixture with its known right answer,
 case F (built here, never committed: fixtures stay synthetic), and the query row the detector
-receives for a cycle, built from the C1 records the way the C2 loader maps them."""
+receives for a cycle, built from the C1 records the way the C2 loader maps them.
+
+The integration tests use the Neo4j fixtures of graph/tests/conftest.py (`neo4j`, one per test
+session, and `graph_db`, migrated and wiped), imported here so both suites start Neo4j the same
+way (Testcontainers with the pinned GDS jar, or NR_TEST_NEO4J_URI)."""
 
 import copy
+import importlib.util
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 from neonradar_contracts.datasets import load_registry
@@ -19,6 +26,26 @@ EXPECTED: dict[str, Any] = json.loads((FIXTURE_DIR / "expected.json").read_text(
 CIRCULAR_FLOW: TypologyFile = load_typology(
     REPO_ROOT / "detect" / "typologies" / "circular_flow.yaml"
 )
+
+
+def _graph_conftest() -> ModuleType:
+    """graph/tests/conftest.py, under the module name pytest gives it, loaded once."""
+    name = "graph.tests.conftest"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            name, REPO_ROOT / "graph" / "tests" / "conftest.py"
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+_GRAPH = _graph_conftest()
+Neo4jTarget = _GRAPH.Neo4jTarget
+neo4j = _GRAPH.neo4j  # pytest fixtures, re-exported for the detect integration tests
+graph_db = _GRAPH.graph_db
 
 # Case F (PHASE-1.md M1.9b): case A's cycle with a non-synthetic origin holder. The id and name
 # are the spec's; "Test Holder Ltd" had no exact match on the Companies House name search

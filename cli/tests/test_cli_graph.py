@@ -18,10 +18,11 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def settings_from_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
-    """Never read the repository's real .env in these tests."""
+    """Never read the real .env or the devcontainer's Compose secret in these tests."""
     for name in [key for key in os.environ if key.startswith("NEO4J_")]:
         monkeypatch.delenv(name)
     monkeypatch.setitem(graph.Neo4jSettings.model_config, "env_file", tmp_path / "missing.env")
+    monkeypatch.setattr("neonradar_graph.client.SECRETS_DIR", tmp_path / "no-secrets")
 
 
 @contextmanager

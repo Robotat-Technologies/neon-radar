@@ -1,0 +1,78 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: ICU headers for PyICU
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libicu-dev
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv python install 3.14
+      - run: uv sync --all-packages --locked
+      - name: Cache pre-commit hook environments
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - run: uv run pre-commit run --all-files
+        env:
+          # The gitleaks hook scans staged changes only, so nothing in CI; the hygiene job
+          # scans the pull request's commits instead.
+          SKIP: gitleaks
+      - run: make lint typecheck test contracts-check
+      - name: Agent hook self-test
+        run: bash scripts/test_hooks.sh
+      - name: CODEOWNERS up to date
+        run: uv run --no-project --with pyyaml python scripts/generate_codeowners.py --check
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: ICU headers for PyICU
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libicu-dev
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv python install 3.14
+      - run: uv sync --all-packages --locked
+      - run: uv run pytest -m "integration and not network"
+        env:
+          NR_NEO4J_IMAGE: neo4j:5.26.32-community
+
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        if: ${{ hashFiles('ui/package.json') != '' }}
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - if: ${{ hashFiles('ui/package.json') != '' }}
+        run: npm ci --prefix ui
+      - if: ${{ hashFiles('ui/package.json') != '' }}
+        run: npm run --prefix ui lint && npm run --prefix ui type-check && npm run --prefix ui test:unit -- --run && npm run --prefix ui build

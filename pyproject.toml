@@ -19,6 +19,7 @@ dev = [
 
 [tool.uv]
 package = false
+required-version = ">=0.13,<0.14"
 
 [tool.uv.sources]
 neonradar-cli = { workspace = true }
@@ -79,4 +80,6 @@ testpaths = [
     "copilot/tests",
     "api/tests",
     "cli/tests",
+    "scripts/tests",
 ]
+pythonpath = ["scripts"]

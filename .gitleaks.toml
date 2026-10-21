@@ -1,4 +1,4 @@
-# gitleaks settings for NeonRadar: the default rules plus one narrow allowlist. gitleaks reads
+# gitleaks settings for NeonRadar: the default rules plus two narrow allowlists. gitleaks reads
 # this file from the repository root, in the pr-hygiene workflow and in the pre-commit hook.
 [extend]
 useDefault = true
@@ -13,3 +13,12 @@ condition = "AND"
 paths = ['''^docs/sources/bibliography\.yaml$''']
 regexTarget = "line"
 regexes = ['''^\s*- key: [a-z][a-z0-9]{0,15}(?:_[a-z0-9]{1,15}){1,8}\s*$''']
+
+# The European Commission publishes its Financial Sanctions Files download links with one public
+# token, `dG9rZW4tMjAxNw` (base64 for "token-2017"); PHASE-2.md M2.6d and its research note quote
+# it. Ignore exactly that value, nothing else.
+[[allowlists]]
+description = "Public EU FSF download token (PHASE-2.md M2.6d)"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = ['''^dG9rZW4tMjAxNw$''']

@@ -5,7 +5,8 @@
   Phase 1 starts with `neonradar --version`, `neonradar doctor`, `neonradar graph smoke`,
   `neonradar graph migrate`, `neonradar contracts validate-records`, `neonradar contracts export`
   and `check` (JSON Schemas and the OpenAPI snapshot), `neonradar api serve` (127.0.0.1 only),
-  `neonradar docs typology-index` and `neonradar spike clean`.
+  `neonradar docs typology-index`, `neonradar spike clean` and the spikes
+  (`neonradar spike gleif`, M1.8b; `neonradar spike opensanctions`, M1.8d).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.

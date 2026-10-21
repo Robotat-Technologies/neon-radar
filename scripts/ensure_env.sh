@@ -8,8 +8,28 @@ env_file="$root/.env"
 example="$root/.env.example"
 
 if [ -e "$env_file" ] || [ -L "$env_file" ]; then
+  # grep -q prints nothing, so the file's contents never reach the terminal.
+  grep -q '^NEO4J_PASSWORD=.\{8,\}' "$env_file" 2>/dev/null ||
+    echo "ensure_env: .env has no NEO4J_PASSWORD; edit or delete it and re-run" >&2
   exit 0
 fi
+
+# In a linked git worktree, share the main checkout's .env: all checkouts run the same Compose
+# project and so the same database, whose password is fixed when the database is first created.
+common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+gitdir="$(git -C "$root" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
+if [ -n "$common" ] && [ "$common" != "$gitdir" ]; then
+  main_root="$(dirname "$common")"
+  if [ -e "$main_root/.env" ]; then
+    ln -s "$main_root/.env" "$env_file"
+    echo "Linked .env to the main checkout's .env."
+    exit 0
+  fi
+  echo "ensure_env: this is a linked git worktree; run 'bash scripts/ensure_env.sh'" \
+    "in the main checkout ($main_root) first" >&2
+  exit 1
+fi
+
 if [ ! -f "$example" ]; then
   echo "ensure_env: $example is missing" >&2
   exit 1

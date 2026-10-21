@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | File | `docs/build/phase-2-reconciliation.md` (PHASE-2.md M2.0 deliverable 1) |
-| Reconciled against | `main` at `f3b55c9` (22 October 2026, after #31, #32, #35, #38, #41 and #42 merged), plus the open Phase 1 pull requests, read but not relied on |
+| Reconciled against | `main` at `5a6b0c4` (22 October 2026, after #31, #32, #35, #38, #41, #42 and #44 merged), plus the open Phase 1 pull requests (#43, #19), read but not relied on |
 | Written by | The M2.0 build agent; the tech lead owns it |
 | Gate 1 | **Not passed** (operator decision OD-18: Phase 2 starts before Gate 1). No tag `contracts-v1.0.0`, no `docs/build/reports/phase-1.md` |
 
@@ -18,7 +18,7 @@ Line numbers refer to `docs/build/PHASE-2.md`. Code paths under `ingest/src/neon
 | Tag `contracts-v1.0.0`, `make contracts-check` green | No tag. `make contracts-check` is green. Without the tag, `.claude/hooks/guard-contracts.sh` and `scripts/check_contract_paths.py` do not enforce the freeze yet | M2.0 does not touch `contracts/**` or `graph/schema/**`. M2.1a to M2.1c wait for the tag, which the operator creates (OD-5, OD-18) |
 | `docs/build/reports/phase-1.md` | **Missing.** The Gate 1 check (`neonradar gate check --phase 1`, M1.12-1, #32) is merged; the report follows Gate 1 (M1.12-2) | This reconciliation uses `docs/build/PROGRESS.md`, the spike reports and the code instead. Re-check it against the report when that merges |
 | Spike reports for Companies House, GLEIF, ICIJ and OpenSanctions | All four in `docs/data/spikes/`. Companies House: verdict "pending network run" (no `CH_API_KEY` yet). OpenSanctions: blocked on the licence (OD-19) | See rows D6 and D7 |
-| Walking skeleton: `make demo-mini`, `make e2e`, loader, migration runner, API, detection runner (M1.9) | On `main`: the migration runner, the demo-mini fixture (M1.8e, #27 and #41), the loader (`graph load`, `stats`, `wipe`; M1.9a, #31), the detection runner and circular-flow detector (M1.9b, #38) and the UI shell (M1.9d, #35). Open: the API endpoints (M1.9c, **#44**) and `make demo-mini` and `make e2e` (M1.9e, **#43**), which still print "available after M1.9" | See section 4 |
+| Walking skeleton: `make demo-mini`, `make e2e`, loader, migration runner, API, detection runner (M1.9) | On `main`: the migration runner, the demo-mini fixture (M1.8e, #27 and #41), the loader (`graph load`, `stats`, `wipe`; M1.9a, #31), the detection runner and circular-flow detector (M1.9b, #38), the UI shell (M1.9d, #35) and the Phase 1 API endpoints (M1.9c, #44). Open: `make demo-mini` and `make e2e` (M1.9e, **#43**), which still print "available after M1.9" | See section 4 |
 | C1 validator, dataset registry, fixture check (M1.6, M1.7a) | Present (`neonradar_contracts.records`, `contracts/datasets.yaml`, `scripts/check_fixtures.py`) | None |
 | Deviations in `PROGRESS.md` | Many rows of merged pull requests still say `pr-open` (each row was written before its merge) | Milestone dependencies are checked with `gh pr view <n> --json state`, as 2.2 step 1 allows |
 
@@ -101,9 +101,9 @@ PHASE-2.md 4.4 says a form a Phase 1 spike already chose stays, and `contracts/C
 | E5 | `PAID.ts` is a timezone-aware `datetime` (7665) | The loader passes a string ending in `Z`, turned into a `DATETIME` by `datetime(row.ts)` | M | Follow the spec; still stored as `DATETIME` |
 | E6 | `to_node_rows(records, resolution)`; `load(paths, resolution, replace, instance)` (7661 to 7667) | `to_node_rows(records)` returns a `MappingResult`; the loader has `load_files(driver, paths, *, strict, database, batch_size)` | M | Extend the Phase 1 functions; keep `strict` and `MappingResult` |
 | E7 | `Instance.DEFAULT` reads the `NEO4J_*` settings (7659) | `Neo4jSettings` in `graph/src/neonradar_graph/client.py` (prefix `NEO4J_`, database `neo4j` by default); `.env.example` has no `NEO4J_DATABASE` | M | Wrap `Neo4jSettings` |
-| E8 | Ownership queries run with a 5-second timeout; "Phase 1's subgraph builder" (5.3, M2.12) | API reads go through `GraphConnection.read` with no timeout; no subgraph builder on `main` yet (M1.9c, **#44**) | M, P #44 | Add a timeout to `read`; M2.12 waits for M1.9c |
+| E8 | Ownership queries run with a 5-second timeout; "Phase 1's subgraph builder" (5.3, M2.12) | API reads go through `GraphConnection.read` (`api/src/neonradar_api/graph.py`) with no timeout; the subgraph builder is `neonradar_api.shapes.subgraph` (M1.9c, #44) | M | Add a timeout to `read`; M2.12 waits for M1.9c |
 | E9 | `WHERE $min_share = 0` (1045) | `min_share` is optional and defaults to null | M | Pass `min_share or 0` |
-| E10 | M2.1c tests that the meta endpoint serves `real-data-v2.txt` (2336) | `GET /api/v1/meta` returns 501 naming M1.9c on `main` | P #44 | M2.1c waits for M1.9c or defers that test |
+| E10 | M2.1c tests that the meta endpoint serves `real-data-v2.txt` (2336) | `GET /api/v1/meta` is implemented (`neonradar_api.reference.meta`, M1.9c, #44) | M | M2.1c switches the notice file it serves |
 | E11 | Real data stays under `data/cache/real/` (4.5, G9) | The detection runner (M1.9b) writes alert audit copies (ids and captions) to `data/runs/<run_id>/` | Q tech lead (Phase 3) | Decide where a run against the real instance writes before Phase 3 detects on real data |
 | E12 | `NR_PROJECT_FILE` points the data manager at a test project file (2374) | `neonradar_ingest.spikes.PROJECT_FILE` is fixed | M | M2.2 routes `cache_days` through `load_project()` |
 
@@ -119,20 +119,21 @@ From now on every Cypher statement that new or changed code runs lives in a `.cy
 | `graph/src/neonradar_graph/loader.py` | `APPLIED`, `WIPE`, `STATS`, `node_query()`, `relationship_query()` | Pending-migration check, `graph wipe`, `apoc.meta.stats`, node and relationship upserts built per schema and type |
 | `graph/tests/test_invariants.py` | I1 to I6 | Test strings; M2.11's `verify.py` reuses them |
 | `detect/src/neonradar_detect/runner.py` | `MERGE_RUN`, `PRUNE_RUN`, `MERGE_ALERTS` | Detection runs and alerts |
+| `api/src/neonradar_api/entities.py`, `alerts.py`, `reference.py` (M1.9c, #44) | `FULLTEXT`, `ACCOUNT`, `ROOT`, `_HOP`, `_END`; `QUEUE`, `PAYLOAD`, `EVIDENCE`; `RECORD_COUNTS` | Search, entity detail and network, the alert queue and alert evidence, the meta counts; M2.12 moves the ones it changes into `.cypher` files |
 
-The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and the circular-flow template; `make cypher-lint` checks 32 statements (29 plus the template's three lint variants) with 0 problems. The API queries of M1.9c (**#44**) must be `.cypher` files that pass the lint once M2.0 is merged.
+The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and the circular-flow template; `make cypher-lint` checks 32 statements (29 plus the template's three lint variants) with 0 problems. The API queries of M1.9c (#44) merged as Python strings (above); a later milestone that changes one moves it into a `.cypher` file that passes the lint.
 
 ## 4. Open Phase 1 items that block Phase 2 milestones
 
 | Phase 2 milestone | Waits for |
 |---|---|
 | M2.1a, M2.1b, M2.1c | The tag `contracts-v1.0.0` (operator, OD-5) and the approved contract-change issues (5.0) |
-| M2.1c | M1.9c (**#44**: `/meta`, E10); question E1 |
+| M2.1c | Question E1 |
 | M2.3c (real-data run) | `CH_API_KEY` and the Companies House network spike run (D6) |
 | M2.4, M2.5, M2.6a, M2.10a | Questions C6 and C7, C8 and B5, B6, C11 |
 | M2.11 | Questions E2 and E4 (the loader and the detection runner it builds on are merged) |
-| M2.12 | M1.9c (**#44**: subgraph builder, entity id lookup, network endpoint) |
-| M2.13 | M1.9c (**#44**: `/network` and `/search` in the query benchmark) and M1.9e (**#43**: `make demo-mini`, `make e2e`, the end-to-end workflow) |
+| M2.12 | Nothing from Phase 1 (M1.9c merged in #44) |
+| M2.13 | M1.9e (**#43**: `make demo-mini`, `make e2e`, the end-to-end workflow) |
 | M2.16 | M1.9e (**#43**) for the Gate 2 checks that run the demo, and the Phase 1 report (M1.12-2) |
 | M2.0 (this milestone) | Built before Gate 1 under OD-18. **P #19** (M1.5) touches `compose.yaml` and `.mcp.json` (A4, A5) |
 | M2.2, M2.3a, M2.3b, M2.6b to M2.6e, M2.7, M2.8, M2.9, M2.10b, M2.10c, M2.14, M2.15 | No open Phase 1 pull request (they still wait for their Phase 2 dependencies, 1.8) |

@@ -1,0 +1,28 @@
+slug: rapid_pass_through
+name: Rapid pass-through (funnel or transit accounts)
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Funds arrive in an account and leave it again within hours or days, keeping little
+  balance behind, so that the account works as a conduit rather than a store of value.
+doc: docs/typologies/rapid-pass-through.md
+citations: [fincen_fin_2014_a005, fatf_egmont_tbml_indicators_2021, fatf_cyber_fraud_2023, ffiec_appendix_f, fatf_egmont_concealment_2018]
+graph_pattern: >
+  An Account whose inbound PAID total within a window leaves again through outbound PAID
+  within hours or a few days (a dwell-time parameter), keeping a small residual; inbound
+  from several unrelated accounts, outbound to few beneficiaries.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Payment service providers and remittance aggregators
+  - Payroll bureaus
+  - Escrow and client accounts of law firms and estate agents
+  - Marketplace settlement accounts
+  - Treasury sweep accounts
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null

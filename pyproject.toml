@@ -79,4 +79,6 @@ testpaths = [
     "copilot/tests",
     "api/tests",
     "cli/tests",
+    "scripts/tests",
 ]
+pythonpath = ["scripts"]

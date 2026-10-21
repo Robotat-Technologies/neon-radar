@@ -1,0 +1,12 @@
+# Never send secrets, local data, environments or git history to a Docker build (G2, G6).
+.git
+.env
+.env.*
+secrets/
+data/*
+!data/fixtures/
+.venv/
+**/__pycache__/
+ui/node_modules/
+ui/dist/
+.claude/worktrees/

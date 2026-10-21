@@ -1,0 +1,24 @@
+# NeonRadar wording lint v1: entity-facing templates must not match any line below
+\blaunder\w*
+\blaundromat\w*
+\bcriminal\w*
+\bcrimes?\b
+\bguilty\b
+\bfraud\w*
+\bsuspic\w*
+\bsuspect\w*
+\billicit\w*
+\billegal\w*
+\bdirty\s+money\b
+\bcorrupt\w*
+\bbrib\w*
+\bterroris\w*
+\bmules?\b
+\bshell\s+compan\w*
+\bfront\s+compan\w*
+\bconceal\w*
+\bevad\w*
+\bevasion\b
+\brisk[\s-]+scor\w*
+\baccomplice\w*
+\bwrongdo\w*

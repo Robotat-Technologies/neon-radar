@@ -1,0 +1,297 @@
+[
+  {
+    "id": "os-ent-NK-synPersonAlpha",
+    "schema": "Person",
+    "properties": {
+      "name": [
+        "Synthetic Person Alpha"
+      ],
+      "alias": [
+        "Синтетик Персона Альфа"
+      ],
+      "birthDate": [
+        "1970"
+      ],
+      "nationality": [
+        "gb"
+      ],
+      "topics": [
+        "role.pep"
+      ],
+      "addressEntity": [
+        "os-ent-syn-os-address-01"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "referents": [
+      "os-ent-syn-os-src-alpha-1",
+      "os-ent-syn-os-src.alpha.2"
+    ],
+    "caption": "Synthetic Person Alpha",
+    "first_seen": "2025-08-22T10:15:20",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2026-03-01T07:00:00",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "NK-synPersonAlpha"
+    }
+  },
+  {
+    "id": "os-ent-NK-synPersonBeta",
+    "schema": "Person",
+    "properties": {
+      "name": [
+        "Synthetic Person Beta"
+      ],
+      "birthDate": [
+        "1972-04"
+      ],
+      "topics": [
+        "role.rca"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "Synthetic Person Beta",
+    "first_seen": "2025-08-22T10:15:20",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2025-08-22T10:15:20",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "NK-synPersonBeta"
+    }
+  },
+  {
+    "id": "os-ent-NK-synPersonGamma",
+    "schema": "Person",
+    "properties": {
+      "name": [
+        "Synthetic Person Gamma"
+      ],
+      "alias": [
+        "Synthétic Person Gamma"
+      ],
+      "topics": [
+        "sanction"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "referents": [
+      "os-ent-syn-os-src-gamma-1"
+    ],
+    "caption": "Synthetic Person Gamma",
+    "first_seen": "2024-05-01T08:00:00",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2024-05-01T08:00:00",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "NK-synPersonGamma"
+    }
+  },
+  {
+    "id": "os-ent-NK-synCompanyDelta",
+    "schema": "Company",
+    "properties": {
+      "name": [
+        "Synthetic Example Company Delta Ltd"
+      ],
+      "jurisdiction": [
+        "gb"
+      ],
+      "topics": [
+        "sanction.linked"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "referents": [
+      "os-ent-syn-os-src-delta-1"
+    ],
+    "caption": "Synthetic Example Company Delta Ltd",
+    "first_seen": "2024-05-01T08:00:00",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2024-05-01T08:00:00",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "NK-synCompanyDelta"
+    }
+  },
+  {
+    "id": "os-ent-syn-os-address-01",
+    "schema": "Address",
+    "properties": {
+      "full": [
+        "1 Placeholder Road, Exampleton"
+      ],
+      "city": [
+        "Exampleton"
+      ],
+      "country": [
+        "gb"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "1 Placeholder Road, Exampleton",
+    "first_seen": "2025-08-22T10:15:20",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2025-08-22T10:15:20",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "syn-os-address-01"
+    }
+  },
+  {
+    "id": "os-ent-syn-os-position.01",
+    "schema": "Position",
+    "properties": {
+      "name": [
+        "Synthetic Example Minister of Placeholders"
+      ],
+      "country": [
+        "gb"
+      ],
+      "topics": [
+        "gov.national",
+        "gov.executive"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "Synthetic Example Minister of Placeholders",
+    "first_seen": "2025-08-22T10:15:20",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2025-08-22T10:15:20",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "syn-os-position_01"
+    }
+  },
+  {
+    "id": "os-ent-syn-os-occupancy-01",
+    "schema": "Occupancy",
+    "properties": {
+      "holder": [
+        "os-ent-NK-synPersonAlpha"
+      ],
+      "post": [
+        "os-ent-syn-os-position.01"
+      ],
+      "status": [
+        "current"
+      ],
+      "startDate": [
+        "2022-01-15"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "Synthetic Example Minister of Placeholders",
+    "first_seen": "2025-08-22T10:15:20",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2025-08-22T10:15:20",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "syn-os-occupancy-01"
+    }
+  },
+  {
+    "id": "os-ent-syn-os-family-01",
+    "schema": "Family",
+    "properties": {
+      "person": [
+        "os-ent-NK-synPersonAlpha"
+      ],
+      "relative": [
+        "os-ent-NK-synPersonBeta"
+      ],
+      "relationship": [
+        "sibling"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "Family",
+    "first_seen": "2025-08-22T10:15:20",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2025-08-22T10:15:20",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "syn-os-family-01"
+    }
+  },
+  {
+    "id": "os-ent-syn-os-sanction-01",
+    "schema": "Sanction",
+    "properties": {
+      "entity": [
+        "os-ent-NK-synPersonGamma"
+      ],
+      "authority": [
+        "Synthetic Example Authority"
+      ],
+      "program": [
+        "Synthetic example programme"
+      ],
+      "country": [
+        "zz"
+      ],
+      "listingDate": [
+        "2024-05-01"
+      ],
+      "startDate": [
+        "2024-05-01"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "Sanction",
+    "first_seen": "2024-05-01T08:00:00",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2024-05-01T08:00:00",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "syn-os-sanction-01"
+    }
+  },
+  {
+    "id": "os-ent-syn-os-ownership-01",
+    "schema": "Ownership",
+    "properties": {
+      "owner": [
+        "os-ent-NK-synPersonGamma"
+      ],
+      "asset": [
+        "os-ent-NK-synCompanyDelta"
+      ],
+      "percentage": [
+        "50"
+      ],
+      "startDate": [
+        "2020-02-01"
+      ]
+    },
+    "datasets": [
+      "opensanctions_default"
+    ],
+    "caption": "Ownership",
+    "first_seen": "2024-05-01T08:00:00",
+    "last_seen": "2026-10-15T18:54:39",
+    "last_change": "2024-05-01T08:00:00",
+    "nr": {
+      "v": "1.0",
+      "source_ref": "syn-os-ownership-01"
+    }
+  }
+]

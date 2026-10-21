@@ -9,8 +9,9 @@
 # Entries from PHASE-1.md 7.3 were checked by the research note
 # docs/research/2026-10-16/aml-domain.md on 15 and 16 October 2026. Milestone M1.10a re-opened
 # every url it could on 21 October 2026. fatf-gafi.org, bsaaml.ffiec.gov, eba.europa.eu,
-# justice.gov and register.openownership.org answer automated clients with a bot challenge, so
-# those entries keep the research note's date and say so in their note.
+# justice.gov, register.openownership.org and eur-lex.europa.eu answer automated clients with a
+# bot challenge, so those entries keep the research note's date (or name the page that was read
+# instead) and say so in their note.
 version: 1
 entries:
   # FATF
@@ -270,7 +271,7 @@ entries:
     url: https://www.fincen.gov/resources/statutes-regulations/guidance/potential-money-laundering-risks-related-shell-companies
     extra_urls: []
     verified: 2026-10-21
-    note: "Shell companies, nominee incorporation services and transaction indicators; notes that most shell companies are formed for legitimate purposes."
+    note: "Shell companies, nominee incorporation services and transaction indicators. It says: \"Most shell companies are formed by individuals and businesses for legitimate purposes\" (Background section, read 2026-10-21)."
   - key: fincen_fin_2025_a003
     title: "FinCEN Advisory FIN-2025-A003: Use of Chinese Money Laundering Networks by Mexico-Based Transnational Criminal Organizations"
     publisher: FinCEN
@@ -286,7 +287,7 @@ entries:
     url: https://bsaaml.ffiec.gov/manual/Appendices/07
     extra_urls: []
     verified: 2026-10-16
-    note: "Living document. Red flags, which are not all-inclusive and are not evidence on their own. bsaaml.ffiec.gov answers automated clients with a CAPTCHA; not re-opened by the build; re-open in a browser."
+    note: "Living document. Red flags, which are not all-inclusive and are not evidence on their own. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
   - key: ffiec_appendix_g
     title: "BSA/AML Examination Manual, Appendix G: Structuring"
     publisher: FFIEC
@@ -294,7 +295,7 @@ entries:
     url: https://bsaaml.ffiec.gov/manual/Appendices/08
     extra_urls: []
     verified: 2026-10-16
-    note: "Living document. Structuring under US law. bsaaml.ffiec.gov answers automated clients with a CAPTCHA; not re-opened by the build; re-open in a browser."
+    note: "Living document. Structuring under US law. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
   - key: ffiec_cash_intensive
     title: "BSA/AML Examination Manual: Cash-Intensive Businesses"
     publisher: FFIEC
@@ -302,15 +303,15 @@ entries:
     url: https://bsaaml.ffiec.gov/manual/RisksAssociatedWithMoneyLaunderingAndTerroristFinancing/26
     extra_urls: []
     verified: 2026-10-16
-    note: "Living document. Risk factors for cash-intensive businesses. bsaaml.ffiec.gov answers automated clients with a CAPTCHA; not re-opened by the build; re-open in a browser."
+    note: "Living document. Risk factors for cash-intensive businesses. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
   - key: cfr_31_1010_314
     title: "31 CFR 1010.314: Structured transactions"
-    publisher: US Code of Federal Regulations (Legal Information Institute copy)
+    publisher: US Code of Federal Regulations
     year: null
     url: https://www.law.cornell.edu/cfr/text/31/1010.314
     extra_urls: []
     verified: 2026-10-21
-    note: Living regulation. The US prohibition on structuring transactions to evade reporting requirements.
+    note: Living regulation, read in the Legal Information Institute copy. The US prohibition on structuring transactions to evade reporting requirements.
   - key: ofac_50_percent_2014
     title: Revised Guidance on Entities Owned by Persons Whose Property and Interests in Property Are Blocked
     publisher: OFAC, US Treasury
@@ -335,7 +336,7 @@ entries:
     url: https://www.eba.europa.eu/single-rule-book-qa/qna/view/publicId/2022_6622
     extra_urls: []
     verified: 2026-10-16
-    note: "Reproduces Directive (EU) 2015/849, Article 3(6), the 25 percent indication of direct ownership. eba.europa.eu answered the build's request with HTTP 403; not re-opened by the build; re-open in a browser."
+    note: "Reproduces Directive (EU) 2015/849, Article 3(6), the 25 percent indication of direct ownership. eba.europa.eu answers automated clients with a bot challenge (HTTP 403 from its gateway); not re-opened by the build; re-open in a browser."
   # Disclaimers of public data tools
   - key: icij_faq
     title: "Offshore Leaks Database: frequently asked questions"
@@ -384,9 +385,10 @@ entries:
     publisher: US Department of Justice
     year: 2022
     url: https://www.justice.gov/opa/pr/danske-bank-pleads-guilty-fraud-us-banks-multi-billion-dollar-scheme-access-us-financial
-    extra_urls: []
+    extra_urls:
+      - https://www.justice.gov/archives/opa/pr/danske-bank-pleads-guilty-fraud-us-banks-multi-billion-dollar-scheme-access-us-financial
     verified: 2026-10-16
-    note: "13 December 2022. Title taken from the page address; confirm when opening. On 2026-10-21 justice.gov answered with a bot challenge that points to /archives/opa/pr/ at the same slug; not re-opened by the build; re-open in a browser."
+    note: "13 December 2022. Title taken from the page address; confirm when opening. On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
   - key: occrp_azerbaijani_laundromat_2017
     title: The Azerbaijani Laundromat
     publisher: OCCRP
@@ -396,7 +398,7 @@ entries:
       - https://occrp.org/en/project/the-azerbaijani-laundromat/the-core-companies
     verified: 2026-10-21
     note: "Project page, 4 September 2017; \"The Core Companies\" is the extra URL. Journalistic reporting, not a court finding."
-  - key: occrp_volonte_2021
+  - key: occrp_pace_bribery_2021
     title: Italian Court Sentences Former Council of Europe MP for Bribery
     publisher: OCCRP
     year: 2021
@@ -409,9 +411,10 @@ entries:
     publisher: US Department of Justice
     year: 2016
     url: https://www.justice.gov/opa/pr/united-states-seeks-recover-more-1-billion-obtained-corruption-involving-malaysian-sovereign
-    extra_urls: []
+    extra_urls:
+      - https://www.justice.gov/archives/opa/pr/united-states-seeks-recover-more-1-billion-obtained-corruption-involving-malaysian-sovereign
     verified: 2026-10-16
-    note: "20 July 2016. Announces the first civil forfeiture complaints (allegations). On 2026-10-21 justice.gov answered with a bot challenge that points to /archives/opa/pr/ at the same slug; not re-opened by the build; re-open in a browser."
+    note: "20 July 2016. Announces the first civil forfeiture complaints (allegations). On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
   - key: doj_1mdb_complaint_2025
     title: Verified complaint for forfeiture in rem, C.D. Cal. 2:25-cv-00474
     publisher: US Department of Justice
@@ -419,7 +422,7 @@ entries:
     url: https://www.justice.gov/opa/media/1385611/dl
     extra_urls: []
     verified: 2026-10-21
-    note: "Filed 17 January 2025. Allegations, not proven until a court awards judgment."
+    note: "Filed 17 January 2025. Allegations, not proven until a court awards judgment. The /opa/media download opened on 2026-10-21 (a 12-page PDF headed Case 2:25-cv-00474, Document 1)."
   - key: doj_goldman_2020
     title: Goldman Sachs Charged in Foreign Bribery Case and Agrees to Pay Over $2.9 Billion
     publisher: US Department of Justice
@@ -433,9 +436,10 @@ entries:
     publisher: US Department of Justice
     year: 2023
     url: https://www.justice.gov/opa/pr/former-goldman-sachs-investment-banker-sentenced-27b-bribery-and-money-laundering-scheme
-    extra_urls: []
+    extra_urls:
+      - https://www.justice.gov/archives/opa/pr/former-goldman-sachs-investment-banker-sentenced-27b-bribery-and-money-laundering-scheme
     verified: 2026-10-16
-    note: "Title and year taken from the page address and the public record; confirm when opening. On 2026-10-21 justice.gov answered with a bot challenge that points to /archives/opa/pr/ at the same slug; not re-opened by the build; re-open in a browser."
+    note: "Title and year taken from the page address and the public record; confirm when opening. On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
   - key: doj_1mdb_settlement_2019
     title: U.S. Reaches Settlement to Recover More Than $700 Million in Assets Allegedly Traceable to Corruption Involving Malaysian Sovereign Wealth Fund
     publisher: US Department of Justice
@@ -459,9 +463,9 @@ entries:
     title: Regulation (EU) 2016/679 (General Data Protection Regulation)
     publisher: European Parliament and Council of the European Union
     year: 2016
-    url: https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    url: https://www.legislation.gov.uk/eur/2016/679/article/4/adopted
     extra_urls:
-      - https://www.legislation.gov.uk/eur/2016/679/article/4/adopted
       - https://www.legislation.gov.uk/eur/2016/679/article/10/adopted
+      - https://eur-lex.europa.eu/eli/reg/2016/679/oj
     verified: 2026-10-21
-    note: "Articles 4(1), 4(7) and 10 were read on 2026-10-21 in the text as adopted, published by legislation.gov.uk (extra URLs). EUR-Lex answered the build's request with a bot challenge, so the current consolidated EU text was not opened; the data steward confirms that these articles are unchanged."
+    note: "Articles 4(1), 4(7) and 10 in the text as adopted, read on legislation.gov.uk on 2026-10-21 (url and first extra URL). EUR-Lex (extra URL) answered with a bot challenge; re-open in a browser. The current consolidated EU text was not opened; the data steward is to confirm that these articles are unchanged."

@@ -1,4 +1,4 @@
-"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0)."""
+"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0, PHASE-3.md M3.0)."""
 
 import json
 import os
@@ -63,6 +63,9 @@ ALLOW = [
     "git grep -n neo4j-real",
     "docker compose --profile real config --services",
     "uv run neonradar er sample --profile demo --run latest --seed 7",
+    # PHASE-3.md M3.0: development evaluations stay allowed
+    "uv run neonradar eval run --split dev",
+    "uv run neonradar eval check",
 ]
 
 BLOCK = [
@@ -143,6 +146,11 @@ BLOCK = [
     "curl -s sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv",
     "docker compose --profile real config",
     "docker inspect $(docker ps -q)",
+    # PHASE-3.md M3.0: the holdout run is human-only and its folder is closed (G11)
+    "uv run neonradar eval run --split test",
+    "neonradar eval run --split=test --engine neo4j",
+    "uv run neonradar eval run --seeds 3 --split test",
+    "ls data/cache/holdout",
 ]
 
 TOOL_ALLOW = [
@@ -165,6 +173,7 @@ TOOL_ALLOW = [
     ("WebFetch", {"url": EU + "rss"}),
     ("mcp__neo4j__read-cypher", {"query": "MATCH (p:Person) RETURN p.names LIMIT 3"}),
     ("mcp__neo4j__get-schema", {}),
+    ("Read", {"file_path": "{project}/data/cache/synthetic/eval/eval-dev-x/report.md"}),
 ]
 
 TOOL_BLOCK = [
@@ -204,6 +213,7 @@ TOOL_BLOCK = [
         {"url": "https://data.opensanctions.org/datasets/latest/default/entities.ftm.json"},
     ),
     ("WebFetch", {"url": "https://members-api.parliament.uk/api/Members/Search?House=Commons"}),
+    ("Read", {"file_path": "{project}/data/cache/holdout/eval-test-x/report.md"}),
 ]
 
 

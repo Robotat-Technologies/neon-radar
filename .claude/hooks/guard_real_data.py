@@ -17,11 +17,17 @@ terminal wrappers script, expect, unbuffer and faketty are always blocked. Shell
 (curl, wget, http, https, xh, aria2c) follow the WebFetch rule below, and docker compose
 config (without --quiet or a listing flag) and docker inspect are blocked, because they
 print passwords from .env.
-Read, Grep and Glob: no path, glob or pattern may name data/cache/real or data/cache/spikes.
+Read, Grep and Glob: no path, glob or pattern may name data/cache/real, data/cache/spikes
+or data/cache/holdout.
 WebFetch: list, register and leak data files and pages about real people are blocked;
 schemas (.xsd), API descriptions (swagger, openapi) and documentation pass.
 Neo4j MCP: allowed, because the default instance holds synthetic data only (PHASE-2.md
 M2.11), unless .mcp.json names the real instance.
+Holdout (PHASE-3.md G11, M3.0): data/cache/holdout, where the human holdout run writes, is
+protected like data/cache/real, and more strictly: a command line that names it (a path in
+it, or it as the current folder) may only run the read-only git subcommands, which see
+tracked files only; listing programs and the project's own commands are blocked too.
+neonradar eval run --split test (in any position, with = or a space) is human-only.
 Exit 2 blocks the call and shows the reason. Standard library only; Python 3.9 or later.
 It stops accidents, not a determined person: the permission rules, CLAUDE.md and the people
 who run the project remain responsible.
@@ -35,8 +41,11 @@ import shlex
 import sys
 from urllib.parse import urlsplit
 
-PROTECTED = ("data/cache/real", "data/cache/spikes")
-MARKS = ("cache/real", "cache/spikes")
+PROTECTED = ("data/cache/real", "data/cache/spikes", "data/cache/holdout")
+MARKS = ("cache/real", "cache/spikes", "cache/holdout")
+# The human holdout run's output (PHASE-3.md G11): closed even to listing programs.
+HOLDOUT = "data/cache/holdout"
+HOLDOUT_MARK = "cache/holdout"
 ANCESTORS = (".", "data", "data/cache")
 
 
@@ -75,7 +84,8 @@ REAL_INSTANCE = re.compile(
 )
 HUMAN_ONLY = re.compile(
     r"\bneonradar(?:_cli)?\b(?:\s+-\S+)*\s+(?:er\s+(?:-\S+\s+)*(?:label|review)\b"
-    r"|api\s+serve\b[^;&|]*?\s--real\b)"
+    r"|api\s+serve\b[^;&|]*?\s--real\b"
+    r"|eval\s+(?:-\S+\s+)*run\b[^;&|]*?\s--split(?:=|\s+)test\b)"
 )
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 WEB_DATA = (
@@ -200,8 +210,13 @@ def relative(token, cwd):
     return None
 
 
-def inside(rel):
-    return rel is not None and any(rel == p or rel.startswith(p + "/") for p in PROTECTED)
+def inside(rel, folders=PROTECTED):
+    return rel is not None and any(rel == p or rel.startswith(p + "/") for p in folders)
+
+
+def names_holdout(token, cwd):
+    """True when a token names data/cache/holdout or something inside it (PHASE-3.md G11)."""
+    return HOLDOUT_MARK in token or inside(relative(token, cwd), (HOLDOUT,))
 
 
 def glob_reaches(pattern, protected, double_star=True):
@@ -303,6 +318,12 @@ def allowed_on_real(name, args):
     return False
 
 
+def allowed_on_holdout(name, args):
+    """Only the read-only git subcommands, which see tracked files (the holdout folder is
+    ignored), may run on a line that names data/cache/holdout (PHASE-3.md G11)."""
+    return name == "git" and allowed_on_real(name, args)
+
+
 def allowed_on_real_instance(name, args):
     if project_command(name, args):
         return True
@@ -373,12 +394,16 @@ def check_bash(command, cwd):
             )
         return
     steps = walk(commands, cwd)
-    line_touches = False
+    line_touches = line_holdout = False
     for tokens, _name, _args, here in steps:
         if inside(relative(here, None)):
             line_touches = True
         if any(touches(t, here) for t in checked_tokens(tokens)):
             line_touches = True
+        if inside(relative(here, None), (HOLDOUT,)) or any(
+            names_holdout(t, here) for t in checked_tokens(tokens)
+        ):
+            line_holdout = True
     for tokens, name, args, here in steps:
         text = " ".join(checked_tokens(tokens))
         if name in WRAPPERS:
@@ -388,8 +413,9 @@ def check_bash(command, cwd):
             )
         if HUMAN_ONLY.search(text):
             block(
-                "er label, er review and api serve --real are human-only commands; ask the "
-                "operator to run them in a terminal (PHASE-2.md G10)"
+                "er label, er review, api serve --real and eval run --split test are "
+                "human-only commands; ask the operator to run them in a terminal "
+                "(PHASE-2.md G10, PHASE-3.md G11)"
             )
         if name in FETCHERS:
             for arg in args:
@@ -435,8 +461,9 @@ def check_bash(command, cwd):
                 paths.append(".")
             if any(relative(a, here) in ANCESTORS or touches(a, here) for a in paths):
                 block(
-                    name + " would read into data/cache/real or data/cache/spikes; use `git grep`, "
-                    "or name a folder that does not contain them"
+                    name + " would read into data/cache/real, data/cache/spikes or "
+                    "data/cache/holdout; use `git grep`, or name a folder that does not "
+                    "contain them"
                 )
         if REAL_INSTANCE.search(text) and not allowed_on_real_instance(name, args):
             block(
@@ -444,6 +471,12 @@ def check_bash(command, cwd):
                 "ports 7475, 7688 and 8001). Only uv run neonradar, make and docker compose "
                 "up, start, stop, down or ps may use it; the default instance (7687) and the "
                 "API on port 8000 hold synthetic data"
+            )
+        if line_holdout and not allowed_on_holdout(name, args):
+            block(
+                "'" + name + "' on a command line that names data/cache/holdout, where the "
+                "human holdout run writes (PHASE-3.md G11). Nothing but read-only git "
+                "subcommands may name it; never generate, list or read a holdout world"
             )
         if line_touches and not allowed_on_real(name, args):
             block(
@@ -467,13 +500,19 @@ def check_paths(tool, tool_input, cwd):
             continue
         value = value.replace("\\", "/")
         if any(m in value for m in MARKS):
-            block(tool + " may not name data/cache/real or data/cache/spikes (PHASE-2.md G9)")
+            block(
+                tool + " may not name data/cache/real, data/cache/spikes or data/cache/holdout "
+                "(PHASE-2.md G9, PHASE-3.md G11)"
+            )
         if key == "glob":
             continue
         full = absolute(value, search_root if key == "pattern" else here)
         rel = relative(full, None)
         if any(m in full for m in MARKS) or inside(rel):
-            block(tool + " may not read data/cache/real or data/cache/spikes (PHASE-2.md G9)")
+            block(
+                tool + " may not read data/cache/real, data/cache/spikes or data/cache/holdout "
+                "(PHASE-2.md G9, PHASE-3.md G11)"
+            )
         if tool == "Grep" and key == "path" and rel in ANCESTORS[1:]:
             block("Grep over data/ or data/cache/ could reach real data; name another folder")
         if (
@@ -481,7 +520,10 @@ def check_paths(tool, tool_input, cwd):
             and any(ch in rel for ch in "*?[")
             and any(glob_reaches(rel, p, double_star=False) for p in PROTECTED)
         ):
-            block(tool + " pattern can reach data/cache/real or data/cache/spikes (PHASE-2.md G9)")
+            block(
+                tool + " pattern can reach data/cache/real, data/cache/spikes or "
+                "data/cache/holdout (PHASE-2.md G9, PHASE-3.md G11)"
+            )
 
 
 def check_url(url, via="WebFetch"):

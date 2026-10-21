@@ -8,8 +8,8 @@
   (M1.9a; `load` is strict by default, `wipe` needs `--yes`), `spike clean`, the spikes
   (`spike companies-house`, M1.8a; `spike gleif`, M1.8b; `spike icij`, M1.8c;
   `spike opensanctions`, M1.8d; `spike synthetic-join`, M1.8e), `synth demo-mini` and
-  `synth check-names` (M1.8e), `onboarding check|reset` (Assignment 1) and
-  `gate check --phase 1` (`make gate-1`, M1.12).
+  `synth check-names` (M1.8e), `onboarding check|reset` (Assignment 1), `detect run|list`
+  (M1.9b) and `gate check --phase 1` (`make gate-1`, M1.12).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.

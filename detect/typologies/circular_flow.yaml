@@ -29,4 +29,4 @@ false_positives:
   - Intra-group cash pooling and treasury sweeps
 synthetic_support: high       # high | medium | low | none
 generator_scenario: round_trip
-detector: null                # M1.9b sets neonradar_detect.detectors.circular_flow
+detector: neonradar_detect.detectors.circular_flow   # null until implemented

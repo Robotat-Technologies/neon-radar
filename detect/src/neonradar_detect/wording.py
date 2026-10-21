@@ -6,12 +6,18 @@ for C4, matches a forbidden pattern (contracts/wording/forbidden-terms.txt), or 
 scenario" for an alert that is not a synthetic_scenario. Number format without a format spec:
 thousands separators, at most two decimals (120000.0 gives 120,000). String metrics are codes
 such as a currency; detectors never put names in metrics.
+
+The explanation texts of an alert (M1.9b) are rendered here too, so that every entity-facing
+word the detect package writes sits in this file: `payment_step` describes one payment,
+`cycle_summary` a circular flow, and `check_rendered` lints the rendered texts with the source
+values (entity captions, account numbers) masked out first (7.1).
 scripts/check_wording.py lints the string literals of this file in CI.
 """
 
 import math
 import string
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
 
 from neonradar_contracts.alert import HEADLINE_MAX, WordingClass
 from neonradar_contracts.wording import find_forbidden, says_synthetic_scenario
@@ -68,3 +74,66 @@ def render_headline(
     if wording_class != "synthetic_scenario" and says_synthetic_scenario(headline):
         raise WordingError(f"only a synthetic_scenario headline may say so (7.1): {headline!r}")
     return headline
+
+
+MONTHS = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)  # fmt: skip
+NUMBER_WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight")
+
+
+def format_amount(amount: float) -> str:
+    """Money in explanation texts: thousands separators; two decimals unless the amount is whole
+    (120000.0 gives 120,000 and 141968.95 gives 141,968.95)."""
+    if not math.isfinite(amount):
+        raise WordingError(f"amount {amount!r} cannot appear in an explanation")
+    return f"{amount:,.0f}" if amount == round(amount) else f"{amount:,.2f}"
+
+
+def format_day(moment: datetime) -> str:
+    """The UTC calendar day, `2 March 2026`, whatever the locale."""
+    day = moment.astimezone(UTC)
+    return f"{day.day} {MONTHS[day.month - 1]} {day.year}"
+
+
+def format_duration(hours: float) -> str:
+    """`30 hours` below two days, else days with one decimal (`6 days`, `6.3 days`)."""
+    if hours < 48:
+        whole = round(hours)
+        return f"{whole} hour" if whole == 1 else f"{whole} hours"
+    return f"{hours / 24:,.1f}".removesuffix(".0") + " days"
+
+
+def payment_step(sender: str, currency: str, amount: float, receiver: str, moment: datetime) -> str:
+    """One explanation step per payment: what was paid, between which accounts and when."""
+    return (
+        f"{sender} sent {currency} {format_amount(amount)} to {receiver} on {format_day(moment)}."
+    )
+
+
+def cycle_summary(
+    origin: str, currency: str, sent: float, returned: float, others: int, hours: float
+) -> str:
+    """The summary of a circular flow: what left the origin account and what came back."""
+    count = NUMBER_WORDS[others] if others < len(NUMBER_WORDS) else str(others)
+    accounts = "other account" if others == 1 else "other accounts"
+    return (
+        f"{currency} {format_amount(sent)} left account {origin} and {currency} "
+        f"{format_amount(returned)} came back to it after passing through {count} {accounts} "
+        f"in {format_duration(hours)}."
+    )
+
+
+def check_rendered(texts: Mapping[str, str], mask: Iterable[str]) -> None:
+    """The 7.1 lint on rendered alert texts (headline, summary, steps). The masked values are
+    source data (entity captions, account numbers), not NeonRadar's wording, so they are
+    blanked out first; any other match raises `WordingError`."""
+    masked = list(mask)
+    problems = [
+        f"{where}: {'; '.join(terms)}"
+        for where, text in texts.items()
+        if (terms := find_forbidden(text, masked))
+    ]
+    if problems:
+        raise WordingError(f"rendered text fails the wording lint (7.1): {' | '.join(problems)}")

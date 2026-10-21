@@ -7,7 +7,7 @@ One definition file per typology in `detect/typologies/` (the shape is in `contr
 | Slug | Name | Tier | Status | Owner | Detector |
 |---|---|---|---|---|---|
 | [`cash_commingling`](cash-commingling.md) | Cash-intensive business commingling | extended | draft | @robotat-com | no |
-| [`circular_flow`](circular-flow.md) | Round-tripping or circular flows | core | draft | @robotat-com | no |
+| [`circular_flow`](circular-flow.md) | Round-tripping or circular flows | core | draft | @robotat-com | yes |
 | [`dormant_reactivation`](dormant-reactivation.md) | Dormant account reactivation followed by high velocity | core | draft | @robotat-com | no |
 | [`fan_in_collection`](fan-in-collection.md) | Fan-in to a collection account | core | draft | @robotat-com | no |
 | [`fan_out_distribution`](fan-out-distribution.md) | Fan-out distribution from one account | core | draft | @robotat-com | no |

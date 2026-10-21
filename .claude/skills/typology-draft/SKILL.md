@@ -12,4 +12,5 @@ Draft typology $ARGUMENTS.
 - Write docs/typologies/<slug with hyphens>.md: what it is (plain language), how it looks
   in a graph, red flags from the sources, typical false positives, why synthetic data can or
   cannot show it, sources. No accusatory wording (7.1). Reading level: a new intern.
+- Follow docs/typologies/_explainer-template.md for the explainer's sections.
 - Never set status approved.

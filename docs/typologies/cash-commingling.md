@@ -58,13 +58,15 @@ The FFIEC manual itself notes "the difficulty in identifying unusual activity" a
 - **A new branch or outlet.** Look-alike: a synthetic business whose cash deposits step up when it opens a new outlet.
 - **The wrong peer group.** A business recorded under the wrong `sector` is compared with the wrong peers. Look-alike: a synthetic business whose `sector` value does not fit its activity.
 
+The research note lists three more look-alikes without a source in the bibliography (Open questions): customers in communities that prefer cash, price changes, and a business that banks takings for a neighbour or a franchise group. Look-alikes: a synthetic business whose cash share is high from its first day and stays steady; one whose deposits step up when its prices do; one that deposits cash for several outlets of a franchise group.
+
 ## Can synthetic data show it?
 
-Partly (synthetic support: medium). The generator can give each synthetic business a true revenue and add extra cash on top, which makes clean labels; labels live in separate label files, never in records (C1 rule R9). Realism depends on how ordinary cash deposits are calibrated by sector, and no source in the bibliography gives sector benchmarks, so the generator documents its calibration assumptions (PHASE-1.md 7.2). Planted scenarios use synthetic entities only (ids start with `syn-`, guardrail G1).
+Partly (synthetic support: medium). The Phase 3 generator could give each synthetic business a true revenue and add extra cash on top, which would make clean labels; labels live in separate label files, never in records (C1 rule R9). Realism depends on how ordinary cash deposits are calibrated by sector, and the research note quotes no source on sector benchmarks, so the generator documents its calibration assumptions (PHASE-1.md 7.2). Planted scenarios use synthetic entities only (ids start with `syn-`, guardrail G1).
 
 ## Starting parameters
 
-No source gives numbers, and PHASE-1.md 7.2 gives none either, so every value below is a starting point for the typology researcher to choose and document, not a fact from the sources:
+The research note quotes no source that gives numbers, and PHASE-1.md 7.2 gives none either, so every value below is a starting point for the typology researcher to choose and document, not a fact from the sources:
 
 - the comparison window;
 - the peer group (`sector`, and possibly `jurisdiction` and size);
@@ -76,11 +78,12 @@ No source gives numbers, and PHASE-1.md 7.2 gives none either, so every value be
 
 For the typology researcher:
 
-1. Sector benchmarks: no source in the bibliography gives cash deposit volumes by sector. Decide which documented assumptions the generator uses.
+1. Sector benchmarks: the research note quotes no source on cash deposit volumes by sector. Decide which documented assumptions the generator uses.
 2. The comparison window, the peer group and the threshold for "far above".
 3. How the generator defines trading days, so that "deposits on days unrelated to trading" can be tested.
 4. Whether the cash-to-card comparison is part of the pattern or only an explanation.
 5. Whether a detector should combine this pattern with `structuring` when deposits are both high and split below a threshold.
+6. The cash-preferring communities, price changes and franchise-group banking look-alikes come from the research note without a source in the bibliography. Find sources, or keep them as project look-alikes.
 
 ## Sources
 

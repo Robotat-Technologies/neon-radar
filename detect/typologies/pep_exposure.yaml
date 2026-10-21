@@ -8,8 +8,8 @@ approved_by: null
 summary: >
   A company or person is linked through ownership, control, a directorship, family or a close
   association to a person whom a source lists as a politically exposed person (PEP) or as a
-  relative or close associate of one. Being a PEP is not wrongdoing; the pattern describes the
-  structure only.
+  relative or close associate of one. Being a PEP, a relative or close associate of one, or
+  being linked to one, is not wrongdoing; the pattern describes the structure only.
 doc: docs/typologies/pep-exposure.md
 citations: [fatf_peps_2013, fatf_glossary, fatf_recommendations_2026, fatf_egmont_concealment_2018]
 graph_pattern: >

@@ -25,6 +25,10 @@ false_positives:
   - A genuinely busy or growing cash business
   - Seasonal peaks in trade
   - A new branch or outlet
+  - A business recorded under the wrong sector
+  - Customers in communities that prefer cash
+  - Price changes
+  - A business that banks takings for a neighbour or a franchise group
 synthetic_support: medium     # high | medium | low | none
 generator_scenario: null
 detector: null

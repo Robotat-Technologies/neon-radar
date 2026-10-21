@@ -16,7 +16,7 @@ graph_pattern: >
   start_date and end_date values cluster in bursts; directors linked by FAMILY_OF to a
   person who OWNS or CONTROLS the same company; and PAID relationships between Accounts
   held (HOLDS_ACCOUNT) by companies that share the director. DIRECTOR_OF.is_nominee, where
-  the source sets it, is shown as the source published it.
+  the source sets it, may be shown as the source published it (open question).
 parameters: {}
 metrics: []
 wording: null

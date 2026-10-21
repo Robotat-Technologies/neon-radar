@@ -6,11 +6,11 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 ## What it is
 
-A director is formally responsible for running a company. In this typology a few people (or companies) appear as directors of many companies at once, often for short periods, and the companies that share them pay each other. "Recycled" means the same names come back in company after company; "professional" means that someone acts as a director as a service.
+In this typology a few people (or companies) appear as directors of many companies at once, often for short periods, and the companies that share them pay each other. "Recycled" means the same names come back in company after company; "professional" means that someone acts as a director as a service.
 
 Why the sources look at this:
 
-- A nominee is a person who formally holds shares or a directorship for someone else whose identity is not disclosed [fatf_egmont_concealment_2018]. In the FATF and Egmont study of 106 cases, nominee arrangements "were identified in a large majority of case studies", and "The majority of the case studies involved professional intermediaries" [fatf_egmont_concealment_2018].
+- A nominee is a person who formally holds shares or a directorship for someone else whose identity is not disclosed [fatf_egmont_concealment_2018]. In the FATF and Egmont study of 106 cases, nominee arrangements "were identified in a large majority of case studies", and "The majority of the case studies involved professional intermediaries", roughly half of whom the study assessed as complicit [fatf_egmont_concealment_2018].
 - Europol describes nominee directors as "strawmen that appear on the paperwork, but do not operate independently" [europol_shadow_money_2021].
 - FinCEN notes that people who form companies may "provide the shell company with nominees for all offices that appear in public records" [fincen_fin_2006_g014].
 - Nominees can be informal too: the FATF and Egmont indicators name "informal nominees, such as children, spouses, relatives or associates" [fatf_egmont_concealment_2018].
@@ -48,10 +48,10 @@ flowchart LR
 
 | Red flag | Source | Visible in the C2 graph? |
 |---|---|---|
-| Directors or owners who "are listed against the accounts of other legal persons or arrangements", "indicating the use of professional nominees" | [fatf_egmont_concealment_2018] | Yes: many `DIRECTOR_OF` or `OWNS` relationships from one node |
+| Directors or owners who "are listed against the accounts of other legal persons or arrangements", "indicating the use of professional nominees" | [fatf_egmont_concealment_2018] | Partly: many `DIRECTOR_OF` or `OWNS` relationships from one node are visible; the bank account records the indicator refers to are not |
 | "employees of professional intermediary firms acting as nominee directors and shareholders" | [fatf_egmont_concealment_2018] | Partly: `EMPLOYED_BY` to the firm, where a source records it |
 | "agreements for nominee directors and shareholders" | [fatf_egmont_concealment_2018] | No: agreements are not in the graph; `is_nominee` only where the source sets it |
-| "informal nominees, such as children, spouses, relatives or associates" | [fatf_egmont_concealment_2018] | Yes: `FAMILY_OF` or `ASSOCIATE_OF` from an owner to a director |
+| "informal nominees, such as children, spouses, relatives or associates" | [fatf_egmont_concealment_2018] | Partly: the `FAMILY_OF` or `ASSOCIATE_OF` link is visible; whether the relative or associate acts for someone else is not |
 | "family members with no role or involvement in the running of the business" as directors | [fatf_egmont_concealment_2018] | Partly: the family link is visible, the lack of a role is not |
 | "Multiple high-value payments or transfers between shell companies with no apparent legitimate business purpose" | [fincen_fin_2006_g014] | Partly: payments are visible, their business purpose is not |
 
@@ -68,11 +68,11 @@ FinCEN notes that "Most shell companies are formed by individuals and businesses
 
 ## Can synthetic data show it?
 
-Yes (synthetic support: high). Directorships and their dates are structure that the generator controls, so it can plant bursts of appointments, family links and payments among synthetic companies, with a known right answer for the fixture tests. The hard part is the benign population: the generator must include professional directors, company service providers and corporate groups at a realistic frequency. Otherwise a detector learns that every professional director matches the pattern, which is wrong and would be unfair to real firms if NeonRadar is ever run on registry data. Planted scenarios use synthetic entities only (ids start with `syn-`, guardrail G1); a real registry entity never receives a scenario role.
+Yes (synthetic support: high). Directorships and their dates are structure that the Phase 3 generator would control, so it could plant bursts of appointments, family links and payments among synthetic companies, with a known right answer for the fixture tests. The hard part is the benign population: the generator must include professional directors, company service providers and corporate groups at a realistic frequency. Otherwise a detector learns that every professional director matches the pattern, which is wrong and would be unfair to real firms if NeonRadar is ever run on registry data. Planted scenarios use synthetic entities only (ids start with `syn-`, guardrail G1); a real registry entity never receives a scenario role.
 
 ## Starting parameters
 
-The sources give no numbers, and PHASE-1.md 7.2 gives none either, so every value below is a starting point for the typology researcher to choose and document, not a fact from the sources:
+The research note quotes no source that gives numbers, and PHASE-1.md 7.2 gives none either, so every value below is a starting point for the typology researcher to choose and document, not a fact from the sources:
 
 - the minimum number of directorships held by one director, and whether ended appointments count;
 - the burst window and the number of appointments that must start (or end) within it;
@@ -82,12 +82,13 @@ The sources give no numbers, and PHASE-1.md 7.2 gives none either, so every valu
 
 For the typology researcher:
 
-1. Thresholds: the minimum number of directorships, the burst window and the payment window. No source in the bibliography gives values.
+1. Thresholds: the minimum number of directorships, the burst window and the payment window. The research note quotes no source that gives values.
 2. The research note says that professional directors are normal in fund jurisdictions and that professional directors and corporate secretaries legitimately hold many appointments. Neither sentence has a source in the bibliography, so this page states only what the TCSP definition supports. Add a source, or keep the look-alike without the claim.
 3. Whether alert text may show the source's own `is_nominee` value, and how, given that the text never calls a person a nominee.
 4. Whether corporate directors (a company as director) are counted with natural persons or separately.
 5. Whether the detector should run on real Companies House officers who are natural persons at all, given that it would single out real people by how many appointments they hold (personal data, ADR-0006), and if so how those `structural_pattern` alerts are shown. A question for the typology researcher and the data steward.
-6. The base rate for the generator: how many directorships a typical synthetic director holds. Registry statistics would come from Companies House data (Phase 2) and may be used only as aggregates, never as rows about people.
+6. Alert text says "matches the graph pattern of <name>", so the name "Recycled and professional directors" would appear next to a person, although providing directors is a service in FATF's definition of a TCSP [fatf_glossary] and the standing disclaimer names professional directors among the legitimate structures. Decide, before a detector is set, whether to rename the typology so that its name describes only the structure.
+7. The base rate for the generator: how many directorships a typical synthetic director holds. Registry statistics would come from Companies House data (Phase 2) and may be used only as aggregates, never as rows about people.
 
 ## Sources
 

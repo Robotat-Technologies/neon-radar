@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from neo4j import RoutingControl
+from nr_test_neo4j import Neo4jTarget
 
 from neonradar_contracts.alert import Alert
 from neonradar_detect import runner
@@ -25,7 +26,6 @@ from .conftest import (
     EXPECTED,
     REAL_HOLDER,
     REPO_ROOT,
-    Neo4jTarget,
     case_f_records,
     fixture_records,
 )

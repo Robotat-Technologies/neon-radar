@@ -39,4 +39,5 @@
   - Entity-facing text (steps, summaries) belongs in `wording.py` so check_wording lints it;
     every rendered text goes through `check_rendered` with captions and account numbers
     masked. A failure fails the whole run (`run.json` status failed, no alerts).
-  - Integration tests reuse graph/tests/conftest.py's Neo4j fixtures (`detect/tests/conftest.py`).
+  - Integration tests use the shared Neo4j fixtures (`neo4j`, `graph_db`) of
+    graph/tests/support/nr_test_neo4j.py, registered once by the root conftest.py.

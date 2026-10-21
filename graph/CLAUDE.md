@@ -11,9 +11,12 @@
   `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of C2), `loader`
   (`neonradar graph load|stats|wipe`: C1 files to the graph; `load_files`, `load_records`,
   `plan_load` without a database, `wipe`, `stats`).
-- Integration tests share one Neo4j (`tests/conftest.py`): a Testcontainers container with the
-  GDS jar from `make plugins` copied in, or `NR_TEST_NEO4J_URI` (wiped; refused if it holds
-  any node but `:SchemaMigration` unless `NR_TEST_ALLOW_WIPE=1`).
+- Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
+  a pytest plugin the root `conftest.py` registers once; fixtures `neo4j`, `empty_neo4j`,
+  `graph_db`): a Testcontainers container with the GDS jar from `make plugins` copied in, or
+  `NR_TEST_NEO4J_URI` (wiped; refused if it holds any node but `:SchemaMigration` unless
+  `NR_TEST_ALLOW_WIPE=1`). Import `Neo4jTarget` and `pinned_gds` from it (or from
+  `tests/conftest.py`), never the fixtures, or pytest starts a second database.
 - Settings: `neonradar_graph.client.Neo4jSettings` (env vars win over the root `.env`,
   `extra="ignore"`); every package's settings follow this pattern. `get_driver()`.
 - Traps:

@@ -15,11 +15,12 @@ jobs:
     env:
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
-      BASE_REF: origin/${{ github.base_ref }}
+      BASE_REF: refs/remotes/origin/${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Conventional title
         run: python3 scripts/check_pr_title.py "$PR_TITLE"
       - name: Size limit
@@ -40,4 +41,11 @@ jobs:
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
-          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --verbose --log-opts="${BASE_REF}..HEAD" .
+          base="$(git rev-parse --verify "${BASE_REF}^{commit}")"
+          count="$(git rev-list --count "${base}..HEAD")"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no commits to scan in ${BASE_REF}..HEAD"
+            exit 1
+          fi
+          echo "Scanning ${count} commits in ${BASE_REF}..HEAD"
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --verbose --log-opts="${base}..HEAD" .

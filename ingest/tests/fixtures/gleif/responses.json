@@ -1,0 +1,826 @@
+{
+ "_comment": "Synthetic GLEIF API responses for ingest/tests/test_gleif.py, shaped like the live API on 21 Oct 2026; every link points at links.example.invalid, because the client builds its own paths. LEIs SYN...: valid check digits, no GLEIF record (404 on 21 Oct 2026); names, including the Arabic legal name and the AUTO transliteration, checked against Companies House search on 21 Oct 2026 (no exact match); company numbers ZZ... and postcodes ZZ.. are never issued.",
+ "responses": {
+  "lei-records/SYN00000000000000128": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "lei-records",
+    "id": "SYN00000000000000128",
+    "attributes": {
+     "lei": "SYN00000000000000128",
+     "entity": {
+      "legalName": {
+       "name": "SYNTHETIC CHILD EXAMPLE LIMITED",
+       "language": "en"
+      },
+      "otherNames": [
+       {
+        "name": "SYNTHETIC CHILD TRADING",
+        "language": "en",
+        "type": "TRADING_OR_OPERATING_NAME"
+       },
+       {
+        "name": "SYNTHETIC CHILD EXAMPLE PUBLIC LIMITED COMPANY",
+        "language": "en",
+        "type": "PREVIOUS_LEGAL_NAME"
+       }
+      ],
+      "transliteratedOtherNames": [],
+      "legalAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Road"
+       ],
+       "addressNumber": "0",
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": "GB-LND",
+       "country": "GB",
+       "postalCode": "ZZ0 0ZZ"
+      },
+      "headquartersAddress": {
+       "language": "en",
+       "addressLines": [
+        "Unit 9",
+        "Synthetic Example Park"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": "GB-LND",
+       "country": "GB",
+       "postalCode": "ZZ9 9ZZ"
+      },
+      "registeredAt": {
+       "id": "RA000585",
+       "other": null
+      },
+      "registeredAs": "ZZ000001",
+      "jurisdiction": "GB",
+      "category": "GENERAL",
+      "legalForm": {
+       "id": "8888",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "creationDate": "2001-02-03T00:00:00Z"
+     },
+     "registration": {
+      "initialRegistrationDate": "2014-01-01T00:00:00Z",
+      "status": "ISSUED",
+      "corroborationLevel": "FULLY_CORROBORATED"
+     },
+     "bic": null,
+     "conformityFlag": "CONFORMING"
+    },
+    "relationships": {
+     "managing-lou": {
+      "links": {
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/managing-lou"
+      }
+     },
+     "direct-parent": {
+      "links": {
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent"
+      }
+     }
+    },
+    "links": {
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000225": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "lei-records",
+    "id": "SYN00000000000000225",
+    "attributes": {
+     "lei": "SYN00000000000000225",
+     "entity": {
+      "legalName": {
+       "name": "SYNTHETIC PARENT EXAMPLE PLC",
+       "language": "en"
+      },
+      "otherNames": [],
+      "transliteratedOtherNames": [],
+      "legalAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Road"
+       ],
+       "addressNumber": "0",
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": "GB-LND",
+       "country": "GB",
+       "postalCode": "ZZ0 0ZZ"
+      },
+      "headquartersAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Road"
+       ],
+       "addressNumber": "0",
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": "GB-LND",
+       "country": "GB",
+       "postalCode": "ZZ0 0ZZ"
+      },
+      "registeredAt": {
+       "id": "RA000585",
+       "other": null
+      },
+      "registeredAs": "ZZ000002",
+      "jurisdiction": "GB",
+      "category": "GENERAL",
+      "legalForm": {
+       "id": "8888",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "creationDate": "2001-02-03T00:00:00Z"
+     },
+     "registration": {
+      "initialRegistrationDate": "2014-01-01T00:00:00Z",
+      "status": "ISSUED",
+      "corroborationLevel": "FULLY_CORROBORATED"
+     },
+     "bic": null,
+     "conformityFlag": "CONFORMING"
+    },
+    "relationships": {
+     "managing-lou": {
+      "links": {
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/managing-lou"
+      }
+     },
+     "direct-parent": {
+      "links": {
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent"
+      }
+     }
+    },
+    "links": {
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000322": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "lei-records",
+    "id": "SYN00000000000000322",
+    "attributes": {
+     "lei": "SYN00000000000000322",
+     "entity": {
+      "legalName": {
+       "name": "شركة المثال الاصطناعية القابضة",
+       "language": "ar"
+      },
+      "otherNames": [],
+      "transliteratedOtherNames": [
+       {
+        "name": "SYNTHETIC APEX EXAMPLE HOLDINGS",
+        "language": "en",
+        "type": "PREFERRED_ASCII_TRANSLITERATED_LEGAL_NAME"
+       },
+       {
+        "name": "SHRKH ALMTHAL ALASTNAAYH ALQABDH",
+        "language": "en",
+        "type": "AUTO_ASCII_TRANSLITERATED_LEGAL_NAME"
+       }
+      ],
+      "legalAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Tower, Floor 0"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": null,
+       "country": "AE",
+       "postalCode": null
+      },
+      "headquartersAddress": null,
+      "registeredAt": {
+       "id": "RA999999",
+       "other": null
+      },
+      "registeredAs": null,
+      "jurisdiction": "AE",
+      "category": "GENERAL",
+      "legalForm": {
+       "id": "8888",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "creationDate": "2001-02-03T00:00:00Z"
+     },
+     "registration": {
+      "initialRegistrationDate": "2014-01-01T00:00:00Z",
+      "status": "ISSUED",
+      "corroborationLevel": "FULLY_CORROBORATED"
+     },
+     "bic": null,
+     "conformityFlag": "CONFORMING"
+    },
+    "relationships": {
+     "managing-lou": {
+      "links": {
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/managing-lou"
+      }
+     },
+     "direct-parent": {
+      "links": {
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/direct-parent-reporting-exception"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/ultimate-parent-reporting-exception"
+      }
+     }
+    },
+    "links": {
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000128/direct-parent": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "lei-records",
+    "id": "SYN00000000000000225",
+    "attributes": {
+     "lei": "SYN00000000000000225",
+     "entity": {
+      "legalName": {
+       "name": "SYNTHETIC PARENT EXAMPLE PLC",
+       "language": "en"
+      },
+      "otherNames": [],
+      "transliteratedOtherNames": [],
+      "legalAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Road"
+       ],
+       "addressNumber": "0",
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": "GB-LND",
+       "country": "GB",
+       "postalCode": "ZZ0 0ZZ"
+      },
+      "headquartersAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Road"
+       ],
+       "addressNumber": "0",
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": "GB-LND",
+       "country": "GB",
+       "postalCode": "ZZ0 0ZZ"
+      },
+      "registeredAt": {
+       "id": "RA000585",
+       "other": null
+      },
+      "registeredAs": "ZZ000002",
+      "jurisdiction": "GB",
+      "category": "GENERAL",
+      "legalForm": {
+       "id": "8888",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "creationDate": "2001-02-03T00:00:00Z"
+     },
+     "registration": {
+      "initialRegistrationDate": "2014-01-01T00:00:00Z",
+      "status": "ISSUED",
+      "corroborationLevel": "FULLY_CORROBORATED"
+     },
+     "bic": null,
+     "conformityFlag": "CONFORMING"
+    },
+    "relationships": {
+     "managing-lou": {
+      "links": {
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/managing-lou"
+      }
+     },
+     "direct-parent": {
+      "links": {
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent"
+      }
+     }
+    },
+    "links": {
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000128/direct-parent-relationship": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "relationship-records",
+    "id": "SYN00000000000000128|LEI|IS_DIRECTLY_CONSOLIDATED_BY|1|synthetic|",
+    "attributes": {
+     "validFrom": "2026-01-01T00:00:00Z",
+     "validTo": null,
+     "relationship": {
+      "startNode": {
+       "id": "SYN00000000000000128",
+       "type": "LEI"
+      },
+      "endNode": {
+       "id": "SYN00000000000000225",
+       "type": "LEI"
+      },
+      "type": "IS_DIRECTLY_CONSOLIDATED_BY",
+      "status": "ACTIVE",
+      "periods": [
+       {
+        "startDate": "2025-01-01T00:00:00Z",
+        "endDate": "2025-12-31T00:00:00Z",
+        "type": "ACCOUNTING_PERIOD"
+       },
+       {
+        "startDate": "2020-01-01T00:00:00Z",
+        "type": "RELATIONSHIP_PERIOD"
+       }
+      ]
+     },
+     "registration": {
+      "status": "PUBLISHED",
+      "corroborationLevel": "FULLY_CORROBORATED",
+      "corroborationDocuments": "ACCOUNTS_FILING"
+     }
+    }
+   }
+  },
+  "lei-records/SYN00000000000000128/ultimate-parent": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "lei-records",
+    "id": "SYN00000000000000322",
+    "attributes": {
+     "lei": "SYN00000000000000322",
+     "entity": {
+      "legalName": {
+       "name": "شركة المثال الاصطناعية القابضة",
+       "language": "ar"
+      },
+      "otherNames": [],
+      "transliteratedOtherNames": [
+       {
+        "name": "SYNTHETIC APEX EXAMPLE HOLDINGS",
+        "language": "en",
+        "type": "PREFERRED_ASCII_TRANSLITERATED_LEGAL_NAME"
+       },
+       {
+        "name": "SHRKH ALMTHAL ALASTNAAYH ALQABDH",
+        "language": "en",
+        "type": "AUTO_ASCII_TRANSLITERATED_LEGAL_NAME"
+       }
+      ],
+      "legalAddress": {
+       "language": "en",
+       "addressLines": [
+        "Synthetic Example Tower, Floor 0"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "mailRouting": null,
+       "city": "Exampleton",
+       "region": null,
+       "country": "AE",
+       "postalCode": null
+      },
+      "headquartersAddress": null,
+      "registeredAt": {
+       "id": "RA999999",
+       "other": null
+      },
+      "registeredAs": null,
+      "jurisdiction": "AE",
+      "category": "GENERAL",
+      "legalForm": {
+       "id": "8888",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "creationDate": "2001-02-03T00:00:00Z"
+     },
+     "registration": {
+      "initialRegistrationDate": "2014-01-01T00:00:00Z",
+      "status": "ISSUED",
+      "corroborationLevel": "FULLY_CORROBORATED"
+     },
+     "bic": null,
+     "conformityFlag": "CONFORMING"
+    },
+    "relationships": {
+     "managing-lou": {
+      "links": {
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/managing-lou"
+      }
+     },
+     "direct-parent": {
+      "links": {
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/direct-parent-reporting-exception"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/ultimate-parent-reporting-exception"
+      }
+     }
+    },
+    "links": {
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000128/ultimate-parent-relationship": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "relationship-records",
+    "id": "SYN00000000000000128|LEI|IS_ULTIMATELY_CONSOLIDATED_BY|1|synthetic|",
+    "attributes": {
+     "validFrom": "2026-01-01T00:00:00Z",
+     "validTo": null,
+     "relationship": {
+      "startNode": {
+       "id": "SYN00000000000000128",
+       "type": "LEI"
+      },
+      "endNode": {
+       "id": "SYN00000000000000322",
+       "type": "LEI"
+      },
+      "type": "IS_ULTIMATELY_CONSOLIDATED_BY",
+      "status": "ACTIVE",
+      "periods": [
+       {
+        "startDate": "2025-01-01T00:00:00Z",
+        "endDate": "2025-12-31T00:00:00Z",
+        "type": "ACCOUNTING_PERIOD"
+       },
+       {
+        "startDate": "2021-03-15T00:00:00Z",
+        "type": "RELATIONSHIP_PERIOD",
+        "endDate": "2030-12-31T00:00:00Z"
+       }
+      ]
+     },
+     "registration": {
+      "status": "PUBLISHED",
+      "corroborationLevel": "FULLY_CORROBORATED",
+      "corroborationDocuments": "ACCOUNTS_FILING"
+     }
+    }
+   }
+  },
+  "lei-records/SYN00000000000000322/direct-parent-reporting-exception": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "reporting-exceptions",
+    "id": "SYN00000000000000322|0|synthetic|DIRECT_ACCOUNTING_CONSOLIDATION_PARENT|",
+    "attributes": {
+     "validFrom": null,
+     "validTo": null,
+     "lei": "SYN00000000000000322",
+     "category": "DIRECT_ACCOUNTING_CONSOLIDATION_PARENT",
+     "reason": "NATURAL_PERSONS",
+     "reference": "Synthetic free text that must not reach the records"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000322/ultimate-parent-reporting-exception": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    }
+   },
+   "data": {
+    "type": "reporting-exceptions",
+    "id": "SYN00000000000000322|0|synthetic|ULTIMATE_ACCOUNTING_CONSOLIDATION_PARENT|",
+    "attributes": {
+     "validFrom": null,
+     "validTo": null,
+     "lei": "SYN00000000000000322",
+     "category": "ULTIMATE_ACCOUNTING_CONSOLIDATION_PARENT",
+     "reason": "NATURAL_PERSONS",
+     "reference": "Synthetic free text that must not reach the records"
+    }
+   }
+  },
+  "lei-records/SYN00000000000000128/direct-children?page[size]=1": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    },
+    "pagination": {
+     "currentPage": 1,
+     "perPage": 15,
+     "total": 3,
+     "lastPage": 1
+    }
+   },
+   "data": []
+  },
+  "lei-records/SYN00000000000000322/direct-children?page[size]=1": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    },
+    "pagination": {
+     "currentPage": 1,
+     "perPage": 15,
+     "total": 1,
+     "lastPage": 1
+    }
+   },
+   "data": []
+  },
+  "lei-records?filter[entity.registeredAs]=ZZ000001&filter[entity.registeredAt]=RA000585,RA000586,RA000587&page[size]=200": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    },
+    "pagination": {
+     "currentPage": 1,
+     "perPage": 15,
+     "total": 1,
+     "lastPage": 1
+    }
+   },
+   "data": [
+    {
+     "type": "lei-records",
+     "id": "SYN00000000000000128",
+     "attributes": {
+      "lei": "SYN00000000000000128",
+      "entity": {
+       "legalName": {
+        "name": "SYNTHETIC CHILD EXAMPLE LIMITED",
+        "language": "en"
+       },
+       "otherNames": [
+        {
+         "name": "SYNTHETIC CHILD TRADING",
+         "language": "en",
+         "type": "TRADING_OR_OPERATING_NAME"
+        },
+        {
+         "name": "SYNTHETIC CHILD EXAMPLE PUBLIC LIMITED COMPANY",
+         "language": "en",
+         "type": "PREVIOUS_LEGAL_NAME"
+        }
+       ],
+       "transliteratedOtherNames": [],
+       "legalAddress": {
+        "language": "en",
+        "addressLines": [
+         "Synthetic Example Road"
+        ],
+        "addressNumber": "0",
+        "addressNumberWithinBuilding": null,
+        "mailRouting": null,
+        "city": "Exampleton",
+        "region": "GB-LND",
+        "country": "GB",
+        "postalCode": "ZZ0 0ZZ"
+       },
+       "headquartersAddress": {
+        "language": "en",
+        "addressLines": [
+         "Unit 9",
+         "Synthetic Example Park"
+        ],
+        "addressNumber": null,
+        "addressNumberWithinBuilding": null,
+        "mailRouting": null,
+        "city": "Exampleton",
+        "region": "GB-LND",
+        "country": "GB",
+        "postalCode": "ZZ9 9ZZ"
+       },
+       "registeredAt": {
+        "id": "RA000585",
+        "other": null
+       },
+       "registeredAs": "ZZ000001",
+       "jurisdiction": "GB",
+       "category": "GENERAL",
+       "legalForm": {
+        "id": "8888",
+        "other": null
+       },
+       "status": "ACTIVE",
+       "expiration": {
+        "date": null,
+        "reason": null
+       },
+       "creationDate": "2001-02-03T00:00:00Z"
+      },
+      "registration": {
+       "initialRegistrationDate": "2014-01-01T00:00:00Z",
+       "status": "ISSUED",
+       "corroborationLevel": "FULLY_CORROBORATED"
+      },
+      "bic": null,
+      "conformityFlag": "CONFORMING"
+     },
+     "relationships": {
+      "managing-lou": {
+       "links": {
+        "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/managing-lou"
+       }
+      },
+      "direct-parent": {
+       "links": {
+        "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent-relationship",
+        "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent"
+       }
+      },
+      "ultimate-parent": {
+       "links": {
+        "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent-relationship",
+        "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent"
+       }
+      }
+     },
+     "links": {
+      "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128"
+     }
+    }
+   ]
+  },
+  "lei-records?filter[entity.registeredAs]=ZZ000004&filter[entity.registeredAt]=RA000585,RA000586,RA000587&page[size]=200": {
+   "meta": {
+    "goldenCopy": {
+     "publishDate": "2026-10-21T00:00:00Z"
+    },
+    "pagination": {
+     "currentPage": 1,
+     "perPage": 15,
+     "total": 1,
+     "lastPage": 1
+    }
+   },
+   "data": [
+    {
+     "type": "lei-records",
+     "id": "SYN00000000000000419",
+     "attributes": {
+      "lei": "SYN00000000000000419",
+      "entity": {
+       "legalName": {
+        "name": "SYNTHETIC JOIN EXAMPLE LIMITED",
+        "language": "en"
+       },
+       "otherNames": [],
+       "transliteratedOtherNames": [],
+       "legalAddress": {
+        "language": "en",
+        "addressLines": [
+         "Synthetic Example Road"
+        ],
+        "addressNumber": "0",
+        "addressNumberWithinBuilding": null,
+        "mailRouting": null,
+        "city": "Exampleton",
+        "region": "GB-LND",
+        "country": "GB",
+        "postalCode": "ZZ0 0ZZ"
+       },
+       "headquartersAddress": null,
+       "registeredAt": {
+        "id": "RA000587",
+        "other": null
+       },
+       "registeredAs": "ZZ000004",
+       "jurisdiction": "GB",
+       "category": "GENERAL",
+       "legalForm": {
+        "id": "8888",
+        "other": null
+       },
+       "status": "ACTIVE",
+       "expiration": {
+        "date": null,
+        "reason": null
+       },
+       "creationDate": "2001-02-03T00:00:00Z"
+      },
+      "registration": {
+       "initialRegistrationDate": "2014-01-01T00:00:00Z",
+       "status": "ISSUED",
+       "corroborationLevel": "FULLY_CORROBORATED"
+      },
+      "bic": null,
+      "conformityFlag": "CONFORMING"
+     },
+     "relationships": {
+      "managing-lou": {
+       "links": {
+        "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000419/managing-lou"
+       }
+      }
+     },
+     "links": {
+      "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000419"
+     }
+    }
+   ]
+  }
+ }
+}

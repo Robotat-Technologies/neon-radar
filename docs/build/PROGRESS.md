@@ -18,6 +18,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.7c | todo | - | - | 2026-10-21 | - | - |
 | M1.7d | todo | - | - | 2026-10-21 | - | - |
 | M1.8-0-1 | in-progress | p1/m1-8-0-http-client | - | 2026-10-21 | - | First of two M1.8-0 pull requests (2.3): the shared HTTP client; M1.8-0-2 adds the spike command group |
+| M1.8-0-2 | in-progress | p1/m1-8-0-2-spike-group | - | 2026-10-21 | - | Second of two M1.8-0 pull requests (2.3), stacked on M1.8-0-1: the spike command group, spike clean and the spike output helpers |
 | M1.8a | todo | - | - | 2026-10-21 | - | - |
 | M1.8b | todo | - | - | 2026-10-21 | - | - |
 | M1.8c | todo | - | - | 2026-10-21 | - | - |

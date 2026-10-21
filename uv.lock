@@ -673,12 +673,14 @@ source = { editable = "ingest" }
 dependencies = [
     { name = "httpx" },
     { name = "neonradar-contracts" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "neonradar-contracts", editable = "contracts" },
+    { name = "pyyaml", specifier = ">=6,<7" },
 ]
 
 [[package]]

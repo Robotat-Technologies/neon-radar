@@ -232,6 +232,95 @@ def test_only_synthetic_records_set_the_synthetic_keys() -> None:
     assert _rules(record) == []
 
 
+def test_synthetic_sanction_names_only_synthetic_entities(tmp_path: Path) -> None:
+    """G1: C2 builds SUBJECT_OF from Sanction.entity, so a synthetic Sanction naming a real
+    entity would mark it as sanctioned. Synthetic background records may name real ones."""
+    sanction = _company(id="syn-sanction-0099", schema="Sanction", properties={})
+    sanction["properties"] = {"entity": ["syn-co-0099"], "authority": ["Example Authority"]}
+    assert _rules(sanction) == []
+    sanction["properties"]["entity"] = ["syn-co-0099", "gbch-co-T0000001"]
+    [issue] = validate_record(sanction)
+    assert issue.rule == "R6"
+    assert "'gbch-co-T0000001': SUBJECT_OF would mark a real entity as sanctioned" in issue.message
+    path = tmp_path / "sanction.ftm.jsonl"
+    path.write_text(json.dumps(sanction) + "\n", encoding="utf-8")
+    assert "R6" in [i.rule for i in validate_files([path], strict=False)[1]]
+    ownership = _demo("syn-ownership-0001")
+    ownership["properties"]["owner"] = ["gbch-co-T0000001"]  # background activity (G1)
+    assert _rules(ownership) == []
+
+
+PER_1, PER_2 = "syn-per-0001", "syn-per-0002"
+
+
+@pytest.mark.parametrize(
+    ("schema", "props", "real_prop", "reason"),
+    [
+        ("Family", {"person": [PER_1], "relative": [PER_2]}, "relative", "FAMILY_OF"),
+        ("Associate", {"person": [PER_1], "associate": [PER_2]}, "person", "ASSOCIATE_OF"),
+        ("Occupancy", {"holder": [PER_1], "post": ["syn-pos-0001"]}, "holder", "HOLDS_POSITION"),
+    ],
+)
+def test_synthetic_relative_associate_and_post_links_name_only_synthetic_people(
+    schema: str, props: dict[str, list[str]], real_prop: str, reason: str
+) -> None:
+    """G1: these links can make a real person a relative or close associate of a politically
+    exposed person, or the holder of a post, so a synthetic one references only syn- records."""
+    record = _company(id="syn-link-0099", schema=schema, properties=dict(props))
+    assert _rules(record) == []
+    record["properties"][real_prop] = ["gbch-off-T0000001"]
+    [issue] = validate_record(record)
+    assert issue.rule == "R6"
+    assert f"in {real_prop}, not 'gbch-off-T0000001': {reason}" in issue.message
+    record["properties"][real_prop] = ["not an id"]
+    assert _rules(record) == ["R4"]  # a malformed reference is reported once, by R4
+
+
+@pytest.mark.parametrize(
+    ("schema", "props"),
+    [
+        ("Ownership", {"owner": ["gbch-co-T0000001"], "asset": ["syn-acct-0001"]}),
+        ("Representation", {"agent": ["syn-co-0099"], "client": ["gbch-co-T0000001"]}),
+        ("Membership", {"member": ["syn-per-0001"], "organization": ["gbch-co-T0000001"]}),
+    ],
+)
+def test_synthetic_background_links_may_name_real_records(
+    schema: str, props: dict[str, list[str]]
+) -> None:
+    assert _rules(_company(id="syn-link-0099", schema=schema, properties=props)) == []
+
+
+ARABIC_INDIC_DIGITS = str.maketrans("0123456789", "".join(chr(0x0660 + d) for d in range(10)))
+
+
+@pytest.mark.parametrize(
+    ("record_id", "prop", "rule"),
+    [
+        ("syn-payment-000001", "amount", "R7"),
+        ("syn-payment-000001", "date", "R5"),
+        ("syn-acct-0001", "accountNumber", "R8"),
+    ],
+)
+def test_non_ascii_digits_fail_c1_property_formats(record_id: str, prop: str, rule: str) -> None:
+    """Python's `\\d` matches any Unicode digit; C1 formats allow only 0 to 9."""
+    record = _demo(record_id)
+    value = record["properties"][prop][0]
+    keep = 5 if prop == "accountNumber" else 0  # the NRSYN prefix
+    record["properties"][prop] = [value[:keep] + value[keep:].translate(ARABIC_INDIC_DIGITS)]
+    assert _rules(record) == [rule]
+
+
+@pytest.mark.parametrize("key", ["created_at", "record_contract"])
+def test_non_ascii_digits_fail_the_manifest(key: str) -> None:
+    data = {**MANIFEST_EXAMPLE, key: MANIFEST_EXAMPLE[key].translate(ARABIC_INDIC_DIGITS)}
+    with pytest.raises(ValidationError, match=key):
+        Manifest.model_validate(data)
+
+
+def test_non_ascii_digits_fail_ids() -> None:
+    assert _rules(_company(id="syn-co-0099".translate(ARABIC_INDIC_DIGITS))) == ["R1"]
+
+
 # Each problem is reported once
 
 

@@ -57,10 +57,14 @@ class Neo4jSettings(BaseSettings):
         return tuple(sources)
 
 
-def get_driver(settings: Neo4jSettings | None = None) -> Driver:
+def get_driver(
+    settings: Neo4jSettings | None = None, *, max_transaction_retry_time: float = 30.0
+) -> Driver:
     """A neo4j 6.x driver for the configured database; close it after use.
 
     Driver telemetry is off (guardrail G3), and a connection attempt gives up after 10 s.
+    `execute_query` retries an unavailable database for up to `max_transaction_retry_time`
+    seconds (the driver's default is 30); a service answering people uses a shorter time.
     """
     settings = settings or Neo4jSettings()
     return GraphDatabase.driver(
@@ -68,6 +72,7 @@ def get_driver(settings: Neo4jSettings | None = None) -> Driver:
         auth=(settings.user, settings.password.get_secret_value()),
         telemetry_disabled=True,
         connection_timeout=10.0,
+        max_transaction_retry_time=max_transaction_retry_time,
     )
 
 

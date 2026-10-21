@@ -1,0 +1,66 @@
+{
+  "entity": {
+    "id": "syn-co-0003",
+    "schema": "Company",
+    "caption": "Fenwhistle Holdings Ltd",
+    "labels": [
+      "Entity",
+      "LegalEntity",
+      "Organization",
+      "Company"
+    ],
+    "flags": {
+      "synthetic": true,
+      "sanctioned": false,
+      "pep": false,
+      "rca": false
+    },
+    "countries": [
+      "gb"
+    ],
+    "datasets": [
+      "nr_synthetic"
+    ]
+  },
+  "names": [
+    "Fenwhistle Holdings Ltd"
+  ],
+  "properties": {
+    "incorporation_date": "2018-06-11",
+    "jurisdiction": "gb",
+    "registration_number": "SYN00003"
+  },
+  "identifiers": {
+    "registration_number": [
+      "SYN00003"
+    ]
+  },
+  "provenance": [
+    {
+      "dataset": "nr_synthetic",
+      "record_id": "syn-co-0003",
+      "retrieved_at": null,
+      "source_url": null
+    }
+  ],
+  "relationship_counts": {
+    "HAS_ADDRESS": 1,
+    "HOLDS_ACCOUNT": 1
+  },
+  "alerts": [
+    {
+      "alert_id": "alr-f82a84574538090f0624",
+      "typology": "circular_flow",
+      "priority": "high",
+      "pattern_strength": 0.79,
+      "headline": "Synthetic scenario: funds returned to the originating account through 4 transfers within 7 days",
+      "created_at": "2026-10-21T10:15:02Z",
+      "subject_ids": [
+        "syn-acct-0007",
+        "syn-co-0003"
+      ],
+      "involves_real_entities": false,
+      "synthetic_activity": true
+    }
+  ]
+}

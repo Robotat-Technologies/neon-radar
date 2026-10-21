@@ -3,10 +3,12 @@
 - Purpose: the `neonradar` command (typer): `neonradar <group> <command>`, for example
   `neonradar graph load`. It depends on every other package and wires them together.
   Phase 1 starts with `neonradar --version`, `doctor`, `graph smoke`, `graph migrate`,
-  `contracts validate-records`, `contracts export` and `check`, `docs typology-index`,
-  `spike clean`, the spikes (`spike companies-house`, M1.8a; `spike gleif`, M1.8b;
-  `spike icij`, M1.8c; `spike opensanctions`, M1.8d) and `onboarding check|reset`
-  (Assignment 1).
+  `contracts validate-records`, `contracts export` and `check` (JSON Schemas and the OpenAPI
+  snapshot), `api serve` (127.0.0.1 only), `docs typology-index`, `graph load|stats|wipe`
+  (M1.9a; `load` is strict by default, `wipe` needs `--yes`), `spike clean`, the spikes
+  (`spike companies-house`, M1.8a; `spike gleif`, M1.8b; `spike icij`, M1.8c;
+  `spike opensanctions`, M1.8d), `onboarding check|reset` (Assignment 1) and
+  `gate check --phase 1` (`make gate-1`, M1.12).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.
@@ -22,5 +24,16 @@
     `PROJECT_FILE` to tmp paths.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
+  - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;
+    `api serve` imports uvicorn inside the command, so `neonradar --help` stays fast.
+  - `gate.py` (Gate 1, PHASE-1.md section 8): one `@gate_check` function per GC check returns
+    `(Status, evidence)`; it only reads and never tags, approves or edits (OD-5). Every command
+    goes through `Context.run`, so tests pass a fake runner and tmp folders and never call gh,
+    Docker or the network; `make_context` decides whether gh and Docker are usable, and their
+    checks report MANUAL with the reason when not (`--offline` skips both and sets
+    `UV_OFFLINE=1` for `make contracts-check`). GC-02 runs the migration test in a throwaway
+    Testcontainers Neo4j (it removes `NR_TEST_NEO4J_URI` and `NR_TEST_ALLOW_WIPE`) when Docker
+    and the pinned GDS jar are there. A command that times out is killed with its whole process
+    group. Exit 1 on any FAIL unless `--report-only` (`make gate-1 GATE_ARGS=--report-only`).
   - Inside the devcontainer (`NR_DEVCONTAINER=1`, or `doctor --devcontainer`) a missing
     Docker or Compose is a WARN: the container has no Docker by design (M1.5).

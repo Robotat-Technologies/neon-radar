@@ -86,8 +86,12 @@ def test_get_driver_uses_the_settings(monkeypatch: pytest.MonkeyPatch, tmp_path:
         _env_file=tmp_path / "missing.env", uri="bolt://h:1", user="u", password=SecretStr("p")
     )
     get_driver(settings)
+    get_driver(settings, max_transaction_retry_time=3.0)
     options = {"auth": ("u", "p"), "telemetry_disabled": True, "connection_timeout": 10.0}
-    assert calls == [(("bolt://h:1",), options)]
+    assert calls == [
+        (("bolt://h:1",), {**options, "max_transaction_retry_time": 30.0}),
+        (("bolt://h:1",), {**options, "max_transaction_retry_time": 3.0}),
+    ]
 
 
 class FlakyDriver:

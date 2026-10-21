@@ -128,7 +128,7 @@ Dates on entities and relationships are ISO 8601 strings and may be partial. Onl
 | `HOLDS_POSITION` | `Person` | `Position` | `Occupancy` (holder to post) | `status`, `start_date`, `end_date` |
 | `SUBJECT_OF` | `Entity` | `Sanction` | `Sanction.entity` | none |
 | `RESOLVED_TO` | `SourceRecord` | `Entity` | Entity resolution (Phase 2) | `match_probability`, `method`, `resolver_version`, `decided_at` |
-| `FLAGS` | `Alert` | `Entity` | Alert subjects | `role` |
+| `FLAGS` | `Alert` | `Entity` | Alert subjects: one per alert and subject entity (`MERGE` on the pair, `SET` the `role`); a re-run removes `FLAGS` to entities that are no longer subjects | `role` |
 | `PRODUCED` | `DetectionRun` | `Alert` | Detection runs | none |
 
 Common relationship properties (all types except `RESOLVED_TO`, `FLAGS`, `PRODUCED`): `id` (STRING, unique per type: the FtM interval entity id, or `<record id of the entity>|addr|<address record id>` for `HAS_ADDRESS`, or `<record id of the entity>|sanction|<sanction record id>` for `SUBJECT_OF`), `datasets`, `synthetic`, `source_url` (optional).
@@ -167,7 +167,7 @@ Every statement must be idempotent (`IF NOT EXISTS`): DDL cannot be rolled back,
 4. Nodes: `MERGE (n:Entity {id: row.id})` (`:Sanction` for sanctions), then set labels, then `SET n += row.props`.
 5. Relationships: `MATCH (s:Entity {id: row.source}) WHERE s:<From>` and the same for the target, using `:Sanction` instead of `:Entity` for a Sanction end (`RelationshipRow.endpoint_keys`, with the From and To labels in `endpoint_labels`), so the uniqueness index is used; a label-only `MATCH (s:<From> {id: ...})` scans every node with that label. Then `MERGE` the relationship on its `id` and `SET r += row.props`. Count rows whose endpoints were not found and report them as dangling.
 6. `PAID.ts`: the row carries `<record date>Z` in `row.ts` and the query sets `r.ts = datetime(row.ts)`.
-7. Loading the same files twice leaves the graph unchanged.
+7. Loading the same files twice leaves the graph unchanged. Loading changed files is an upsert: mapped properties a record no longer has are removed, and a relationship whose end or type changed (an Ownership between `OWNS`, `CONSOLIDATES` and `HOLDS_ACCOUNT`) is moved; records no longer in the files and relationships from dropped `addressEntity` or `Sanction.entity` values stay, so invariants I1 to I5 are guaranteed after `neonradar graph wipe --yes` followed by a load.
 8. In strict mode, any `MappingIssue` (below) fails the load.
 
 `to_node_rows(records)` and `to_relationship_rows(records)` take the whole load as a sequence (a list, never a one-shot iterator: the relationship mapping reads it twice, because the Ownership case and the endpoint checks need the schema of referenced records). Each returns its rows and a list of skipped records or references (`MappingIssue`). Record-level issues (not a C1 record, duplicate id) appear in both lists; `MappingIssue` is hashable, so merge them with `dict.fromkeys`. `NodeRow.as_param()` and `RelationshipRow.as_param()` give the parameter row for `UNWIND`.

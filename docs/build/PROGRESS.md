@@ -43,7 +43,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.1a | todo | - | - | 2026-10-22 | - | - |
 | M2.1b | todo | - | - | 2026-10-22 | - | - |
 | M2.1c | todo | - | - | 2026-10-22 | - | - |
-| M2.2 | todo | - | - | 2026-10-22 | - | - |
+| M2.2 | pr-open | p2/m2-2-data-manager | (this PR) | 2026-10-22 | acceptance on synthetic data after merging main (with #45 M2.0 and #43 M1.9e): data profiles lists 3 profiles, uk-sample and uk-tiny "may run on this machine: no"; test_data_gate.py 15 passed; data fetch --profile uk-tiny exit=3 (rule access.real_data_profiles); data status 0 versions; ingest build --profile demo 454 records, summary in data/cache/reports/demo/; data tests 123 passed; make check exit 0 (1537 passed); make hygiene LABELS=size-exception | Plan first: plan in the PR body (OD-10). Size exception (header; about 3,600 counted lines, half tests). Deviations: profile slugs checked against the ten datasets of the build order, because five are not in contracts/datasets.yaml until M2.1a; BuildContext carries out_dir and work_dir, SourceSpec a client factory, the gate an optional step; data status prints and writes no report; purge is not gated; purge --graph uses plain docker by Compose labels and the name neonradar_neo4j-real-data (container first); make reset no longer runs down -v (coordinator request); spike clean keeps its Phase 1 project reader (E12). No real-data run |
 | M2.3a | todo | - | - | 2026-10-22 | - | - |
 | M2.3b | todo | - | - | 2026-10-22 | - | - |
 | M2.3c | todo | - | - | 2026-10-22 | - | - |

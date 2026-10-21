@@ -15,6 +15,13 @@
     `HttpError`), and redacts URLs in logs. Never log headers, keys or whole responses, and
     never call `raise_for_status()` (its message has the unredacted URL): use `get_json` or
     check the status and raise `HttpError` with `redact(url)`.
+  - The data manager (`data/`, PHASE-2.md M2.2; docs/data/profiles.md): profiles in
+    `ingest/profiles/`, every folder from `data.layout` (never build data/cache/ paths by
+    hand), the real-data gate `data.gate.check_real_data` before any request or write,
+    downloads through `data.download.fetch`, retention and purge. A production loader
+    registers a `SourceSpec`, a `Builder` and its profile-block model, and joins
+    `data.sources.PLUGINS`. Its tests use the `data_env` fixture (root conftest.py), which
+    points the cache, profiles, project file (`NR_PROJECT_FILE`) and `.env` at tmp paths.
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use
     `httpx.MockTransport` with synthetic bodies; the one real run is `@pytest.mark.network`.
   - Output goes to `data/cache/` (gitignored); never commit real data or API responses.

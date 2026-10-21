@@ -18,11 +18,14 @@ import secrets
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 from neo4j import Driver
 
 from neonradar_graph.client import Neo4jSettings, get_driver, wait_until_ready
+from neonradar_graph.loader import wipe
+from neonradar_graph.migrate import migrate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FETCH_GDS = REPO_ROOT / "scripts" / "fetch_gds.sh"
@@ -112,4 +115,28 @@ def empty_neo4j(neo4j: Neo4jTarget) -> Neo4jTarget:
             session.run(f"DROP CONSTRAINT {_quoted(record['name'])} IF EXISTS").consume()
         for record in session.run("SHOW INDEXES YIELD name, type WHERE type <> 'LOOKUP'").data():
             session.run(f"DROP INDEX {_quoted(record['name'])} IF EXISTS").consume()
+    return neo4j
+
+
+def record(rid: str, schema: str, nr: dict[str, Any] | None = None, **props: Any) -> dict[str, Any]:
+    """A C1-shaped record of nr_synthetic (prefix syn) or gb_companies_house (prefix gbch)."""
+    synthetic = rid.startswith("syn-")
+    data: dict[str, Any] = {
+        "id": rid,
+        "schema": schema,
+        "datasets": ["nr_synthetic" if synthetic else "gb_companies_house"],
+        "properties": {
+            key: value if isinstance(value, list) else [value] for key, value in props.items()
+        },
+    }
+    if synthetic or nr:
+        data["nr"] = {"v": "1.0", **({"synthetic": True} if synthetic else {}), **(nr or {})}
+    return data
+
+
+@pytest.fixture
+def graph_db(neo4j: Neo4jTarget) -> Neo4jTarget:
+    """The shared Neo4j with the C2 schema migrated and no node but `:SchemaMigration`."""
+    wipe(neo4j.driver, neo4j.database)
+    migrate(neo4j.driver, neo4j.database)  # a no-op unless another test dropped the schema
     return neo4j

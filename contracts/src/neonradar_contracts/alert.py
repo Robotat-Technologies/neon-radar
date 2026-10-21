@@ -35,14 +35,14 @@ EDGE_ID_PATTERN = rf"^{_ID}(\|(addr|sanction)\|{_ID})?$"
 SLUG_PATTERN = r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
 # Bibliography keys (PHASE-1.md 7.3): lowercase snake case with at least one underscore.
 CITATION_KEY_PATTERN = r"^[a-z][a-z0-9]*(_[a-z0-9]+)+$"
-VERSION_PATTERN = r"^\d+\.\d+\.\d+$"
+VERSION_PATTERN = r"^[0-9]+\.[0-9]+\.[0-9]+$"
 # Any 1.x release. A later 1.x model accepts every earlier 1.x value; a major release needs
 # detection to be re-run (the same rule as the record contract's `nr.v`).
 CONTRACT_VERSION_PATTERN = r"^1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 MODULE_PATTERN = r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+$"
-RUN_ID_PATTERN = r"^run-\d{8}T\d{6}-[0-9a-f]{4}$"
+RUN_ID_PATTERN = r"^run-[0-9]{8}T[0-9]{6}-[0-9a-f]{4}$"
 ALERT_ID_PATTERN = r"^alr-[0-9a-f]{20}$"
-UTC_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+UTC_PATTERN = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
 # Lengths of the fixed-length fields. Python's `re` (which the jsonschema package uses for
 # `pattern`) lets `$` match before a final newline; the length bounds reject it there too.

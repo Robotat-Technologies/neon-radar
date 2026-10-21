@@ -59,7 +59,7 @@ npx --yes @devcontainers/cli exec --workspace-folder . make check
 
 ## Claude Code inside the container
 
-- The Claude Code CLI is installed, and VS Code adds the Claude Code extension. Run `claude` once and sign in. The login is kept in the Docker volume `neonradar-claude-config-<id>`, mounted at `/home/dev/.claude` (`CLAUDE_CONFIG_DIR`), so it survives a rebuild.
+- The Claude Code CLI is installed, and VS Code adds the Claude Code extension. Run `claude` once and sign in. The login is kept in a Docker volume mounted at `/home/dev/.claude` (`CLAUDE_CONFIG_DIR`), so it survives a rebuild. Compose puts the project name in front of the volume's name: `neonradar_neonradar-claude-config-<id>`.
 - Prefer Auto mode. `--dangerously-skip-permissions` is acceptable only inside this container and only as the non-root user `dev`; never use it on your own machine (`PHASE-1.md` 1.5).
 - The read-only Neo4j MCP server in `.mcp.json` connects to `NEO4J_URI`, so inside the container it reaches the `neo4j` service with the `NEO4J_PASSWORD` from the environment.
 
@@ -70,7 +70,7 @@ npx --yes @devcontainers/cli exec --workspace-folder . make check
 - **One checkout, two environments.** The Python environments are separate, but git hooks are shared: `make setup` points the pre-commit hook at the Python of whichever side ran it last. If you commit from the host as well, run `make setup` on the host again after creating the container. The other way round works: a hook installed on the host still runs inside the container, because the container's environment is on `PATH`.
 - **Git worktrees.** Open the devcontainer from a normal clone. A linked worktree's `.git` file points at a path on the host that does not exist in the container, so git, and with it `make setup`, fail there.
 - **`ui/node_modules` (from M1.9d).** `npm ci` inside the container would write Linux binaries into the checkout's `ui/node_modules`, which the host shares. M1.9d must give the container its own named volume for `ui/node_modules`.
-- **Checked on** an Intel Mac (amd64) with Docker Desktop. Apple Silicon (arm64), Linux hosts whose user id is not 1000, Windows and Codespaces still need a person to confirm them (Gate 1 check GC-07).
+- **Checked on** 2026-10-21 on an Intel Mac (amd64) with Docker Desktop 29.7.2, Compose 5.4.0 and `@devcontainers/cli` 0.89.0, from a fresh clone: build about 4.5 minutes, first start about 2.5 minutes (PyICU compiles in about 70 seconds), then `make check` and `make smoke` passed inside. Apple Silicon (arm64), Linux hosts whose user id is not 1000, Windows and Codespaces still need a person to confirm them (Gate 1 check GC-07).
 
 ## Windows
 

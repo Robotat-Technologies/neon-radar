@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | File | `docs/build/phase-2-reconciliation.md` (PHASE-2.md M2.0 deliverable 1) |
-| Reconciled against | `main` at `ec3da54` (22 October 2026), plus the open Phase 1 pull requests, read but not relied on |
+| Reconciled against | `main` at `f3b55c9` (22 October 2026, after #31, #32, #35, #38, #41 and #42 merged), plus the open Phase 1 pull requests, read but not relied on |
 | Written by | The M2.0 build agent; the tech lead owns it |
 | Gate 1 | **Not passed** (operator decision OD-18: Phase 2 starts before Gate 1). No tag `contracts-v1.0.0`, no `docs/build/reports/phase-1.md` |
 
@@ -16,9 +16,9 @@ Line numbers refer to `docs/build/PHASE-2.md`. Code paths under `ingest/src/neon
 | PHASE-2.md expects | On `main` | Consequence |
 |---|---|---|
 | Tag `contracts-v1.0.0`, `make contracts-check` green | No tag. `make contracts-check` is green. Without the tag, `.claude/hooks/guard-contracts.sh` and `scripts/check_contract_paths.py` do not enforce the freeze yet | M2.0 does not touch `contracts/**` or `graph/schema/**`. M2.1a to M2.1c wait for the tag, which the operator creates (OD-5, OD-18) |
-| `docs/build/reports/phase-1.md` | **Missing.** M1.12 (#32, open) writes the Gate 1 check; the report follows Gate 1 | This reconciliation uses `docs/build/PROGRESS.md`, the spike reports and the code instead. Re-check it against the report when that merges |
+| `docs/build/reports/phase-1.md` | **Missing.** The Gate 1 check (`neonradar gate check --phase 1`, M1.12-1, #32) is merged; the report follows Gate 1 (M1.12-2) | This reconciliation uses `docs/build/PROGRESS.md`, the spike reports and the code instead. Re-check it against the report when that merges |
 | Spike reports for Companies House, GLEIF, ICIJ and OpenSanctions | All four in `docs/data/spikes/`. Companies House: verdict "pending network run" (no `CH_API_KEY` yet). OpenSanctions: blocked on the licence (OD-19) | See rows D6 and D7 |
-| Walking skeleton: `make demo-mini`, `make e2e`, loader, migration runner, API, detection runner (M1.9) | Migration runner (`neonradar graph migrate`) and the demo-mini fixture (M1.8e-1, #27) are on `main`. Loader **pending #31** (M1.9a), detection runner **pending #38** (M1.9b), UI shell **pending #35** (M1.9d); M1.9c (API search, network, meta) and M1.9e (`make demo-mini`, `make e2e`) have no pull request yet. `make demo-mini` and `make e2e` print "available after M1.9" | See section 4 |
+| Walking skeleton: `make demo-mini`, `make e2e`, loader, migration runner, API, detection runner (M1.9) | On `main`: the migration runner, the demo-mini fixture (M1.8e, #27 and #41), the loader (`graph load`, `stats`, `wipe`; M1.9a, #31), the detection runner and circular-flow detector (M1.9b, #38) and the UI shell (M1.9d, #35). Open: the API endpoints (M1.9c, **#44**) and `make demo-mini` and `make e2e` (M1.9e, **#43**), which still print "available after M1.9" | See section 4 |
 | C1 validator, dataset registry, fixture check (M1.6, M1.7a) | Present (`neonradar_contracts.records`, `contracts/datasets.yaml`, `scripts/check_fixtures.py`) | None |
 | Deviations in `PROGRESS.md` | Many rows of merged pull requests still say `pr-open` (each row was written before its merge) | Milestone dependencies are checked with `gh pr view <n> --json state`, as 2.2 step 1 allows |
 
@@ -31,11 +31,11 @@ Class: **D** decided, **M** mechanical (noted, no question), **Q** question for 
 | # | PHASE-2.md says | Phase 1 has | Class | Decision |
 |---|---|---|---|---|
 | A1 | The `scripts/test_hooks.sh` line sets `failed=1` (M2.0 item 4) | `failed` is a counter of failed cases, printed at the end | M | The line reports through the script's own `report` function, so the count stays right and the script still exits non-zero on a failure |
-| A2 | CI's `ui` job "already has Node 24" (M2.0 item 11) | `.github/workflows/ci.yml` sets Node up only when `ui/package.json` exists, and `ui/` is not on `main` (**P #35**) | M | The Cypher lint step has its own unconditional `actions/setup-node` with the lint's lock file as cache key |
+| A2 | CI's `ui` job "already has Node 24" (M2.0 item 11) | `.github/workflows/ci.yml` set Node up only when `ui/package.json` existed (it does since #35) | M | Node is set up unconditionally, with both lock files as the cache key, and the Cypher lint runs before the UI steps |
 | A3 | `neo4j-real` with `NEO4J_AUTH=neo4j/${NEO4J_REAL_PASSWORD}` and the same image, plugins, memory and healthcheck as `neo4j` (M2.0 item 5) | `neo4j` guards its password with `${NEO4J_PASSWORD:?...}` | M | Written `${NEO4J_REAL_PASSWORD:-}`: Compose interpolates every service, profile or not, so a `:?` guard would stop `make up` on every machine without a real password (checked with Compose 5.4.0). `make up-real` refuses instead when the password is missing, checks the GDS jar and starts with `--pull never`, like `make up`. `restart: "no"`, and no logs or import mounts: only the `/data` volume the spec names |
 | A4 | Same as A3 | **P #19** (M1.5) moves the default instance's password into a Compose secret | P | Whichever of #19 and M2.0 merges second gives `neo4j-real` the same form (a `neo4j_real_password` secret) |
 | A5 | The hook checks `.mcp.json` for the real instance by its text (ports, names) | `main` has a literal `bolt://localhost:7687`. **P #19** changes it to `${NEO4J_URI:-bolt://localhost:7687}`, which the hook cannot see through | Q tech lead | Keep the URI literal in `.mcp.json`, or have the hook also check `NEO4J_URI`. Backstop meanwhile: the MCP database is `neo4j`, which the real instance does not have |
-| A6 | Templates declare `// lint-values: ...` and write `{{name}}`; convert the circular-flow template in this pull request (M2.0 item 11) | **P #38**: `detect/src/neonradar_detect/queries/circular_flow.cypher` writes `->{MIN_HOPS,MAX_HOPS}(` and `detectors/circular_flow.py` fills it with `str.replace`. Not on `main`, so M2.0 cannot convert it | P | Whichever of #38 and M2.0 merges second converts it: header `// lint-values: min_hops=2 max_hops=2,6,8` (values the catalog allows), quantifier `->{{{min_hops}},{{max_hops}}}(`, and the renderer replaces `{{min_hops}}` and `{{max_hops}}`. Checked on 22 October: `lint.mjs` reports the current form as an error ("Invalid input 'MIN_HOPS'"), so `make check` and CI fail if #38 merges unconverted after M2.0; the converted form lints clean (3 variants, 0 problems) |
+| A6 | Templates declare `// lint-values: ...` and write `{{name}}`; convert the circular-flow template in this pull request (M2.0 item 11) | `detect/src/neonradar_detect/queries/circular_flow.cypher` (M1.9b, #38) wrote `->{MIN_HOPS,MAX_HOPS}(`, which the lint reports as an error ("Invalid input 'MIN_HOPS'") | M | Converted in this pull request: header `// lint-values: min_hops=2 max_hops=2,6,8` (bounds the catalog allows), quantifier `->{{{min_hops}},{{max_hops}}}(`; `detectors/circular_flow.py` replaces that quantifier as before, and its test checks that no placeholder is left. The rendered query is unchanged apart from its comments, so its `query_sha256` changes |
 | A7 | `validate-records` prints `<file>:<line>: <rule id>: <message>`; for records that are not synthetic it masks quoted values and leaves out the record id (M2.0 item 12) | Prints `RULE id: message` with no file or line; `records.validate_files` keeps no positions | M | The wrapper `cli/src/neonradar_cli/masking.py` numbers the lines itself and calls the frozen `validate_record` and `validate_batch` unchanged. A synthetic record's issue reads `<file>:<line>: RULE <record id>: <message>` (Phase 1's text with its place in front); every other record's reads `<file>:<line>: RULE: <masked message>`. Stricter than the spec: a record counts as synthetic only when its dataset is synthetic **and** its id starts `syn-`, and the spike commands' own validation output goes through the same wrapper, because spike output is real data (G9) |
 | A8 | The two agent edits quote PHASE-1.md M1.2 wording | `reviewer.md` wraps the guardrail line over two lines; otherwise the merged text is the PHASE-1.md text | M | Same edits applied to the merged text |
 | A9 | "CODEOWNERS regenerated with the rows in 4.3" | `scripts/generate_codeowners.py` holds the ownership map in code | M | The 4.3 rows are added to the script's map, then `.github/CODEOWNERS` is regenerated |
@@ -96,14 +96,14 @@ PHASE-2.md 4.4 says a form a Phase 1 spike already chose stays, and `contracts/C
 | E1 | The network endpoint returns `POSSIBLY_SAME_AS`, and `/paths` accepts it when asked (970, 1052) | C3's `RelationshipType` (`contracts/src/neonradar_contracts/api.py`) lists 16 types without it, and `GraphEdge.type` and the `rel_types` parameter use it | Q tech lead (M2.1c) | Add `POSSIBLY_SAME_AS` to `RelationshipType` in M2.1c; the C3 issue text in 5.0 does not mention it. Otherwise network responses fail validation and `rel_types=POSSIBLY_SAME_AS` is a 422 |
 | E2 | Invariant I11: `:PEP` exactly when `role.pep` is in `topics` (exact match), likewise `:RCA` (M2.11) | `graph/src/neonradar_graph/mapping.py` sets `:PEP` and `:RCA` also for sub-topics (`role.pep.*`), `:Sanctioned` only for the exact topic (M1.7b decision, tech lead sign-off at Gate 1) | Q tech lead (M2.11) | Write I11 to match sub-topics for PEP and RCA, or it reports false violations |
 | E3 | M2.1a bumps `RECORD` to 1.1.0 and leaves demo-mini alone (2267) | `write_manifest` writes `versions.RECORD`, and `ingest/tests/test_synth_determinism.py` compares the committed demo-mini manifest with a fresh one | M | M2.1a regenerates the demo-mini fixture (`make fixtures`) |
-| E4 | `upsert_relationships.cypher`: `MATCH` on `:Entity` and the target label, returns `count(r)` (7724) | **P #31**: the loader checks the C2 from and to labels, replaces a relationship whose end moved, and returns dangling rows | Q tech lead (M2.11) | Recommendation: keep Phase 1's label check, move-on-change and dangling rows in the new template |
-| E5 | `PAID.ts` is a timezone-aware `datetime` (7665) | **P #31**: a string ending in `Z`, turned into a `DATETIME` by `datetime(row.ts)` | M | Follow the spec; still stored as `DATETIME` |
-| E6 | `to_node_rows(records, resolution)`; `load(paths, resolution, replace, instance)` (7661 to 7667) | `to_node_rows(records)` returns a `MappingResult`; **P #31** has `load_files(driver, paths, *, strict, database, batch_size)` | M | Extend the Phase 1 functions; keep `strict` and `MappingResult` |
+| E4 | `upsert_relationships.cypher`: `MATCH` on `:Entity` and the target label, returns `count(r)` (7724) | `graph/src/neonradar_graph/loader.py` (M1.9a) checks the C2 from and to labels, replaces a relationship whose end moved, and returns dangling rows | Q tech lead (M2.11) | Recommendation: keep Phase 1's label check, move-on-change and dangling rows in the new template |
+| E5 | `PAID.ts` is a timezone-aware `datetime` (7665) | The loader passes a string ending in `Z`, turned into a `DATETIME` by `datetime(row.ts)` | M | Follow the spec; still stored as `DATETIME` |
+| E6 | `to_node_rows(records, resolution)`; `load(paths, resolution, replace, instance)` (7661 to 7667) | `to_node_rows(records)` returns a `MappingResult`; the loader has `load_files(driver, paths, *, strict, database, batch_size)` | M | Extend the Phase 1 functions; keep `strict` and `MappingResult` |
 | E7 | `Instance.DEFAULT` reads the `NEO4J_*` settings (7659) | `Neo4jSettings` in `graph/src/neonradar_graph/client.py` (prefix `NEO4J_`, database `neo4j` by default); `.env.example` has no `NEO4J_DATABASE` | M | Wrap `Neo4jSettings` |
-| E8 | Ownership queries run with a 5-second timeout; "Phase 1's subgraph builder" (5.3, M2.12) | API reads go through `GraphConnection.read` with no timeout; no subgraph builder yet (M1.9c, no pull request) | M, P M1.9c | Add a timeout to `read`; M2.12 waits for M1.9c |
+| E8 | Ownership queries run with a 5-second timeout; "Phase 1's subgraph builder" (5.3, M2.12) | API reads go through `GraphConnection.read` with no timeout; no subgraph builder on `main` yet (M1.9c, **#44**) | M, P #44 | Add a timeout to `read`; M2.12 waits for M1.9c |
 | E9 | `WHERE $min_share = 0` (1045) | `min_share` is optional and defaults to null | M | Pass `min_share or 0` |
-| E10 | M2.1c tests that the meta endpoint serves `real-data-v2.txt` (2336) | `GET /api/v1/meta` returns 501 naming M1.9c | P M1.9c | M2.1c waits for M1.9c or defers that test |
-| E11 | Real data stays under `data/cache/real/` (4.5, G9) | **P #38**: the detection runner writes alert audit copies (ids and captions) to `data/runs/<run_id>/` | Q tech lead (Phase 3) | Decide where a run against the real instance writes before Phase 3 detects on real data |
+| E10 | M2.1c tests that the meta endpoint serves `real-data-v2.txt` (2336) | `GET /api/v1/meta` returns 501 naming M1.9c on `main` | P #44 | M2.1c waits for M1.9c or defers that test |
+| E11 | Real data stays under `data/cache/real/` (4.5, G9) | The detection runner (M1.9b) writes alert audit copies (ids and captions) to `data/runs/<run_id>/` | Q tech lead (Phase 3) | Decide where a run against the real instance writes before Phase 3 detects on real data |
 | E12 | `NR_PROJECT_FILE` points the data manager at a test project file (2374) | `neonradar_ingest.spikes.PROJECT_FILE` is fixed | M | M2.2 routes `cache_days` through `load_project()` |
 
 ## 3. Cypher that Phase 1 runs from Python strings
@@ -115,25 +115,25 @@ From now on every Cypher statement that new or changed code runs lives in a `.cy
 | `graph/src/neonradar_graph/smoke.py` | `COMPONENTS`, `APOC_VERSION`, `GDS_VERSION` | Neo4j, APOC and GDS versions (`api/src/neonradar_api/health.py` repeats them) |
 | `graph/src/neonradar_graph/migrate.py` | `APPLIED`, `RECORD`, `AWAIT_INDEXES` | Applied migrations, the `:SchemaMigration` record, waiting for indexes |
 | `graph/src/neonradar_graph/onboarding.py` | `LOAD_NODES`, `LOAD_PARENTS`, `COUNT_NODES`, `RESET` | Assignment 1 (`neonradar onboarding check` also runs the queries in `docs/team/first-queries.md`) |
-| `graph/src/neonradar_graph/loader.py` (**P #31**) | `APPLIED`, `WIPE`, `STATS`, `node_query()`, `relationship_query()` | Pending-migration check, `graph wipe`, `apoc.meta.stats`, node and relationship upserts built per schema and type |
-| `graph/tests/test_invariants.py` (**P #31**, **P #38**) | I1 to I6 | Test strings; M2.11's `verify.py` reuses them |
-| `detect/src/neonradar_detect/runner.py` (**P #38**) | `MERGE_RUN`, `PRUNE_RUN`, `MERGE_ALERTS` | Detection runs and alerts |
+| `graph/src/neonradar_graph/loader.py` | `APPLIED`, `WIPE`, `STATS`, `node_query()`, `relationship_query()` | Pending-migration check, `graph wipe`, `apoc.meta.stats`, node and relationship upserts built per schema and type |
+| `graph/tests/test_invariants.py` | I1 to I6 | Test strings; M2.11's `verify.py` reuses them |
+| `detect/src/neonradar_detect/runner.py` | `MERGE_RUN`, `PRUNE_RUN`, `MERGE_ALERTS` | Detection runs and alerts |
 
-`graph/schema/migrations/0001_init.cypher` is the only `.cypher` file on `main`; `make cypher-lint` checks its 29 statements with 0 problems.
+The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and the circular-flow template; `make cypher-lint` checks 32 statements (29 plus the template's three lint variants) with 0 problems. The API queries of M1.9c (**#44**) must be `.cypher` files that pass the lint once M2.0 is merged.
 
 ## 4. Open Phase 1 items that block Phase 2 milestones
 
 | Phase 2 milestone | Waits for |
 |---|---|
 | M2.1a, M2.1b, M2.1c | The tag `contracts-v1.0.0` (operator, OD-5) and the approved contract-change issues (5.0) |
-| M2.1c | **P #35** (M1.9d: the UI's generated API types) and M1.9c (`/meta`, E10); questions E1 |
+| M2.1c | M1.9c (**#44**: `/meta`, E10); question E1 |
 | M2.3c (real-data run) | `CH_API_KEY` and the Companies House network spike run (D6) |
 | M2.4, M2.5, M2.6a, M2.10a | Questions C6 and C7, C8 and B5, B6, C11 |
-| M2.11 | **P #31** (M1.9a: loader, `graph load`, `stats`, `wipe`, invariants I1 to I5), **P #38** (M1.9b: I6 and the alerts that rule L9 removes); questions E2 and E4 |
-| M2.12 | M1.9c (subgraph builder, entity id lookup, network endpoint) and **P #31** |
-| M2.13 | **P #31**, **P #38**, M1.9c (`/network` and `/search` in the query benchmark), M1.9e (`make demo-mini`, `make e2e`, the end-to-end workflow), **P #35** (Playwright) |
-| M2.16 | **P #32** (M1.12: `neonradar gate check --phase`) and M1.9e |
-| M2.0 (this milestone) | Built before Gate 1 under OD-18. **P #38** must convert its template if M2.0 merges first (A6); **P #19** touches `compose.yaml` and `.mcp.json` (A4, A5) |
+| M2.11 | Questions E2 and E4 (the loader and the detection runner it builds on are merged) |
+| M2.12 | M1.9c (**#44**: subgraph builder, entity id lookup, network endpoint) |
+| M2.13 | M1.9c (**#44**: `/network` and `/search` in the query benchmark) and M1.9e (**#43**: `make demo-mini`, `make e2e`, the end-to-end workflow) |
+| M2.16 | M1.9e (**#43**) for the Gate 2 checks that run the demo, and the Phase 1 report (M1.12-2) |
+| M2.0 (this milestone) | Built before Gate 1 under OD-18. **P #19** (M1.5) touches `compose.yaml` and `.mcp.json` (A4, A5) |
 | M2.2, M2.3a, M2.3b, M2.6b to M2.6e, M2.7, M2.8, M2.9, M2.10b, M2.10c, M2.14, M2.15 | No open Phase 1 pull request (they still wait for their Phase 2 dependencies, 1.8) |
 
 ## 5. Questions, by person

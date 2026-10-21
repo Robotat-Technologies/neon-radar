@@ -5,8 +5,8 @@
   Phase 1 starts with `neonradar --version`, `doctor`, `graph smoke`, `graph migrate`,
   `contracts validate-records`, `contracts export` and `check`, `docs typology-index`,
   `spike clean`, the spikes (`spike companies-house`, M1.8a; `spike gleif`, M1.8b;
-  `spike icij`, M1.8c; `spike opensanctions`, M1.8d) and `onboarding check|reset`
-  (Assignment 1).
+  `spike icij`, M1.8c; `spike opensanctions`, M1.8d), `onboarding check|reset`
+  (Assignment 1) and `detect run|list` (M1.9b).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.

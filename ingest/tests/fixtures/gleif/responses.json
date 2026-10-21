@@ -1,5 +1,5 @@
 {
- "_comment": "Synthetic GLEIF API responses for ingest/tests/test_gleif.py, shaped like the live API on 21 Oct 2026. LEIs SYN...: valid check digits, no GLEIF record (404 on 21 Oct 2026); names checked against Companies House search (no exact match); company numbers ZZ... and postcodes ZZ.. are never issued.",
+ "_comment": "Synthetic GLEIF API responses for ingest/tests/test_gleif.py, shaped like the live API on 21 Oct 2026; every link points at links.example.invalid, because the client builds its own paths. LEIs SYN...: valid check digits, no GLEIF record (404 on 21 Oct 2026); names, including the Arabic legal name and the AUTO transliteration, checked against Companies House search on 21 Oct 2026 (no exact match); company numbers ZZ... and postcodes ZZ.. are never issued.",
  "responses": {
   "lei-records/SYN00000000000000128": {
    "meta": {
@@ -86,24 +86,24 @@
     "relationships": {
      "managing-lou": {
       "links": {
-       "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/managing-lou"
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/managing-lou"
       }
      },
      "direct-parent": {
       "links": {
-       "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/direct-parent-relationship",
-       "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/direct-parent"
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent"
       }
      },
      "ultimate-parent": {
       "links": {
-       "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/ultimate-parent-relationship",
-       "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/ultimate-parent"
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent"
       }
      }
     },
     "links": {
-     "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128"
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128"
     }
    }
   },
@@ -180,24 +180,24 @@
     "relationships": {
      "managing-lou": {
       "links": {
-       "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/managing-lou"
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/managing-lou"
       }
      },
      "direct-parent": {
       "links": {
-       "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/direct-parent-relationship",
-       "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/direct-parent"
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent"
       }
      },
      "ultimate-parent": {
       "links": {
-       "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/ultimate-parent-relationship",
-       "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/ultimate-parent"
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent"
       }
      }
     },
     "links": {
-     "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225"
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225"
     }
    }
   },
@@ -273,22 +273,22 @@
     "relationships": {
      "managing-lou": {
       "links": {
-       "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322/managing-lou"
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/managing-lou"
       }
      },
      "direct-parent": {
       "links": {
-       "reporting-exception": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322/direct-parent-reporting-exception"
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/direct-parent-reporting-exception"
       }
      },
      "ultimate-parent": {
       "links": {
-       "reporting-exception": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322/ultimate-parent-reporting-exception"
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/ultimate-parent-reporting-exception"
       }
      }
     },
     "links": {
-     "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322"
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322"
     }
    }
   },
@@ -365,24 +365,24 @@
     "relationships": {
      "managing-lou": {
       "links": {
-       "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/managing-lou"
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/managing-lou"
       }
      },
      "direct-parent": {
       "links": {
-       "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/direct-parent-relationship",
-       "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/direct-parent"
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/direct-parent"
       }
      },
      "ultimate-parent": {
       "links": {
-       "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/ultimate-parent-relationship",
-       "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225/ultimate-parent"
+       "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent-relationship",
+       "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225/ultimate-parent"
       }
      }
     },
     "links": {
-     "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000225"
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000225"
     }
    }
   },
@@ -501,22 +501,22 @@
     "relationships": {
      "managing-lou": {
       "links": {
-       "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322/managing-lou"
+       "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/managing-lou"
       }
      },
      "direct-parent": {
       "links": {
-       "reporting-exception": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322/direct-parent-reporting-exception"
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/direct-parent-reporting-exception"
       }
      },
      "ultimate-parent": {
       "links": {
-       "reporting-exception": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322/ultimate-parent-reporting-exception"
+       "reporting-exception": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322/ultimate-parent-reporting-exception"
       }
      }
     },
     "links": {
-     "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000322"
+     "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000322"
     }
    }
   },
@@ -722,24 +722,24 @@
      "relationships": {
       "managing-lou": {
        "links": {
-        "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/managing-lou"
+        "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/managing-lou"
        }
       },
       "direct-parent": {
        "links": {
-        "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/direct-parent-relationship",
-        "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/direct-parent"
+        "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent-relationship",
+        "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/direct-parent"
        }
       },
       "ultimate-parent": {
        "links": {
-        "relationship-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/ultimate-parent-relationship",
-        "lei-record": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128/ultimate-parent"
+        "relationship-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent-relationship",
+        "lei-record": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128/ultimate-parent"
        }
       }
      },
      "links": {
-      "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000128"
+      "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000128"
      }
     }
    ]
@@ -812,12 +812,12 @@
      "relationships": {
       "managing-lou": {
        "links": {
-        "related": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000419/managing-lou"
+        "related": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000419/managing-lou"
        }
       }
      },
      "links": {
-      "self": "https://api.gleif.org/api/v1/lei-records/SYN00000000000000419"
+      "self": "https://links.example.invalid/api/v1/lei-records/SYN00000000000000419"
      }
     }
    ]

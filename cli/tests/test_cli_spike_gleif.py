@@ -31,10 +31,14 @@ def synthetic_record() -> dict[str, Any]:
     }
 
 
-def use_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: int = 200) -> None:
+def use_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: int = 200) -> list[httpx.URL]:
+    """Synthetic GLEIF answers (all `status` when it is not 200); returns the URLs requested."""
+    seen: list[httpx.URL] = []
+
     def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url)
         if status != 200:
-            return httpx.Response(status)
+            return httpx.Response(status, headers={"Location": "https://links.example.invalid/x"})
         if request.url.path.endswith("/direct-children"):
             return httpx.Response(200, json={"meta": {"pagination": {"total": 0}}, "data": []})
         if request.url.params.get("filter[entity.registeredAs]") == "ZZ000001":
@@ -51,6 +55,7 @@ def use_api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: int = 200) 
 
     monkeypatch.setattr(gleif, "make_client", make_client)
     monkeypatch.setattr(spikes, "SPIKE_ROOT", tmp_path)
+    return seen
 
 
 def test_spike_gleif_prints_the_record_parents_and_join_and_writes_valid_output(
@@ -80,6 +85,18 @@ def test_spike_gleif_reports_an_outage_and_writes_nothing(
         f"FAIL  GLEIF: GET https://api.gleif.org/api/v1/lei-records/{LEI}"
     )
     assert "failed after 4 attempt(s): HTTP 503" in result.output
+    assert not (tmp_path / "gleif").exists()
+
+
+def test_spike_gleif_fails_on_a_redirect_without_following_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen = use_api(monkeypatch, tmp_path, status=302)
+    result = runner.invoke(app, ["spike", "gleif", "--lei", LEI])
+    assert result.exit_code == 1
+    assert "HTTP 302 redirect to 'https://links.example.invalid/x'" in result.output
+    assert "GLEIF redirects are never followed" in result.output
+    assert [url.host for url in seen] == ["api.gleif.org"]
     assert not (tmp_path / "gleif").exists()
 
 

@@ -3,14 +3,17 @@ its direct children, and the deterministic join to a Companies House number.
 
 API `https://api.gleif.org/api/v1`: no key, 60 requests per minute (the limiter sends one per
 second), `page[size]` at most 200, and page numbers only up to 10,000 results (cursor paging
-beyond; docs/data/spikes/gleif.md).
+beyond; docs/data/spikes/gleif.md). Redirects are never followed, and every path is built
+here from a checked LEI, so the spike only ever talks to api.gleif.org.
 """
 
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from neonradar_ingest.http import HttpClient, RateLimiter
+import httpx
+
+from neonradar_ingest.http import HttpClient, HttpError, RateLimiter, redact, retry_after_seconds
 
 API = "https://api.gleif.org/api/v1/"
 CH_AUTHORITIES = ("RA000585", "RA000586", "RA000587")  # Companies House: E&W, NI, Scotland
@@ -18,6 +21,7 @@ LEVELS = ("direct", "ultimate")
 LEI_RE = re.compile(r"[A-Z0-9]{18}[0-9]{2}\Z")
 # GLEIF warned of interruptions from 19 October to 4 November 2026: a longer wait fails fast.
 MAX_WAIT_S = 120.0
+THROTTLE_WAIT_S = 60.0  # after a 429 without Retry-After: GLEIF counts requests per minute
 COVERAGE = {  # the GB coverage queries of the research note (sources-ch-gleif.md B4)
     "jurisdiction GB": {"filter[entity.jurisdiction]": "GB"},
     "jurisdiction GB, active and issued": {
@@ -40,12 +44,21 @@ COVERAGE = {  # the GB coverage queries of the research note (sources-ch-gleif.m
 }
 
 
+def retry_hint(response: httpx.Response) -> float | None:
+    """`Retry-After` when GLEIF sends one, else 60 s after a 429; None means backoff."""
+    hint = retry_after_seconds(response)
+    if hint is None and response.status_code == 429:
+        return THROTTLE_WAIT_S
+    return hint
+
+
 def make_client(limiter: RateLimiter | None = None, **options: Any) -> HttpClient:
-    """The GLEIF client: 1 request per second, JSON:API, redirects followed."""
+    """The GLEIF client: 1 request per second, JSON:API; redirects are never followed."""
     return HttpClient(
         API,
-        follow_redirects=True,
+        follow_redirects=False,
         limiter=limiter or RateLimiter(1.0),
+        retry_hint=retry_hint,
         max_hint=MAX_WAIT_S,
         headers={"Accept": "application/vnd.api+json"},
         **options,
@@ -63,6 +76,22 @@ def expected_authority(number: str) -> str:
     return {"SC": "RA000587", "NI": "RA000586"}.get(number[:2], "RA000585")
 
 
+def _dig(value: Any, *keys: str) -> Any:
+    """`value[k1][k2]...`, or None as soon as a level is missing or not an object."""
+    for key in keys:
+        value = value.get(key) if isinstance(value, dict) else None
+    return value
+
+
+def _record(data: Any) -> dict[str, Any] | None:
+    """An LEI record `data` object with `attributes.entity`, or HttpError; None stays None."""
+    if data is None:
+        return None
+    if not isinstance(_dig(data, "attributes", "entity"), dict) or not data.get("id"):
+        raise HttpError("unexpected response shape: an LEI record without id or entity")
+    return dict(data)
+
+
 def _checked(lei: str) -> str:
     if not LEI_RE.fullmatch(lei):
         raise ValueError(f"{lei!r} is not an LEI (18 letters or digits, then 2 check digits)")
@@ -75,7 +104,8 @@ class ParentLink:
 
     `parent` and `relationship` are JSON:API `data` objects; `exception` holds the reporting
     exception's attributes. `reported` is true when GLEIF reports a parent with an LEI, even if
-    it was not fetched (the parents' own parents are not).
+    it was not fetched (the parents' own parents are not). `missing` is true when a linked
+    record, relationship or exception answered 404.
     """
 
     child: str
@@ -84,6 +114,7 @@ class ParentLink:
     parent: dict[str, Any] | None = None
     relationship: dict[str, Any] | None = None
     exception: dict[str, Any] | None = None
+    missing: bool = False
 
 
 @dataclass(slots=True)
@@ -107,22 +138,51 @@ class Gleif:
         self.urls: list[str] = []
         self.publish_date: str | None = None
 
-    def get(self, url: str, params: dict[str, Any] | None = None) -> Any:
-        """JSON:API body, or None on 404; HttpError on any other error status."""
-        self.urls.append(str(self.client.build_request("GET", url, params=params).url))
-        body = self.client.get_json(url, params)
-        if isinstance(body, dict) and self.publish_date is None:
-            self.publish_date = body.get("meta", {}).get("goldenCopy", {}).get("publishDate")
+    def get(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """The JSON:API body, or None on 404. HttpError on a redirect, any other error status
+        or a body that is not a JSON object."""
+        response = self.client.get(url, params=params)
+        self.urls.append(str(response.request.url))
+        where = f"GET {redact(response.request.url)}"
+        if response.is_redirect:
+            target = redact(response.headers.get("Location", ""))
+            message = f"{where}: HTTP {response.status_code} redirect to {target!r}"
+            raise HttpError(f"{message}; GLEIF redirects are never followed", response.status_code)
+        if response.status_code == 404:
+            return None
+        if response.is_error:
+            raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict):
+            raise HttpError(f"{where}: the response is not a JSON:API object")
+        if self.publish_date is None:
+            self.publish_date = _dig(body, "meta", "goldenCopy", "publishDate")
         return body
 
-    def data(self, url: str, params: dict[str, Any] | None = None) -> Any:
+    def data(self, url: str, params: dict[str, Any] | None = None, many: bool = False) -> Any:
+        """`data` of the body (a list with `many`), or None on 404; HttpError on another shape."""
         body = self.get(url, params)
-        return None if body is None else body["data"]
+        if body is None:
+            return None
+        data = body.get("data")
+        if many:
+            ok = isinstance(data, list) and all(isinstance(item, dict) for item in data)
+        else:
+            ok = isinstance(data, dict)
+        if not ok:
+            raise HttpError(f"GET {redact(url)}: unexpected response shape (no JSON:API data)")
+        return data
 
     def total(self, url: str, params: dict[str, Any]) -> int:
         """`meta.pagination.total` of a list query, fetched with one record per page."""
         body = self.get(url, {**params, "page[size]": 1})
-        return int(body["meta"]["pagination"]["total"]) if body else 0
+        total = _dig(body or {}, "meta", "pagination", "total")
+        if body is not None and not isinstance(total, int):
+            raise HttpError(f"GET {redact(url)}: unexpected response shape (no pagination total)")
+        return total if isinstance(total, int) else 0
 
     def link(self, record: dict[str, Any], level: str, follow: bool) -> ParentLink:
         """Branch on the link GLEIF gives: a parent record, a reporting exception, or none.
@@ -130,20 +190,25 @@ class Gleif:
         Only the presence of a link counts; the paths are built here from the checked LEI, so
         a URL inside a response is never followed.
         """
-        child = _checked(record["id"])
-        links = record.get("relationships", {}).get(f"{level}-parent", {}).get("links", {})
+        child = _checked(str(record.get("id")))
+        links = _dig(record, "relationships", f"{level}-parent", "links")
+        links = links if isinstance(links, dict) else {}
         path = f"lei-records/{child}/{level}-parent"
         if "reporting-exception" in links:
             exception = self.data(f"{path}-reporting-exception")
-            attributes = exception["attributes"] if exception else None
-            return ParentLink(child, level, exception=attributes)
+            if exception is None:
+                return ParentLink(child, level, missing=True)
+            return ParentLink(child, level, exception=_dig(exception, "attributes") or {})
         if "lei-record" not in links and "relationship-record" not in links:
             return ParentLink(child, level)
         if not follow:
             return ParentLink(child, level, reported=True)
-        parent = self.data(path) if "lei-record" in links else None
+        parent = _record(self.data(path)) if "lei-record" in links else None
         relationship = self.data(f"{path}-relationship") if "relationship-record" in links else None
-        return ParentLink(child, level, True, parent, relationship)
+        missing = ("lei-record" in links and parent is None) or (
+            "relationship-record" in links and relationship is None
+        )
+        return ParentLink(child, level, True, parent, relationship, missing=missing)
 
     def join(self, number: str) -> list[dict[str, Any]]:
         """LEI records at a Companies House authority whose `registeredAs` is this number."""
@@ -152,7 +217,8 @@ class Gleif:
             "filter[entity.registeredAt]": ",".join(CH_AUTHORITIES),
             "page[size]": 200,
         }
-        return list(self.data("lei-records", params) or [])
+        found = (_record(data) for data in self.data("lei-records", params, many=True) or [])
+        return [record for record in found if record is not None]
 
     def coverage(self) -> dict[str, int]:
         """The research note's GB coverage counts, one request each."""
@@ -167,7 +233,7 @@ def run_spike(client: HttpClient, lei: str, ch_number: str | None = None) -> Spi
     malformed one and HttpError when GLEIF fails.
     """
     gleif = Gleif(client)
-    record = gleif.data(f"lei-records/{_checked(lei)}")
+    record = _record(gleif.data(f"lei-records/{_checked(lei)}"))
     if record is None:
         raise LookupError(f"GLEIF has no LEI record {lei}")
     result = SpikeResult(record)

@@ -22,18 +22,30 @@ def key(request: httpx.Request) -> str:
     return f"{path}?{query}" if query else path
 
 
-def synthetic_api(seen: list[str] | None = None) -> HttpClient:
-    """The GLEIF client over the synthetic responses; any other request is a 404."""
+def synthetic_api(
+    seen: list[str] | None = None,
+    replace: dict[str, list[httpx.Response]] | None = None,
+    sleeps: list[float] | None = None,
+) -> HttpClient:
+    """The GLEIF client over the synthetic responses; any other request is a 404.
+
+    `replace` maps a request key to responses sent first, one per request. Every link in the
+    fixture points at links.example.invalid, so a client that followed one would fail here.
+    """
     responses: dict[str, Any] = json.loads(FIXTURE.read_text(encoding="utf-8"))["responses"]
 
     def handle(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "api.gleif.org", f"request to {request.url}"
         if seen is not None:
             seen.append(key(request))
+        if replace and replace.get(key(request)):
+            return replace[key(request)].pop(0)
         body = responses.get(key(request))
         return httpx.Response(200, json=body) if body else httpx.Response(404, json={})
 
     limiter = RateLimiter(1.0, sleep=lambda seconds: None)
-    return gleif.make_client(limiter=limiter, transport=httpx.MockTransport(handle))
+    sleep = sleeps.append if sleeps is not None else (lambda seconds: None)
+    return gleif.make_client(limiter=limiter, transport=httpx.MockTransport(handle), sleep=sleep)
 
 
 @pytest.mark.parametrize(
@@ -153,3 +165,81 @@ def test_coverage_counts_each_query_with_one_record_per_page() -> None:
     with gleif.make_client(limiter=limiter, transport=httpx.MockTransport(handle)) as client:
         counts = gleif.coverage(client)
     assert list(counts) == list(COVERAGE) and len(set(counts.values())) > 1
+
+
+def test_a_linked_record_or_exception_that_answers_404_is_reported_first() -> None:
+    gone = {
+        f"lei-records/{CHILD}/direct-parent": [httpx.Response(404, json={})],
+        f"lei-records/{APEX}/ultimate-parent-reporting-exception": [httpx.Response(404, json={})],
+    }
+    with synthetic_api(replace=gone) as client:
+        result = gleif.run_spike(client, CHILD)
+    assert [(link.child, link.level, link.missing) for link in result.links] == [
+        (CHILD, "direct", True),
+        (CHILD, "ultimate", False),
+        (APEX, "direct", False),
+        (APEX, "ultimate", True),
+    ]
+    records, notes = gleif.build_records(result)
+    assert f"{CHILD} direct parent: linked, but GLEIF answered 404" in notes
+    assert f"{APEX} ultimate parent: linked, but GLEIF answered 404" in notes
+    assert ownership_id(CHILD, PARENT, "direct") not in {record["id"] for record in records}
+    assert validate_batch(records, strict=True) == []
+    assert (
+        gleif.summary_lines(result)[2] == f"  {CHILD} direct parent: linked, but GLEIF answered 404"
+    )
+
+
+@pytest.mark.parametrize(("headers", "waited"), [({"Retry-After": "2"}, [2.0]), ({}, [60.0])])
+def test_a_429_waits_what_gleif_asks_or_a_minute(
+    headers: dict[str, str], waited: list[float]
+) -> None:
+    sleeps: list[float] = []
+    busy = {f"lei-records/{CHILD}": [httpx.Response(429, headers=headers)]}
+    with synthetic_api(replace=busy, sleeps=sleeps) as client:
+        assert gleif.run_spike(client, CHILD).record["id"] == CHILD
+    assert sleeps == waited
+
+
+def test_a_wait_over_max_wait_fails_instead_of_waiting() -> None:
+    sleeps: list[float] = []
+    busy = {f"lei-records/{CHILD}": [httpx.Response(429, headers={"Retry-After": "121"})]}
+    client = synthetic_api(replace=busy, sleeps=sleeps)
+    with client, pytest.raises(HttpError, match="asked to wait 121 s"):
+        gleif.run_spike(client, CHILD)
+    assert sleeps == []
+
+
+def test_redirects_are_never_followed() -> None:
+    seen: list[str] = []
+    target = "https://links.example.invalid/elsewhere?token=secret"
+    moved = {f"lei-records/{CHILD}": [httpx.Response(302, headers={"Location": target})]}
+    client = synthetic_api(seen, replace=moved)
+    with client, pytest.raises(HttpError, match=r"302 redirect to .* never followed") as error:
+        gleif.run_spike(client, CHILD)
+    assert seen == [f"lei-records/{CHILD}"]
+    assert "secret" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"meta": {}}, {"data": None}, {"data": {"id": CHILD, "attributes": {}}}, ["not", "a", "body"]],
+)
+def test_unexpected_shapes_fail_cleanly(body: Any) -> None:
+    odd = {f"lei-records/{CHILD}": [httpx.Response(200, json=body)]}
+    client = synthetic_api(replace=odd)
+    with client, pytest.raises(HttpError, match=r"unexpected response shape|not a JSON:API object"):
+        gleif.run_spike(client, CHILD)
+
+
+def test_null_relationships_mean_no_parent_links() -> None:
+    body = json.loads(FIXTURE.read_text(encoding="utf-8"))["responses"][f"lei-records/{CHILD}"]
+    body["data"]["relationships"] = None
+    with synthetic_api(
+        replace={f"lei-records/{CHILD}": [httpx.Response(200, json=body)]}
+    ) as client:
+        result = gleif.run_spike(client, CHILD)
+    assert [(link.reported, link.missing, link.parent) for link in result.links] == [
+        (False, False, None),
+        (False, False, None),
+    ]

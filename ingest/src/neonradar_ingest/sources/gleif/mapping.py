@@ -116,10 +116,12 @@ def ownership_record(
     child: str, parent: str, level: str, relationship: dict[str, Any] | None
 ) -> dict[str, Any]:
     """The consolidation link as an `Ownership` with `nr.consolidation` (`direct`, `ultimate`)."""
-    detail = (relationship or {}).get("attributes", {}).get("relationship", {})
+    detail: dict[str, Any] = ((relationship or {}).get("attributes") or {}).get(
+        "relationship"
+    ) or {}
     periods: list[dict[str, Any]] = detail.get("periods") or []
     period = next((p for p in periods if p.get("type") == "RELATIONSHIP_PERIOD"), {})
-    properties = {
+    properties: dict[str, list[str | None]] = {
         "owner": [entity_id(parent)],
         "asset": [entity_id(child)],
         "role": [detail.get("type")],
@@ -150,15 +152,17 @@ def build_records(result: SpikeResult) -> tuple[list[dict[str, Any]], list[str]]
         if link.parent is not None:
             add(company_records(link.parent, skipped_names))
             add([ownership_record(link.child, link.parent["id"], link.level, link.relationship)])
+        if link.missing:
+            notes.append(f"{where}: linked, but GLEIF answered 404")
         elif link.exception is not None:
             exception = link.exception
             notes.append(
                 f"{where}: reporting exception {exception.get('category')},"
                 f" reason {exception.get('reason')}"
             )
-        elif link.reported:
+        elif link.parent is None and link.reported:
             notes.append(f"{where}: reported with an LEI, not fetched (beyond the spike's depth)")
-        else:
+        elif link.parent is None:
             notes.append(f"{where}: neither a parent nor a reporting exception")
     for data in result.join:
         add(company_records(data, skipped_names))
@@ -178,7 +182,7 @@ def build_records(result: SpikeResult) -> tuple[list[dict[str, Any]], list[str]]
 def summary_lines(result: SpikeResult) -> list[str]:
     """What the command prints: the record, each parent or exception with its reason, the join."""
     attributes = result.record["attributes"]
-    entity, registration = attributes["entity"], attributes["registration"]
+    entity, registration = attributes["entity"], attributes.get("registration") or {}
     registered_at = (entity.get("registeredAt") or {}).get("id")
     lines = [
         f"record {attributes['lei']}: {(entity.get('legalName') or {}).get('name')}",
@@ -188,9 +192,12 @@ def summary_lines(result: SpikeResult) -> list[str]:
     ]
     for link in result.links:
         prefix = f"  {link.child} {link.level} parent:"
-        if link.parent is not None:
+        if link.missing:
+            fetched = f" (parent {link.parent['id']} fetched)" if link.parent else ""
+            lines.append(f"{prefix} linked, but GLEIF answered 404{fetched}")
+        elif link.parent is not None:
             parent = link.parent["attributes"]
-            detail = (link.relationship or {}).get("attributes", {}).get("relationship", {})
+            detail = ((link.relationship or {}).get("attributes") or {}).get("relationship") or {}
             lines.append(
                 f"{prefix} {parent['lei']} {(parent['entity'].get('legalName') or {}).get('name')}"
                 f" ({detail.get('type')}, {detail.get('status')})"

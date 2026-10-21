@@ -51,7 +51,7 @@ Solid arrows are admitted or adjudicated; dotted arrows are allegations in the c
 - [`layering_chain`](../../typologies/layering-chain.md): money moved through a chain of companies and accounts in several countries before reaching assets.
 - [`fan_out_distribution`](../../typologies/fan-out-distribution.md): a few accounts paying many destinations, here assets.
 - [`shell_chain`](../../typologies/shell-chain.md): companies used, as alleged, to receive and pass on money, one with a name resembling a genuine entity.
-- `pep_exposure` (explainer in typology batch 3): exposure to politically exposed persons through ownership, control, family or associates. The Justice Department calls the case Goldman resolved a foreign bribery case [doj_goldman_2020]; whether any official controlled or benefited from the companies is alleged, not adjudicated. The glossary defines a [politically exposed person](../../glossary.md) [fatf_glossary]. FATF's guidance describes the measures for PEPs as preventive and notes that they do not mean all PEPs are involved in wrongdoing [fatf_peps_2013].
+- [`pep_exposure`](../../typologies/pep-exposure.md): exposure to politically exposed persons through ownership, control, family or associates. The Justice Department calls the case Goldman resolved a foreign bribery case [doj_goldman_2020]; whether any official controlled or benefited from the companies is alleged, not adjudicated. The glossary defines a [politically exposed person](../../glossary.md) [fatf_glossary]. FATF's guidance describes the measures for PEPs as preventive and notes that they do not mean all PEPs are involved in wrongdoing [fatf_peps_2013].
 
 A typology names the graph pattern this alleged structure shows. It is not a finding about any company or person.
 

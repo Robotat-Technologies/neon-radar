@@ -6,6 +6,7 @@ One definition file per typology in `detect/typologies/` (the shape is in `contr
 
 | Slug | Name | Tier | Status | Owner | Detector |
 |---|---|---|---|---|---|
+| [`cash_commingling`](cash-commingling.md) | Cash-intensive business commingling | extended | draft | @robotat-com | no |
 | [`circular_flow`](circular-flow.md) | Round-tripping or circular flows | core | draft | @robotat-com | no |
 | [`dormant_reactivation`](dormant-reactivation.md) | Dormant account reactivation followed by high velocity | core | draft | @robotat-com | no |
 | [`fan_in_collection`](fan-in-collection.md) | Fan-in to a collection account | core | draft | @robotat-com | no |
@@ -13,6 +14,10 @@ One definition file per typology in `detect/typologies/` (the shape is in `contr
 | [`formation_agent_cluster`](formation-agent-cluster.md) | Companies clustered around one formation agent | extended | draft | @robotat-com | no |
 | [`layering_chain`](layering-chain.md) | Layering through chains of transfers | core | draft | @robotat-com | no |
 | [`mass_registration_address`](mass-registration-address.md) | Mass registration addresses | core | draft | @robotat-com | no |
+| [`pep_exposure`](pep-exposure.md) | Exposure to politically exposed persons through ownership, control, family or associates | extended | draft | @robotat-com | no |
 | [`rapid_pass_through`](rapid-pass-through.md) | Rapid pass-through (funnel or transit accounts) | core | draft | @robotat-com | no |
+| [`recycled_directors`](recycled-directors.md) | Recycled and professional directors | extended | draft | @robotat-com | no |
+| [`sanctions_exposure`](sanctions-exposure.md) | Sanctions exposure through indirect ownership or control | core | draft | @robotat-com | no |
 | [`shell_chain`](shell-chain.md) | Layered company ownership with nominee directors | core | draft | @robotat-com | no |
 | [`structuring`](structuring.md) | Structuring (smurfing) below reporting thresholds | core | draft | @robotat-com | no |
+| [`trade_based_ml`](trade-based-ml.md) | Trade-based money laundering (over- and under-invoicing) | explainer_only | draft | @robotat-com | no |

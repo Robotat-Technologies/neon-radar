@@ -10,8 +10,9 @@
     `neonradar_ingest.http.HttpClient` (an `httpx.Client`): pass `follow_redirects`
     explicitly and a `RateLimiter` per source (Companies House 2 per second, GLEIF 1 per
     second). It sets the timeouts (connect 10 s, read 60 s) and the NeonRadar User-Agent,
-    retries 429, 5xx and transport errors with backoff (`Retry-After`, or a source's own
-    `retry_hint`), and redacts URLs in logs. Never log headers, keys or whole responses, and
+    retries GET, HEAD and OPTIONS after a 429, 500, 502, 503, 504 or transport error with
+    backoff (`Retry-After`, or a source's own `retry_hint`; a wait over `max_hint` raises
+    `HttpError`), and redacts URLs in logs. Never log headers, keys or whole responses, and
     never call `raise_for_status()` (its message has the unredacted URL): use `get_json` or
     check the status and raise `HttpError` with `redact(url)`.
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use

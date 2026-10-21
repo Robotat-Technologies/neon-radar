@@ -99,5 +99,5 @@ A private repository on GitHub Free has 2,000 GitHub Actions minutes a month; ea
 
 ## Known gaps
 
-- `graph/tests/test_neo4j_smoke.py` starts Neo4j with `NEO4J_PLUGINS`, which downloads the GDS jar from `graphdatascience.ninja` each time; the startup wait is 300 seconds for that reason. M1.4 pins the GDS jar for the local stack; M1.7b (or later) switches Testcontainers and CI to the pinned jar.
+- `graph/tests/test_neo4j_smoke.py` starts Neo4j with `NEO4J_PLUGINS`, which downloads the GDS jar from `graphdatascience.ninja` each time; the startup wait is 300 seconds for that reason. Operator decision OD-13 says Testcontainers and CI should mount the GDS jar that M1.4's `make plugins` pins (SHA-256) instead; M1.7b (or later) makes that switch, once M1.4 is merged.
 - `make hygiene` does not run gitleaks; the pre-commit hook covers local commits.

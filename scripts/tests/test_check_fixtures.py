@@ -11,7 +11,7 @@ SYNTHETIC = {
     "id": "syn-co-0001",
     "schema": "Company",
     "datasets": ["nr_synthetic"],
-    "properties": {"name": ["Falcon Ridge Trading Ltd"]},
+    "properties": {"name": ["syn placeholder 0001"]},
     "nr": {"v": "1.0", "synthetic": True, "synthetic_kind": "registry"},
 }
 
@@ -87,8 +87,8 @@ def test_untracked_files_are_ignored(git_repo: "GitRepo") -> None:
     "content",
     [
         "# synthetic: true\ntx_id,scenario_id,is_illicit\nsyn-payment-1,s1,false\n",
-        "synthetic,company_id,company_name\ntrue,onb-co-01,Cedar Gate Ltd\n"
-        'true,onb-co-02,"Harbour, Lane Ltd"\n',
+        "synthetic,company_id,company_name\ntrue,onb-co-01,placeholder one\n"
+        'true,onb-co-02,"placeholder, two"\n',
         "﻿synthetic,company_id\ntrue,onb-co-01\n",
     ],
 )

@@ -30,7 +30,7 @@ We will use option 1, as specified in `contracts/C2-graph-schema.md`:
 - Transactions are `PAID` relationships between accounts, with a UTC `DATETIME` `ts`, so cycle and flow queries are fast traversals and each payment has one `id` for evidence. Ownership becomes `OWNS`, `HOLDS_ACCOUNT` or `CONSOLIDATES`, and the other interests become typed relationships in FtM's edge direction.
 - Flag labels (`:Synthetic`, `:Sanctioned`, `:PEP`, `:RCA`) come only from source data, never from detections; alerts are separate `:Alert` nodes linked with `FLAGS`.
 - Phase 1 loads identity-first: one node per record, `referents = [id]`. Phase 2 resolves first and then merges, keeping `:SourceRecord` evidence and `RESOLVED_TO` relationships, so every merge stays explainable and reversible.
-- The schema uses uniqueness constraints only (on `id` of every node key and relationship type, 22 in all) plus 7 indexes, because Community has no other constraint kinds; the mapping, the loader and the invariant tests enforce required properties.
+- The schema uses uniqueness constraints only (on the key of every node label (`id`, `alert_id`, `run_id`) and on `id` of the 16 relationship types built from records, 22 in all) plus 7 indexes, because Community has no other constraint kinds; the mapping, the loader and the invariant tests enforce required properties.
 - The mapping is data (`neonradar_contracts.graph`), so the loader, the detectors and the contract tests read one source; migrations are numbered files that are never edited once applied (`neonradar graph migrate`).
 
 ## Consequences

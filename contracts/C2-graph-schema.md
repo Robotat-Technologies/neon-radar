@@ -94,10 +94,10 @@ A flag says what a source published about an entity. It is a fact about the sour
 |---|---|---|
 | `id` | STRING | Unique. The record id in Phase 1; the canonical id after entity resolution (Phase 2) |
 | `schema` | STRING | FtM schema name |
-| `caption` | STRING | The record's `caption` if it has one, else FtM's caption (the first caption property, else the schema label such as `Sanction`), so it is never empty |
+| `caption` | STRING | The record's `caption` if it has one, else FtM's caption (the first property in the schema's caption list that has a value; for names FtM picks a representative value, preferring Latin script), else the schema label such as `Sanction`, so it is never empty |
 | `names` | LIST<STRING> | Every value of `name`, `alias`, `previousName`, `abbreviation` (and `full` for addresses), in original scripts, without duplicates |
 | `names_text` | STRING | `names` joined with `" \| "`, for the full-text index |
-| `countries` | LIST<STRING> | Lower-case ISO codes from every country-typed property, sorted, without duplicates |
+| `countries` | LIST<STRING> | Lower-case ISO codes from every country-typed property (normalised with FtM's country type, so `GB` becomes `gb`), sorted, without duplicates. Country-typed schema properties (`jurisdiction`, `country`, `nationalities`) are normalised the same way |
 | `topics` | LIST<STRING> | FtM topics |
 | `datasets` | LIST<STRING> | Dataset slugs |
 | `referents` | LIST<STRING> | Record ids merged into this node (Phase 1: `[id]`) |
@@ -131,7 +131,9 @@ Dates on entities and relationships are ISO 8601 strings and may be partial. Onl
 | `FLAGS` | `Alert` | `Entity` | Alert subjects | `role` |
 | `PRODUCED` | `DetectionRun` | `Alert` | Detection runs | none |
 
-Common relationship properties (all types except `RESOLVED_TO`, `FLAGS`, `PRODUCED`): `id` (STRING, unique per type: the FtM interval entity id, or `<entity id>|addr|<address id>` for `HAS_ADDRESS`, or `<entity id>|sanction|<sanction id>` for `SUBJECT_OF`), `datasets`, `synthetic`, `source_url` (optional).
+Common relationship properties (all types except `RESOLVED_TO`, `FLAGS`, `PRODUCED`): `id` (STRING, unique per type: the FtM interval entity id, or `<record id of the entity>|addr|<address record id>` for `HAS_ADDRESS`, or `<record id of the entity>|sanction|<sanction record id>` for `SUBJECT_OF`), `datasets`, `synthetic`, `source_url` (optional).
+
+Relationship ids are unique across all types and never equal a node id (derived ids contain `|`, which the C1 id alphabet excludes); they do not change after entity resolution.
 
 Every edge schema runs in FtM's edge direction (`schema.edge_source` to `schema.edge_target`), except `PAID`, which joins the two accounts of a `Payment` rather than its payer and beneficiary.
 
@@ -159,16 +161,16 @@ Every statement must be idempotent (`IF NOT EXISTS`): DDL cannot be rolled back,
 
 `neonradar graph load` (M1.9a) builds on `neonradar_graph.mapping`:
 
-1. Validate every record (C1) first; nothing is written if validation fails in strict mode.
+1. Validate every record (C1) first; nothing is written if validation fails in strict mode. In a non-strict load, a record that fails C1 is skipped, never mapped: the mapping trusts C1's types (for example `nr.is_nominee` is a boolean, not the string `"false"`).
 2. Load nodes before relationships, in batches of 5,000 rows with `UNWIND $rows AS row`, through `driver.execute_query(..., database_="neo4j")`.
-3. Labels come only from the fixed mapping, written into the query text per schema; data values are never interpolated into Cypher. Flag labels use `FOREACH (_ IN CASE WHEN row.flags.PEP THEN [1] ELSE [] END | SET n:PEP)`.
+3. Labels come only from the fixed mapping, written into the query text per schema; data values are never interpolated into Cypher. Flag labels use `FOREACH (_ IN CASE WHEN row.flags.PEP THEN [1] ELSE [] END | SET n:PEP)`, and a flag that is false is removed the same way (`... WHEN NOT row.flags.PEP ... | REMOVE n:PEP`), so a reload of a record whose source dropped a topic also drops the flag.
 4. Nodes: `MERGE (n:Entity {id: row.id})` (`:Sanction` for sanctions), then set labels, then `SET n += row.props`.
-5. Relationships: `MATCH` both endpoints by `id` and by the From and To labels (`RelationshipRow.endpoint_labels`), `MERGE` the relationship on its `id`, `SET r += row.props`. Count rows whose endpoints were not found and report them as dangling.
+5. Relationships: `MATCH (s:Entity {id: row.source}) WHERE s:<From>` and the same for the target, using `:Sanction` instead of `:Entity` for a Sanction end (`RelationshipRow.endpoint_keys`, with the From and To labels in `endpoint_labels`), so the uniqueness index is used; a label-only `MATCH (s:<From> {id: ...})` scans every node with that label. Then `MERGE` the relationship on its `id` and `SET r += row.props`. Count rows whose endpoints were not found and report them as dangling.
 6. `PAID.ts`: the row carries `<record date>Z` in `row.ts` and the query sets `r.ts = datetime(row.ts)`.
 7. Loading the same files twice leaves the graph unchanged.
 8. In strict mode, any `MappingIssue` (below) fails the load.
 
-`to_node_rows(records)` and `to_relationship_rows(records)` return the rows and a list of skipped records or references (`MappingIssue`). `NodeRow.as_param()` and `RelationshipRow.as_param()` give the parameter row for `UNWIND`. The functions read the whole load, because the Ownership case and the endpoint checks need the schema of referenced records.
+`to_node_rows(records)` and `to_relationship_rows(records)` take the whole load as a sequence (a list, never a one-shot iterator: the relationship mapping reads it twice, because the Ownership case and the endpoint checks need the schema of referenced records). Each returns its rows and a list of skipped records or references (`MappingIssue`). Record-level issues (not a C1 record, duplicate id) appear in both lists; `MappingIssue` is hashable, so merge them with `dict.fromkeys`. `NodeRow.as_param()` and `RelationshipRow.as_param()` give the parameter row for `UNWIND`.
 
 ## Mapping decisions
 
@@ -185,7 +187,7 @@ C1 accepts some records that the C2 tables do not cover one to one. The mapping 
    - `addressEntity` on a record that is not a `LegalEntity` (FtM allows it on every thing; `HAS_ADDRESS` starts at a `LegalEntity`); the node itself is kept;
    - a duplicate id in the load (C1 R4 already rejects it; the first record is kept).
 7. **Endpoints outside the load** are not checked by the mapping; the loader's label-checked `MATCH` counts them as dangling. An `Ownership` whose asset is outside the load is treated as `OWNS`.
-8. **Not mapped in v1** (C1 accepts them, C2 stores nothing): the references `parent`, `subsidiaries`, `BankAccount.bank`, `Position.organization`, `Payment.payer`, `Payment.beneficiary`, `Payment.contract`, `Payment.project` and `proof`; the record keys `last_change` and `referents`; `nr.source_ref` and `nr.synthetic_kind`. Phase 2's `:SourceRecord` keeps the full record.
+8. **Not mapped in v1** (C1 accepts them, C2 stores nothing): the references `parent`, `riskSource`, `BankAccount.bank`, `Position.organization`, `Payment.payer`, `Payment.beneficiary`, `Payment.contract`, `Payment.project` and `proof`; on `HOLDS_ACCOUNT` and `CONSOLIDATES`, the Ownership's `percentage`, `ownershipType`, `nr.natures_of_control` and `nr.share_pct_*` (they are stored only on `OWNS`); every other FtM property that `neonradar_contracts.graph` does not name; the record keys `last_change` and `referents`; and `nr.v`, `nr.source_ref` and `nr.synthetic_kind`. Phase 2's `:SourceRecord` keeps the full record.
 9. **Not set in Phase 1:** `Address.address_key` (Phase 2 computes it), and `account_kind` or `is_nominee` when the record has no `nr` value for them (no default is invented).
 
 ## Graph invariants

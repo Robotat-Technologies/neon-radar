@@ -27,3 +27,7 @@ updates:
     commit-message: { prefix: build, include: scope }
     ignore:
       - dependency-name: neo4j     # upgrade by hand (LTS line and GDS pairing)
+  - package-ecosystem: devcontainers   # the features in .devcontainer/devcontainer.json
+    directory: "/"
+    schedule: { interval: weekly }
+    commit-message: { prefix: build, include: scope }

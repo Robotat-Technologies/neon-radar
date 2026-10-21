@@ -1,8 +1,9 @@
 """The shared HTTP client for spikes and loaders (PHASE-1.md M1.8, common rules).
 
 httpx with a 10 s connect and 60 s read timeout, an explicit `follow_redirects`, the NeonRadar
-User-Agent, a per-source rate limiter, and retries with exponential backoff after a 429, a 5xx
-or a transport error that honour `Retry-After`. Logs never show headers, keys or credentials.
+User-Agent, a per-source rate limiter, and retries with exponential backoff after a 429, a
+500, 502, 503 or 504 or a transport error that honour `Retry-After`. Logs never show headers,
+keys or credentials.
 """
 
 import logging
@@ -22,8 +23,10 @@ logger = logging.getLogger(__name__)
 
 USER_AGENT = f"NeonRadar/{__version__} (+https://neonradar.com)"
 TIMEOUT = httpx.Timeout(60.0, connect=10.0)
-SECRET_NAME = re.compile(r"key|token|secret|pass|auth|sig|session", re.IGNORECASE)
+SECRET_NAME = re.compile(r"key|token|secret|pass|pwd|credential|auth|sig|session", re.IGNORECASE)
 BACKOFF_BASE, BACKOFF_MAX = 1.0, 60.0  # seconds: 1, 2, 4, ... at most 60
+RETRY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})  # idempotent: safe to send again
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})  # 501 and 505 do not change on a retry
 
 Clock = Callable[[], float]
 Sleep = Callable[[float], None]
@@ -52,12 +55,14 @@ def _redact_urls(record: logging.LogRecord) -> bool:
 
 
 logging.getLogger("httpx").addFilter(_redact_urls)  # httpx logs every request URL at INFO
+# httpcore logs raw response headers (cookies, tokens) at DEBUG; keep it quiet even then.
+logging.getLogger("httpcore").setLevel(logging.INFO)
 
 
 def retry_after_seconds(response: httpx.Response) -> float | None:
     """Seconds to wait from a `Retry-After` header (delay seconds or an HTTP date), else None."""
     value = response.headers.get("Retry-After", "").strip()
-    if value.isdigit():
+    if value.isascii() and value.isdigit():
         return float(value)
     try:
         when = parsedate_to_datetime(value)
@@ -96,9 +101,11 @@ class HttpClient(httpx.Client):
     """An `httpx.Client` for one source; every `get`, `head` and `stream` is limited and retried.
 
     `options` go to httpx (`headers`, `auth`, `transport`); the User-Agent is always NeonRadar's.
-    After a 429, a 5xx or a transport error it retries up to `retries` times, waiting what
-    `retry_hint` reads from the response (default `Retry-After`; Companies House can read
-    `X-Ratelimit-Reset`), at most `max_hint` seconds, or else 1, 2, 4 ... seconds.
+    After a 429, 500, 502, 503 or 504 or a transport error, a GET, HEAD or OPTIONS request is
+    retried up to `retries` times (other methods are sent once). It waits what `retry_hint`
+    reads from the response (default `Retry-After`; Companies House can read
+    `X-Ratelimit-Reset`), or else 1, 2, 4 ... seconds. A hint over `max_hint` seconds raises
+    HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
     """
 
@@ -114,6 +121,8 @@ class HttpClient(httpx.Client):
         sleep: Sleep = time.sleep,
         **options: Any,
     ) -> None:
+        if retries < 0:
+            raise ValueError("retries must be 0 or more")
         super().__init__(
             base_url=base_url, timeout=TIMEOUT, follow_redirects=follow_redirects, **options
         )
@@ -124,28 +133,34 @@ class HttpClient(httpx.Client):
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
+        request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
         where = f"{request.method} {redact(request.url)}"
-        for attempt in range(self.retries + 1):
+        retries = self.retries if request.method in RETRY_METHODS else 0
+        for attempt in range(retries + 1):
             self.limiter.wait()
             self.requests += 1
             response: httpx.Response | None = None
             try:
                 response = super().send(request, **kwargs)
+            except httpx.UnsupportedProtocol as exc:  # a bad URL: sending again cannot help
+                raise HttpError(f"{where}: {exc}") from None
             except httpx.TransportError as exc:
                 problem = f"{type(exc).__name__}: {exc}"
             else:
-                if response.status_code != 429 and response.status_code < 500:
+                if response.status_code not in RETRY_STATUSES:
                     return response
                 if response.status_code == 429:
                     self.throttled += 1
                 problem = f"HTTP {response.status_code}"
                 response.close()
-            if attempt == self.retries:
-                status = response.status_code if response is not None else None
+            status = response.status_code if response is not None else None
+            if attempt == retries:
                 raise HttpError(f"{where} failed after {attempt + 1} attempt(s): {problem}", status)
             hint = self._retry_hint(response) if response is not None else None
+            if hint is not None and hint > self.max_hint:  # never retry before the server allows
+                raise HttpError(f"{where}: {problem}; asked to wait {hint:.0f} s", status)
             backoff = min(BACKOFF_BASE * 2**attempt, BACKOFF_MAX)
-            delay = backoff if hint is None else min(max(hint, 0.0), self.max_hint)
+            delay = backoff if hint is None else max(hint, 0.0)
             logger.warning("%s: %s; retry %d in %.1f s", where, problem, attempt + 1, delay)
             self.retried += 1
             self._sleep(delay)

@@ -66,15 +66,38 @@ def test_retries_5xx_and_transport_errors_with_exponential_backoff() -> None:
     assert (client.requests, client.retried, client.throttled) == (4, 3, 0)
 
 
-def test_honours_retry_after_and_a_source_hint_up_to_max_hint() -> None:
+def test_honours_retry_after_refuses_long_waits_and_retries_only_safe_requests() -> None:
     server = Server(httpx.Response(429, headers={"Retry-After": "7"}), httpx.Response(429))
     server.replies.append(httpx.Response(200))
     client = server.client()
     assert client.get("/x").status_code == 200
     assert (server.sleeps, client.throttled) == ([7.0, 2.0], 2)
     server = Server(httpx.Response(503), httpx.Response(200))
-    server.client(retry_hint=lambda response: 900.0).get("/x")
+    with pytest.raises(HttpError, match="asked to wait 900 s") as error:
+        server.client(retry_hint=lambda response: 900.0).get("/x")
+    assert (error.value.status, server.sleeps, len(server.seen)) == (503, [], 1)
+    server = Server(httpx.Response(429), httpx.Response(200))
+    server.client(retry_hint=lambda response: 300.0).get("/x")  # e.g. the CH 300 s fallback
     assert server.sleeps == [300.0]
+    server = Server(httpx.Response(503), httpx.Response(200))
+    with pytest.raises(HttpError, match=r"POST .* after 1 attempt"):
+        server.client().post("/x")
+    server = Server(httpx.Response(501), httpx.Response(505))
+    client = server.client()
+    assert [client.get("/x").status_code, client.get("/x").status_code] == [501, 505]
+    assert (server.sleeps, client.retried) == ([1.0], 0)  # the limiter only; no retry
+    server = Server(httpx.UnsupportedProtocol("no scheme"))
+    with pytest.raises(HttpError, match="no scheme"):
+        server.client().get("/x")
+    assert len(server.seen) == 1
+
+
+def test_a_per_request_user_agent_is_replaced_and_retries_must_not_be_negative() -> None:
+    server = Server(httpx.Response(200))
+    server.client().get("/x", headers={"User-Agent": "other"})
+    assert server.seen[0].headers["User-Agent"].startswith("NeonRadar/")
+    with pytest.raises(ValueError, match="retries"):
+        Server().client(retries=-1)
 
 
 def test_stream_is_limited_and_retried_too() -> None:
@@ -120,6 +143,7 @@ def test_logs_never_show_keys_or_authorization(caplog: pytest.LogCaptureFixture)
     assert "httpx" in {record.name for record in caplog.records}  # httpx's own request log
     for secret in ("key-1234", "tok-5678", "Authorization", basic):
         assert secret not in logged
+    assert logging.getLogger("httpcore").getEffectiveLevel() == logging.INFO  # raw headers
 
 
 def hint(headers: dict[str, str]) -> float | None:
@@ -127,8 +151,12 @@ def hint(headers: dict[str, str]) -> float | None:
 
 
 def test_redact_and_retry_after_parsing() -> None:
-    url = "https://user:pw@x.test/a?sessionId=1&lei=2"
-    assert redact(url) == "https://x.test/a?sessionId=REDACTED&lei=2"
+    url = "https://user:pw@x.test/a?sessionId=1&lei=2&pwd=3&credential=4"
+    assert (
+        redact(url) == "https://x.test/a?sessionId=REDACTED&lei=2&pwd=REDACTED&credential=REDACTED"
+    )
     soon = format_datetime(datetime.now(UTC) + timedelta(seconds=30), usegmt=True)
     assert 25 < (hint({"Retry-After": soon}) or 0) <= 30
     assert [hint({"Retry-After": "120"}), hint({"Retry-After": "x"}), hint({})] == [120, None, None]
+    odd = httpx.Response(429, headers=[(b"Retry-After", "\u00b2".encode())])
+    assert retry_after_seconds(odd) is None

@@ -1,0 +1,2 @@
+{"id": "syn-co-0001", "schema": "Company", "datasets": ["nr_synthetic"], "properties": {"name": ["Falcon Ridge Trading Ltd"], "jurisdiction": ["gb"]}, "nr": {"v": "1.0", "synthetic": true, "synthetic_kind": "registry"}}
+{"id": "syn-ownership-0001", "schema": "Ownership", "datasets": ["nr_synthetic"], "properties": {"owner": ["syn-p-9999"], "asset": ["syn-co-0001"], "percentage": ["25-50"]}, "nr": {"v": "1.0", "synthetic": true, "synthetic_kind": "registry"}}

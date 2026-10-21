@@ -1,0 +1,46 @@
+{
+  "manifest_version": "1.0",
+  "record_contract": "1.0.0",
+  "dataset": "nr_synthetic",
+  "files": [
+    {
+      "path": "demo.ftm.jsonl",
+      "sha256": "bb99deb71ab5651b42ca7217ab204753e46d5a772ec195264172ca5b326d98a0",
+      "records": 10
+    }
+  ],
+  "created_at": "2026-10-21T08:40:00Z",
+  "producer": {
+    "name": "hand-written golden example (PHASE-1.md 5.1)",
+    "version": "1.0.0",
+    "git_sha": null
+  },
+  "source": {
+    "urls": [],
+    "retrieved_at": null,
+    "source_version": null
+  },
+  "licence": {
+    "id": "Apache-2.0",
+    "attribution": null
+  },
+  "counts": {
+    "by_schema": {
+      "Address": 1,
+      "BankAccount": 2,
+      "Company": 2,
+      "Ownership": 3,
+      "Payment": 1,
+      "Person": 1
+    },
+    "skipped": {}
+  },
+  "dependencies": {
+    "followthemoney": "4.11.0"
+  },
+  "synthetic": true,
+  "seed": null,
+  "notes": [
+    "C1 v1.0.0 golden example: the seven example lines of PHASE-1.md 5.1 plus syn-co-0002, syn-acct-0002 and syn-ownership-0003, which the payment references. Synthetic."
+  ]
+}

@@ -1,0 +1,84 @@
+version: 1
+reserved_prefixes: [nr]          # canonical resolved entities, Phase 2
+datasets:
+  - slug: gb_companies_house
+    id_prefix: gbch
+    title: UK Companies House public register
+    publisher: Companies House
+    url: https://developer.company-information.service.gov.uk/
+    licence: { id: OGL-UK-3.0, url: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" }
+    attribution: "Contains public sector information licensed under the Open Government Licence v3.0. Source: Companies House."
+    commercial_use: allowed
+    redistribution: loaders-only     # project policy: the repository ships loaders, never data
+    personal_data: true              # officers and PSCs; the user who loads them is a UK GDPR controller
+    synthetic: false
+    access: api-key
+    status: spike
+    notes: >-
+      Register data is made available under the Companies Act 2006 and section 47 approvals of the
+      Copyright, Designs and Patents Act 1988, with no Companies House rules on reuse; Companies
+      House's own material is under OGL v3.0, which does not cover personal data.
+  - slug: gleif_lei
+    id_prefix: gleif
+    title: GLEIF Global LEI Index
+    publisher: Global Legal Entity Identifier Foundation
+    url: https://www.gleif.org/
+    licence: { id: CC0-1.0, url: "https://creativecommons.org/publicdomain/zero/1.0/" }
+    attribution: "LEI data from the GLEIF Global LEI Index, available under CC0 1.0. NeonRadar is not affiliated with or endorsed by GLEIF."
+    commercial_use: allowed
+    redistribution: loaders-only
+    personal_data: false
+    synthetic: false
+    access: none
+    status: spike
+    notes: >-
+      No attribution required. GLEIF's terms forbid using its logo or implying endorsement, with
+      liquidated damages of CHF 100,000 per breach.
+  - slug: icij_offshore_leaks
+    id_prefix: icij
+    title: ICIJ Offshore Leaks Database
+    publisher: International Consortium of Investigative Journalists
+    url: https://offshoreleaks.icij.org/
+    licence: { id: ODbL-1.0, url: "https://opendatacommons.org/licenses/odbl/1-0/", contents: CC-BY-SA-3.0 }
+    attribution: "Always cite the International Consortium of Investigative Journalists when using this data."
+    commercial_use: allowed
+    redistribution: loaders-only     # a published derived database would have to be ODbL
+    personal_data: true
+    synthetic: false
+    access: none
+    status: spike
+    notes: >-
+      Produced works (screenshots, reports) carry a notice that the content came from the ICIJ
+      Offshore Leaks Database under ODbL 1.0 (clause 4.3); a publicly used derived database must be
+      ODbL and offered in machine-readable form (clause 4.6). Show ICIJ's disclaimer with the data.
+      Never publish a database that merges ICIJ data with OpenSanctions data.
+  - slug: opensanctions_default
+    id_prefix: os
+    title: OpenSanctions (default collection)
+    publisher: OpenSanctions Datenbanken GmbH
+    url: https://www.opensanctions.org/
+    licence: { id: CC-BY-NC-4.0, url: "https://creativecommons.org/licenses/by-nc/4.0/" }
+    attribution: "Contains data from OpenSanctions (https://www.opensanctions.org), (c) OpenSanctions Datenbanken GmbH, licensed under CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/), provided without warranty. Converted and filtered by NeonRadar."
+    commercial_use: licence-required # "Any use inside a for-profit business requires a data license."
+    redistribution: never
+    personal_data: true              # includes crime-related topics: special care under data protection law
+    synthetic: false
+    access: licence-required
+    status: blocked                  # becomes spike only when project.yaml access.opensanctions allows it
+    notes: >-
+      Free access exists only for public-interest journalists, advocacy groups and nonprofits working
+      on democratic governance or exposing corruption and financial crime, affiliated academics, and
+      public institutions of Ukraine, Georgia and Moldova. Every commercial user needs their own licence.
+  - slug: nr_synthetic
+    id_prefix: syn
+    title: NeonRadar synthetic data
+    publisher: NeonRadar
+    url: https://neonradar.com/
+    licence: { id: Apache-2.0, url: "https://www.apache.org/licenses/LICENSE-2.0" }
+    attribution: null
+    commercial_use: allowed
+    redistribution: allowed
+    personal_data: false
+    synthetic: true
+    access: none
+    status: active

@@ -1,0 +1,1 @@
+{"id": "syn-co-0001", "schema": "Company", "datasets": ["nr_synthetic"], "properties": {"name": ["Falcon Ridge Trading Ltd"], "jurisdiction": ["gb"]}, "nr": {"v": "1.0", "synthetic": true, "synthetic_kind": "registry", "scenario": "round_trip"}}

@@ -32,7 +32,7 @@ Instructions alone are not enough, so the agent kit enforces rules 2, 4 and 6 wi
 
 | Guard | Where | What it does |
 |---|---|---|
-| Permission rules | `.claude/settings.json` | Deny `Read` of `data/cache/real/**` and `data/cache/spikes/**`, and `Edit` or `Write` anywhere under `data/cache/`. `WebFetch` of the hosts that serve list, register or leak data asks a person first. |
+| Permission rules | `.claude/settings.json` | Deny `Read` of `data/cache/real/**` and `data/cache/spikes/**`, and `Edit` anywhere under `data/cache/` (which covers the tools that write files). Each rule appears twice: relative to the current folder (`./data/...`, as PHASE-2.md wrote it) and anchored at the project root (`/data/...`), because Claude Code reads `./path` relative to the current folder. Claude Code also applies these deny rules to file commands it recognises in Bash (`cat`, `head`, `tail`, `sed`, `tee`) and to redirections. `WebFetch` of the hosts that serve list, register or leak data asks a person first. |
 | Hook | `.claude/hooks/guard_real_data.py` | Runs before every `Bash`, `Read`, `Grep`, `Glob`, `WebFetch` and Neo4j MCP call. Details below. |
 | Rules files | `.claude/rules/real-data.md`, `.claude/rules/er.md` | Load into the agent's context when it works on the folders they name. |
 | Subagent | `.claude/agents/data-guardian.md` | Reviews a diff for real-data leaks, flag safety and label rules. |
@@ -53,6 +53,15 @@ What the hook blocks (exit 2, with a reason):
 
 The hook stops accidents, not a determined person. The permission rules, `CLAUDE.md` and the people who run the project remain responsible. Its 171 test cases are in `scripts/tests/test_guard_real_data.py`; `bash scripts/test_hooks.sh` runs them, and CI runs that script on every pull request.
 
+Known limits, stated plainly:
+
+- **The hook matches command text.** A path assembled while the command runs, from a shell variable, a command substitution, an encoded or concatenated string, or a file a program reads its paths from, is not caught. Neither is a program that opens files itself (a Python or Node script, for example) when its command line does not name the folder.
+- **Only the project's MCP configuration is checked.** The hook reads `.mcp.json` in the repository. An MCP server configured at user or local scope (`~/.claude.json`, `claude mcp add` without `--scope project`) is not checked, so nobody configures a Neo4j MCP server there that points at the real instance.
+- **The `ask` rules need a person to be asked.** In auto or bypass permission modes nobody is asked, so a `WebFetch` of the data hosts relies on the hook alone.
+- **The permission rules have their own gaps.** Claude Code applies `Read` and `Edit` deny rules to its file tools and to the file commands it recognises in Bash. They do not apply to a command that reads files without naming them, or to a program that opens files itself; that is why the hook exists. A `Write(...)` path rule is accepted but never consulted (Claude Code checks `Edit` rules for writes), so the spec's `Write(./data/cache/**)` entry does nothing beyond a warning at startup.
+
+**Test before the first real-data run.** Before the first real profile is added to `access.real_data_profiles`, the data steward, a person rather than the agent, tests the guards in a fresh Claude Code session with their own attempts to get round them. These come on top of the operator check in PHASE-2.md M2.0. The data steward records each attempt and its result, with no real data in the record, in the pull request that enables the first real profile.
+
 ## The real-data instance
 
 | | Default instance | Real-data instance |
@@ -68,7 +77,7 @@ Because the real instance's only database is `realdata`, a query or a load sent 
 
 On an approved machine:
 
-1. Set `NEO4J_REAL_PASSWORD` (at least 8 characters) and `NR_REAL_DATA_MACHINE=approved` in `.env`. `NR_NEO4J_REAL_URI` defaults to `bolt://127.0.0.1:7688`. Leave all three empty on every other machine.
+1. Set `NEO4J_REAL_PASSWORD` (at least 8 characters) and `NR_REAL_DATA_MACHINE=approved` in `.env`. `NR_NEO4J_REAL_URI` keeps its default, `bolt://127.0.0.1:7688`. On every other machine, leave the password and `NR_REAL_DATA_MACHINE` empty.
 2. `make plugins` once (the image and the pinned GDS jar, shared with the default instance).
 3. `make up-real` starts it and waits until it is healthy. `make down-real` stops it and keeps its data. A plain `docker compose up` or `make up` never starts it, and Docker does not restart it after a reboot.
 4. Before the first real load: `uv run neonradar graph migrate --real` (M2.11).

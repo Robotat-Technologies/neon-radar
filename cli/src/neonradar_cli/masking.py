@@ -7,9 +7,11 @@ may reference a real one) shows as `<record id>`. Every other record (a dataset 
 synthetic or not in the registry, or an id without the `syn` prefix) gets
 `<file>:<line>: <rule>: <message>` with each quoted value replaced by `<value>`, anything after
 `input_value=` up to the next comma or closing bracket replaced too, the dict keys and unknown
-keys in an `nr.` path replaced, numbers of five or more digits replaced, and its record id left
-out: the line number identifies the record. A schema name that FollowTheMoney does not know is
-counted as `<unknown schema>`.
+keys in an `nr.` path replaced, numbers of five or more digits replaced (and any value in the
+envelope messages about dates and datasets), and its record id left out: the line number
+identifies the record. A schema name that FollowTheMoney does not know is counted as
+`<unknown schema>`. Line breaks inside a message are printed as escapes (`\\n`), so one issue is
+always one line.
 
 The frozen validator in `neonradar_contracts.records` is used as it is: this module only reads
 each file once more to number its records, then formats what the validator reports.
@@ -37,9 +39,21 @@ INPUT_VALUE = re.compile(r"input_value=[^,\])}]*")
 # `nr.<path>: <message>` (records._check_nr): the path holds pydantic's location, whose dict keys
 # can be another record's id and whose first part, for an unknown key, can be any text. Greedy,
 # so a key with ": " in it is masked whole (pydantic messages start with a capital letter).
-NR_PATH = re.compile(r"^nr\.(?P<path>.*): (?=[A-Z])")
+NR_PATH = re.compile(r"^nr\.(?P<path>.*): (?=[A-Z])", re.DOTALL)
 NR_FIELDS = frozenset(records.NrExtension.model_fields)
 LONG_NUMBER = re.compile(r"\d{5,}")  # a number that is not a string value, such as 19790801
+# Envelope messages that print a value of any type (records._check_envelope, _check_dataset), so
+# a short number such as a year is masked there too.
+ENVELOPE = (
+    re.compile(
+        r"^(?:first_seen|last_seen|last_change) (?P<value>.*) is not an ISO 8601 date$", re.DOTALL
+    ),
+    re.compile(r"\(got (?P<value>.*)\); create records", re.DOTALL),
+)
+# One issue is one output line: line breaks in a message are printed as escapes.
+LINE_BREAKS = str.maketrans(
+    {char: repr(char)[1:-1] for char in "\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"}
+)
 UNKNOWN_SCHEMA = "<unknown schema>"
 DUPLICATE = "duplicate id"  # the start of the validator's R4 message for a repeated id
 
@@ -65,6 +79,9 @@ def mask(message: str, record_id: str | None = None) -> str:
     if record_id:
         message = message.replace(record_id, RECORD_ID)
     message = NR_PATH.sub(_nr_path, message, count=1)
+    for pattern in ENVELOPE:
+        if found := pattern.search(message):
+            message = message[: found.start("value")] + VALUE + message[found.end("value") :]
     message = INPUT_VALUE.sub("input_value=" + VALUE, message)
     message = QUOTED.sub(VALUE, message)
     return LONG_NUMBER.sub(VALUE, message)
@@ -125,8 +142,11 @@ def _seen_by_batch(data: dict[str, Any]) -> bool:
 def line_for(place: Place, issue: records.RecordIssue) -> str:
     where = f"{place.path}:{place.line}"
     if place.masked:
-        return f"{where}: {issue.rule}: {mask(issue.message, issue.record_id)}"
-    return f"{where}: {issue.rule} {issue.record_id or '<no id>'}: {hide_real_ids(issue.message)}"
+        line = f"{where}: {issue.rule}: {mask(issue.message, issue.record_id)}"
+    else:
+        rid = issue.record_id or "<no id>"
+        line = f"{where}: {issue.rule} {rid}: {hide_real_ids(issue.message)}"
+    return line.translate(LINE_BREAKS)
 
 
 def validate(paths: Sequence[Path], strict: bool) -> tuple[Counter[str], list[str]]:
@@ -152,7 +172,7 @@ def validate(paths: Sequence[Path], strict: bool) -> tuple[Counter[str], list[st
         rid = issue.record_id or ""
         found = places.get(rid)
         if not found:  # the batch rules report only ids they saw; masked to be safe
-            lines.append(f"<load>: {issue.rule}: {mask(issue.message, rid)}")
+            lines.append(f"<load>: {issue.rule}: {mask(issue.message, rid)}".translate(LINE_BREAKS))
             continue
         index = 0
         if issue.rule == "R4" and issue.message.startswith(DUPLICATE):

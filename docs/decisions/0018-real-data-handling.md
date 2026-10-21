@@ -25,7 +25,7 @@ We will handle real data by the rules in PHASE-2.md 7.4, written out for everyon
 
 We will enforce them for the agent with these controls:
 
-- **Permission rules** in `.claude/settings.json`: `Read` of `data/cache/real/**` and `data/cache/spikes/**` denied, `Edit` and `Write` under `data/cache/` denied, and `WebFetch` of the hosts that serve list, register or leak data set to ask a person first.
+- **Permission rules** in `.claude/settings.json`: `Read` of `data/cache/real/**` and `data/cache/spikes/**` denied, `Edit` (which covers writes) under `data/cache/` denied, each both relative to the current folder and anchored at the project root, and `WebFetch` of the hosts that serve list, register or leak data set to ask a person first.
 - **The hook** `.claude/hooks/guard_real_data.py`, run before every `Bash`, `Read`, `Grep`, `Glob`, `WebFetch` and Neo4j MCP call. It blocks shell command lines that would read from the real-data folders (directly, through globs, absolute paths, other worktrees or a changed folder), recursive readers over them, git flags that read files outside the index, commands that address the real instance other than `uv run neonradar`, `make` and `docker compose up`, `start`, `stop`, `down` or `ps`, downloads of list, register and leak data files and of pages about real people, `docker compose config` and `docker inspect` (which print passwords), `Read`, `Grep` and `Glob` on the real-data folders, the Neo4j MCP server pointed at the real instance, the human-only commands and the wrappers that fake a terminal. Its 171 test cases run in CI.
 - **A separate real-data instance**: the Compose service `neo4j-real` (profile `real`, ports 7475 and 7688 on localhost, volume `neo4j-real-data`, and one database named `realdata`, so a query sent to the wrong instance fails). Real profiles load only there (C2 rule L17, M2.11). The tools the agent uses every day (the default instance, the API on port 8000, the UI, the end-to-end tests and the Neo4j MCP server) never reach it.
 - **The redaction guard** for real-profile commands (M2.2): an error prints its class, the step, the dataset, the rule id and a run-local reference; the traceback stays in `data/cache/real/logs/`. `neonradar contracts validate-records` masks values and record ids of records that are not synthetic (M2.0).
@@ -41,7 +41,13 @@ We will enforce them for the agent with these controls:
 - People on approved machines run every real-data command and paste only counts into pull requests (PHASE-2.md 2.2 step 6a). That is slower than letting the agent look, on purpose.
 - Two Neo4j instances can run side by side on one machine; together they need twice the memory, so the real instance runs only while someone works with it, and Docker does not restart it after a reboot.
 - The hook and the permission rules load when a Claude Code session starts, so a change to them takes effect in the next session; the operator check in PHASE-2.md M2.0 confirms them after the merge.
-- **The honest limit.** The hook stops accidents, not a determined person. A shell command line can be written in ways the hook cannot parse, a person can paste real data into a chat, and a machine can be lost. The permission rules, `CLAUDE.md`, the approved-machine list, the data protection documents and the people who run the project remain responsible.
+- **The honest limit.** The hook stops accidents, not a determined person, and has known limits:
+  - It matches command text, so paths assembled while a command runs (shell variables, command substitution, encoded strings, programs that open files themselves) are not caught.
+  - It checks only the project's `.mcp.json`; MCP servers configured at user or local scope are not checked.
+  - In auto or bypass permission modes nobody is asked, so the `ask` rules for the data hosts rely on the hook alone.
+
+  Beyond the hook, a person can paste real data into a chat, and a machine can be lost. The permission rules, `CLAUDE.md`, the approved-machine list, the data protection documents and the people who run the project remain responsible.
+- **A person tests the guards first.** Before the first real-data run, the data steward tests the hook and the permission rules in a fresh session with their own attempts to get round them, and records the attempts and the results, with no real data, in the pull request that enables the first real profile.
 - Follow-up: M2.2 (data manager, real-profile gate, redaction guard, purge), M2.10c (labelling and review commands), M2.11 (loader routing to `neo4j-real`, `graph migrate --real`), M2.12 (`api serve --real`). The data steward files the documents in `docs/data/dpia/` and lists approved machines before `access.real_data_profiles` changes.
 
 ## Sources

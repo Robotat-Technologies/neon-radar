@@ -17,7 +17,7 @@ FollowTheMoney (FtM) is the data model of OpenSanctions and of FtM tooling. Vers
 
 ## Options considered
 
-1. **FtM 4.x records plus a small closed `nr` extension.** The format already covers ownership, control, directorships, payments and accounts; OpenSanctions data and FtM tools (for example `ftm export-cypher`) work on the files; the validator can reuse FtM's schema model. Drawbacks: FtM depends on PyICU, which has no wheels and needs ICU headers on every machine and in CI (`docs/research/2026-10-16/stack.md` 3.5); the 4.x API has traps that AI-written code falls into (`PHASE-1.md` 3.2); a few facts need an extension: payment channel, account kind, address roles, parsed share bands, nominee flags, GLEIF consolidation. FtM also pulls in `python-stdnum` (LGPL-2.1+, through `rigour`): not GPL, but the tech lead should know it.
+1. **FtM 4.x records plus a small closed `nr` extension.** The format already covers ownership, control, directorships, payments and accounts; OpenSanctions data and FtM tools (for example `ftm export-cypher`) work on the files; the validator can reuse FtM's schema model. Drawbacks: FtM depends on PyICU, which has no wheels and needs ICU headers on every machine and in CI (`docs/research/2026-10-16/stack.md` 3.5); the 4.x API has traps that AI-written code falls into (`PHASE-1.md` 3.2); a few facts need an extension: payment channel, account kind, address roles, parsed share bands, nominee flags, GLEIF consolidation. FtM also pulls in `python-stdnum` (LGPL-2.1+, through `rigour`) and `orjson` (MPL-2.0 AND (Apache-2.0 OR MIT)): not GPL, but the tech lead should know them.
 2. **Our own pydantic record model.** Full control and no ICU, but every source mapping and every relationship type is designed from scratch, and no existing tool reads the files.
 3. **Loaders write straight to Neo4j (or to `neo4j-admin` CSV).** Fastest for one source, but every loader then depends on the graph schema and on a running database, and squads cannot work in parallel against a frozen file contract.
 
@@ -30,7 +30,7 @@ We will use FtM 4.11 or later as the record format (C1): one `ValueEntity.to_dic
 - Loaders depend only on the contract and a validator; the graph loader is the only code that knows Neo4j.
 - Every developer machine, the devcontainer and CI need ICU headers for PyICU (`neonradar doctor` checks it; CI installs `libicu-dev`).
 - Loader code must use `ValueEntity`, not `model.make_entity`, and write payment timestamps in UTC without an offset; `CLAUDE.md` and `contracts/C1-record.md` say so.
-- Loaders map source identifiers that contain characters outside FtM's id alphabet (such as `_` in Companies House officer ids) into it, and keep the original in `nr.source_ref`.
+- Loaders build ids with one helper, `neonradar_contracts.records.make_id`, which maps characters outside FtM's id alphabet (such as `_` in Companies House officer ids) or hashes the source id, and they keep the original in `nr.source_ref`.
 - The `nr` extension is closed, so labels cannot hide in it (R9); new keys are a contract change.
 - Upgrading FtM within 4.x is a dependency change that the contract tests check; a 5.x upgrade needs a new ADR.
 

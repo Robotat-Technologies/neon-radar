@@ -64,7 +64,7 @@ reset: ## delete the local Neo4j data and logs volumes (needs CONFIRM=yes)
 	docker compose down -v
 
 smoke: ## print the Neo4j, APOC and GDS versions; exit 1 if any is missing
-	@echo "available after M1.4-2"
+	uv run neonradar graph smoke
 
 logs: ## follow the Neo4j logs
 	docker compose logs --follow --tail=200 neo4j

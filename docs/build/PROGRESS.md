@@ -18,7 +18,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.7c | todo | - | - | 2026-10-21 | - | - |
 | M1.7d | todo | - | - | 2026-10-21 | - | - |
 | M1.8-0-1 | pr-open | p1/m1-8-0-http-client | #12 | 2026-10-21 | test_http.py: 10 passed (MockTransport, fake clock); make check: 261 passed; make hygiene: 302 counted lines, all checks OK | First of two M1.8-0 pull requests (2.3; 495 counted lines as one): the shared HTTP client, written as its own pull request at the orchestrator's direction instead of by the first spike to land; transport errors retried too (2.7); HttpClient subclasses httpx.Client so get, head and stream are limited and retried; httpx's URL logs redacted; built in a worktree; review by the orchestrator after the PR opens (OD-4) |
-| M1.8-0-2 | in-progress | p1/m1-8-0-2-spike-group | - | 2026-10-21 | - | Second of two M1.8-0 pull requests (2.3), stacked on M1.8-0-1: the spike command group, spike clean and the spike output helpers |
+| M1.8-0-2 | pr-open | p1/m1-8-0-2-spike-group | #13 | 2026-10-21 | test_spikes.py and test_cli_spike.py: 9 passed (spike clean on a tmp dir); make check: 270 passed; own size 259 counted lines (check_pr_size --base p1/m1-8-0-http-client) | Second of two M1.8-0 pull requests (2.3), stacked on #12: merge #12 first, then the hygiene size check passes; the spike command group, spike clean (by file age, symlinks never followed), report_output (strict validation) and neonradar_ingest.spikes (entity_record, write_output, retention); built in a worktree; review by the orchestrator after the PR opens (OD-4) |
 | M1.8a | todo | - | - | 2026-10-21 | - | - |
 | M1.8b | todo | - | - | 2026-10-21 | - | - |
 | M1.8c | todo | - | - | 2026-10-21 | - | - |

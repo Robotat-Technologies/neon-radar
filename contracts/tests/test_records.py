@@ -109,7 +109,7 @@ def test_an_empty_file_is_an_empty_load(tmp_path: Path) -> None:
 
 
 def test_every_valid_id_can_be_referenced() -> None:
-    good = ["syn-co-0001", "gbch-co-01800000", "gleif-549300OWFMSO9NYV4H90", "icij-10000001"]
+    good = ["syn-co-0001", "gbch-co-T0000001", "gleif-TEST.LEI.0002", "icij-TEST.0001"]
     for rid in good:
         assert ID_RE.match(rid), rid
         assert registry.entity.validate(rid), rid
@@ -122,8 +122,8 @@ def test_every_valid_id_can_be_referenced() -> None:
 @pytest.mark.parametrize(
     ("native", "expected"),
     [
-        ("2Ys_V8dLkPq3Hn-T0bWuXz9aRfE", "gbch-off-2Ys.V8dLkPq3Hn-T0bWuXz9aRfE"),  # CH officer id
-        ("01800000", "gbch-off-01800000"),
+        ("TEST_officer-0001", "gbch-off-TEST.officer-0001"),  # officer-id shape: `_` and `-`
+        ("T0000001", "gbch-off-T0000001"),
         ("ab:cd", None),  # another character: hashed
         ("abc_", None),  # would end in a dot: hashed
         ("abc-", None),
@@ -182,7 +182,7 @@ def test_synthetic_records_carry_only_flag_topics() -> None:
     assert _rules(record) == []
     record["properties"]["topics"] = ["crime.fin"]
     assert _rules(record) == ["R9"]
-    real = _company(id="gbch-co-01800000", datasets=["gb_companies_house"], nr={"v": "1.0"})
+    real = _company(id="gbch-co-T0000001", datasets=["gb_companies_house"], nr={"v": "1.0"})
     real["properties"]["topics"] = ["crime.fin"]
     assert _rules(real) == []
 
@@ -223,12 +223,12 @@ def test_schema_outside_the_v1_list_fails_r3() -> None:
 
 
 def test_only_synthetic_records_set_the_synthetic_keys() -> None:
-    record = _company(id="gbch-co-01800000", datasets=["gb_companies_house"])
+    record = _company(id="gbch-co-T0000001", datasets=["gb_companies_house"])
     record["nr"] = {"v": "1.0", "synthetic": False}
     assert _rules(record) == ["R6"]
     record["nr"] = {"v": "1.0", "synthetic_kind": "registry"}
     assert _rules(record) == ["NR"]
-    record["nr"] = {"v": "1.0", "source_ref": "01800000"}
+    record["nr"] = {"v": "1.0", "source_ref": "T0000001"}
     assert _rules(record) == []
 
 

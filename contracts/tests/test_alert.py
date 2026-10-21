@@ -18,6 +18,7 @@ from neonradar_contracts.alert import (
     Alert,
     compute_alert_id,
     default_priority,
+    query_sha256,
 )
 from neonradar_contracts.records import ID_RE
 
@@ -26,11 +27,13 @@ pytestmark = pytest.mark.contract
 CONTRACTS = Path(__file__).resolve().parents[1]
 EXAMPLE = CONTRACTS / "examples" / "c4" / "circular_flow.json"
 SCHEMA = CONTRACTS / "schemas" / "alert.v1.json"
-EXAMPLE_ID = "alr-0bf3e018d9b833981991"
+EXAMPLE_ID = "alr-f82a84574538090f0624"
+C4_DOC = CONTRACTS / "C4-alert.md"
 NODES = ["syn-acct-0007", "syn-acct-0012", "syn-acct-0015", "syn-acct-0021"]
 EDGES = ["syn-payment-000101", "syn-payment-000102", "syn-payment-000103", "syn-payment-000104"]
 # A stand-in for a Companies House record, as M1.9b builds it in test code (never a fixture).
-# Name checked on the Companies House search on 21 October 2026: no company found.
+# `T0000001` is not a Companies House number format. Name checked on the Companies House
+# company and officer searches on 21 October 2026: nothing found.
 REAL_HOLDER = {
     "entity_id": "gbch-co-T0000001",
     "role": "origin_holder",
@@ -99,11 +102,43 @@ def test_example_hashes_are_computed() -> None:
     data = example()
     cypher = data["evidence"]["query"]["cypher"].encode("utf-8")
     assert data["detector"]["query_sha256"] == hashlib.sha256(cypher).hexdigest()
+    assert data["detector"]["query_sha256"] == query_sha256(data["evidence"]["query"]["cypher"])
     assert data["alert_id"] == compute_alert_id("circular_flow", "0.1.0", NODES, EDGES)
 
 
-def test_contract_version_is_fixed() -> None:
-    rejects({**example(), "contract_version": "1.0.1"}, "contract_version")
+def test_c4_document_shows_the_golden_example() -> None:
+    text = C4_DOC.read_text(encoding="utf-8")
+    block = text.split("## Example", 1)[1].split("```json\n", 1)[1].split("```", 1)[0]
+    assert json.loads(block) == example()
+
+
+def test_query_sha256_must_hash_the_evidence_query() -> None:
+    data = example()
+    data["evidence"]["query"]["cypher"] += " LIMIT 1"
+    rejects(data, "query_sha256 must be the SHA-256 of evidence.query.cypher")
+    data["detector"]["query_sha256"] = query_sha256(data["evidence"]["query"]["cypher"])
+    Alert.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("version", "message"),
+    [
+        ("1.0.1", "newer than this model"),
+        ("1.1.0", "newer than this model"),
+        ("2.0.0", "contract_version"),
+        ("0.9.0", "contract_version"),
+        ("1.01.0", "contract_version"),
+    ],
+)
+def test_contract_version_is_1x_and_not_newer_than_the_model(version: str, message: str) -> None:
+    rejects({**example(), "contract_version": version}, message)
+
+
+def test_contract_version_pattern_accepts_later_1x_values() -> None:
+    """A later 1.x model accepts every earlier 1.x value (the rule of the record's `nr.v`)."""
+    pattern = Alert.model_json_schema()["properties"]["contract_version"]["pattern"]
+    assert all(re.fullmatch(pattern, v) for v in ["1.0.0", "1.2.3", "1.10.0"])
+    assert versions.ALERT == "1.0.0"
 
 
 def test_unknown_keys_are_rejected() -> None:
@@ -124,9 +159,17 @@ def test_alert_id_is_deterministic() -> None:
     assert compute_alert_id("circular_flow", "0.1.0", NODES, EDGES) == EXAMPLE_ID
     assert compute_alert_id("circular_flow", "0.1.0", NODES[::-1], EDGES[::-1]) == EXAMPLE_ID
     assert re.fullmatch(r"alr-[0-9a-f]{20}", EXAMPLE_ID)
-    joined = "|".join(["circular_flow", "0.1.0", *EDGES, *NODES])
-    digest = hashlib.sha1(joined.encode(), usedforsecurity=False).hexdigest()
+    text = json.dumps(["circular_flow", "0.1.0", EDGES, NODES], separators=(",", ":"))
+    assert text.startswith('["circular_flow","0.1.0",["syn-payment-000101",')
+    digest = hashlib.sha1(text.encode(), usedforsecurity=False).hexdigest()
     assert f"alr-{digest[:20]}" == EXAMPLE_ID
+
+
+def test_alert_id_marks_the_boundary_between_edges_and_nodes() -> None:
+    """With a `|`-joined text these two would share an id; the JSON array keeps them apart."""
+    first = compute_alert_id("circular_flow", "0.1.0", ["syn-n-2"], ["syn-e-1", "syn-n-1"])
+    second = compute_alert_id("circular_flow", "0.1.0", ["syn-n-1", "syn-n-2"], ["syn-e-1"])
+    assert first != second
 
 
 @pytest.mark.parametrize(
@@ -174,7 +217,7 @@ def test_non_synthetic_account_holder_must_be_structural_pattern() -> None:
 
 def test_non_synthetic_evidence_node_must_be_structural_pattern() -> None:
     data = example()
-    data["evidence"]["node_ids"][1] = "gleif-5493001KJTIIGC8Y1R12"
+    data["evidence"]["node_ids"][1] = "gleif-TEST.LEI.0001"
     rejects(with_id(data), "involves_real_entities must be true")
 
 
@@ -190,6 +233,29 @@ def test_wording_class_follows_involves_real_entities(
     data["headline"] = STRUCTURAL
     data["data_flags"]["involves_real_entities"] = involves_real_entities
     rejects(data, "synthetic_scenario exactly when")
+
+
+def test_structural_alert_never_says_synthetic_scenario() -> None:
+    """B1: the example re-labelled structural keeps its synthetic headline and is refused."""
+    data = example()
+    data["subjects"][1] = REAL_HOLDER
+    data["wording_class"] = "structural_pattern"
+    data["data_flags"]["involves_real_entities"] = True
+    data["data_flags"]["datasets"] = ["gb_companies_house", "nr_synthetic"]
+    rejects(data, "only a synthetic_scenario alert may say 'synthetic scenario'.*headline")
+    data["headline"] = STRUCTURAL
+    Alert.model_validate(data)
+    data["explanation"]["summary"] = "A Synthetic-Scenario cycle of four transfers."
+    rejects(data, "explanation.summary")
+    data = as_structural(example(), ["nr_synthetic", "gb_companies_house"])
+    data["explanation"]["steps"][2]["text"] = "Synthetic_scenario step."
+    rejects(data, "step 3")
+
+
+def test_synthetic_scenario_alert_may_say_so() -> None:
+    data = example()
+    data["explanation"]["summary"] = "Synthetic scenario: " + data["explanation"]["summary"]
+    assert Alert.model_validate(data).wording_class == "synthetic_scenario"
 
 
 def test_all_synthetic_alert_has_synthetic_activity() -> None:
@@ -292,6 +358,40 @@ def test_detector_fields(field: str, value: str) -> None:
         Alert.model_validate(data)
 
 
+def test_composite_edges_need_their_endpoints_in_the_evidence() -> None:
+    data = example()
+    data["evidence"]["edge_ids"].append("syn-acct-0007|addr|syn-addr-0001")
+    rejects(with_id(data), r"needs its endpoints in node_ids: \['syn-addr-0001'\]")
+    data["evidence"]["node_ids"].append("syn-addr-0001")
+    Alert.model_validate(with_id(data))
+
+
+@pytest.mark.parametrize("role", ["mule_account", "front_company_holder", "suspect"])
+def test_subject_roles_pass_the_wording_lint(role: str) -> None:
+    data = example()
+    data["subjects"][0]["role"] = role
+    rejects(data, f"role {role}")
+
+
+def test_typology_slug_passes_the_wording_lint() -> None:
+    data = example()
+    data["typology"] = data["explanation"]["typology_reference"]["slug"] = "laundering_cycle"
+    rejects(with_id(data), "typology: ")
+
+
+def test_false_positive_notes_pass_the_wording_lint() -> None:
+    data = example()
+    data["explanation"]["false_positive_notes"].append("Not every cycle is fraud.")
+    rejects(data, r"false_positive_notes\[1\]")
+
+
+@pytest.mark.parametrize("key", ["fatf", "FATF_pml_2018", "fatf-pml-2018"])
+def test_citations_are_bibliography_keys(key: str) -> None:
+    data = example()
+    data["explanation"]["typology_reference"]["citations"] = [key]
+    rejects(data, "citations")
+
+
 def test_subjects_are_required() -> None:
     rejects({**example(), "subjects": []}, "at least 1 item")
     data = example()
@@ -314,14 +414,14 @@ def test_entity_id_pattern_agrees_with_record_rule_r1() -> None:
     """C4 node ids are C1 ids (R1 as changed by OD-11), written without named groups."""
     unnamed = re.sub(r"\(\?P<\w+>|\)(?=-|\\Z)", "", ID_RE.pattern).replace(r"\Z", "$")
     assert unnamed == ENTITY_ID_PATTERN
-    samples = ["syn-co-0001", "gbch-off-2Ys.V8dLkPq3Hn-T0bWuXz9aRfE", "syn-co_1", "x-1", "syn-co-"]
+    samples = ["syn-co-0001", "gbch-off-TEST.officer-0001", "syn-co_1", "x-1", "syn-co-"]
     for sample in samples:
         assert bool(re.fullmatch(ENTITY_ID_PATTERN, sample)) is bool(ID_RE.fullmatch(sample))
 
 
 @pytest.mark.parametrize(
     ("node_id", "valid"),
-    [("syn-acct-0007", True), ("gbch-off-2Ys.V8dLkPq3Hn-T0bWuXz9aRfE", True), ("4:a1b2:12", False)],
+    [("syn-acct-0007", True), ("gbch-off-TEST.officer-0001", True), ("4:a1b2:12", False)],
 )
 def test_node_ids_are_c2_ids(node_id: str, valid: bool) -> None:
     assert bool(re.fullmatch(ENTITY_ID_PATTERN, node_id)) is valid
@@ -332,7 +432,7 @@ def test_node_ids_are_c2_ids(node_id: str, valid: bool) -> None:
     [
         ("syn-payment-000101", True),
         ("syn-co-0001|addr|syn-addr-0001", True),
-        ("gbch-co-01800000|sanction|os-sanction-1", True),
+        ("syn-co-0001|sanction|syn-sanction-0001", True),
         ("syn-co-0001|owns|syn-co-0002", False),
         ("5:a1b2:99", False),
     ],

@@ -18,6 +18,10 @@ from typing import Literal, get_args
 WORDING_DIR = Path(__file__).resolve().parents[2] / "wording"
 FORBIDDEN_TERMS_FILE = WORDING_DIR / "forbidden-terms.txt"
 
+# 7.1: "synthetic scenario" may appear only in an alert whose wording class is
+# synthetic_scenario (every evidence node, subject and evidence-account holder is synthetic).
+SYNTHETIC_PHRASE = re.compile(r"\bsynthetic[\s_-]+scenario", re.IGNORECASE)
+
 DisclaimerId = Literal["standing-v1", "synthetic-demo-v1", "real-data-v1"]
 DISCLAIMER_IDS: tuple[DisclaimerId, ...] = get_args(DisclaimerId)
 
@@ -45,12 +49,19 @@ def find_forbidden(text: str, mask: Iterable[str] = ()) -> list[str]:
     """Every forbidden term in `text`, as `'<match>' (<pattern>)`; empty means the text passes.
 
     `mask` holds source values that are not NeonRadar's wording, such as entity captions and
-    account numbers (7.1): each occurrence is blanked out before the check.
+    account numbers (7.1): each occurrence as a whole token (not inside a longer word) is
+    blanked out before the check.
     """
     for value in sorted({value for value in mask if value}, key=len, reverse=True):
-        text = text.replace(value, " " * len(value))
+        token = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")
+        text = token.sub(lambda found: " " * len(found.group(0)), text)
     return [
         f"{match.group(0)!r} ({pattern.pattern})"
         for pattern in forbidden_patterns()
         for match in pattern.finditer(text)
     ]
+
+
+def find_forbidden_in_name(name: str) -> list[str]:
+    """The lint for snake_case identifiers shown to users (roles, slugs): `_` reads as a space."""
+    return find_forbidden(name.replace("_", " "))

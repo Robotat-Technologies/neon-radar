@@ -32,7 +32,7 @@
     },
     "Detector": {
       "additionalProperties": false,
-      "description": "The detector that produced the alert: module path, version and its query's hash.",
+      "description": "The detector that produced the alert: module path, version and the evidence query's hash.",
       "properties": {
         "name": {
           "pattern": "^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*)+$",
@@ -230,7 +230,7 @@
       "properties": {
         "citations": {
           "items": {
-            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)+$",
             "type": "string"
           },
           "minItems": 1,
@@ -288,7 +288,7 @@
       "type": "string"
     },
     "contract_version": {
-      "const": "1.0.0",
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
       "title": "Contract Version",
       "type": "string"
     },

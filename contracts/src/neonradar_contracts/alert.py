@@ -1,20 +1,24 @@
 """C4 Alert v1.0.0: the object every detector produces and the API serves (PHASE-1.md 5.4).
 
 `Alert` validates the rules of the field table, plus the clarifications listed in
-contracts/CHANGELOG.md: the id is recomputed from the evidence, ids have C2 form, steps cite
-evidence edges, and an alert never calls itself a synthetic scenario while it names an entity
-or dataset that is not synthetic (guardrail G1). See contracts/C4-alert.md.
+contracts/CHANGELOG.md: the id and the query hash are recomputed, ids have C2 form, steps cite
+evidence edges, and an alert says "synthetic scenario" only when its wording class is
+synthetic_scenario, a class it never claims while it names an entity or dataset that is not
+synthetic (guardrail G1). Validation reads contracts/datasets.yaml and
+contracts/wording/forbidden-terms.txt next to the package. See contracts/C4-alert.md.
 """
 
 import hashlib
+import json
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Annotated, Literal, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+from neonradar_contracts import versions
 from neonradar_contracts.datasets import load_registry
-from neonradar_contracts.wording import find_forbidden
+from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden, find_forbidden_in_name
 
 # C1 rule R1 (records.ID_RE, as changed by OD-11) without named groups and anchors, so that it
 # also works in JSON Schema. contracts/tests/test_alert.py checks that the two agree.
@@ -24,7 +28,12 @@ ENTITY_ID_PATTERN = rf"^{_ID}$"
 # HAS_ADDRESS, or `<entity id>|sanction|<sanction id>` for SUBJECT_OF (5.2).
 EDGE_ID_PATTERN = rf"^{_ID}(\|(addr|sanction)\|{_ID})?$"
 SLUG_PATTERN = r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+# Bibliography keys (PHASE-1.md 7.3): lowercase snake case with at least one underscore.
+CITATION_KEY_PATTERN = r"^[a-z][a-z0-9]*(_[a-z0-9]+)+$"
 VERSION_PATTERN = r"^\d+\.\d+\.\d+$"
+# Any 1.x release. A later 1.x model accepts every earlier 1.x value; a major release needs
+# detection to be re-run (the same rule as the record contract's `nr.v`).
+CONTRACT_VERSION_PATTERN = r"^1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 MODULE_PATTERN = r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+$"
 RUN_ID_PATTERN = r"^run-\d{8}T\d{6}-[0-9a-f]{4}$"
 ALERT_ID_PATTERN = r"^alr-[0-9a-f]{20}$"
@@ -45,6 +54,7 @@ EntityId = Annotated[str, Field(pattern=ENTITY_ID_PATTERN)]
 EdgeId = Annotated[str, Field(pattern=EDGE_ID_PATTERN)]
 UtcTime = Annotated[str, Field(pattern=UTC_PATTERN), AfterValidator(_is_utc_time)]
 Slug = Annotated[str, Field(pattern=SLUG_PATTERN)]
+CitationKey = Annotated[str, Field(pattern=CITATION_KEY_PATTERN)]
 Text = Annotated[str, Field(min_length=1)]
 
 
@@ -52,14 +62,23 @@ def compute_alert_id(
     typology: str, detector_version: str, node_ids: Iterable[str], edge_ids: Iterable[str]
 ) -> str:
     """`alr-` plus the first 20 hex characters of SHA-1 over `typology`, `detector.version`,
-    the sorted edge ids and the sorted node ids, joined with `|` (5.4).
+    the sorted edge ids and the sorted node ids (5.4).
 
-    Sorting is by Unicode code point (Python's `sorted`), so the same detector on the same
-    graph always yields the same id, whatever order the query returned.
+    The hashed text is the compact JSON array `[typology, version, [edge ids], [node ids]]`
+    (separators `,` and `:`, no spaces, UTF-8), so the boundary between the lists is marked and
+    a `|` inside a composite C2 edge id cannot collide with a separator. Sorting is by Unicode
+    code point (Python's `sorted`), so the same detector on the same graph always yields the
+    same id, whatever order the query returned.
     """
-    parts = [typology, detector_version, *sorted(edge_ids), *sorted(node_ids)]
-    digest = hashlib.sha1("|".join(parts).encode("utf-8"), usedforsecurity=False).hexdigest()
+    parts = [typology, detector_version, sorted(edge_ids), sorted(node_ids)]
+    text = json.dumps(parts, ensure_ascii=False, separators=(",", ":"))
+    digest = hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"alr-{digest[:20]}"
+
+
+def query_sha256(cypher: str) -> str:
+    """`detector.query_sha256`: the SHA-256 (lower-case hex) of `evidence.query.cypher` in UTF-8."""
+    return hashlib.sha256(cypher.encode("utf-8")).hexdigest()
 
 
 def default_priority(pattern_strength: float) -> Priority:
@@ -67,6 +86,10 @@ def default_priority(pattern_strength: float) -> Priority:
     if pattern_strength >= 0.75:
         return "high"
     return "medium" if pattern_strength >= 0.5 else "low"
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("."))
 
 
 def _unique(values: list[str], what: str) -> None:
@@ -79,7 +102,7 @@ class _Strict(BaseModel):
 
 
 class Detector(_Strict):
-    """The detector that produced the alert: module path, version and its query's hash."""
+    """The detector that produced the alert: module path, version and the evidence query's hash."""
 
     name: Annotated[str, Field(pattern=MODULE_PATTERN)]
     version: Annotated[str, Field(pattern=VERSION_PATTERN)]
@@ -126,6 +149,14 @@ class Evidence(_Strict):
     def _distinct(self) -> Self:
         _unique(self.node_ids, "evidence.node_ids")
         _unique(self.edge_ids, "evidence.edge_ids")
+        # Every evidence edge's endpoints are evidence nodes. A composite id names both
+        # (`a|addr|b`, `a|sanction|b`); for plain interval ids the detector checks it (M1.9b).
+        nodes = set(self.node_ids)
+        for edge in self.edge_ids:
+            ends = edge.split("|")[::2] if "|" in edge else []
+            missing = [end for end in ends if end not in nodes]
+            if missing:
+                raise ValueError(f"evidence edge {edge} needs its endpoints in node_ids: {missing}")
         return self
 
 
@@ -142,7 +173,7 @@ class TypologyReference(_Strict):
 
     slug: Slug
     doc_path: Annotated[str, Field(pattern=r"^docs/typologies/[a-z0-9-]+\.md$")]
-    citations: Annotated[list[Slug], Field(min_length=1)]
+    citations: Annotated[list[CitationKey], Field(min_length=1)]
 
 
 class Explanation(_Strict):
@@ -180,7 +211,7 @@ class Alert(_Strict):
     """C4 Alert v1.0.0 (5.4). `pattern_strength` orders the queue; it is never a risk score."""
 
     alert_id: Annotated[str, Field(pattern=ALERT_ID_PATTERN)]
-    contract_version: Literal["1.0.0"]
+    contract_version: Annotated[str, Field(pattern=CONTRACT_VERSION_PATTERN)]
     typology: Slug
     typology_version: Annotated[str, Field(pattern=VERSION_PATTERN)]
     detector: Detector
@@ -199,11 +230,18 @@ class Alert(_Strict):
 
     @model_validator(mode="after")
     def _rules(self) -> Self:
+        if _version(self.contract_version) > _version(versions.ALERT):
+            raise ValueError(
+                f"contract_version {self.contract_version} is newer than this model "
+                f"({versions.ALERT}); upgrade neonradar-contracts"
+            )
         expected = compute_alert_id(
             self.typology, self.detector.version, self.evidence.node_ids, self.evidence.edge_ids
         )
         if self.alert_id != expected:
             raise ValueError(f"alert_id must be {expected} (compute_alert_id over the evidence)")
+        if self.detector.query_sha256 != query_sha256(self.evidence.query.cypher):
+            raise ValueError("detector.query_sha256 must be the SHA-256 of evidence.query.cypher")
         if self.explanation.typology_reference.slug != self.typology:
             raise ValueError("explanation.typology_reference.slug must equal typology")
         stray = sorted(
@@ -212,11 +250,34 @@ class Alert(_Strict):
         )
         if stray:
             raise ValueError(f"explanation steps cite edges not in the evidence: {stray}")
-        terms = find_forbidden(self.headline)
-        if terms:
-            raise ValueError(f"headline fails the wording lint (7.1): {'; '.join(terms)}")
+        self._check_wording()
         self._check_wording_class()
         return self
+
+    def _check_wording(self) -> None:
+        """7.1 lint on NeonRadar's own words: the headline, the false-positive notes, the
+        typology slug and the subject roles (`_` read as a space). Summary and step texts hold
+        source names, so the detection runner lints them with those names masked (M1.9b)."""
+        notes = enumerate(self.explanation.false_positive_notes)
+        texts = {"headline": self.headline}
+        texts |= {f"explanation.false_positive_notes[{i}]": note for i, note in notes}
+        found = {where: find_forbidden(text) for where, text in texts.items()}
+        found["typology"] = find_forbidden_in_name(self.typology)
+        for subject in self.subjects:
+            found[f"role {subject.role}"] = find_forbidden_in_name(subject.role)
+        problems = [f"{where}: {'; '.join(terms)}" for where, terms in found.items() if terms]
+        if problems:
+            raise ValueError(f"wording lint (7.1) fails: {' | '.join(problems)}")
+        if self.wording_class == "synthetic_scenario":
+            return
+        texts = {"headline": self.headline, "explanation.summary": self.explanation.summary}
+        texts |= {f"step {step.order}": step.text for step in self.explanation.steps}
+        said = [where for where, text in texts.items() if SYNTHETIC_PHRASE.search(text)]
+        if said:
+            raise ValueError(
+                "only a synthetic_scenario alert may say 'synthetic scenario' (7.1): "
+                f"{', '.join(said)}"
+            )
 
     def _check_wording_class(self) -> None:
         flags = self.data_flags

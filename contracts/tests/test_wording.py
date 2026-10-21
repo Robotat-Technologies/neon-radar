@@ -11,8 +11,10 @@ import yaml
 from neonradar_contracts.wording import (
     DISCLAIMER_IDS,
     FORBIDDEN_TERMS_FILE,
+    SYNTHETIC_PHRASE,
     WORDING_DIR,
     find_forbidden,
+    find_forbidden_in_name,
     forbidden_patterns,
     load_disclaimer,
     parse_patterns,
@@ -55,7 +57,7 @@ WRITE = [
     "funds returned to the originating account",
     "transfers",
     "payments",
-    "listed in gb_companies_house as sanctioned",
+    "listed in opensanctions_default as sanctioned",
     "as a politically exposed person",
     "as a relative or close associate of a politically exposed person",
     "shares a registered address with 14 other companies",
@@ -121,6 +123,41 @@ def test_masked_source_values_are_not_linted() -> None:
     step = "NRSYN-FRAUD-TEST sent EUR 5,000 to NRSYN0000000012 on 2 March."
     assert find_forbidden(step) == ["'FRAUD' (\\bfraud\\w*)"]
     assert find_forbidden(step, mask=["NRSYN-FRAUD-TEST", "NRSYN0000000012", ""]) == []
+
+
+def test_masking_blanks_only_whole_tokens() -> None:
+    """A masked value inside a longer word is not blanked, so the word is still linted."""
+    step = "NRSYN-FRAUDULENT sent EUR 5,000."
+    assert find_forbidden(step, mask=["NRSYN-FRAUD"]) == ["'FRAUDULENT' (\\bfraud\\w*)"]
+    assert find_forbidden(step, mask=["NRSYN-FRAUDULENT"]) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "says_it"),
+    [
+        ("Synthetic scenario: funds returned", True),
+        ("a SYNTHETIC  SCENARIO", True),
+        ("synthetic_scenario", True),
+        ("synthetic-scenario", True),
+        ("synthetic activity next to a scenario", False),
+        ("nonsynthetic scenario", False),
+    ],
+)
+def test_synthetic_phrase(text: str, says_it: bool) -> None:
+    assert bool(SYNTHETIC_PHRASE.search(text)) is says_it
+
+
+@pytest.mark.parametrize(
+    ("name", "passes"),
+    [
+        ("origin_holder", True),
+        ("circular_flow", True),
+        ("mule_account", False),
+        ("shell_company", False),
+    ],
+)
+def test_identifiers_are_linted_with_underscores_as_spaces(name: str, passes: bool) -> None:
+    assert (find_forbidden_in_name(name) == []) is passes
 
 
 @pytest.mark.parametrize("disclaimer_id", DISCLAIMER_IDS)

@@ -36,6 +36,8 @@ jobs:
           # scans the pull request's commits instead.
           SKIP: gitleaks
       - run: make lint typecheck test contracts-check
+      - name: Citation keys
+        run: uv run python scripts/check_citations.py docs/ detect/typologies/ README.md
       - name: Agent hook self-test
         run: bash scripts/test_hooks.sh
       - name: CODEOWNERS up to date

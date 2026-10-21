@@ -1,0 +1,39 @@
+{
+  "kind": "officer-list",
+  "items_per_page": 3,
+  "start_index": 3,
+  "total_results": 5,
+  "active_count": 3,
+  "resigned_count": 1,
+  "etag": "syn0000000000000000000000000000000000003",
+  "links": {"self": "/company/SYN00001/officers"},
+  "items": [
+    {
+      "name": "QUILLFEN, Arabella Noor, Dr",
+      "officer_role": "nominee-director",
+      "appointed_on": "2024-05-10",
+      "date_of_birth": {"month": 2, "year": 1985},
+      "nationality": "Not Specified",
+      "country_of_residence": "United Kingdom",
+      "occupation": "Consultant",
+      "identity_verification_details": {
+        "appointment_verification_statement_date": "2026-01-01",
+        "appointment_verification_statement_due_on": "2026-11-18"
+      },
+      "links": {
+        "self": "/company/SYN00001/appointments/SYNapp0004",
+        "officer": {"appointments": "/officers/SYNoff-0004quillfen/appointments"}
+      }
+    },
+    {
+      "name": "QANDELOUNI, Zafir",
+      "officer_role": "secretary",
+      "appointed_on": "2023-02-01",
+      "resigned_on": "2024-05-10",
+      "links": {
+        "self": "/company/SYN00001/appointments/SYNapp0005",
+        "officer": {"appointments": "/officers/SYNoff_0001qandelouni/appointments"}
+      }
+    }
+  ]
+}

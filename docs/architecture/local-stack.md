@@ -1,13 +1,13 @@
 # Local stack: Neo4j in Docker Compose
 
-`make up` starts one Neo4j 5.26 LTS Community server with APOC and Graph Data Science (GDS), bound to `127.0.0.1`, with memory sized for your laptop and no analytics or usage reports. Why this version and these settings: [ADR-0002](../decisions/0002-neo4j-5-26-lts.md).
+`make up` starts one Neo4j 5.26 LTS Community server with APOC and Graph Data Science (GDS), bound to `127.0.0.1`, with memory sized for your laptop and no analytics or usage reports. It works offline once the image and the GDS jar are present: `make plugins` is the only step that uses the network. Why this version and these settings: [ADR-0002](../decisions/0002-neo4j-5-26-lts.md).
 
 ## First start
 
 ```bash
 make setup      # Python packages, pre-commit hooks, and .env with a generated Neo4j password
-make plugins    # once: downloads the pinned GDS jar (about 64 MB) from github.com
-make up         # starts Neo4j and waits until it is healthy (offline)
+make plugins    # once, with network: pulls the Neo4j image and the pinned GDS jar (about 64 MB)
+make up         # starts Neo4j and waits until it is healthy; never downloads anything
 make smoke      # prints the Neo4j, APOC and GDS versions
 ```
 
@@ -33,7 +33,7 @@ OK    GDS    2.13.4
 | GDS | `data/cache/neo4j-plugins/neo4j-graph-data-science-2.13.4.jar`, written by `make plugins` and checked against its SHA-256 by `make up` |
 | Settings | `.env` (created from `.env.example` by `scripts/ensure_env.sh`; never commit it) |
 
-The Community image has no GDS jar, and letting it install GDS would mean a download on every start. `scripts/fetch_gds.sh` pins the version and the SHA-256. To move to another GDS version, change both in that script and the jar name in `compose.yaml`, in a reviewed pull request. If the jar is missing or damaged, `make up` stops and tells you to run `make plugins`.
+The Community image has no GDS jar, and letting it install GDS would mean a download on every start. `scripts/fetch_gds.sh` pins the version and the SHA-256. To move to another GDS version, change both in that script and the jar name in `compose.yaml`, in a reviewed pull request. If the image or the jar is missing, or the jar is damaged, `make up` stops and tells you to run `make plugins`; it never pulls or downloads anything itself.
 
 ## Memory profiles
 
@@ -62,15 +62,18 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 - `make logs` follows the server log.
 - `make reset CONFIRM=yes` deletes the database and logs volumes. The next `make up` starts empty.
 - The password in `.env` takes effect only when the database is first created. If you change `NEO4J_PASSWORD` later, run `make reset CONFIRM=yes`, then `make up`.
-- All checkouts on one machine (the main checkout and every git worktree) share the same Compose project, `neonradar`, and so the same database. Give them the same `.env`: worktrees that Claude Code creates copy it (`.worktreeinclude`); for a worktree you create yourself, link it (`ln -s <main checkout>/.env .env`).
+- All checkouts on one machine (the main checkout and every git worktree) share the same Compose project, `neonradar`, and so the same database. Give them the same `.env`: worktrees that Claude Code creates copy it (`.worktreeinclude`), and in any other worktree `bash scripts/ensure_env.sh` (run by `make setup`, `make plugins` and `make up`) links `.env` to the main checkout's. It stops with a message if the main checkout has no `.env` yet.
 - To fetch the GDS jar again, delete `data/cache/neo4j-plugins/` and run `make plugins`.
+- Worktrees that Claude Code creates also copy the GDS jar (`.worktreeinclude`); in a worktree you create yourself, run `make plugins` or copy `data/cache/neo4j-plugins/`.
 
 ## When something goes wrong
 
 | Symptom | What to do |
 |---|---|
-| `make up` says the GDS jar is missing | `make plugins` |
-| `Set NEO4J_PASSWORD in .env` | `.env` is missing or has no password: run `bash scripts/ensure_env.sh` (it never overwrites an existing `.env`) |
+| `make up` says the GDS jar or the Neo4j image is missing | `make plugins` (it needs the network once) |
+| `Set NEO4J_PASSWORD in .env` and there is no `.env` | run `bash scripts/ensure_env.sh` (in a git worktree, run it in the main checkout first; the worktree then links to that `.env`) |
+| `.env` exists but has no password (`ensure_env: .env has no NEO4J_PASSWORD`) | delete `.env`, run `bash scripts/ensure_env.sh`, then `make reset CONFIRM=yes` if a database already exists with another password |
+| `make down`, `make logs` or `make reset` fail with `Set NEO4J_PASSWORD in .env` | Compose needs the variable even to stop: `NEO4J_PASSWORD=unused make down` (likewise for `logs` and `reset`), then fix `.env` as above |
 | `container neonradar-neo4j-1 is unhealthy` | `make logs`. A password changed after the first start shows up as failed health checks: see above |
 | Port 7474 or 7687 already in use | `neonradar doctor` shows it; stop the other program or the other Neo4j |
 | Neo4j restarts with `OutOfMemoryError` | use a bigger profile, or give Docker more memory |

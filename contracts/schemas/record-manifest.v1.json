@@ -41,6 +41,8 @@
           "type": "integer"
         },
         "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
           "pattern": "^[0-9a-f]{64}$",
           "title": "Sha256",
           "type": "string"
@@ -120,6 +122,8 @@
         "retrieved_at": {
           "anyOf": [
             {
+              "maxLength": 20,
+              "minLength": 20,
               "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
               "type": "string"
             },
@@ -161,6 +165,8 @@
       "$ref": "#/$defs/Counts"
     },
     "created_at": {
+      "maxLength": 20,
+      "minLength": 20,
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
       "title": "Created At",
       "type": "string"

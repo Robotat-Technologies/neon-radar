@@ -232,6 +232,24 @@ def test_only_synthetic_records_set_the_synthetic_keys() -> None:
     assert _rules(record) == []
 
 
+def test_synthetic_sanction_names_only_synthetic_entities(tmp_path: Path) -> None:
+    """G1: C2 builds SUBJECT_OF from Sanction.entity, so a synthetic Sanction naming a real
+    entity would mark it as sanctioned. Synthetic background records may name real ones."""
+    sanction = _company(id="syn-sanction-0099", schema="Sanction", properties={})
+    sanction["properties"] = {"entity": ["syn-co-0099"], "authority": ["Example Authority"]}
+    assert _rules(sanction) == []
+    sanction["properties"]["entity"] = ["syn-co-0099", "gbch-co-T0000001"]
+    [issue] = validate_record(sanction)
+    assert issue.rule == "R6"
+    assert "'gbch-co-T0000001': SUBJECT_OF would mark a real entity as sanctioned" in issue.message
+    path = tmp_path / "sanction.ftm.jsonl"
+    path.write_text(json.dumps(sanction) + "\n", encoding="utf-8")
+    assert "R6" in [i.rule for i in validate_files([path], strict=False)[1]]
+    ownership = _demo("syn-ownership-0001")
+    ownership["properties"]["owner"] = ["gbch-co-T0000001"]  # background activity (G1)
+    assert _rules(ownership) == []
+
+
 # Each problem is reported once
 
 

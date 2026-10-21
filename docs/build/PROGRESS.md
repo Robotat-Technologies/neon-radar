@@ -12,7 +12,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.4 | todo | - | - | 2026-10-21 | - | - |
 | M1.5 | todo | - | - | 2026-10-21 | - | - |
 | M1.6 | todo | - | - | 2026-10-21 | - | - |
-| M1.7a | todo | - | - | 2026-10-21 | - | - |
+| M1.7a | in-progress | p1/m1-7a-record-contract | - | 2026-10-21 | - | One PR with the size-exception label (granted by the orchestrator); R1 narrowed to FtM's reference format (tech lead sign-off at Gate 1); issue codes FORMAT and NR; data steward approval of contracts/datasets.yaml pending (GC-17); built in a worktree |
 | M1.7b | todo | - | - | 2026-10-21 | - | - |
 | M1.7c | todo | - | - | 2026-10-21 | - | - |
 | M1.7d | todo | - | - | 2026-10-21 | - | - |

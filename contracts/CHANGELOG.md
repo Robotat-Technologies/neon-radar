@@ -56,6 +56,7 @@ The spec's tables are kept; these say how the mapping reads them.
 - **Not mapped in v1:** the references `parent`, `riskSource`, `BankAccount.bank`, `Position.organization`, `Payment.payer`, `Payment.beneficiary`, `Payment.contract`, `Payment.project` and `proof`; on `HOLDS_ACCOUNT` and `CONSOLIDATES`, the Ownership's `percentage`, `ownershipType`, `nr.natures_of_control` and `nr.share_pct_*`; every other FtM property that `neonradar_contracts.graph` does not name; the record keys `last_change` and `referents`; and `nr.v`, `nr.source_ref` and `nr.synthetic_kind`.
 - **Countries:** every country-typed value is stored as a lower-case code (FtM's country type normalises `GB` to `gb`), in `countries` and in `jurisdiction`, `country` and `nationalities`.
 - **Relationship ids** are unique across all types and never equal a node id (derived ids contain `|`, outside the C1 id alphabet); they do not change after entity resolution.
+- **Loader reload (C2 doc, M1.9a):** reloading changed files moves a relationship whose end or type changed and removes mapped properties a record dropped; records no longer in the files stay, so the invariants hold after `neonradar graph wipe --yes` followed by a load. No schema or migration change.
 - **Migration runner:** the checksum is taken after normalising line endings to LF; the runner also refuses a database that has a migration the folder lacks and a pending migration numbered below an applied one, and waits for new indexes (`db.awaitIndexes`) before recording a migration.
 
 #### Open for Gate 1 sign-off (tech lead)

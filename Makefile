@@ -2,9 +2,9 @@
 # Targets that a later milestone fills print "available after M1.x" and succeed.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup fmt lint typecheck test test-int contracts contracts-check check hygiene \
-	up down reset plugins smoke logs fixtures onboarding-check demo-data demo-mini demo-dev e2e \
-	gate-1
+.PHONY: help setup fmt lint typecheck test test-int contracts contracts-check cypher-lint check \
+	hygiene up down up-real down-real reset plugins smoke logs fixtures onboarding-check demo-data \
+	demo-mini demo-dev e2e gate-1
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
@@ -40,7 +40,10 @@ contracts-check: ## contract tests and drift checks (models against the committe
 	uv run pytest -m contract
 	uv run neonradar contracts check
 
-check: lint typecheck test contracts-check ## everything a pull request needs
+cypher-lint: ## lint every .cypher file under graph/, detect/ and api/ with Cypher 5 rules
+	npm ci --prefix scripts/cypher-lint --ignore-scripts --silent && node scripts/cypher-lint/lint.mjs
+
+check: lint typecheck test contracts-check cypher-lint ## everything a pull request needs
 	@if [ -f ui/package.json ]; then \
 		npm run --prefix ui lint && npm run --prefix ui type-check && \
 		npm run --prefix ui test:unit -- --run; \
@@ -82,6 +85,22 @@ up: ## start Neo4j and wait until it is healthy (offline once make plugins has r
 
 down: ## stop Neo4j and, if running, the demo's API and UI; the data volume is kept
 	docker compose --profile app down
+
+# The real-data instance (PHASE-2.md 4.1, M2.0): approved machines only, never for synthetic work.
+# Deleting its data is `neonradar data purge --graph` (M2.2), which removes its volume.
+up-real: ## start the real-data instance neo4j-real (approved machines only, docs/data/real-data-machines.md)
+	@bash scripts/fetch_gds.sh --check
+	@if [ -z "$${NEO4J_REAL_PASSWORD:-}" ] && ! grep -q '^NEO4J_REAL_PASSWORD=.\{8,\}' .env 2>/dev/null; then \
+		echo "Set NEO4J_REAL_PASSWORD (at least 8 characters) in .env first; see docs/data/real-data-handling.md." >&2; \
+		exit 1; fi
+	@image="$$(docker compose --profile real config --images neo4j-real)" || exit 1; \
+	docker image inspect "$$image" >/dev/null 2>&1 || { \
+		echo "The Neo4j image $$image is missing. Run 'make plugins' once, then 'make up-real'." >&2; \
+		exit 1; }
+	docker compose --profile real up -d --wait --pull never neo4j-real
+
+down-real: ## stop the real-data instance; its volume (the real graph) is kept
+	docker compose --profile real stop neo4j-real
 
 # CONFIRM=yes counts only when typed on the command line (make reset CONFIRM=yes), never from the
 # environment or .env, so that a stray export cannot delete a database.

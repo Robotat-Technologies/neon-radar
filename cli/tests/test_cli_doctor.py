@@ -1,4 +1,5 @@
 import json
+import os
 import socket
 import sys
 from pathlib import Path
@@ -127,6 +128,107 @@ def test_icu(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fake(monkeypatch, {}, installed=())
     monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
-    names = [check.name for check in doctor.run_checks(tmp_path)]
+    checks = doctor.run_checks(tmp_path)
+    names = [check.name for check in checks]
     ports = ["port 7474", "port 7687", "port 8000", "port 8080", "port 5173"]
-    assert names == ["Python", "uv", "Docker", "Compose", ".env", *ports, "Docker memory", "ICU"]
+    phase_2 = ["disk space", "DuckDB", "real data", "DuckDB spill", "neo4j-real", "real profiles"]
+    assert names == [
+        "Python", "uv", "Docker", "Compose", ".env", *ports, "Docker memory", "ICU", *phase_2
+    ]  # fmt: skip
+    assert all(check.status is not Status.FAIL for check in checks[-len(phase_2) :])
+
+
+# Phase 2 checks (PHASE-2.md M2.0): OK or WARN only, never FAIL.
+
+DAY = 86_400
+NOW = 2_000_000_000.0
+ACCESS = {"real_data_days": 30, "label_days": 10, "real_data_profiles": []}
+
+
+def test_disk(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    usage = doctor.shutil.disk_usage(tmp_path)
+    monkeypatch.setattr(doctor.shutil, "disk_usage", lambda _: usage._replace(free=30 * 10**9))
+    assert doctor.check_disk(tmp_path) == doctor.Check("disk space", Status.OK, "30 GB free")
+    monkeypatch.setattr(doctor.shutil, "disk_usage", lambda _: usage._replace(free=24 * 10**9))
+    assert doctor.check_disk(tmp_path).status is Status.WARN
+
+
+def test_duckdb(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert doctor.check_duckdb().status is Status.OK  # a resolve dependency, so installed
+
+    def missing(name: str) -> None:
+        raise ImportError(name)
+
+    monkeypatch.setattr(doctor.importlib, "import_module", missing)
+    assert doctor.check_duckdb().status is Status.WARN
+
+
+def _aged(path: Path, days: float) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x", encoding="utf-8")
+    os.utime(path, (NOW - days * DAY, NOW - days * DAY))
+
+
+def test_real_data_counts_files_and_ages_only(tmp_path: Path) -> None:
+    real = tmp_path / "data" / "cache" / "real"
+    assert doctor.check_real_data(tmp_path, ACCESS, NOW).detail == "none under data/cache/real/"
+    _aged(real / "sources" / "a.zip", 5)
+    _aged(real / "labels" / "demo" / "run" / "x.jsonl", 9)
+    check = doctor.check_real_data(tmp_path, ACCESS, NOW)
+    assert check.status is Status.OK
+    assert check.detail.startswith("2 files under data/cache/real/, the oldest 9 days old")
+    _aged(real / "labels" / "demo" / "run" / "y.jsonl", 11)  # older than label_days only
+    check = doctor.check_real_data(tmp_path, ACCESS, NOW)
+    assert check.status is Status.WARN
+    assert "1 older than" in check.detail
+    assert "y.jsonl" not in check.detail and "labels" not in check.detail
+    _aged(real / "records" / "uk-tiny" / "b.jsonl", 31)
+    assert "2 older than" in doctor.check_real_data(tmp_path, ACCESS, NOW).detail
+    assert doctor.check_real_data(tmp_path, {}, NOW).status is Status.WARN  # no retention set
+
+
+def test_spill_folders(tmp_path: Path) -> None:
+    assert doctor.check_spill(tmp_path).status is Status.OK
+    (tmp_path / "data" / "cache" / "real" / "duckdb-tmp" / "er-1").mkdir(parents=True)
+    (tmp_path / "data" / "cache" / "synthetic" / "duckdb-tmp" / "er-2").mkdir(parents=True)
+    check = doctor.check_spill(tmp_path)
+    assert check.status is Status.WARN
+    assert check.detail.startswith("2 leftover run folder(s)")
+
+
+def test_real_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    ps = (
+        "docker", "ps",
+        "--filter", "label=com.docker.compose.project=neonradar",
+        "--filter", "label=com.docker.compose.service=neo4j-real",
+        "--format", "{{.Names}}",
+    )  # fmt: skip
+    info = {"ServerVersion": "29.7.2"}
+    fake(monkeypatch, {ps: "neonradar-neo4j-real-1"})
+    check = doctor.check_real_instance(info)
+    assert check.status is Status.WARN
+    assert "make down-real" in check.detail
+    fake(monkeypatch, {ps: ""})
+    assert doctor.check_real_instance(info).status is Status.OK
+    assert doctor.check_real_instance(None).status is Status.OK
+
+
+def test_real_profiles() -> None:
+    assert doctor.check_real_profiles({"real_data_profiles": []}).status is Status.OK
+    allowed = {"real_data_profiles": ["uk-tiny"], "data_protection_filed": False}
+    check = doctor.check_real_profiles(allowed)
+    assert check.status is Status.WARN
+    assert "docs/data/real-data-machines.md" in check.detail
+    allowed["data_protection_filed"] = True
+    check = doctor.check_real_profiles(allowed)
+    assert check.status is Status.OK
+    assert "NR_REAL_DATA_MACHINE=approved" in check.detail
+
+
+def test_read_access(tmp_path: Path) -> None:
+    assert doctor.read_access(tmp_path) == {}
+    project = tmp_path / "docs" / "build" / "project.yaml"
+    project.parent.mkdir(parents=True)
+    project.write_text("access:\n  real_data_days: 30\n", encoding="utf-8")
+    assert doctor.read_access(tmp_path) == {"real_data_days": 30}
+    assert isinstance(doctor.read_access(doctor.REPO_ROOT)["real_data_profiles"], list)

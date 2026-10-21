@@ -34,7 +34,10 @@ def test_validate_records_prints_each_issue_and_exits_1(tmp_path: Path) -> None:
     path.write_text(_company(scenario="round_trip"), encoding="utf-8")
     result = runner.invoke(app, ["contracts", "validate-records", str(path)])
     assert result.exit_code == 1
-    assert "R9 syn-co-0099: nr key 'scenario' looks like a ground-truth label" in result.output
+    assert (
+        f"{path}:1: R9 syn-co-0099: nr key 'scenario' looks like a ground-truth label"
+        in result.output
+    )
     assert result.output.splitlines()[-1] == "FAILED, 1 issue(s)"
 
 

@@ -21,6 +21,8 @@ people:                               # GitHub handles, with the @. Until the te
   demo_producer: "@robotat-com"
   community_manager: "@robotat-com"
   interns: []                          # every intern's GitHub handle (15 in the plan)
+  er_labellers: ["@TODO", "@TODO", "@TODO", "@TODO"]   # every intern, plus mentors who label (PHASE-2.md 1.2)
+  er_senior_reviewers: ["@TODO"]        # may confirm alone a same decision that crosses P1 or P2 (PHASE-2.md 7.1)
 squads:                               # team slugs must exist in the org (section 1.1)
   ingest:  { team: "@neonradar/nr-ingest",  dir: ingest,  mentor: "@robotat-com" }
   graph:   { team: "@neonradar/nr-graph",   dir: graph,   mentor: "@robotat-com" }
@@ -35,11 +37,23 @@ access:
   spike_cache_days: 7                 # spike output holds personal data; delete it after this many days
   claude_review_action: off           # off | on
   codespaces: personal-quota          # personal-quota | org-paid | off
+  # Phase 2 (PHASE-2.md 1.2 and 1.3; values decided in operator-decisions.md OD-22)
+  real_data_profiles: []              # [] | [uk-tiny] | [uk-tiny, uk-sample]
+  real_data_days: 30                  # purge real data older than this
+  label_days: 30                      # keep label files (record ids and labels only) this long
+  data_protection_filed: false        # true once the documents in PHASE-2.md 1.1 are filed in docs/data/dpia/
+  real_data_machines_doc: docs/data/real-data-machines.md
+  sanctions_lists: [gb_fcdo_sanctions, us_ofac_sdn, eu_fsf]   # add un_sc_sanctions only with UN permission
+  pep_sources: []                     # any of gb_parliament_members, opensanctions_default
+  pep_former_months: 12               # former members keep role.pep this long after leaving office
 schedule:                             # Phase 1 shifted 3 working days on 2026-10-21; the dates in PHASE-1.md are the original plan
   phase_1_start: 2026-10-21
   assignment_1_due: 2026-10-23
   assignment_2_due: 2026-10-27
   gate_1: 2026-10-28
+  phase_2_start: 2026-10-26            # Phase 2 dates as PHASE-2.md 1.3 gives them; informational (OD-1)
+  er_threshold_freeze: 2026-10-29
+  labelling_start: 2026-11-02
   gate_2: 2026-11-04
   gate_3: 2026-11-13
   gate_4: 2026-11-17

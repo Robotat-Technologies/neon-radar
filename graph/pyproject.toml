@@ -8,11 +8,13 @@ dependencies = [
     "followthemoney>=4.11,<5",
     "neo4j>=6.4,<7",
     "neonradar-contracts",
+    "neonradar-keys",
     "pydantic-settings>=2.16,<3",
 ]
 
 [tool.uv.sources]
 neonradar-contracts = { workspace = true }
+neonradar-keys = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14"]

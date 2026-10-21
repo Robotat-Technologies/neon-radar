@@ -51,7 +51,7 @@ def alert_for(records: list[dict[str, Any]], edge_ids: list[str], **kwargs: Any)
 def test_query_writes_the_hop_bounds_into_the_fixed_template() -> None:
     text = query(2, 6)
     assert "MATCH p = (a:Account)-[t:PAID]->{2,6}(a)" in text
-    assert "MIN_HOPS" not in text and "MAX_HOPS" not in text
+    assert "{{" not in text and "}}" not in text  # no placeholder left (PHASE-2.md M2.0)
     assert "LIMIT $limit" in text
     assert query(3, 8).count("->{3,8}(") == 1
 

@@ -1,0 +1,1 @@
+{"id": "syn-p-0002", "schema": "Person", "datasets": ["nr_synthetic"], "properties": {"name": ["Zoe\u0308 Example"], "nationality": ["gb"]}, "nr": {"v": "1.0", "synthetic": true, "synthetic_kind": "registry"}}

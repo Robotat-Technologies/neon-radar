@@ -34,8 +34,8 @@ test-int: ## integration tests (Neo4j through Testcontainers)
 contracts: ## regenerate JSON Schemas and the OpenAPI snapshot
 	@echo "available after M1.7"
 
-contracts-check: ## contract tests and drift checks
-	@echo "available after M1.7"
+contracts-check: ## contract tests and drift checks (M1.7c and M1.7d add the drift checks)
+	uv run pytest -m contract
 
 check: lint typecheck test contracts-check ## everything a pull request needs
 	@if [ -f ui/package.json ]; then \

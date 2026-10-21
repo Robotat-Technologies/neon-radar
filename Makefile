@@ -33,10 +33,11 @@ test-int: ## integration tests (Neo4j through Testcontainers, with the GDS jar f
 	uv run pytest -m integration
 
 contracts: ## regenerate JSON Schemas and the OpenAPI snapshot
-	@echo "available after M1.7"
+	uv run neonradar contracts export
 
-contracts-check: ## contract tests and drift checks (M1.7c and M1.7d add the drift checks)
+contracts-check: ## contract tests and drift checks (models against the committed generated files)
 	uv run pytest -m contract
+	uv run neonradar contracts check
 
 check: lint typecheck test contracts-check ## everything a pull request needs
 	@if [ -f ui/package.json ]; then \

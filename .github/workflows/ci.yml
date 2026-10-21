@@ -40,6 +40,8 @@ jobs:
         run: bash scripts/test_hooks.sh
       - name: CODEOWNERS up to date
         run: uv run --no-project --with pyyaml python scripts/generate_codeowners.py --check
+      - name: Typology index up to date
+        run: uv run neonradar docs typology-index --check
 
   integration:
     runs-on: ubuntu-24.04

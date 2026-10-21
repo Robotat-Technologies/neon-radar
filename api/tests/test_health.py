@@ -101,7 +101,11 @@ class FakeDriver:
 
 
 def _connection(monkeypatch: pytest.MonkeyPatch, driver: FakeDriver) -> GraphConnection:
-    monkeypatch.setattr("neonradar_api.graph.get_driver", lambda settings: driver)
+    def fake_get_driver(settings: Neo4jSettings, max_transaction_retry_time: float) -> FakeDriver:
+        assert max_transaction_retry_time == 1.0  # requests give up after a few seconds
+        return driver
+
+    monkeypatch.setattr("neonradar_api.graph.get_driver", fake_get_driver)
     settings = Neo4jSettings(password=SecretStr("unused"), database="neo4j")
     return GraphConnection(settings=lambda: settings)
 

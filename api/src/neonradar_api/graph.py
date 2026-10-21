@@ -16,6 +16,10 @@ from pydantic import ValidationError
 
 from neonradar_graph.client import Neo4jSettings, get_driver
 
+# The driver retries an unavailable database for 30 s by default; a request should not hang that
+# long, so the API gives up after a few seconds at most and answers 503 (or `degraded` for health).
+RETRY_SECONDS = 1.0
+
 
 class GraphUnavailable(Exception):
     """Neo4j is not configured, not reachable or refuses the credentials (HTTP 503)."""
@@ -37,7 +41,7 @@ class GraphConnection:
                     settings = self._settings()
                 except ValidationError as error:
                     raise GraphUnavailable("Neo4j is not configured (NEO4J_PASSWORD)") from error
-                self._driver = get_driver(settings)
+                self._driver = get_driver(settings, max_transaction_retry_time=RETRY_SECONDS)
                 self._database = settings.database
             return self._driver, self._database
 

@@ -4,7 +4,9 @@
 two or three scripts), 12 addresses (one the registered office of 8 companies), a formation
 agent representing 6 companies, a nominee director on 4 of them, a three-level ownership
 chain ending at a person (who has topic `role.pep`) and one company with topic `sanction`.
-Roles are fixed positions in a seeded shuffle, so records never carry them (R9).
+Roles are fixed positions in a seeded shuffle, so records never carry them (R9). The PEP, the
+nominee director and the sanctioned company are seeded draws across name origins and
+jurisdictions, and none of them is a party to a planted scenario or look-alike.
 """
 
 from collections.abc import Mapping
@@ -45,6 +47,7 @@ class Registry:
     roles: dict[str, list[str]] = field(default_factory=dict)
     ownerships: int = 0
     attempts: dict[str, int] = field(default_factory=dict)  # record id -> name draw used
+    origin: dict[str, str] = field(default_factory=dict)  # person id -> en, ar or ru
 
     def own(self, owner: str, asset: str, start: date, band: str | None = None) -> None:
         """An Ownership: a share band between legal entities, or an account holding."""
@@ -76,8 +79,15 @@ def build_registry(seed: int, redraw: Mapping[str, int] | None = None) -> Regist
         "agent": [gb[0]], "agent_clients": gb[1:7], "nominee_served": gb[1:5],
         "chain": [vg[0], cy[0], gb[8]], "round_trip": [gb[9], ae[0], vg[1], cy[1]],
         "lender": [gb[10]], "borrower": [gb[11]], "employers": [gb[12], gb[13], gb[9]],
-        "retail": gb[14:18], "eur_second": [gb[9], gb[12], gb[14]], "sanctioned": [ae[1]],
+        "retail": gb[14:18], "eur_second": [gb[9], gb[12], gb[14]],
     }  # fmt: skip
+    # Flags never sit on a scenario or look-alike party, and their place is a seeded draw, so
+    # no jurisdiction or name origin always carries them (M1.8e review).
+    planted_roles = ("round_trip", "lender", "borrower", "retail")
+    planted = {c for role in planted_roles for c in reg.roles[role]}
+    free = [c for c in ids if c not in planted]
+    country = pick(rng, sorted({plan[ids.index(c)] for c in free}))
+    reg.roles["sanctioned"] = [pick(rng, [c for c in free if plan[ids.index(c)] == country])]
 
     addresses: dict[str, str] = {}  # company or branch id -> address id
     groups = [gb[:8], gb[8:10], gb[10:12], gb[12:14], gb[14:16], gb[16:17], gb[17:], vg, cy, ae]
@@ -136,34 +146,42 @@ def build_registry(seed: int, redraw: Mapping[str, int] | None = None) -> Regist
             "birthDate": [person.birth], "nationality": [person.nationality],
         }  # fmt: skip
         people[pid] = Rec(pid, "Person", "registry", props)
-        reg.names[pid] = person.names[0]
+        reg.names[pid], reg.origin[pid] = person.names[0], origin
         reg.persons.append(pid)
     reg.records.extend(people.values())
 
-    owners: dict[str, list[str]] = {}
-    top = pick(rng, reg.persons)
+    # The PEP and the nominee director come from two different name origins, drawn by seed.
+    origins = [str(o) for o in rng.permutation(sorted(set(reg.origin.values())))]
+    top = pick(rng, [p for p in reg.persons if reg.origin[p] == origins[0]])
+    reg.roles["pep"] = [top]
     people[top].props["topics"] = ["role.pep"]  # PEP exposure through the chain, typology (i)
     chain = [top, *reg.roles["chain"]]
     for owner, asset in pairwise(chain):
-        reg.own(owner, asset, reg.founded[asset], "75-100")
+        start = max(reg.founded.get(owner, reg.founded[asset]), reg.founded[asset])
+        reg.own(owner, asset, start, "75-100")
+    owners: dict[str, list[str]] = {}
+    others = [p for p in reg.persons if p != top]
     for cid in ids:
         if cid in reg.roles["chain"]:
             continue
         two = chance(rng, 0.3)
-        picked = [str(p) for p in rng.choice(reg.persons, 2 if two else 1, replace=False)]
+        pool = others if cid in planted else reg.persons  # the PEP owns no planted party
+        picked = [str(p) for p in rng.choice(pool, 2 if two else 1, replace=False)]
         owners[cid] = picked
         for owner, band in zip(picked, ("50-75", "25-50") if two else ("75-100",), strict=True):
             reg.own(owner, cid, reg.founded[cid], band)
 
     served = reg.roles["nominee_served"]
-    nominee = pick(rng, [p for p in reg.persons if not any(p in owners[c] for c in served)])
+    nominee = pick(rng, [p for p in others if reg.origin[p] == origins[1]
+                         and not any(p in owners[c] for c in served)])  # fmt: skip
     for number, cid in enumerate(ids, start=1):
         extra: dict[str, Any] = {}
         if cid in served:
             director, role, extra = nominee, "nominee-director", {"is_nominee": True}
         else:
             mine = owners.get(cid, [])
-            director = mine[0] if mine and chance(rng, 0.6) else pick(rng, reg.persons)
+            pool = others if cid in planted else reg.persons
+            director = mine[0] if mine and chance(rng, 0.6) else pick(rng, pool)
             role = "director"
         props = {
             "director": [director], "organization": [cid], "role": [role],

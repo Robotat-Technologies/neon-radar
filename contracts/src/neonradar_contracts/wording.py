@@ -9,6 +9,7 @@ scripts/check_wording.py reads the same file with the standard library only.
 """
 
 import re
+import unicodedata
 from collections.abc import Iterable
 from functools import cache
 from pathlib import Path
@@ -20,6 +21,7 @@ FORBIDDEN_TERMS_FILE = WORDING_DIR / "forbidden-terms.txt"
 
 # 7.1: "synthetic scenario" may appear only in an alert whose wording class is
 # synthetic_scenario (every evidence node, subject and evidence-account holder is synthetic).
+# Match it through `says_synthetic_scenario`, which normalises the text first.
 SYNTHETIC_PHRASE = re.compile(r"\bsynthetic[\s_-]+scenario", re.IGNORECASE)
 
 DisclaimerId = Literal["standing-v1", "synthetic-demo-v1", "real-data-v1"]
@@ -31,6 +33,19 @@ def load_disclaimer(disclaimer_id: DisclaimerId) -> str:
     if disclaimer_id not in DISCLAIMER_IDS:
         raise ValueError(f"unknown disclaimer id {disclaimer_id!r}")
     return (WORDING_DIR / f"{disclaimer_id}.txt").read_text(encoding="utf-8").rstrip("\n")
+
+
+def normalize(text: str) -> str:
+    """NFKC without format characters (Unicode category Cf: soft hyphen, zero-width space, word
+    joiner, direction marks), so fullwidth or mathematical letters and invisible characters
+    cannot hide a term from the lint or the phrase check."""
+    text = unicodedata.normalize("NFKC", text)
+    return "".join(char for char in text if unicodedata.category(char) != "Cf")
+
+
+def says_synthetic_scenario(text: str) -> bool:
+    """Whether `text` says "synthetic scenario" (`SYNTHETIC_PHRASE` on the normalised text)."""
+    return SYNTHETIC_PHRASE.search(normalize(text)) is not None
 
 
 def parse_patterns(text: str) -> tuple[re.Pattern[str], ...]:
@@ -50,9 +65,11 @@ def find_forbidden(text: str, mask: Iterable[str] = ()) -> list[str]:
 
     `mask` holds source values that are not NeonRadar's wording, such as entity captions and
     account numbers (7.1): each occurrence as a whole token (not inside a longer word) is
-    blanked out before the check.
+    blanked out before the check. The text and the mask are normalised first (`normalize`).
     """
-    for value in sorted({value for value in mask if value}, key=len, reverse=True):
+    text = normalize(text)
+    mask = {normalize(value) for value in mask if value}
+    for value in sorted(mask, key=len, reverse=True):
         token = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")
         text = token.sub(lambda found: " " * len(found.group(0)), text)
     return [

@@ -28,8 +28,11 @@ def stream(seed: int, component: str) -> np.random.Generator:
 
 
 def slot_stream(seed: int, component: str, slot: int, attempt: int) -> np.random.Generator:
-    """The stream of one draw (for example one person's name), keyed by slot and attempt, so
-    that drawing one slot again changes no other slot."""
+    """The stream of one draw (for example one person's name), keyed by slot and attempt.
+
+    A draw that uses only its own stream (a Faker-only name) is independent of other slots.
+    Curated person names also depend on the parts earlier slots used (`names.PersonNames`), so
+    after redrawing a slot, check every name again."""
     key = (COMPONENTS[component], slot, attempt)
     return np.random.default_rng(np.random.SeedSequence(seed, spawn_key=key))
 

@@ -128,7 +128,7 @@ Dates on entities and relationships are ISO 8601 strings and may be partial. Onl
 | `HOLDS_POSITION` | `Person` | `Position` | `Occupancy` (holder to post) | `status`, `start_date`, `end_date` |
 | `SUBJECT_OF` | `Entity` | `Sanction` | `Sanction.entity` | none |
 | `RESOLVED_TO` | `SourceRecord` | `Entity` | Entity resolution (Phase 2) | `match_probability`, `method`, `resolver_version`, `decided_at` |
-| `FLAGS` | `Alert` | `Entity` | Alert subjects | `role` |
+| `FLAGS` | `Alert` | `Entity` | Alert subjects: one per alert and subject entity (`MERGE` on the pair, `SET` the `role`); a re-run removes `FLAGS` to entities that are no longer subjects | `role` |
 | `PRODUCED` | `DetectionRun` | `Alert` | Detection runs | none |
 
 Common relationship properties (all types except `RESOLVED_TO`, `FLAGS`, `PRODUCED`): `id` (STRING, unique per type: the FtM interval entity id, or `<record id of the entity>|addr|<address record id>` for `HAS_ADDRESS`, or `<record id of the entity>|sanction|<sanction record id>` for `SUBJECT_OF`), `datasets`, `synthetic`, `source_url` (optional).

@@ -1,0 +1,223 @@
+{
+  "nodes": [
+    {
+      "id": "syn-acct-0007",
+      "labels": [
+        "Entity",
+        "Account"
+      ],
+      "schema": "BankAccount",
+      "caption": "NRSYN0000000007",
+      "flags": {
+        "synthetic": true,
+        "sanctioned": false,
+        "pep": false,
+        "rca": false
+      },
+      "properties": {
+        "account_number": "NRSYN0000000007",
+        "account_kind": "customer",
+        "bank_name": "Synthetic Bank One",
+        "countries": [],
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "names": []
+      }
+    },
+    {
+      "id": "syn-acct-0012",
+      "labels": [
+        "Entity",
+        "Account"
+      ],
+      "schema": "BankAccount",
+      "caption": "NRSYN0000000012",
+      "flags": {
+        "synthetic": true,
+        "sanctioned": false,
+        "pep": false,
+        "rca": false
+      },
+      "properties": {
+        "account_number": "NRSYN0000000012",
+        "account_kind": "customer",
+        "bank_name": "Synthetic Bank One",
+        "countries": [],
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "names": []
+      }
+    },
+    {
+      "id": "syn-acct-0015",
+      "labels": [
+        "Entity",
+        "Account"
+      ],
+      "schema": "BankAccount",
+      "caption": "NRSYN0000000015",
+      "flags": {
+        "synthetic": true,
+        "sanctioned": false,
+        "pep": false,
+        "rca": false
+      },
+      "properties": {
+        "account_number": "NRSYN0000000015",
+        "account_kind": "customer",
+        "bank_name": "Synthetic Bank One",
+        "countries": [],
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "names": []
+      }
+    },
+    {
+      "id": "syn-acct-0021",
+      "labels": [
+        "Entity",
+        "Account"
+      ],
+      "schema": "BankAccount",
+      "caption": "NRSYN0000000021",
+      "flags": {
+        "synthetic": true,
+        "sanctioned": false,
+        "pep": false,
+        "rca": false
+      },
+      "properties": {
+        "account_number": "NRSYN0000000021",
+        "account_kind": "customer",
+        "bank_name": "Synthetic Bank One",
+        "countries": [],
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "names": []
+      }
+    },
+    {
+      "id": "syn-co-0003",
+      "labels": [
+        "Entity",
+        "LegalEntity",
+        "Organization",
+        "Company"
+      ],
+      "schema": "Company",
+      "caption": "Fenwhistle Holdings Ltd",
+      "flags": {
+        "synthetic": true,
+        "sanctioned": false,
+        "pep": false,
+        "rca": false
+      },
+      "properties": {
+        "countries": [
+          "gb"
+        ],
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "incorporation_date": "2018-06-11",
+        "jurisdiction": "gb",
+        "names": [
+          "Fenwhistle Holdings Ltd"
+        ],
+        "registration_number": "SYN00003"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "syn-payment-000101",
+      "type": "PAID",
+      "source": "syn-acct-0007",
+      "target": "syn-acct-0012",
+      "properties": {
+        "amount": 120000.0,
+        "channel": "wire",
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "synthetic": true,
+        "ts": "2026-03-02T09:00:00Z"
+      }
+    },
+    {
+      "id": "syn-payment-000102",
+      "type": "PAID",
+      "source": "syn-acct-0012",
+      "target": "syn-acct-0015",
+      "properties": {
+        "amount": 118800.0,
+        "channel": "wire",
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "synthetic": true,
+        "ts": "2026-03-04T11:30:00Z"
+      }
+    },
+    {
+      "id": "syn-payment-000103",
+      "type": "PAID",
+      "source": "syn-acct-0015",
+      "target": "syn-acct-0021",
+      "properties": {
+        "amount": 117000.0,
+        "channel": "wire",
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "synthetic": true,
+        "ts": "2026-03-06T14:10:00Z"
+      }
+    },
+    {
+      "id": "syn-payment-000104",
+      "type": "PAID",
+      "source": "syn-acct-0021",
+      "target": "syn-acct-0007",
+      "properties": {
+        "amount": 115200.0,
+        "channel": "wire",
+        "currency": "EUR",
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "synthetic": true,
+        "ts": "2026-03-08T16:40:00Z"
+      }
+    },
+    {
+      "id": "syn-ownership-0007",
+      "type": "HOLDS_ACCOUNT",
+      "source": "syn-co-0003",
+      "target": "syn-acct-0007",
+      "properties": {
+        "datasets": [
+          "nr_synthetic"
+        ],
+        "role": "account holder",
+        "synthetic": true
+      }
+    }
+  ],
+  "truncated": false,
+  "limits": {
+    "max_nodes": 200,
+    "max_edges": 400
+  }
+}

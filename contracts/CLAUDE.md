@@ -12,6 +12,9 @@
   `uv run neonradar contracts validate-records <files> --strict` (C1-record.md).
 - C2 (C2-graph-schema.md): `graph` holds the mapping as data; the code that applies it is
   `neonradar_graph.mapping` and the schema is `graph/schema/migrations/`.
+- C3 (C3-api.md): `api` holds every request and response model; the app is
+  `neonradar_api.main`, and `openapi/v1.json` is its OpenAPI document. `neonradar contracts
+  export` and `check` add it to the generated files (this package cannot import the API).
 - Traps:
   - Frozen at Gate 1 (tag `contracts-v1.0.0`): after that, only an approved
     contract-change issue (`/contract-change`); the guard hook blocks edits.

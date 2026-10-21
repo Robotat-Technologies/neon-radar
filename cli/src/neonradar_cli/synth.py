@@ -6,8 +6,9 @@ from typing import Annotated
 
 import typer
 
+from neonradar_ingest.synth import DEMO_SEED
+
 app = typer.Typer(help="Synthetic data generator.", no_args_is_help=True)
-DEMO_SEED = 20261023
 
 
 @app.command(name="demo-mini")

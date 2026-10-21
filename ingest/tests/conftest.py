@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 
 from neonradar_contracts.records import iter_records
-from neonradar_ingest.synth.demo import DEMO_SEED, write_demo_mini
+from neonradar_ingest.synth import DEMO_SEED
+from neonradar_ingest.synth.demo import write_demo_mini
 
 
 @dataclass(frozen=True)

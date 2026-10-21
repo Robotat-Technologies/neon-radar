@@ -50,12 +50,21 @@ class Rec:
     props: dict[str, list[str]]
     nr: dict[str, Any] = field(default_factory=dict)
 
-    def to_json(self) -> str:
+    def to_dict(self) -> dict[str, Any]:
         entity = ValueEntity(model[self.schema], {"id": self.id, "datasets": [SYNTHETIC_DATASET]})
         for prop, values in self.props.items():
             entity.add(prop, [nfc(value) for value in values], cleaned=True)
         nr = {"v": "1.0", "synthetic": True, "synthetic_kind": self.kind, **self.nr}
-        return json.dumps({**entity.to_dict(), "nr": nr}, ensure_ascii=False)
+        return {**entity.to_dict(), "nr": nr}
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False)
+
+
+def ordered(records: list[Rec]) -> list[Rec]:
+    """Records sorted by schema (SCHEMA_ORDER), then id: the order every load is written in."""
+    order = {schema: index for index, schema in enumerate(SCHEMA_ORDER)}
+    return sorted(records, key=lambda rec: (order[rec.schema], rec.id))
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,23 +122,28 @@ def write_load(
 ) -> Path:
     """Write `<stem>.ftm.jsonl`, its manifest and `labels/`; return the record file's path."""
     out.mkdir(parents=True, exist_ok=True)
-    order = {schema: index for index, schema in enumerate(SCHEMA_ORDER)}
-    ordered = sorted(records, key=lambda rec: (order[rec.schema], rec.id))
     path = out / f"{stem}.ftm.jsonl"
-    _write_text(path, "".join(rec.to_json() + "\n" for rec in ordered))
+    _write_text(path, "".join(rec.to_json() + "\n" for rec in ordered(records)))
     write_labels(out / "labels", scenarios)
     producer = Producer(name=GENERATOR, version=GENERATOR_VERSION, git_sha=None)
     write_manifest(
         path, dataset=SYNTHETIC_DATASET, producer=producer, seed=seed, notes=notes,
         created_at=created_at,
     )  # fmt: skip
-    # write_manifest records FollowTheMoney only; the names and streams also depend on these.
-    manifest_file = manifest_path(path)
+    amend_manifest(path, seed)
+    return path
+
+
+def amend_manifest(record_file: Path, seed: int) -> None:
+    """Add what `write_manifest` does not record: the generator as producer, the seed, and the
+    Faker and numpy versions (the names and the random streams depend on them)."""
+    manifest_file = manifest_path(record_file)
     data = json.loads(manifest_file.read_text(encoding="utf-8"))
+    data["producer"] = {"name": GENERATOR, "version": GENERATOR_VERSION, "git_sha": None}
+    data["seed"] = seed
     for package in ("faker", "numpy"):
         data["dependencies"][package] = version(package)
     data["dependencies"] = dict(sorted(data["dependencies"].items()))
     manifest = Manifest.model_validate(data)
     text = json.dumps(manifest.model_dump(mode="json"), indent=2, ensure_ascii=False)
     _write_text(manifest_file, text + "\n")
-    return path

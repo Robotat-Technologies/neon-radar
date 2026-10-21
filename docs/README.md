@@ -4,7 +4,7 @@ An index of the `docs/` tree. Folders marked "later" are created by a later Phas
 
 | Folder | What it holds | Status |
 |---|---|---|
-| [build/](build/) | The build spec ([PHASE-1.md](build/PHASE-1.md)), project facts ([project.yaml](build/project.yaml)), [operator decisions](build/operator-decisions.md), the [progress log](build/PROGRESS.md), the [CI and repository protection guide](build/ci.md) and, later, phase reports in `reports/` | present |
+| [build/](build/) | The build spec ([PHASE-1.md](build/PHASE-1.md)), project facts ([project.yaml](build/project.yaml)), [operator decisions](build/operator-decisions.md), the [progress log](build/PROGRESS.md), the [CI and repository protection guide](build/ci.md) and the phase reports in `reports/` (the [Phase 1 report](build/reports/phase-1.md)) | present |
 | [research/2026-10-16/](research/2026-10-16/) | Verified research notes behind the build spec: stack, Neo4j, data sources, synthetic data and AML domain sources | present |
 | [plan/](plan/) | The project plan (an export) | present |
 | [decisions/](decisions/README.md) | Architecture decision records (ADRs), their index and template | present |

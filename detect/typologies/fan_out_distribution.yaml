@@ -1,0 +1,39 @@
+slug: fan_out_distribution
+name: Fan-out distribution from one account
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  One account sends money to many other accounts within a short time, often in similar or
+  round amounts and to recipients it has not paid before, and the recipients then withdraw the
+  money as cash or send it on to further accounts.
+doc: docs/typologies/fan-out-distribution.md
+citations:
+  - fincen_fin_2006_g014
+  - ffiec_appendix_f
+  - fatf_pml_2018
+  - fatf_cyber_fraud_2023
+  - fincen_fin_2025_a003
+  - europol_money_muling
+graph_pattern: >
+  One Account with outgoing PAID relationships to many distinct Accounts within a short
+  window, with similar or round amounts, to recipient Accounts that had no earlier PAID
+  relationship with it (and usually none with each other), followed by cash withdrawals
+  (PAID with channel cash_withdrawal to a cash_ledger Account) or a second layer of PAID from
+  the recipients. It can follow a fan-in to the same Account.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Payroll runs
+  - Supplier payment batches
+  - Dividend and interest distributions
+  - Government benefit payments
+  - Insurance claim payouts
+  - Marketplace and gig-platform payouts to sellers and workers
+  - Refunds after a cancelled event
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null                # null until implemented

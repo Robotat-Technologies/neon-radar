@@ -36,3 +36,26 @@ def validate_records(
         typer.echo(f"FAILED, {len(issues)} issue(s)")
         raise typer.Exit(code=1)
     typer.echo("OK, 0 issues")
+
+
+@app.command(name="export")
+def export_command() -> None:
+    """Write the generated contract files (contracts/schemas/*.json) from the models."""
+    from neonradar_contracts import schemas
+
+    for path in schemas.export():
+        typer.echo(f"wrote {path.relative_to(schemas.CONTRACTS_DIR.parent).as_posix()}")
+
+
+@app.command(name="check")
+def check_command() -> None:
+    """Export to a temporary folder and fail on any difference from the committed files."""
+    from neonradar_contracts import schemas
+
+    problems = schemas.check()
+    for problem in problems:
+        typer.echo(f"DRIFT contracts/{problem}")
+    if problems:
+        typer.echo(f"FAILED, {len(problems)} difference(s)")
+        raise typer.Exit(code=1)
+    typer.echo(f"OK, {len(schemas.documents())} generated files match the models")

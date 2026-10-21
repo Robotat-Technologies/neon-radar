@@ -141,6 +141,10 @@ def test_other_yaml_files_are_ignored(root: Path) -> None:
             "is not a citable key",
         ),
         ("  - {key: fatf_pml_2018, title: t}\n", "lacks publisher, year, url, verified"),
+        (
+            "  - {key: fatf_pml_2018, title: null, publisher: p, year: null, url: u, verified:}\n",
+            "has no title, verified",
+        ),
     ],
 )
 def test_broken_bibliography_fails(
@@ -153,7 +157,29 @@ def test_broken_bibliography_fails(
 
 def test_missing_bibliography_fails(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert check_citations.main(["--root", str(tmp_path), str(tmp_path)]) == 1
-    assert "cannot be read" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "docs/sources/bibliography.yaml: cannot be read" in out
+    assert str(tmp_path) not in out
+
+
+@pytest.mark.parametrize("text", ["version: 1\nentries: []\n", "version: 1\n", "[]\n"])
+def test_empty_bibliography_fails(
+    root: Path, text: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write(root, "docs/sources/bibliography.yaml", text)
+    write(root, "docs/a.md", "No citations.\n")
+    assert run(root, "docs") == 1
+    out = capsys.readouterr().out
+    assert (
+        "docs/sources/bibliography.yaml: expected a mapping with a non-empty `entries` list" in out
+    )
+
+
+def test_duplicate_citations_key_fails(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    text = "slug: x\ncitations: [fatf_pml_2018]\ncitations: [no_such_key]\n"
+    write(root, "detect/typologies/x.yaml", text)
+    assert run(root, "detect/typologies") == 1
+    assert "detect/typologies/x.yaml:3: duplicate `citations` key" in capsys.readouterr().out
 
 
 def test_missing_path_is_a_notice(root: Path, capsys: pytest.CaptureFixture[str]) -> None:

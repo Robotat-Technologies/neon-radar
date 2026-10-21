@@ -29,31 +29,37 @@ KEY_PATTERN = re.compile(rf"^{KEY}$")
 FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})(.*)$")
 INLINE_CODE = re.compile(r"(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)")
 REQUIRED = ("key", "title", "publisher", "year", "url", "verified")
+NOT_NULL = ("title", "publisher", "url", "verified")  # `year` is null for living sources
 
 
 def load_keys(path: Path) -> tuple[set[str], list[str]]:
     """The bibliography's keys, and problems that would make a citation unreliable."""
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
-        return set(), [f"{path}: cannot be read: {exc}"]
+    except OSError as exc:
+        return set(), [f"{BIBLIOGRAPHY}: cannot be read: {exc.strerror}"]
+    except yaml.YAMLError as exc:
+        return set(), [f"{BIBLIOGRAPHY}: cannot be parsed: {exc}"]
     entries = data.get("entries") if isinstance(data, dict) else None
-    if not isinstance(entries, list):
-        return set(), [f"{path}: expected a mapping with an `entries` list"]
+    if not isinstance(entries, list) or not entries:
+        return set(), [f"{BIBLIOGRAPHY}: expected a mapping with a non-empty `entries` list"]
     keys: set[str] = set()
     problems: list[str] = []
     for number, entry in enumerate(entries, start=1):
         if not isinstance(entry, dict):
-            problems.append(f"{path}: entry {number} is not a mapping")
+            problems.append(f"{BIBLIOGRAPHY}: entry {number} is not a mapping")
             continue
         key = entry.get("key")
         missing = [field for field in REQUIRED if field not in entry]
         if missing:
-            problems.append(f"{path}: entry {number} ({key!r}) lacks {', '.join(missing)}")
+            problems.append(f"{BIBLIOGRAPHY}: entry {number} ({key!r}) lacks {', '.join(missing)}")
+        empty = [field for field in NOT_NULL if field in entry and entry[field] in (None, "")]
+        if empty:
+            problems.append(f"{BIBLIOGRAPHY}: entry {number} ({key!r}) has no {', '.join(empty)}")
         if not isinstance(key, str) or not KEY_PATTERN.match(key):
-            problems.append(f"{path}: entry {number}: {key!r} is not a citable key ({KEY})")
+            problems.append(f"{BIBLIOGRAPHY}: entry {number}: {key!r} is not a citable key ({KEY})")
         elif key in keys:
-            problems.append(f"{path}: duplicate key {key!r}")
+            problems.append(f"{BIBLIOGRAPHY}: duplicate key {key!r}")
         else:
             keys.add(key)
     return keys, problems
@@ -66,8 +72,12 @@ def markdown_citations(text: str) -> list[tuple[int, str]]:
     for number, line in enumerate(text.splitlines(), start=1):
         match = FENCE.match(line)
         if fence:
-            closes = match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence)
-            if closes and not match.group(2).strip():
+            if (
+                match is not None
+                and match.group(1)[0] == fence[0]
+                and len(match.group(1)) >= len(fence)
+                and not match.group(2).strip()
+            ):
                 fence = ""
             continue
         if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
@@ -83,20 +93,26 @@ def typology_citations(text: str) -> tuple[list[tuple[int, str]], list[tuple[int
     root = yaml.compose(text)
     if not isinstance(root, yaml.MappingNode):
         return [], []
+    found: list[tuple[int, str]] = []
+    problems: list[tuple[int, str]] = []
+    seen = False
     for key_node, value in root.value:
         if key_node.value != "citations":
             continue
         line = value.start_mark.line + 1
+        if seen:
+            problems.append((key_node.start_mark.line + 1, "duplicate `citations` key"))
+            continue
+        seen = True
         if not isinstance(value, yaml.SequenceNode):
-            return [], [(line, "`citations` must be a list of keys")]
-        found, problems = [], []
+            problems.append((line, "`citations` must be a list of keys"))
+            continue
         for item in value.value:
             if isinstance(item, yaml.ScalarNode) and isinstance(item.value, str):
                 found.append((item.start_mark.line + 1, item.value))
             else:
                 problems.append((item.start_mark.line + 1, "a citation must be a key"))
-        return found, problems
-    return [], []
+    return found, problems
 
 
 def relative(path: Path, root: Path) -> str:
@@ -137,8 +153,9 @@ def main(argv: list[str] | None = None) -> int:
         name = relative(path, args.root)
         if name.startswith(SKIPPED):
             continue
+        problems: list[tuple[int, str]] = []
         if path.suffix == ".md":
-            kind, problems = "Markdown", []
+            kind = "Markdown"
             citations = markdown_citations(path.read_text(encoding="utf-8"))
         elif path.suffix == ".yaml" and Path(name).parent.as_posix() == TYPOLOGY_DIR:
             kind = "typology"

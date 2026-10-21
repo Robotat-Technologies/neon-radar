@@ -1,1 +1,1 @@
-"""Source loaders and spikes, one subpackage per dataset in contracts/datasets.yaml."""
+"""Data source clients and their mappings to C1 records, one sub-package per source."""

@@ -12,7 +12,21 @@ No OpenSanctions data was fetched for this spike, and none is in the repository.
 
 ## 1. Command run, date, duration, network conditions
 
-<!-- RUN-EVIDENCE -->
+Run on 21 October 2026 in a worktree of the repository, with `access.opensanctions: none`:
+
+```text
+$ uv run neonradar spike opensanctions          # defaults: --collection sanctions --rows 1000
+OpenSanctions use inside a company needs a data licence; see DATA_SOURCES.md
+$ echo $?
+3
+
+$ uv run pytest -m network ingest/tests/test_opensanctions_spike.py -rs
+SKIPPED [1] ingest/tests/test_opensanctions_spike.py: access.opensanctions is none: OpenSanctions use inside a company needs a data licence; see DATA_SOURCES.md
+```
+
+- Duration: 1.3 seconds of wall-clock time, nearly all of it Python start-up; the command stops at the licence gate.
+- Network: none. The gate runs before the HTTP client is created, so no request was sent. The unit tests check this with a mock server that records every request: zero requests under `none`, and zero under `evaluation` without the written confirmation on file.
+- Offline checks: `uv run pytest ingest/tests cli/tests` (the OpenSanctions gate, mapping, spike and command tests, all on synthetic bodies) and `make check`; the results are in the pull request.
 
 ## 2. What was fetched
 
@@ -48,7 +62,7 @@ Verified locally with followthemoney 4.11.0 on synthetic lines (adds detail to A
 
 ## 4. Mapping notes
 
-Code: `ingest/src/neonradar_ingest/sources/opensanctions/` (`access.py` the gate, `mapping.py` the mapping to C1, `spike.py` the client). It follows [contracts/C1-record.md](../../../contracts/C1-record.md), "How to write a loader that emits C1".
+Code: `ingest/src/neonradar_ingest/sources/opensanctions/` (`access.py` the gate, `mapping.py` the mapping to C1, `spike.py` the client on the shared `HttpClient`), and the command in `cli/src/neonradar_cli/spike.py`. Licensed output is written through `neonradar_ingest.spikes.write_output` and validated without `--strict` (a slice). It follows [contracts/C1-record.md](../../../contracts/C1-record.md), "How to write a loader that emits C1".
 
 | OpenSanctions field | C1 record |
 |---|---|

@@ -57,6 +57,34 @@ def clean(
     typer.echo(f"{len(deleted)} file(s) older than {keep} day(s) deleted from {root}")
 
 
+@app.command(name="icij")
+def icij(
+    rows: Annotated[int, typer.Option(min=1, help="Entities that seed the slice.")] = 1000,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option(
+            help="Archive copy, only if byte ranges are refused. Default: inside the output"
+        ),
+    ] = None,
+) -> None:
+    """ICIJ Offshore Leaks: a closed slice of the bulk archive as C1 records."""
+    import csv
+    import zipfile
+    import zlib
+
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.sources.icij import spike as icij_spike
+
+    try:
+        result = icij_spike.run(rows=rows, cache_dir=cache_dir)
+    except (HttpError, OSError, ValueError, zipfile.BadZipFile, zlib.error, csv.Error) as exc:
+        typer.echo(f"FAIL  {exc}")
+        raise typer.Exit(code=1) from None
+    for line in icij_spike.summary_lines(result):
+        typer.echo(line)
+    report_output(result.output)
+
+
 @app.command(name="opensanctions")
 def opensanctions(
     collection: Annotated[str, typer.Option(help="sanctions, peps, default, crime, ...")] = (
@@ -99,3 +127,48 @@ def opensanctions(
         typer.echo(f"validate-records (a slice, not strict): {len(issues)} issue(s)")
         if issues:
             raise typer.Exit(code=1)
+
+
+@app.command(name="gleif")
+def gleif(
+    lei: Annotated[str, typer.Option(help="The LEI to fetch.")] = "549300OWFMSO9NYV4H90",
+    ch_number: Annotated[
+        str | None,
+        typer.Option(help="Companies House number to join (default: the record's registeredAs)."),
+    ] = None,
+    coverage: Annotated[
+        bool, typer.Option("--coverage", help="Also count GB records (8 more requests).")
+    ] = False,
+) -> None:
+    """GLEIF (M1.8b): an LEI record, its parents, children and the Companies House join."""
+    import time
+
+    from neonradar_contracts.records import Source
+    from neonradar_ingest import spikes
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.sources import gleif as source
+
+    started = time.monotonic()
+    try:
+        with source.make_client() as client:
+            result = source.run_spike(client, lei.strip().upper(), ch_number)
+            counts = source.coverage(client) if coverage else {}
+    except (HttpError, LookupError, ValueError) as exc:
+        typer.echo(f"FAIL  GLEIF: {exc}")
+        raise typer.Exit(code=1) from None
+    for line in source.summary_lines(result):
+        typer.echo(line)
+    for label, count in counts.items():
+        typer.echo(f"coverage: {label}: {count:,}")
+    typer.echo(
+        f"http: {client.requests} requests, {client.retried} retried, {client.throttled}"
+        f" throttled (429), {time.monotonic() - started:.1f} s;"
+        f" golden copy {result.publish_date}"
+    )
+    records, notes = source.build_records(result)
+    retrieved = spikes.utc_timestamp()
+    info = Source(urls=result.urls, retrieved_at=retrieved, source_version=result.publish_date)
+    path = spikes.write_output(
+        records, "gleif", dataset=source.DATASET, part=result.record["id"], source=info, notes=notes
+    )
+    report_output(path)

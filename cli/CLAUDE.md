@@ -4,7 +4,8 @@
   `neonradar graph load`. It depends on every other package and wires them together.
   Phase 1 starts with `neonradar --version`, `doctor`, `graph smoke`, `graph migrate`,
   `contracts validate-records`, `contracts export` and `check`, `docs typology-index`,
-  `spike clean` and `onboarding check|reset` (Assignment 1).
+  `spike clean`, the spikes (`spike gleif`, M1.8b; `spike opensanctions`, M1.8d;
+  `spike icij`, M1.8c) and `onboarding check|reset` (Assignment 1).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.

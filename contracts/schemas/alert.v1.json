@@ -1,0 +1,408 @@
+{
+  "$defs": {
+    "DataFlags": {
+      "additionalProperties": false,
+      "description": "What kind of data the alert touches (5.4); the UI words the alert from these.",
+      "properties": {
+        "datasets": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Datasets",
+          "type": "array"
+        },
+        "involves_real_entities": {
+          "title": "Involves Real Entities",
+          "type": "boolean"
+        },
+        "synthetic_activity": {
+          "title": "Synthetic Activity",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "involves_real_entities",
+        "synthetic_activity",
+        "datasets"
+      ],
+      "title": "DataFlags",
+      "type": "object"
+    },
+    "Detector": {
+      "additionalProperties": false,
+      "description": "The detector that produced the alert: module path, version and the evidence query's hash.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*)+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "query_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Query Sha256",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "query_sha256"
+      ],
+      "title": "Detector",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "The evidence subgraph as C2 ids, and how to reproduce it.",
+      "properties": {
+        "edge_ids": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9](\\|(addr|sanction)\\|[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9])?$",
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "node_ids": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9]$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Node Ids",
+          "type": "array"
+        },
+        "query": {
+          "$ref": "#/$defs/EvidenceQuery"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Window"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "node_ids",
+        "edge_ids",
+        "query"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "EvidenceQuery": {
+      "additionalProperties": false,
+      "description": "The Cypher query and parameters that reproduce the finding.",
+      "properties": {
+        "cypher": {
+          "minLength": 1,
+          "title": "Cypher",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "cypher",
+        "parameters"
+      ],
+      "title": "EvidenceQuery",
+      "type": "object"
+    },
+    "Explanation": {
+      "additionalProperties": false,
+      "description": "Plain-language explanation; texts describe patterns, never accusations (7.1).",
+      "properties": {
+        "false_positive_notes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "False Positive Notes",
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ExplanationStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "typology_reference": {
+          "$ref": "#/$defs/TypologyReference"
+        }
+      },
+      "required": [
+        "summary",
+        "steps",
+        "typology_reference",
+        "false_positive_notes"
+      ],
+      "title": "Explanation",
+      "type": "object"
+    },
+    "ExplanationStep": {
+      "additionalProperties": false,
+      "description": "One step of the explanation, in order, citing the evidence edges it describes.",
+      "properties": {
+        "edge_ids": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9](\\|(addr|sanction)\\|[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9])?$",
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "order": {
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        },
+        "text": {
+          "maxLength": 280,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "order",
+        "text",
+        "edge_ids"
+      ],
+      "title": "ExplanationStep",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Subject": {
+      "additionalProperties": false,
+      "description": "An entity the alert is about; the API links it with FLAGS. Roles are typology-defined.",
+      "properties": {
+        "caption": {
+          "minLength": 1,
+          "title": "Caption",
+          "type": "string"
+        },
+        "entity_id": {
+          "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9]$",
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "role": {
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity_id",
+        "role",
+        "caption"
+      ],
+      "title": "Subject",
+      "type": "object"
+    },
+    "TypologyReference": {
+      "additionalProperties": false,
+      "description": "Where the typology is defined: catalog slug, explainer and bibliography keys.",
+      "properties": {
+        "citations": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Citations",
+          "type": "array"
+        },
+        "doc_path": {
+          "pattern": "^docs/typologies/[a-z0-9-]+\\.md$",
+          "title": "Doc Path",
+          "type": "string"
+        },
+        "slug": {
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+          "title": "Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "doc_path",
+        "citations"
+      ],
+      "title": "TypologyReference",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": false,
+      "description": "The time span of the evidence (UTC).",
+      "properties": {
+        "end": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Window",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "C4 Alert v1.0.0 (5.4). `pattern_strength` orders the queue; it is never a risk score.",
+  "properties": {
+    "alert_id": {
+      "pattern": "^alr-[0-9a-f]{20}$",
+      "title": "Alert Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "title": "Created At",
+      "type": "string"
+    },
+    "data_flags": {
+      "$ref": "#/$defs/DataFlags"
+    },
+    "detector": {
+      "$ref": "#/$defs/Detector"
+    },
+    "disclaimer_id": {
+      "const": "standing-v1",
+      "title": "Disclaimer Id",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/Evidence"
+    },
+    "explanation": {
+      "$ref": "#/$defs/Explanation"
+    },
+    "headline": {
+      "maxLength": 140,
+      "minLength": 1,
+      "title": "Headline",
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "pattern_strength": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Pattern Strength",
+      "type": "number"
+    },
+    "priority": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^run-\\d{8}T\\d{6}-[0-9a-f]{4}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "subjects": {
+      "items": {
+        "$ref": "#/$defs/Subject"
+      },
+      "minItems": 1,
+      "title": "Subjects",
+      "type": "array"
+    },
+    "typology": {
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "title": "Typology",
+      "type": "string"
+    },
+    "typology_version": {
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "title": "Typology Version",
+      "type": "string"
+    },
+    "wording_class": {
+      "enum": [
+        "structural_pattern",
+        "synthetic_scenario"
+      ],
+      "title": "Wording Class",
+      "type": "string"
+    }
+  },
+  "required": [
+    "alert_id",
+    "contract_version",
+    "typology",
+    "typology_version",
+    "detector",
+    "run_id",
+    "created_at",
+    "priority",
+    "pattern_strength",
+    "headline",
+    "wording_class",
+    "subjects",
+    "evidence",
+    "metrics",
+    "explanation",
+    "data_flags",
+    "disclaimer_id"
+  ],
+  "title": "Alert",
+  "type": "object"
+}

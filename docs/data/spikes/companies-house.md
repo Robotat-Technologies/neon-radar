@@ -19,7 +19,7 @@ This report holds counts, field names and coverage only. It says nothing about a
 ```bash
 uv run neonradar spike companies-house --company 01800000 --max-pages 5
 uv run neonradar contracts validate-records data/cache/spikes/companies_house/*.ftm.jsonl --strict
-uv run pytest -m network ingest/tests/test_companies_house_network.py -v
+CH_SPIKE_COMPANY=01800000 uv run pytest -m network ingest/tests/test_companies_house_network.py -v
 ```
 
 `01800000` is the spec's default company number (PHASE-1.md M1.8a step 1), used here only as a command-line example. The first command prints the counts this report needs (records by schema, requests and pages, rate-limit waits and headers, officer and PSC counts, identity verification field names) and writes the records and manifest to `data/cache/spikes/companies_house/`. Paste its output into the pull request and fill in the "Network run" columns below; then set the verdict in section 7.

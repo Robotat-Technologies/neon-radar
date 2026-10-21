@@ -34,7 +34,7 @@ Every object is closed: an unknown key fails validation. Values are strict: `"0.
 | `data_flags` | object | `involves_real_entities` (true if any evidence node, subject or holder of an evidence account has `synthetic = false`), `synthetic_activity` (true if every evidence relationship is synthetic, so the UI can say that a pattern next to a real entity lies in generated background activity), `datasets` (the distinct dataset slugs of the evidence nodes and relationships, the subjects and the evidence-account holders; at least one, each in `contracts/datasets.yaml`) |
 | `disclaimer_id` | string | `"standing-v1"`; the API adds the text from `MetaResponse.disclaimers` |
 
-C2 ids: an entity id has the C1 form (rule R1, as changed by OD-11: `<prefix>-<rest>`, letters, digits, dots and hyphens). A relationship id is the FtM interval entity id (for example a `Payment` id), `<entity id>|addr|<address id>` for `HAS_ADDRESS`, or `<entity id>|sanction|<sanction id>` for `SUBJECT_OF`. Neo4j `elementId()` values are not C2 ids and fail.
+C2 ids: an entity id has the C1 form (rule R1, as changed by OD-11: `<prefix>-<rest>`, letters, digits, dots and hyphens). A relationship id is the FtM interval entity id (for example a `Payment` id), `<entity id>|addr|<address id>` for `HAS_ADDRESS`, or `<entity id>|sanction|<sanction id>` for `SUBJECT_OF`. Neo4j `elementId()` values are not C2 ids and fail. C2 builds composite ids from record ids, which equal node ids in Phase 1, so the endpoint check holds; when Phase 2 entity resolution gives nodes canonical ids (with the record ids in `referents`), the check needs revisiting before it rejects valid alerts (open question for Gate 1).
 
 ## The alert id
 

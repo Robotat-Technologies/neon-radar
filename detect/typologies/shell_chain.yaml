@@ -1,0 +1,40 @@
+slug: shell_chain
+name: Layered company ownership with nominee directors
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Layers of companies with few or no operations own one another, often across jurisdictions,
+  and nominee directors or shareholders appear on the record, so the natural person who
+  controls the companies does not appear in public records.
+doc: docs/typologies/shell-chain.md
+citations:
+  - fatf_egmont_concealment_2018
+  - fatf_bo_legal_persons_2023
+  - fatf_tcsp_2010
+  - fatf_corporate_vehicles_2006
+  - star_puppet_masters_2011
+  - fincen_fin_2006_g014
+  - europol_shadow_money_2021
+graph_pattern: >
+  An OWNS chain of two or more company layers above the subject, often across jurisdictions,
+  that ends at a Person, at a Company with no recorded owner, or loops back on itself; nominee
+  directorships (DIRECTOR_OF with is_nominee true) or directors with many appointments across
+  unrelated companies; and companies in the chain that move money (HOLDS_ACCOUNT and PAID) but
+  show no payroll or supplier payments. CONTROLS relationships can add control without
+  ownership.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Holding companies and ordinary corporate groups
+  - Special purpose vehicles in securitisation and in aircraft or ship leasing
+  - Investment funds with corporate directors
+  - Joint ventures
+  - Start-ups that have not begun trading
+  - Professional directors in fund jurisdictions
+synthetic_support: medium     # high | medium | low | none
+generator_scenario: null
+detector: null                # null until implemented

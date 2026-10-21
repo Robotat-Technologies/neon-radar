@@ -25,7 +25,7 @@ SKIPPED [1] ingest/tests/test_opensanctions_spike.py: access.opensanctions is no
 ```
 
 - Duration: 1.3 seconds of wall-clock time, nearly all of it Python start-up; the command stops at the licence gate.
-- Network: none. The gate runs before the HTTP client is created, so no request was sent. The unit tests check this with a mock server that records every request: zero requests under `none`, and zero under `evaluation` without the written confirmation on file.
+- Network: none. The gate runs before the HTTP client is created, so no request was sent. The unit tests check this with a mock server that records every request: zero requests under `none`, under `evaluation` without the data steward's `confirmed:` line, and for any value that is not one of the four routes (for example `None`, `"NONE"` or `"garbage"` passed from Python).
 - Offline checks: `uv run pytest ingest/tests cli/tests` (the OpenSanctions gate, mapping, spike and command tests, all on synthetic bodies) and `make check`; the results are in the pull request.
 
 ## 2. What was fetched
@@ -81,7 +81,7 @@ Code: `ingest/src/neonradar_ingest/sources/opensanctions/` (`access.py` the gate
 
 What does not map:
 
-- Schemata outside C1 v1: for example `Identification` and `Passport` (in the fixture), and vessels, aircraft, securities and other schemata OpenSanctions publishes. They are skipped and counted. Which ones appear, and how often, is unknown until a permitted run.
+- Schemata outside C1 v1: for example `Identification` (in the fixture) and `Passport`, and vessels, aircraft, securities and other schemata OpenSanctions publishes. They are skipped and counted. Which ones appear, and how often, is unknown until a permitted run.
 - `Payment`: C1 v1 allows payments only in synthetic data (rule R7), so OpenSanctions payments are skipped.
 - Schemata newer than the pinned FollowTheMoney (4.11): skipped and counted; a growing count means the pin needs raising.
 - OpenSanctions' list of source datasets per entity: C1 keeps exactly one dataset (R2) and the closed `nr` object has no key for it. If Phase 2 needs per-source provenance (for example to show which official list a sanction comes from), that is a minor contract change after the freeze.
@@ -106,11 +106,11 @@ The licence position, verbatim from [sources-opensanctions-ftm-icij.md](../../re
 | Route | Precondition | `neonradar spike opensanctions` | On disk |
 |---|---|---|---|
 | `none` (now) | none; the default | exits 3 with "OpenSanctions use inside a company needs a data licence; see DATA_SOURCES.md" before any request | nothing |
-| `evaluation` | OpenSanctions confirms in writing, and the request and the answer are filed in `docs/data/licences/opensanctions.md`; the command refuses while that file is missing | reads `index.json` (logs `version` and the SHA-1 of `entities.ftm.json`), streams the first `--rows` lines (default 1,000) of `--collection` (default `sanctions`), maps them to C1 in memory, prints counts | nothing |
+| `evaluation` | OpenSanctions confirms in writing; the data steward files the request and the answer in `docs/data/licences/opensanctions.md` and adds a line `confirmed: <YYYY-MM-DD> <who>` (for example `confirmed: 2026-11-02 @robotat-com`) at the start of a line; the command refuses while that line is missing | reads `index.json` (logs `version` and the SHA-1 of `entities.ftm.json`), streams the first `--rows` lines (default 1,000) of `--collection` (default `sanctions`), maps them to C1 in memory, prints counts | nothing |
 | `licensed` | the organisation holds an OpenSanctions data licence | as `evaluation` | C1 records and a manifest in `data/cache/spikes/opensanctions/` (gitignored) only, deleted after `access.spike_cache_days` (7) |
 | `exempt` | the organisation running NeonRadar itself qualifies for OpenSanctions' free programme (public-interest journalists, advocacy groups and nonprofits working on democratic governance or exposing corruption and financial crime, affiliated academics, public institutions of Ukraine, Georgia and Moldova); never a company team | as `evaluation` | nothing (PHASE-1.md M1.8d step 4 lets only `licensed` write) |
 
-A missing file, a missing key or any other value (for example `TODO`) counts as `none`.
+A missing file, a missing key or any other value (for example `TODO`) counts as `none`, and so does any value that is not one of the four routes when the gate is called from Python.
 
 Under every route:
 
@@ -139,7 +139,7 @@ Under every route:
 
 Options for Phase 2, for the data steward and the project lead:
 
-1. **Obtain a licence or an evaluation agreement.** Ask OpenSanctions in writing what the organisation may do (for example evaluation-scale downloads to build an open-source loader, no production screening) or for a quote; file the request and the answer in `docs/data/licences/opensanctions.md`; set `access.opensanctions` to `evaluation` or `licensed`; then run `uv run neonradar spike opensanctions` and `uv run pytest -m network ingest/tests/test_opensanctions_spike.py`, and update this report with the measured counts.
+1. **Obtain a licence or an evaluation agreement.** Ask OpenSanctions in writing what the organisation may do (for example evaluation-scale downloads to build an open-source loader, no production screening) or for a quote; file the request and the answer in `docs/data/licences/opensanctions.md`, with the data steward's `confirmed: <YYYY-MM-DD> <who>` line for an evaluation (the human step the gate checks); set `access.opensanctions` to `evaluation` or `licensed`; then run `uv run neonradar spike opensanctions` and `uv run pytest -m network ingest/tests/test_opensanctions_spike.py`, and update this report with the measured counts.
 2. **Evaluate official government sanctions lists as an alternative source**, for example the consolidated lists that governments and the UN publish themselves. Their licences and formats are not checked yet; Phase 2 verifies them before any loader is written.
 
 If the organisation itself qualifies for OpenSanctions' free programme, `exempt` is a third route, but PHASE-1.md section 1.2 rules it out for a company team.

@@ -39,6 +39,21 @@ const company = firstCompany()
 const [firstWord = company.name] = company.name.split(/\s+/)
 const SYNTHETIC_SCENARIO = /^Synthetic scenario/
 
+// Every page must work under the UI server's Content-Security-Policy (ui/nginx.conf); the
+// browser reports each blocked script, style or request on the console.
+let policyViolations: string[] = []
+
+test.beforeEach(({ page }) => {
+  policyViolations = []
+  page.on('console', (message) => {
+    if (/Content Security Policy/i.test(message.text())) policyViolations.push(message.text())
+  })
+})
+
+test.afterEach(() => {
+  expect(policyViolations).toEqual([])
+})
+
 test('the standing disclaimer and the synthetic demo notice are visible', async ({
   page,
   baseURL,

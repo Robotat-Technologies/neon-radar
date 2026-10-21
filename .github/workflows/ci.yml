@@ -90,8 +90,9 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: ui/package-lock.json
+      # No dependency needs an install script on Linux (only fsevents, for macOS).
       - if: ${{ hashFiles('ui/package.json') != '' }}
-        run: npm ci --prefix ui
+        run: npm ci --ignore-scripts --prefix ui
       - name: API types match the OpenAPI snapshot
         if: ${{ hashFiles('ui/package.json') != '' }}
         run: npm run --prefix ui gen:api && git diff --exit-code ui/src/api/schema.d.ts

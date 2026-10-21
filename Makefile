@@ -83,8 +83,12 @@ up: ## start Neo4j and wait until it is healthy (offline once make plugins has r
 down: ## stop Neo4j and, if running, the demo's API and UI; the data volume is kept
 	docker compose --profile app down
 
-reset: ## delete the local Neo4j data and logs volumes (needs CONFIRM=yes)
-	@if [ "$(CONFIRM)" != "yes" ]; then \
+# CONFIRM=yes counts only when typed on the command line (make reset CONFIRM=yes), never from the
+# environment or .env, so that a stray export cannot delete a database.
+CONFIRMED := $(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))
+
+reset: ## delete the local Neo4j data and logs volumes (needs CONFIRM=yes on the command line)
+	@if [ "$(CONFIRMED)" != "yes" ]; then \
 		echo "reset deletes the local Neo4j database. Run: make reset CONFIRM=yes" >&2; exit 1; \
 	fi
 	docker compose --profile app down -v
@@ -103,14 +107,15 @@ onboarding-check: ## Assignment 1: load the onboarding CSV, run docs/team/first-
 
 # The synthetic demo (PHASE-1.md M1.9e, docs/quickstart.md). The graph is always wiped before
 # demo-mini is loaded, because a reload over an older demo could keep stale relationships; a
-# graph holding any non-synthetic :Entity is refused unless CONFIRM=yes.
+# graph holding anything but synthetic demo data (scripts/demo_guard.py) is refused unless
+# CONFIRM=yes is given on the command line.
 DEMO_FIXTURE := data/fixtures/demo-mini/
 E2E_BASE_URL ?= http://localhost:8080
 API_UP_PY := import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)
 
 demo-data: ## into the Neo4j at NEO4J_URI: migrate, wipe, load demo-mini, detect (CONFIRM=yes: real data too)
 	uv run neonradar graph migrate
-	@if [ "$(CONFIRM)" = "yes" ]; then echo "CONFIRM=yes: the graph is wiped even if it holds real data"; \
+	@if [ "$(CONFIRMED)" = "yes" ]; then echo "CONFIRM=yes: the graph is wiped even if it holds real data"; \
 	else uv run python scripts/demo_guard.py; fi
 	uv run neonradar graph wipe --yes
 	uv run neonradar graph load $(DEMO_FIXTURE) --strict
@@ -138,9 +143,14 @@ demo-dev: ## the synthetic demo without Docker (devcontainer, Codespaces): API a
 	@$(MAKE) --no-print-directory demo-data
 	@uv run neonradar api serve & api=$$!; \
 	trap 'kill $$api 2>/dev/null' EXIT INT TERM; \
-	for i in $$(seq 60); do \
-		uv run --no-project python -c "$(API_UP_PY)" 2>/dev/null && break; sleep 1; \
+	up=no; for i in $$(seq 60); do \
+		kill -0 $$api 2>/dev/null || break; \
+		if uv run --no-project python -c "$(API_UP_PY)" 2>/dev/null; then up=yes; break; fi; \
+		sleep 1; \
 	done; \
+	if [ "$$up" != yes ]; then \
+		echo "The API did not answer on http://127.0.0.1:8000 (see its output above)" >&2; exit 1; \
+	fi; \
 	echo; echo "NeonRadar demo-mini (synthetic data), Ctrl-C stops both servers:"; \
 	echo "  UI        http://localhost:5173 (if 5173 is taken, the port Vite prints below)"; \
 	echo "  API docs  http://localhost:8000/docs"; \

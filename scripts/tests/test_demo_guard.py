@@ -1,4 +1,6 @@
-"""scripts/demo_guard.py: the check that keeps `make demo-mini` from wiping real data."""
+"""scripts/demo_guard.py: the check that keeps `make demo-mini` from wiping real data.
+
+What the query counts is tested on Neo4j in test_demo_guard_neo4j.py."""
 
 from types import TracebackType
 from typing import Any, Self, cast
@@ -45,31 +47,30 @@ class FakeDriver:
         return FakeSession(self)
 
 
-def test_only_synthetic_entities_pass(capsys: pytest.CaptureFixture[str]) -> None:
+def test_only_synthetic_data_passes(capsys: pytest.CaptureFixture[str]) -> None:
     driver = FakeDriver(real=0)
     assert demo_guard.check(cast(Driver, driver), "neo4j") == 0
     assert capsys.readouterr().out.startswith("OK")
 
 
-def test_any_real_entity_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+def test_anything_else_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
     driver = FakeDriver(real=12)
     assert demo_guard.check(cast(Driver, driver), "neo4j") == demo_guard.REFUSED == 3
     err = capsys.readouterr().err
-    assert "12 entities that are not synthetic" in err
+    assert "12 nodes that are not synthetic demo data" in err
     assert "CONFIRM=yes" in err
 
 
-def test_one_real_entity_is_named_in_the_singular(capsys: pytest.CaptureFixture[str]) -> None:
+def test_one_node_is_named_in_the_singular(capsys: pytest.CaptureFixture[str]) -> None:
     assert demo_guard.check(cast(Driver, FakeDriver(real=1)), "neo4j") == demo_guard.REFUSED
-    assert "holds 1 entity that is not synthetic" in capsys.readouterr().err
+    assert "holds 1 node that is not synthetic demo data" in capsys.readouterr().err
 
 
-def test_query_reads_every_entity_not_marked_synthetic() -> None:
+def test_the_query_runs_read_only_without_notifications() -> None:
     driver = FakeDriver(real=0)
     demo_guard.count_not_synthetic(cast(Driver, driver), "demo")
-    [query] = driver.queries
-    assert query.startswith("MATCH (n:Entity) WHERE n.synthetic IS NULL OR n.synthetic <> true")
-    # Read access, and no warning on an empty graph where `synthetic` is not a known key yet.
+    assert driver.queries == [demo_guard.QUERY]
+    # Read access, and no warning on a new graph where `synthetic` is not a known key yet.
     assert driver.sessions == [
         {
             "database": "demo",

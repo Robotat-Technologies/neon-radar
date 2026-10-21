@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Refuse to replace a graph that holds real data with the synthetic demo (PHASE-1.md M1.9e).
 
-`make demo-mini` and `make demo-dev` wipe the graph before they load demo-mini. They run this
-check first, unless CONFIRM=yes: it exits 3 when any `:Entity` node is not marked synthetic, so
-a graph with registry data is never wiped by accident. It reads the Neo4j settings like every
-`neonradar graph` command (NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, `.env`):
+`make demo-mini` and `make demo-dev` wipe the graph (every node except `:SchemaMigration`)
+before they load demo-mini. They run this check first, unless CONFIRM=yes is given on the
+command line: it exits 3 when the wipe would delete anything that is not known to be synthetic
+demo data, so a graph with registry data, onboarding data or anything else is never wiped by
+accident. It reads the Neo4j settings like every `neonradar graph` command (NEO4J_URI,
+NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, `.env`):
 
     uv run python scripts/demo_guard.py
 
-Exit codes: 0 every entity is synthetic (or there are none), 3 some are not, 1 no connection.
+Exit codes: 0 only synthetic data (or nothing), 3 something else, 1 no connection.
 """
 
 import sys
@@ -20,18 +22,25 @@ from pydantic import ValidationError
 
 from neonradar_graph.client import Neo4jSettings, get_driver, wait_until_ready
 
-# `synthetic` mirrors the dataset's flag on every :Entity (C2); a missing value counts as real.
-QUERY: Final[LiteralString] = (
-    "MATCH (n:Entity) WHERE n.synthetic IS NULL OR n.synthetic <> true RETURN count(n) AS real"
-)
+# Everything the wipe deletes, less what is known to be synthetic: `:Entity` and `:Sanction`
+# nodes with `synthetic = true` (C2), alerts that involve no real entity, and detection runs.
+# A missing or non-boolean value counts as real, and so does any other kind of node.
+QUERY: Final[LiteralString] = """
+MATCH (n)
+WHERE NOT n:SchemaMigration
+  AND NOT n:DetectionRun
+  AND NOT ((n:Entity OR n:Sanction) AND coalesce(n.synthetic = true, false))
+  AND NOT (n:Alert AND coalesce(n.involves_real_entities = false, false))
+RETURN count(n) AS real
+"""
 REFUSED: Final = 3
 
 
 def count_not_synthetic(driver: Driver, database: str) -> int:
-    """How many `:Entity` nodes are not marked `synthetic = true`.
+    """How many nodes the wipe would delete that are not known to be synthetic demo data.
 
-    Notifications are off: on an empty graph the server warns that the property key
-    `synthetic` does not exist yet, which is expected here.
+    Notifications are off: on a new graph the server warns that labels and property keys such
+    as `synthetic` do not exist yet, which is expected here.
     """
     with driver.session(
         database=database,
@@ -46,15 +55,17 @@ def check(driver: Driver, database: str) -> int:
     """0 when the graph may be wiped for the demo, REFUSED otherwise; one line either way."""
     real = count_not_synthetic(driver, database)
     if real:
-        what = "entity that is" if real == 1 else "entities that are"
+        what = "node that is" if real == 1 else "nodes that are"
         print(
-            f"REFUSED  the graph holds {real} {what} not synthetic, and the demo wipes the"
-            " graph before loading. Load the demo elsewhere, or run it again with CONFIRM=yes"
-            " to delete everything in the graph (for example: make demo-mini CONFIRM=yes).",
+            f"REFUSED  the graph holds {real} {what} not synthetic demo data (entities or"
+            " sanctions not marked synthetic, alerts that involve real entities, or other kinds"
+            " of node), and the demo wipes the graph before loading. Load the demo elsewhere,"
+            " or run it again with CONFIRM=yes to delete everything in the graph (for example:"
+            " make demo-mini CONFIRM=yes).",
             file=sys.stderr,
         )
         return REFUSED
-    print("OK  the graph holds no entities that are not synthetic")
+    print("OK  the graph holds nothing but synthetic demo data")
     return 0
 
 

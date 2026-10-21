@@ -14,7 +14,7 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 | Free ports `7474`, `7687`, `8000` and `8080` on `127.0.0.1` | Neo4j Browser, Bolt, the API and the UI |
 | Network access on the first run | to pull the Neo4j, uv Python, Node and nginx images, download the pinned Graph Data Science jar (about 64 MB, checked against its SHA-256) and install packages while the images build; later runs need none |
 
-`uv run neonradar doctor` checks Docker, Compose, `.env`, the ports, ICU and the memory Docker has.
+`uv run neonradar doctor` checks Docker, Compose, `.env`, the ports (including 8080 for the demo UI), ICU and the memory Docker has.
 
 ## Run it
 
@@ -53,6 +53,8 @@ npx --prefix ui playwright install chromium   # once: downloads Playwright's Chr
 make e2e
 ```
 
+On Linux, `npx --prefix ui playwright install --with-deps chromium` also installs the system libraries Chromium needs (through `sudo apt-get`), as CI does.
+
 It checks the notices, a search for the first company in the fixture, the alert list, an alert page and an entity page, in headless Chromium. The report is in `ui/playwright-report/`. CI runs the same two commands in `.github/workflows/e2e.yml` on every push to `main` and on pull requests labelled `e2e`.
 
 ## Without Docker: `make demo-dev`
@@ -65,10 +67,10 @@ In the devcontainer or a Codespace, where Neo4j already runs and there is no Doc
 |---|---|
 | `make down` | stops Neo4j, the API and the UI; the graph is kept |
 | `make demo-mini` | starts everything again; it always wipes the graph and loads the demo afresh |
-| `make reset CONFIRM=yes` | deletes the Neo4j data and logs volumes; the next start is empty |
+| `make reset CONFIRM=yes` | deletes the Neo4j data and logs volumes; the next start is empty (`CONFIRM=yes` counts only on the command line) |
 | `docker image rm neonradar-api neonradar-ui` | frees the disk space of the two demo images |
 
-The demo replaces whatever is in the graph. If the graph holds anything that is not synthetic (for example registry data you loaded yourself), `make demo-mini` stops before changing it and says so. `make demo-mini CONFIRM=yes` deletes that data and loads the demo.
+The demo replaces whatever is in the graph: it deletes every node except the schema records. If anything there is not synthetic demo data (an entity or sanction not marked synthetic, an alert that involves a real entity, or any other kind of node, such as the Assignment 1 onboarding data or registry data you loaded yourself), `make demo-mini` stops before changing anything and says so. `make demo-mini CONFIRM=yes` deletes it all and loads the demo; `CONFIRM=yes` counts only on the command line, not from the environment or `.env`.
 
 ## Troubleshooting
 
@@ -89,6 +91,7 @@ Neo4j restarting with `OutOfMemoryError`, an image build that stops with `Killed
 |---|---|
 | `The API or the UI did not become healthy` | `docker compose --profile app logs api ui`. The API is healthy only when Neo4j answers with APOC and GDS present. |
 | `container ... neo4j-1 is unhealthy` | `make logs`. A password changed after the database was created shows up as failed health checks: `make reset CONFIRM=yes`, then `make demo-mini`. |
-| `REFUSED  the graph holds ... not synthetic` | see "Stop and reset" above |
+| `REFUSED  the graph holds ... not synthetic demo data` | see "Stop and reset" above |
 | `Set NEO4J_PASSWORD in .env` | run `bash scripts/ensure_env.sh` (in a git worktree, in the main checkout first) |
-| `make e2e` says Chromium is missing | `npx --prefix ui playwright install chromium` |
+| The UI closes the connection without an answer | it answers only to the names `localhost` and `127.0.0.1` (any port), so that another site cannot reach it through a DNS name that points at your machine; open http://localhost:8080 |
+| `make e2e` says Chromium is missing | `npx --prefix ui playwright install chromium` (on Linux add `--with-deps`) |

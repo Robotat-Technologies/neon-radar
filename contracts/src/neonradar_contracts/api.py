@@ -10,16 +10,17 @@ defaults: a field that may be empty is `T | None` and always present, so generat
 
 from typing import Annotated, Final, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from neonradar_contracts.alert import (
-    ALERT_ID_PATTERN,
     HEADLINE_MAX,
     VERSION_PATTERN,
     Alert,
+    AlertId,
     CitationKey,
     EdgeId,
     EntityId,
+    FiniteJsonValue,
     Priority,
     Slug,
     Text,
@@ -78,7 +79,7 @@ EDGE_PROPERTIES_LEFT_OUT: Final = frozenset({"id", "topics"})
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
 
 
 class _WithSchema(_Model):
@@ -88,6 +89,7 @@ class _WithSchema(_Model):
         extra="forbid",
         strict=True,
         frozen=True,
+        allow_inf_nan=False,
         serialize_by_alias=True,
         validate_by_alias=True,
         validate_by_name=False,
@@ -99,7 +101,9 @@ def _distinct(values: list[str], what: str) -> None:
         raise ValueError(f"{what} must not repeat a value")
 
 
-def _no_reserved(properties: dict[str, JsonValue], reserved: frozenset[str], what: str) -> None:
+def _no_reserved(
+    properties: dict[str, FiniteJsonValue], reserved: frozenset[str], what: str
+) -> None:
     found = sorted(reserved & set(properties))
     if found:
         raise ValueError(f"{what} must not hold {found} (C3: top-level fields or left out)")
@@ -131,7 +135,7 @@ class GraphNode(_WithSchema):
     schema_: Annotated[NodeSchema, Field(alias="schema")]
     caption: Text
     flags: NodeFlags
-    properties: dict[str, JsonValue]
+    properties: dict[str, FiniteJsonValue]
 
     @model_validator(mode="after")
     def _shape(self) -> Self:
@@ -147,7 +151,7 @@ class GraphEdge(_Model):
     type: RelationshipType
     source: EntityId
     target: EntityId
-    properties: dict[str, JsonValue]
+    properties: dict[str, FiniteJsonValue]
 
     @model_validator(mode="after")
     def _shape(self) -> Self:
@@ -242,15 +246,23 @@ class ProvenanceRecord(_Model):
 class AlertSummary(_Model):
     """One row of the alert queue, from the `:Alert` scalar properties (C2) and its subjects."""
 
-    alert_id: Annotated[str, Field(pattern=ALERT_ID_PATTERN)]
+    alert_id: AlertId
     typology: Slug
     priority: Priority
     pattern_strength: Annotated[float, Field(ge=0, le=1)]
     headline: Annotated[str, Field(min_length=1, max_length=HEADLINE_MAX)]
     created_at: UtcTime
-    subject_ids: Annotated[list[EntityId], Field(min_length=1)]  # in the order of C4 subjects
+    # In the order of the C4 subjects, each once.
+    subject_ids: Annotated[
+        list[EntityId], Field(min_length=1, json_schema_extra={"uniqueItems": True})
+    ]
     involves_real_entities: bool
     synthetic_activity: bool
+
+    @model_validator(mode="after")
+    def _distinct_subjects(self) -> Self:
+        _distinct(self.subject_ids, "subject_ids")
+        return self
 
 
 class EntityDetail(_Model):
@@ -258,7 +270,7 @@ class EntityDetail(_Model):
 
     entity: EntitySummary
     names: list[str]
-    properties: dict[str, JsonValue]
+    properties: dict[str, FiniteJsonValue]
     identifiers: dict[str, Annotated[list[Text], Field(min_length=1)]]
     provenance: Annotated[list[ProvenanceRecord], Field(min_length=1)]
     relationship_counts: dict[RelationshipType, Annotated[int, Field(ge=1)]]
@@ -389,7 +401,7 @@ class TypologyDetail(TypologySummary):
     definition_markdown: str | None
     graph_pattern: Text
     citations: list[Citation]
-    parameters: dict[str, JsonValue]
+    parameters: dict[str, FiniteJsonValue]
     false_positives: list[Text]
 
 
@@ -472,7 +484,7 @@ class CopilotAnswer(_Model):
     answer_text: str | None
     template_id: str | None
     cypher: str | None
-    parameters: dict[str, JsonValue] | None
+    parameters: dict[str, FiniteJsonValue] | None
     subgraph: Subgraph | None
     refusal_reason: str | None
 

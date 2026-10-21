@@ -1,7 +1,8 @@
 """Generate .github/CODEOWNERS from docs/build/project.yaml and the ownership map.
 
-The ownership map is docs/build/PHASE-1.md section 4.3. GitHub applies the last matching line, so
-rows keep the table's order, adjusted so that every path comes after any broader path containing it.
+The ownership map is docs/build/PHASE-1.md section 4.3 plus PHASE-2.md 4.3. GitHub applies the
+last matching line, so rows keep the tables' order, adjusted so that every path comes after any
+broader path containing it.
 
     uv run --no-project --with pyyaml python scripts/generate_codeowners.py [--check]
 """
@@ -19,7 +20,8 @@ PROJECT_FILE = ROOT / "docs" / "build" / "project.yaml"
 CODEOWNERS_FILE = ROOT / ".github" / "CODEOWNERS"
 COMMAND = "uv run --no-project --with pyyaml python scripts/generate_codeowners.py"
 
-# PHASE-1.md 4.3 in table order: (paths, owner roles). "/*" means files in the root directory.
+# PHASE-1.md 4.3, then PHASE-2.md 4.3, in table order: (paths, owner roles). "/*" means files in
+# the root directory.
 OWNERSHIP_MAP: list[tuple[list[str], list[str]]] = [
     (["/contracts/", "/graph/schema/"], ["tech_lead", "maintainers"]),
     (["/ingest/", "/data/fixtures/"], ["squad:ingest"]),
@@ -33,6 +35,30 @@ OWNERSHIP_MAP: list[tuple[list[str], list[str]]] = [
     (["/DATA_SOURCES.md", "/docs/data/licences/"], ["data_steward"]),
     (["/contracts/datasets.yaml"], ["tech_lead", "data_steward"]),
     (["/docs/typologies/", "/detect/typologies/"], ["typology_researchers"]),
+    # PHASE-2.md 4.3 additions
+    (["/keys/", "/resolve/"], ["squad:graph"]),
+    (["/resolve/config/er.yaml"], ["squad:graph", "tech_lead"]),
+    (["/ingest/profiles/"], ["squad:ingest", "data_steward"]),
+    (["/docs/er/", "/docs/data/er/"], ["squad:graph"]),
+    (
+        [
+            "/docs/data/real-data-handling.md",
+            "/docs/data/real-data-machines.md",
+            "/docs/data/dpia/",
+        ],
+        ["data_steward"],
+    ),
+    (["/data/fixtures/er-bench/"], ["squad:graph"]),
+    (
+        [
+            "/.claude/hooks/guard_real_data.py",
+            "/.claude/agents/data-guardian.md",
+            "/.claude/rules/real-data.md",
+            "/.claude/rules/er.md",
+        ],
+        ["tech_lead"],
+    ),
+    (["/THIRD_PARTY_NOTICES.md"], ["tech_lead"]),
 ]
 
 

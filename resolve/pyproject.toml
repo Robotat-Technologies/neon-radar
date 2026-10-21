@@ -1,0 +1,25 @@
+[project]
+name = "neonradar-resolve"
+version = "0.1.0"
+description = "NeonRadar entity resolution: features, rules, Splink models, constrained clustering, policy, decisions and precision."
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+# Pins from docs/build/PHASE-2.md 3.1. A lock bump of splink, duckdb or pyarrow is a model
+# change: re-run `er bench` and say so in the pull request.
+dependencies = [
+    "duckdb==1.5.*",
+    "neonradar-contracts",
+    "neonradar-graph",
+    "neonradar-keys",
+    "pyarrow>=26,<27",
+    "splink==5.0.*",
+]
+
+[tool.uv.sources]
+neonradar-contracts = { workspace = true }
+neonradar-graph = { workspace = true }
+neonradar-keys = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"

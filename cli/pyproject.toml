@@ -12,6 +12,8 @@ dependencies = [
     "neonradar-detect",
     "neonradar-graph",
     "neonradar-ingest",
+    "neonradar-keys",
+    "neonradar-resolve",
 ]
 
 [project.scripts]
@@ -24,6 +26,8 @@ neonradar-copilot = { workspace = true }
 neonradar-detect = { workspace = true }
 neonradar-graph = { workspace = true }
 neonradar-ingest = { workspace = true }
+neonradar-keys = { workspace = true }
+neonradar-resolve = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14"]

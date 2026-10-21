@@ -26,7 +26,7 @@ OK    GDS    2.13.4
 | Thing | Value |
 |---|---|
 | Image | `neo4j:5.26.32-community` |
-| Ports | `127.0.0.1:7474` (Browser, HTTP) and `127.0.0.1:7687` (Bolt); nothing listens on other interfaces |
+| Ports | `127.0.0.1:7474` (Browser, HTTP) and `127.0.0.1:7687` (Bolt); nothing listens on other interfaces. `NEO4J_HTTP_PORT` and `NEO4J_BOLT_PORT` move them (then set `NEO4J_URI` to match) |
 | Data | Docker volumes `neonradar_neo4j_data` and `neonradar_neo4j_logs` |
 | Import folder | `data/import/`, mounted read-only at `/import` |
 | APOC Core | installed from the image |
@@ -58,7 +58,7 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 
 ## Stop, reset and passwords
 
-- `make down` stops Neo4j and keeps the data. `make up` starts it again with the same data and plugins.
+- `make down` stops Neo4j, and the demo's API and UI if `make demo-mini` started them, and keeps the data. `make up` starts Neo4j again with the same data and plugins. The demo itself is in [the quickstart](../quickstart.md).
 - `make logs` follows the server log.
 - `make reset CONFIRM=yes` deletes the database and logs volumes. The next `make up` starts empty.
 - The password in `.env` takes effect only when the database is first created. If you change `NEO4J_PASSWORD` later, run `make reset CONFIRM=yes`, then `make up`.

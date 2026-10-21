@@ -18,12 +18,16 @@ def validate_records(
         bool, typer.Option("--strict", help="Also fail on dangling references (R4).")
     ] = False,
 ) -> None:
-    """Validate C1 records: counts by schema, then every issue as `RULE id: message`."""
+    """Validate C1 records: counts by schema, then every issue as `<file>:<line>: RULE ...`.
+
+    Issues of records that are not synthetic show no values and no record id (masking.py).
+    """
     # Imported here so that `neonradar --help` does not load FollowTheMoney.
+    from neonradar_cli import masking
     from neonradar_contracts import records
 
     try:
-        counts, issues = records.validate_files(paths, strict)
+        counts, issues = masking.validate(paths, strict)
     except records.RecordFileError as exc:
         typer.echo(f"FORMAT {exc}")
         raise typer.Exit(code=1) from exc
@@ -31,7 +35,7 @@ def validate_records(
     for schema, count in sorted(counts.items()):
         typer.echo(f"  {schema}: {count}")
     for issue in issues:
-        typer.echo(str(issue))
+        typer.echo(issue)
     if issues:
         typer.echo(f"FAILED, {len(issues)} issue(s)")
         raise typer.Exit(code=1)

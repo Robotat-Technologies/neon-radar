@@ -1,8 +1,9 @@
 // circular_flow: cycles of PAID that return to the account they started from (PHASE-1.md M1.9b).
-// Fixed template: the detector writes the hop bounds into the quantifier as validated integers
-// from the typology catalog (Cypher takes no parameters in a quantifier); every other value is
-// a parameter. $origin is null for a full run and an account id to reproduce one alert.
-MATCH p = (a:Account)-[t:PAID]->{MIN_HOPS,MAX_HOPS}(a)
+// Fixed template: the detector writes the hop bounds into the quantifier placeholders as validated
+// integers from the typology catalog (Cypher takes no parameters in a quantifier); every other
+// value is a parameter. $origin is null for a full run and an account id to reproduce one alert.
+// lint-values: min_hops=2 max_hops=2,6,8
+MATCH p = (a:Account)-[t:PAID]->{{{min_hops}},{{max_hops}}}(a)
 WHERE ($origin IS NULL OR a.id = $origin)
   // hops strictly in time order, so each cycle is found once, from the account where it starts
   AND all(i IN range(0, size(t) - 2) WHERE t[i].ts < t[i + 1].ts)

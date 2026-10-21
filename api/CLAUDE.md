@@ -24,7 +24,10 @@
     routes; read `main.router.routes`.
   - Every query goes through `GraphConnection.read` (parameters only, READ routing).
   - `:Sanction` nodes are entities in C3: look up `:Entity` and `:Sanction` by `id` with two
-    index lookups. `topics` never goes into a property map.
+    index lookups. Property maps leave out `neonradar_contracts.api.NODE_PROPERTIES_LEFT_OUT`
+    (`topics`, `referents`, ...); the models reject them. `limits.max_edges` is 2 x `max_nodes`.
+  - A bad `NEO4J_URI` or `NEO4J_DATABASE` must stay a 503 (health: degraded, still 200);
+    `GraphConnection` maps driver configuration errors and DatabaseNotFound to `GraphUnavailable`.
   - Alerts come only from Neo4j, not from the files in `data/runs/`.
   - Tests never touch Neo4j: pass a `GraphConnection` subclass to `create_app`, and build the
     settings error yourself instead of reading the environment or `.env`.

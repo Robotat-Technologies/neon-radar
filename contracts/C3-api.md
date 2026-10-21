@@ -19,7 +19,7 @@ The HTTP interface through which the UI and, from Phase 4, the copilot read the 
 
 ## Endpoints
 
-Every route is declared with its final response model, parameter limits and error responses, so the OpenAPI snapshot does not change when a route is implemented. Until M1.9c, the routes it implements answer `501` with a problem that names it; their OpenAPI entries already describe the finished route and do not list `501`.
+Every route is declared with its final response model, parameter limits and error responses, so the OpenAPI snapshot does not change when a route is implemented. Until M1.9c, the routes it implements answer `501` with a problem that names it; their OpenAPI entries already describe the finished route and do not list `501`. The 501 entries of the ownership, paths and copilot routes stay declared after those routes are implemented, so implementing them never changes the snapshot.
 
 | Method and path | Response model | Implemented in | Errors (problem details) |
 |---|---|---|---|
@@ -51,7 +51,7 @@ OperationIds are the Python function names (`get_health`, `search`, `get_entity`
 | network | `max_nodes` | 1 to 500, default 200 |
 | ownership | `direction` | required, `up` (owners) or `down` (holdings) |
 | ownership | `max_hops` | 1 to 8, default 6 |
-| ownership | `min_share` | optional, 0 to 100 |
+| ownership | `min_share` | optional, 0 to 100: keeps paths whose `effective_share_max` is at least `min_share`; paths with an unknown share (null) are dropped when `min_share` is set |
 | paths | `from_id`, `to_id` | required node ids |
 | paths | `max_hops` | 1 to 6, default 4 |
 | alerts | `typology` | optional slug |
@@ -69,8 +69,8 @@ A request that breaks a rule gets a `422` problem.
 ## Values
 
 - **Ids.** Node ids are C2 `id` values (record ids in Phase 1, canonical `nr-` ids after Phase 2 entity resolution); relationship ids are C2 relationship ids (the FtM interval entity id, `<entity id>|addr|<address id>` or `<entity id>|sanction|<sanction id>`). Neo4j `elementId()` values never appear.
-- **Times.** Every timestamp, in a model or in a property map, is UTC `YYYY-MM-DDTHH:MM:SSZ` with seconds precision, as in C4. `PAID.ts` is the only DATETIME in C2 (C1 R5 gives it whole seconds); other dates on nodes and relationships are ISO 8601 strings that may be partial (`1979`, `1979-08`) and are returned as stored.
-- **Amounts.** `PAID.amount` is a JSON number in major units, the C2 FLOAT as stored. C1 amounts have at most two decimals, and a double holds them exactly to the cent up to about 10^13 major units; format amounts with the currency's minor units and never do accounting arithmetic on them. If the tech lead changes C2 to integer minor units at Gate 1 (an open item in [CHANGELOG.md](CHANGELOG.md)), C3's models do not change, because amounts appear only in property maps and in C4 metrics.
+- **Times.** Every timestamp, in a model or in a property map, is UTC `YYYY-MM-DDTHH:MM:SSZ` with seconds precision, as in C4. `PAID.ts` is the only DATETIME in C2 (C1 R5 gives it whole seconds). Every other date or datetime property, including `first_seen` and `last_seen`, is an ISO 8601 string as the source wrote it, which may be partial (`1979`, `1979-08`) or carry another precision, and is returned as stored.
+- **Amounts.** `PAID.amount` is a JSON number in major units, the C2 FLOAT as stored. C1 amounts have at most two decimals, and a double holds them exactly to the cent up to about 10^13 major units; format amounts with the currency's minor units and never do accounting arithmetic on them. If the tech lead changes C2 to integer minor units at Gate 1 (the C2 open item "`PAID.amount` is a FLOAT" in [CHANGELOG.md](CHANGELOG.md)), C3's models do not change, because amounts appear only in property maps and in C4 metrics, but this paragraph and the UI's formatting do.
 - **Absent and null.** Every response field is present. A field that may be empty is `T | null`; v1 fields that are always null are listed in [Null in v1](#null-in-v1). In property maps, a property the node or relationship lacks is absent, never `null` (C2 leaves absent values out).
 
 ## Models
@@ -82,9 +82,9 @@ A request that breaks a rule gets a `422` problem.
 | Model | Fields | Source and rule |
 |---|---|---|
 | `NodeFlags` | `synthetic`, `sanctioned`, `pep`, `rca` (booleans) | The C2 flag labels `:Synthetic`, `:Sanctioned`, `:PEP`, `:RCA`. Facts a source published, never findings of NeonRadar; on `:Sanction` nodes only `synthetic` can be true |
-| `GraphNode` | `id`, `labels`, `schema`, `caption`, `flags`, `properties` | A C2 node (`:Entity` or `:Sanction`). `labels` are its C2 mapping labels in hierarchy order (`["Entity", "LegalEntity", "Organization", "Company"]`, `["Sanction"]`), never flag labels. `schema` is the FtM schema (`Person`, `Company`, `Organization`, `PublicBody`, `LegalEntity`, `Address`, `BankAccount`, `Position`, `Sanction`). `properties`: every other C2 property of the node except `names_text`, `synthetic` (in `flags`) and `topics` |
-| `GraphEdge` | `id`, `type`, `source`, `target`, `properties` | A relationship built from a record: one of `OWNS`, `CONTROLS`, `CONSOLIDATES`, `DIRECTOR_OF`, `HOLDS_ACCOUNT`, `PAID`, `HAS_ADDRESS`, `REPRESENTS`, `FAMILY_OF`, `ASSOCIATE_OF`, `MEMBER_OF`, `EMPLOYED_BY`, `LINKED_TO`, `SUCCEEDED_BY`, `HOLDS_POSITION`, `SUBJECT_OF`. `FLAGS`, `PRODUCED` and `RESOLVED_TO` never appear. `properties`: every other C2 property of the relationship (`datasets`, `synthetic`, `amount`, `currency`, `ts`, `channel`, ...) |
-| `SubgraphLimits` | `max_nodes`, `max_edges` (at least 1) | The caps applied when the subgraph was built |
+| `GraphNode` | `id`, `labels`, `schema`, `caption`, `flags`, `properties` | A C2 node (`:Entity` or `:Sanction`). `labels` are exactly the C2 mapping labels of its `schema`, in hierarchy order (`["Entity", "LegalEntity", "Organization", "Company"]`, `["Sanction"]`), never flag labels. `schema` is the FtM schema (`Person`, `Company`, `Organization`, `PublicBody`, `LegalEntity`, `Address`, `BankAccount`, `Position`, `Sanction`). `properties`: every other C2 property of the node except `names_text`, `synthetic` (in `flags`), `topics` and `referents` (merge history, shown as `EntityDetail.provenance`); the model rejects those keys and `id`, `schema` and `caption` |
+| `GraphEdge` | `id`, `type`, `source`, `target`, `properties` | A relationship built from a record: one of `OWNS`, `CONTROLS`, `CONSOLIDATES`, `DIRECTOR_OF`, `HOLDS_ACCOUNT`, `PAID`, `HAS_ADDRESS`, `REPRESENTS`, `FAMILY_OF`, `ASSOCIATE_OF`, `MEMBER_OF`, `EMPLOYED_BY`, `LINKED_TO`, `SUCCEEDED_BY`, `HOLDS_POSITION`, `SUBJECT_OF`. `FLAGS`, `PRODUCED` and `RESOLVED_TO` never appear. `properties`: every other C2 property of the relationship (`datasets`, `synthetic`, `amount`, `currency`, `ts`, `channel`, ...); the model rejects `id` and `topics` |
+| `SubgraphLimits` | `max_nodes` (at least 1), `max_edges` | The caps applied when the subgraph was built. `max_edges` is 2 × `max_nodes`; edges beyond it are cut and `truncated` is true |
 | `Subgraph` | `nodes`, `edges`, `truncated`, `limits` | No id repeats; every edge's `source` and `target` are nodes of the subgraph; the sizes stay within `limits`; `truncated` is true when a cap cut the result |
 
 `Subgraph` maps one to one onto Cytoscape elements, so the UI does no graph reshaping: a node becomes `{data: {id, ...node}}` and an edge `{data: {id, source, target, ...edge}}`. C2 relationship ids never equal node ids, so the two share Cytoscape's id space safely.
@@ -97,35 +97,37 @@ An "entity" in C3 is any node with a C2 record id: an `:Entity` node or a `:Sanc
 
 | Model | Fields | Source and rule |
 |---|---|---|
-| `EntitySummary` | `id`, `schema`, `caption`, `labels`, `flags`, `countries`, `datasets` | C2 common properties; `datasets` holds at least one slug |
+| `EntitySummary` | `id`, `schema`, `caption`, `labels`, `flags`, `countries`, `datasets` | C2 common properties; `labels` as in `GraphNode`; `datasets` holds at least one slug |
 | `SearchHit` | `entity`, `score` (at least 0), `matched_name` | `score` is the full-text relevance and orders the hits of one response only; it is not comparable across queries and is never a risk measure. `matched_name` is the value from `names` that matched, or the account number for an `Account` match |
 | `SearchResponse` | `query`, `items`, `total_estimate` | `total_estimate` is at least `len(items)` |
 | `ProvenanceRecord` | `dataset`, `record_id`, `retrieved_at`, `source_url` | One per entry of the node's `referents` (Phase 1: the node's own id). `dataset` is the node's dataset (C1 R2: exactly one per record), `source_url` the C2 `source_url` or null, `retrieved_at` null in v1 |
 | `EntityDetail` | `entity`, `names`, `properties`, `identifiers`, `provenance`, `relationship_counts`, `alerts` | See below |
-| `PathRef` | `node_ids`, `edge_ids`, `effective_share_min`, `effective_share_max` | A path as C2 ids. The effective share (0 to 100, min not above max) is the product of the `OWNS` share bands along an ownership path, null when a hop has no band (Phase 2) |
-| `OwnershipResponse` | `root_id`, `direction`, `paths`, `subgraph` | Phase 2 |
-| `PathsResponse` | `from_id`, `to_id`, `paths`, `subgraph` | Phase 2 |
+| `PathRef` | `node_ids`, `edge_ids`, `effective_share_min`, `effective_share_max` | A path as C2 ids: `node_ids` start at `root_id` (ownership) or `from_id` (paths), and `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`, so there is one edge fewer than nodes. The effective share (0 to 100, min not above max) is the product of the `OWNS` share bands along an ownership path, null when a hop has no band (Phase 2) |
+| `OwnershipResponse` | `root_id`, `direction`, `paths`, `subgraph` | Phase 2. Every path starts at `root_id`; every node and edge id of a path is in `subgraph`, and each edge joins its two path nodes |
+| `PathsResponse` | `from_id`, `to_id`, `paths`, `subgraph` | Phase 2. Every path runs from `from_id` to `to_id`; ids and edges as for ownership |
 
 `EntityDetail`:
 
 - `names`: C2 `names`, in original scripts.
-- `properties`: the schema-specific C2 properties of the node table (for example `registration_number`, `incorporation_date`, `account_number`) plus `first_seen`, `last_seen` and `source_url` when present.
+- `properties`: the schema-specific C2 properties of the node table (for example `registration_number`, `incorporation_date`, `account_number`) plus `first_seen`, `last_seen` and `source_url` when present. The model rejects every other common property (`id`, `schema`, `caption`, `names`, `names_text`, `countries`, `topics`, `datasets`, `referents`, `synthetic`): each is a field of its own or left out.
 - `identifiers`: `dict[str, list[str]]`, keyed by C2 property name. v1 keys: `registration_number`, `lei` (legal entities) and `account_number` (accounts). Each list holds the one value C2 stores; a key without a value is left out, and lists are never empty and never repeat a value. Phase 2 lists further values from `:SourceRecord` and may add keys (a minor change); clients ignore keys they do not know. So C2 can keep single-valued, indexed identifier properties while C3 needs no breaking change when entity resolution merges records.
 - `provenance`: at least one record.
-- `relationship_counts`: relationship type to the number of relationships of that type touching the node in either direction; types with none are left out.
+- `relationship_counts`: for each of the 16 record-built relationship types (`FLAGS`, `PRODUCED` and `RESOLVED_TO` are not counted), the number of relationships of that type touching the node in either direction; types with none are left out.
 - `alerts`: the summaries of the alerts that flag the node (`FLAGS`), in queue order, at most 50; `GET /alerts?entity_id=` lists them all.
 
 `GET /entities/{entity_id}` accepts a canonical id or any id in `referents` (Phase 2 finds record ids through `:SourceRecord` and `RESOLVED_TO`).
 
-`GET /entities/{entity_id}/network` returns the node and its neighbours up to `depth` hops over the requested relationship types, in either direction, keeping only `:Entity` and `:Sanction` nodes and the relationships between the nodes it keeps, with at most `max_nodes` nodes (`truncated` says when the cap cut it).
+`GET /entities/{entity_id}/network` returns the node and its neighbours up to `depth` hops over the requested relationship types, in either direction, keeping only `:Entity` and `:Sanction` nodes and the relationships between the nodes it keeps, with at most `max_nodes` nodes and `2 × max_nodes` edges (`truncated` says when a cap cut it).
 
 ### Alerts
 
 | Model | Fields | Source and rule |
 |---|---|---|
-| `AlertSummary` | `alert_id`, `typology`, `priority`, `pattern_strength`, `headline`, `created_at`, `subject_ids`, `involves_real_entities`, `synthetic_activity` | The `:Alert` scalar properties (C2), with `subject_ids` from the alert's subjects (the `FLAGS` targets). Types as in C4 |
+| `AlertSummary` | `alert_id`, `typology`, `priority`, `pattern_strength`, `headline`, `created_at`, `subject_ids`, `involves_real_entities`, `synthetic_activity` | The `:Alert` scalar properties (C2), with `subject_ids` from the alert's subjects (the `FLAGS` targets), in the order of the C4 `subjects`. Types as in C4 |
 | `AlertPage` | `items`, `next_cursor` | See pagination below |
-| `AlertDetail` | `alert`, `evidence` | `alert` is the complete C4 `Alert`, parsed and validated from the `payload` property. `evidence` is a `Subgraph` holding every node of `alert.evidence.node_ids` and `alert.subjects`, every relationship of `alert.evidence.edge_ids`, and the `HOLDS_ACCOUNT` relationships between those nodes, so a holder that is a subject but not an evidence node is still connected. The model checks that every evidence id and subject is present |
+| `AlertDetail` | `alert`, `evidence` | `alert` is the complete C4 `Alert`, parsed and validated from the `payload` property. `evidence` is a `Subgraph` holding every node of `alert.evidence.node_ids` and `alert.subjects`, every relationship of `alert.evidence.edge_ids`, and the `HOLDS_ACCOUNT` relationships between those nodes, so a holder that is a subject but not an evidence node is still connected. `evidence` is never truncated (`truncated` false; its `limits` are at least its sizes). The model checks both, and that every evidence id and subject is present |
+
+A stored payload that no longer validates as C4 (for example an alert written under a newer C4 version, or edited by hand) is answered with a `500` problem whose detail says the stored alert does not validate and to re-run detection (`neonradar detect run`); the API never serves an alert it cannot validate.
 
 The API adds no wording to an alert: the UI shows the standing disclaimer from `MetaResponse.disclaimers` (the alert names `standing-v1`), and words the alert from `involves_real_entities` and `synthetic_activity` as C4 describes.
 
@@ -146,11 +148,11 @@ The API adds no wording to an alert: the UI shows the standing disclaimer from `
 | `DatasetInfo` | `slug`, `title`, `licence_id`, `licence_url`, `attribution`, `synthetic`, `personal_data`, `record_count`, `loaded_at` | One per dataset of `contracts/datasets.yaml` (`licence.id`, `licence.url`). `record_count`: the number of nodes whose `datasets` contain the slug, 0 when nothing from it is loaded, null when the graph cannot be read. `loaded_at`: null in v1 |
 | `Disclaimers` | `standing`, `synthetic_demo`, `real_data` | `contracts/wording/` through `load_disclaimer()`, verbatim from PHASE-1.md 7.1 |
 | `GraphCounts` | `nodes_by_label`, `relationships_by_type` | `apoc.meta.stats()`; both empty when the graph cannot be read |
-| `MetaResponse` | `app_version`, `contracts_version`, `schema_version`, `datasets`, `disclaimers`, `counts` | `app_version` is the API package version, `contracts_version` is `neonradar_contracts.versions.CONTRACTS`, and `schema_version` is `versions.GRAPH_SCHEMA` (`"1.0.0"`), the C2 version the API reads. The migrations applied to the database (`:SchemaMigration` ids such as `0001_init`) are not reported; `neonradar graph migrate` checks them |
+| `MetaResponse` | `app_version`, `contracts_version`, `schema_version`, `datasets`, `disclaimers`, `counts` | `app_version` is the API package version (a PEP 440 version such as `0.1.0` or `1.0.0rc1`), `contracts_version` is `neonradar_contracts.versions.CONTRACTS`, and `schema_version` is `versions.GRAPH_SCHEMA` (`"1.0.0"`), the C2 version the API reads. The migrations applied to the database (`:SchemaMigration` ids such as `0001_init`) are not reported; `neonradar graph migrate` checks them |
 | `Neo4jStatus` | `connected`, `version`, `edition` | From `dbms.components()` (the `Neo4j Kernel` row) |
 | `HealthResponse` | `status`, `neo4j`, `apoc_version`, `gds_version` | `ok` exactly when Neo4j answers and both `apoc.version()` and `gds.version()` answer, otherwise `degraded` (the rule of `make smoke`) |
 
-`GET /meta` answers 200 even when Neo4j cannot be read, so the disclaimers are always available: every `record_count` is then null and both count maps are empty. The UI shows the real-data notice whenever it cannot prove that only synthetic datasets are loaded (M1.9d's notice rule: the synthetic demo notice only when every dataset with `record_count` above 0 is synthetic).
+`GET /meta` answers 200 even when Neo4j cannot be read, so the disclaimers are always available: every `record_count` is then null and both count maps are empty. If any `record_count` is null, the UI shows the real data notice. Otherwise it shows the synthetic demo notice only when every dataset with `record_count` above 0 is synthetic (M1.9d's notice rule; its unit tests cover the null case).
 
 `GET /health` answers 200 for both statuses, so a caller (the Compose health check in M1.9e) reads `status` from the body.
 
@@ -172,7 +174,7 @@ Every error is an RFC 9457 problem (`application/problem+json`), the `Problem` m
 | `type` | `about:blank` in v1: the HTTP status says what kind of problem it is |
 | `title` | The HTTP reason phrase (`Not Found`, `Unprocessable Content`, ...) |
 | `status` | The HTTP status code |
-| `detail` | A sentence for people. For `422`, the failed checks as `<location>: <message>` joined with `; ` (for example `query.q: String should have at least 2 characters`), without echoing the input. For `501`, the method, the route and the milestone or phase that implements it |
+| `detail` | A sentence for people. For `422`, the failed checks as `<location>: <message>` joined with `; ` (for example `query.q: String should have at least 2 characters`), without echoing the input: an unknown body key is reported at its parent as `body: unknown keys are not permitted`, without the key itself. For `405`, a sentence pointing to the `Allow` header. For `501`, the method, the route and the milestone or phase that implements it |
 | `instance` | The request path, without the query string |
 
 | Status | When |
@@ -180,13 +182,17 @@ Every error is an RFC 9457 problem (`application/problem+json`), the `Problem` m
 | 404 | An unknown route, or an id that matches nothing |
 | 405 | A method the route does not have (with an `Allow` header) |
 | 422 | A parameter, path or body that breaks a rule above, or a bad cursor |
-| 500 | An unexpected error; `detail` is generic and the API log has the details |
+| 500 | An unexpected error, or a stored alert that no longer validates as C4 (re-run detection); `detail` is generic or names the fix, and the API log has the details |
 | 501 | A route not implemented yet |
-| 503 | Neo4j is not configured, not reachable or refuses the credentials |
+| 503 | Neo4j is not configured (no `NEO4J_PASSWORD`, or a `NEO4J_URI` the driver cannot use), not reachable, refuses the credentials, or has no database named `NEO4J_DATABASE`; `detail` never shows the driver's message |
 
 There is no `errors` extension member in v1; adding typed problem `type` URIs or extension members later is a minor change.
 
+A CORS preflight (`OPTIONS`) from an origin other than `http://localhost:5173` is rejected by Starlette's CORS middleware with `400` and a `text/plain` body, not a problem; browsers do not expose that response to the page, which sees a failed request.
+
 ## Null in v1
+
+These fields are nullable in the models. The first two are null on every response in v1; the other two are null only in the case named.
 
 | Field | Why | When it gets a value |
 |---|---|---|
@@ -200,13 +206,14 @@ There is no `errors` extension member in v1; adding typed problem `type` URIs or
 - C3 is `neonradar_contracts.versions.API` (`"1.0.0"`), which is also the OpenAPI `info.version`. The base path `/api/v1` and the snapshot `openapi/v1.json` cover every 1.x release.
 - The rules of PHASE-1.md 5.0 apply: a patch changes wording or examples; a minor change adds an optional field, a parameter with a default, an endpoint, an enum value in a response, a dictionary key or a problem response (clients ignore what they do not know); a major change renames, removes or changes the meaning of anything, and gets `/api/v2` with `openapi/v2.json`.
 - `AlertDetail` embeds the C4 `Alert`, so a C4 change regenerates `openapi/v1.json` too and is a C3 change of the same kind.
+- `additionalProperties: false` and the enums describe what this version's server emits; clients must not reject unknown fields, dictionary keys or enum values, so that minor releases do not break them.
 - A model or route change regenerates the snapshot in the same pull request (`make contracts`).
 
 ## The OpenAPI snapshot
 
 - `neonradar contracts export` writes `contracts/openapi/v1.json` from `create_app().openapi()` with sorted keys and two-space indentation, next to the JSON Schemas. The contracts package cannot import the API, so the command line adds the document to the generated files it exports and checks.
 - `neonradar contracts check` exports to a temporary folder and fails on any difference, including a stray file in `contracts/openapi/`.
-- `api/tests/test_openapi_contract.py` (marker `contract`) compares the running app with the file and checks that every error response is a `Problem` as `application/problem+json` only, that no FastAPI default validation schema is left, that every object is closed and that the limits are those of 5.3.
+- `api/tests/test_openapi_contract.py` (marker `contract`) compares the running app, and the document it serves at `/api/v1/openapi.json`, with the file, and checks that every error response is a `Problem` as `application/problem+json` only, that no FastAPI default validation schema is left, that every object is closed and that the limits are those of 5.3.
 - The snapshot is generator output: a FastAPI or pydantic upgrade can change it without a model change. `uv.lock` pins exact versions; an upgrade pull request regenerates the snapshot and is reviewed as a contract change.
 
 ## TypeScript types for the UI
@@ -223,11 +230,11 @@ The UI never writes API types by hand (`.claude/rules/frontend.md`). M1.9d adds 
     {"id": "syn-acct-0007", "labels": ["Entity", "Account"], "schema": "BankAccount", "caption": "NRSYN0000000007",
      "flags": {"synthetic": true, "sanctioned": false, "pep": false, "rca": false},
      "properties": {"account_number": "NRSYN0000000007", "account_kind": "customer", "bank_name": "Synthetic Bank One",
-                    "countries": [], "currency": "EUR", "datasets": ["nr_synthetic"], "names": [], "referents": ["syn-acct-0007"]}},
+                    "countries": [], "currency": "EUR", "datasets": ["nr_synthetic"], "names": []}},
     {"id": "syn-co-0003", "labels": ["Entity", "LegalEntity", "Organization", "Company"], "schema": "Company",
      "caption": "Fenwhistle Holdings Ltd", "flags": {"synthetic": true, "sanctioned": false, "pep": false, "rca": false},
      "properties": {"countries": ["gb"], "datasets": ["nr_synthetic"], "incorporation_date": "2018-06-11", "jurisdiction": "gb",
-                    "names": ["Fenwhistle Holdings Ltd"], "referents": ["syn-co-0003"], "registration_number": "SYN00003"}}
+                    "names": ["Fenwhistle Holdings Ltd"], "registration_number": "SYN00003"}}
   ],
   "edges": [
     {"id": "syn-payment-000104", "type": "PAID", "source": "syn-acct-0021", "target": "syn-acct-0007",

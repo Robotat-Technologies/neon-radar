@@ -63,18 +63,55 @@ def test_none_refuses_with_the_spec_message() -> None:
     )
 
 
-def test_evaluation_needs_the_written_confirmation_on_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "value", ["none", None, 0, False, True, "", "garbage", "NONE", " licensed", ["licensed"]]
+)
+def test_anything_but_a_route_refuses_like_none(value: object) -> None:
+    with pytest.raises(LicenceRequired) as caught:
+        require_access(value)
+    assert str(caught.value) == REFUSAL
+
+
+@pytest.mark.parametrize(
+    ("text", "allowed"),
+    [
+        (None, False),  # no file
+        ("OpenSanctions' answer, pasted", False),
+        ("confirmed: soon", False),
+        ("  confirmed: 2026-11-02 @robotat-com", False),  # must start the line
+        ("Answer below.\nconfirmed: 2026-11-02 @robotat-com\n", True),
+    ],
+)
+def test_evaluation_needs_the_data_stewards_confirmed_line(
+    tmp_path: Path, text: str | None, allowed: bool
+) -> None:
     confirmation = tmp_path / "opensanctions.md"
-    with pytest.raises(LicenceRequired, match="written confirmation is not filed"):
+    if text is not None:
+        confirmation.write_text(text, encoding="utf-8")
+    for route in (Access.EVALUATION, "evaluation"):
+        if allowed:
+            assert require_access(route, confirmation) is Access.EVALUATION
+        else:
+            with pytest.raises(LicenceRequired, match="no 'confirmed: <YYYY-MM-DD> <who>' line"):
+                require_access(route, confirmation)
+
+
+def test_an_unreadable_confirmation_does_not_count(tmp_path: Path) -> None:
+    confirmation = tmp_path / "opensanctions.md"
+    confirmation.write_bytes(b"confirmed: 2026-11-02 \xff\xfe")
+    with pytest.raises(LicenceRequired):
         require_access(Access.EVALUATION, confirmation)
-    confirmation.write_text("OpenSanctions' answer", encoding="utf-8")
-    require_access(Access.EVALUATION, confirmation)
 
 
-@pytest.mark.parametrize("route", [Access.LICENSED, Access.EXEMPT])
-def test_licensed_and_exempt_may_fetch(tmp_path: Path, route: Access) -> None:
-    require_access(route, tmp_path / "missing.md")
+@pytest.mark.parametrize("route", [Access.LICENSED, Access.EXEMPT, "licensed", "exempt"])
+def test_licensed_and_exempt_may_fetch(tmp_path: Path, route: object) -> None:
+    assert require_access(route, tmp_path / "missing.md") is Access(str(route))
 
 
-def test_only_licensed_access_writes() -> None:
-    assert [route for route in Access if may_write(route)] == [Access.LICENSED]
+@pytest.mark.parametrize(
+    ("value", "writes"),
+    [(Access.LICENSED, True), ("licensed", True), ("LICENSED", False), (None, False), (True, False)]
+    + [(route, False) for route in (Access.NONE, Access.EVALUATION, Access.EXEMPT)],
+)
+def test_only_licensed_access_writes(value: object, writes: bool) -> None:
+    assert may_write(value) is writes

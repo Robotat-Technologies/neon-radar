@@ -28,6 +28,7 @@ from neonradar_ingest.sources.opensanctions.spike import (
     IndexInfo,
     index_url,
     make_client,
+    read_index,
     run_spike,
     summary_lines,
 )
@@ -82,31 +83,31 @@ def client(server: SyntheticServer) -> Iterator[HttpClient]:
         yield client
 
 
-def test_none_refuses_before_any_request(
-    server: SyntheticServer, client: HttpClient, tmp_path: Path
+@pytest.mark.parametrize(
+    "value", [Access.NONE, "none", None, 0, False, "garbage", "NONE", ["licensed"], "evaluation"]
+)
+def test_refused_routes_send_no_request(
+    server: SyntheticServer, client: HttpClient, tmp_path: Path, value: object
 ) -> None:
+    unconfirmed = tmp_path / "opensanctions.md"  # evaluation: the file lacks the confirmed line
+    unconfirmed.write_text("OpenSanctions' answer, not yet confirmed", encoding="utf-8")
     with pytest.raises(LicenceRequired, match=REFUSAL):
-        run_spike(client, access=Access.NONE, root=tmp_path / "out")
+        run_spike(client, access=value, root=tmp_path / "out", licence_file=unconfirmed)
+    with pytest.raises(LicenceRequired, match=REFUSAL):
+        read_index(client, "sanctions", access=value, licence_file=unconfirmed)
     assert server.requests == []
     assert not (tmp_path / "out").exists()
 
 
-def test_evaluation_without_the_confirmation_refuses(
-    server: SyntheticServer, client: HttpClient, tmp_path: Path
-) -> None:
-    with pytest.raises(LicenceRequired, match="written confirmation"):
-        run_spike(client, access=Access.EVALUATION, licence_file=tmp_path / "missing.md")
-    assert server.requests == []
-
-
-@pytest.mark.parametrize("route", [Access.EVALUATION, Access.EXEMPT])
+@pytest.mark.parametrize("route", [Access.EVALUATION, Access.EXEMPT, "exempt"])
 def test_reading_routes_stream_count_and_write_nothing(
-    client: HttpClient, tmp_path: Path, route: Access
+    client: HttpClient, tmp_path: Path, route: object
 ) -> None:
     confirmation = tmp_path / "opensanctions.md"
-    confirmation.write_text("written confirmation (test)", encoding="utf-8")
+    confirmation.write_text("confirmed: 2026-11-02 @data-steward (test)\n", encoding="utf-8")
     out = tmp_path / "out"
     result = run_spike(client, access=route, root=out, licence_file=confirmation)
+    assert result.access is Access(str(route))
     assert result.index.version == "20261015000000-syn"
     assert result.index.checksum == "0" * 40
     assert result.index.redirects == (307,)
@@ -204,3 +205,24 @@ def test_http_errors_name_the_url_and_status(
         run_spike(client, access=Access.EXEMPT, collection="peps", root=tmp_path)
     assert caught.value.status == 404
     assert server.requests == [f"{BASE_URL}/peps/index.json"]
+
+
+class BrokenStream(httpx.SyncByteStream):
+    """The first line arrives, then the connection breaks."""
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield ENTITIES.read_bytes().splitlines(keepends=True)[0]
+        raise httpx.ReadError("connection reset")
+
+
+def test_a_stream_that_breaks_raises_http_error(server: SyntheticServer, tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).endswith("entities.ftm.json"):
+            return httpx.Response(200, stream=BrokenStream())
+        return server(request)
+
+    with make_client(transport=httpx.MockTransport(handler), sleep=lambda _: None) as client:
+        client.limiter = RateLimiter(1e6)
+        with pytest.raises(HttpError, match=r"entities.ftm.json: ReadError after 1 lines"):
+            run_spike(client, access=Access.LICENSED, root=tmp_path)
+    assert not (tmp_path / "opensanctions").exists()  # nothing written from a broken stream

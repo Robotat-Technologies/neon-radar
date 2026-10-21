@@ -97,17 +97,23 @@ def seen_timestamp(value: object) -> str | None:
     return parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
 
+def _str_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
 def _well_formed(data: Mapping[str, Any]) -> bool:
+    """The shape FtM's `from_dict` needs: it splits a string where a list belongs into letters.
+
+    `referents` and `datasets` may be absent (empty) but, when present, are lists of strings.
+    """
     props = data.get("properties", {})
     return (
         isinstance(data.get("id"), str)
         and bool(data["id"])
         and isinstance(data.get("schema"), str)
         and isinstance(props, dict)
-        and all(
-            isinstance(values, list) and all(isinstance(v, str) for v in values)
-            for values in props.values()
-        )
+        and all(_str_list(values) for values in props.values())
+        and all(_str_list(data.get(key, [])) for key in ("referents", "datasets"))
     )
 
 

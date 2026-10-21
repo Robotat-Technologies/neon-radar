@@ -186,19 +186,22 @@ def test_payments_are_skipped_because_c1_keeps_them_synthetic() -> None:
 
 def test_bad_lines_are_counted_and_the_limit_counts_lines() -> None:
     stats = MappingStats()
+    person = {"id": "syn-os-x", "schema": "Person", "properties": {"name": ["Synthetic X"]}}
     lines = [
         "",
         "not json",
         "[1, 2]",
-        json.dumps({"id": "syn-os-x", "schema": "Person", "properties": {"name": "not a list"}}),
+        json.dumps({**person, "properties": {"name": "not a list"}}),
         json.dumps({"schema": "Person", "properties": {}}),
+        json.dumps({**person, "referents": "syn-os-src-x"}),  # a string, not a list
+        json.dumps({**person, "datasets": ["syn_example", 7]}),
         *ENTITIES.read_text(encoding="utf-8").splitlines(),
     ]
-    records = list(map_lines(lines, stats, limit=6))
-    assert stats.lines == 6
-    assert stats.skipped == Counter({NOT_JSON: 2, MALFORMED: 2})
+    records = list(map_lines(lines, stats, limit=8))
+    assert stats.lines == 8
+    assert stats.skipped == Counter({NOT_JSON: 2, MALFORMED: 4})
     sources = [record["nr"]["source_ref"] for record in records]
-    assert sources == ["NK-synPersonAlpha", "NK-synPersonBeta"]  # 4 bad lines, then 2 entities
+    assert sources == ["NK-synPersonAlpha", "NK-synPersonBeta"]  # 6 bad lines, then 2 entities
 
 
 def test_bytes_lines_are_decoded() -> None:

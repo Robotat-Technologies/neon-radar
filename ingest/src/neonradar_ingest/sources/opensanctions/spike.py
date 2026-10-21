@@ -112,8 +112,14 @@ def index_url(collection: str) -> str:
     return f"{BASE_URL}/{collection}/index.json"
 
 
-def read_index(client: HttpClient, collection: str) -> IndexInfo:
-    """GET the collection's `index.json` and log its version and the entities checksum."""
+def read_index(
+    client: HttpClient, collection: str, *, access: object, licence_file: Path | None = None
+) -> IndexInfo:
+    """GET the collection's `index.json` and log its version and the entities checksum.
+
+    Gated like `run_spike`: LicenceRequired before any request unless `access` allows it.
+    """
+    require_access(access, licence_file)
     url = index_url(collection)  # refuses an unknown collection before any request
     response = client.get(url)
     _check(response)
@@ -132,29 +138,39 @@ def read_index(client: HttpClient, collection: str) -> IndexInfo:
 def run_spike(
     client: HttpClient,
     *,
-    access: Access,
+    access: object,
     collection: str = "sanctions",
     rows: int = 1000,
     root: Path | None = None,  # default data/cache/spikes; the output goes to <root>/opensanctions/
     licence_file: Path | None = None,
 ) -> SpikeResult:
-    """Run the spike if `access` allows it; raise LicenceRequired before any request if not."""
-    require_access(access, licence_file)
+    """Run the spike if `access` allows it; raise LicenceRequired before any request if not.
+
+    `access` is checked strictly: anything but one of the four routes refuses like `none`.
+    A failed request, or a connection that breaks while streaming, raises HttpError.
+    """
+    route = require_access(access, licence_file)
     if rows < 1:
         raise ValueError("rows must be at least 1")
     started = time.monotonic()
-    result = SpikeResult(access=access, collection=collection, index=read_index(client, collection))
+    index = read_index(client, collection, access=route, licence_file=licence_file)
+    result = SpikeResult(access=route, collection=collection, index=index)
     kept: list[dict[str, Any]] = []
-    with client.stream("GET", result.index.entities_url) as response:
+    with client.stream("GET", index.entities_url) as response:
         _check(response)
         result.entities_url = str(response.url)
-        for record in map_lines(response.iter_lines(), result.stats, limit=rows):
-            issues = validate_record(record)
-            result.issues.update(issue.rule for issue in issues)
-            result.invalid += bool(issues)
-            if not issues and may_write(access):
-                kept.append(record)
-    if may_write(access):
+        try:
+            for record in map_lines(response.iter_lines(), result.stats, limit=rows):
+                issues = validate_record(record)
+                result.issues.update(issue.rule for issue in issues)
+                result.invalid += bool(issues)
+                if not issues and may_write(route):
+                    kept.append(record)
+        except httpx.RequestError as exc:  # TransportError (read timeout, reset) or DecodingError
+            where = f"GET {redact(response.request.url)}"
+            problem = f"{type(exc).__name__} after {result.stats.lines} lines"
+            raise HttpError(f"{where}: {problem}") from None
+    if may_write(route):
         result.records_file = write_output(
             kept,
             SPIKE,

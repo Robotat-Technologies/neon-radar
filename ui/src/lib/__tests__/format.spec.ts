@@ -7,6 +7,7 @@ import {
   formatTimestamp,
   formatValue,
   humanizeKey,
+  safeHref,
 } from '@/lib/format'
 
 describe('format helpers', () => {
@@ -34,5 +35,22 @@ describe('format helpers', () => {
     expect(formatMetric(151.7)).toBe('151.7')
     expect(formatMetric(0.9634)).toBe('0.96')
     expect(formatMetric('EUR')).toBe('EUR')
+  })
+
+  it('links only http and https addresses', () => {
+    expect(safeHref('https://www.fatf-gafi.org/en/publications.html')).toBe(
+      'https://www.fatf-gafi.org/en/publications.html',
+    )
+    expect(safeHref(' HTTP://example.org/a ')).toBe('HTTP://example.org/a')
+    expect(safeHref('javascript:alert(1)')).toBeNull()
+    expect(safeHref('JavaScript:alert(1)')).toBeNull()
+    expect(safeHref('data:text/html,<p>x</p>')).toBeNull()
+    expect(safeHref('//cdn.example.org/x.js')).toBeNull()
+    expect(safeHref('/api/v1/meta')).toBeNull()
+    expect(safeHref('about:blank')).toBeNull()
+    expect(safeHref('https://example.org/a b')).toBeNull()
+    expect(safeHref('')).toBeNull()
+    expect(safeHref(null)).toBeNull()
+    expect(safeHref(undefined)).toBeNull()
   })
 })

@@ -21,6 +21,14 @@ export function formatAmount(amount: number, currency: string): string {
   }
 }
 
+/** An address to link to: only http and https, so source data can never inject javascript: or
+ * data: links. Anything else gives null and is shown as plain text. */
+export function safeHref(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return /^https?:\/\/[^\s]+$/i.test(trimmed) ? trimmed : null
+}
+
 /** Pattern strength in [0, 1] with two decimals. */
 export function formatStrength(value: number): string {
   return value.toFixed(2)

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { readExample } from '@/__tests__/fixtures'
 import type { Subgraph } from '@/api/types'
-import { edgeLabel, toCytoscapeElements } from '@/lib/graph'
+import { edgeLabel, opensEntityPage, toCytoscapeElements } from '@/lib/graph'
 
 const example = readExample<Subgraph>('c3/subgraph.json')
 
@@ -46,7 +46,8 @@ describe('toCytoscapeElements', () => {
     const subgraph: Subgraph = {
       nodes: [
         {
-          id: 'gbch-co-00000001',
+          // A never-real company number (T prefix), as in contracts/tests (guardrail G1).
+          id: 'gbch-co-T0000001',
           labels: ['Entity', 'LegalEntity', 'Organization', 'Company'],
           schema: 'Company',
           caption: 'Example',
@@ -93,5 +94,13 @@ describe('edgeLabel', () => {
     expect(edgeLabel({ type: 'PAID', properties: { amount: 5, currency: 'JPY' } })).toBe('JPY 5')
     expect(edgeLabel({ type: 'HOLDS_ACCOUNT', properties: {} })).toBe('HOLDS_ACCOUNT')
     expect(edgeLabel({ type: 'PAID', properties: {} })).toBe('PAID')
+  })
+})
+
+describe('opensEntityPage', () => {
+  it('opens entities but not sanction records', () => {
+    expect(opensEntityPage({ schema: 'Company' })).toBe(true)
+    expect(opensEntityPage({ schema: 'BankAccount' })).toBe(true)
+    expect(opensEntityPage({ schema: 'Sanction' })).toBe(false)
   })
 })

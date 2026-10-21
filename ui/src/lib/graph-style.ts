@@ -1,5 +1,7 @@
 // Cytoscape style sheet: shapes by schema, a dashed outline for synthetic nodes, and the
-// highlight classes the pages set. Plain colours for now; the visual identity arrives in Phase 5.
+// highlight classes the pages set. Highlights change width and colour only, never the dash, so a
+// synthetic node or relationship stays marked while it is highlighted. Plain colours for now;
+// the visual identity arrives in Phase 5.
 import type { EdgeSingular, StylesheetJson } from 'cytoscape'
 
 import type { GraphEdge } from '@/api/types'
@@ -40,7 +42,7 @@ export const graphStyle: StylesheetJson = [
   },
   {
     selector: 'node.focus',
-    style: { 'border-width': 4, 'border-style': 'solid', 'border-color': '#d97706' },
+    style: { 'border-width': 4, 'border-color': '#d97706' },
   },
   {
     selector: 'edge',
@@ -61,12 +63,7 @@ export const graphStyle: StylesheetJson = [
   { selector: 'edge.synthetic', style: { 'line-style': 'dashed' } },
   {
     selector: 'edge.highlighted',
-    style: {
-      width: 4,
-      'line-style': 'solid',
-      'line-color': '#d97706',
-      'target-arrow-color': '#d97706',
-    },
+    style: { width: 4, 'line-color': '#d97706', 'target-arrow-color': '#d97706' },
   },
 ]
 

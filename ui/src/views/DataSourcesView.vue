@@ -4,6 +4,7 @@
 // sources page").
 import { computed } from 'vue'
 
+import ExternalLink from '@/components/ExternalLink.vue'
 import { useMetaStore } from '@/stores/meta'
 
 const metaStore = useMetaStore()
@@ -26,9 +27,7 @@ const datasets = computed(() => metaStore.meta?.datasets ?? [])
           <dd>{{ dataset.record_count === null ? 'unknown' : dataset.record_count }}</dd>
           <dt>licence</dt>
           <dd>
-            <a :href="dataset.licence_url" rel="noopener noreferrer" target="_blank">{{
-              dataset.licence_id
-            }}</a>
+            <ExternalLink :href="dataset.licence_url">{{ dataset.licence_id }}</ExternalLink>
           </dd>
           <template v-if="dataset.attribution">
             <dt>attribution</dt>

@@ -87,8 +87,9 @@ function applyFilters(): void {
   <section>
     <h1>Alerts</h1>
     <p class="muted">
-      Each alert is a structural pattern that matches a typology's graph pattern. Pattern strength
-      orders the queue; it says how closely the evidence matches the pattern, nothing more.
+      Each alert is a structural pattern that matches a typology's graph pattern. Alerts are ordered
+      by priority, then pattern strength. Pattern strength is a heuristic: it says how closely the
+      evidence matches the pattern, nothing more.
     </p>
     <form class="filters" @submit.prevent="applyFilters">
       <label class="inline-field">

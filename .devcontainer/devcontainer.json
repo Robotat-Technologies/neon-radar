@@ -1,0 +1,28 @@
+{
+  "name": "neonradar",
+  "dockerComposeFile": ["../compose.yaml", "compose.dev.yaml"],
+  "service": "dev",
+  "runServices": ["dev", "neo4j"],
+  "workspaceFolder": "/workspaces/neonradar",
+  "remoteUser": "dev",
+  "features": {
+    "ghcr.io/devcontainers/features/node:2": { "version": "24" },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "mounts": [
+    "source=neonradar-claude-config-${devcontainerId},target=/home/dev/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/dev/.claude"
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" },
+  "forwardPorts": ["neo4j:7474", "neo4j:7687", 8000, 5173],
+  "initializeCommand": "bash scripts/ensure_env.sh && bash scripts/fetch_gds.sh",
+  "postCreateCommand": "make setup",
+  "customizations": {
+    "vscode": {
+      "settings": { "python.defaultInterpreterPath": "/home/dev/.venv/bin/python" }
+    }
+  }
+}

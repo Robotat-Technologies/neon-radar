@@ -1,0 +1,10 @@
+# synthetic: true
+tx_id,scenario_id,typology,step,role,is_illicit
+syn-payment-000105,scn-0001,circular_flow,1,outbound,true
+syn-payment-000106,scn-0001,circular_flow,2,pass_through,true
+syn-payment-000111,scn-0001,circular_flow,3,pass_through,true
+syn-payment-000115,scn-0001,circular_flow,4,return,true
+syn-payment-000030,scn-0002,circular_flow,1,drawdown,false
+syn-payment-000050,scn-0002,circular_flow,2,repayment,false
+syn-payment-000233,scn-0003,circular_flow,1,purchase,false
+syn-payment-000243,scn-0003,circular_flow,2,refund,false

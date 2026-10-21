@@ -1,0 +1,98 @@
+# Real prominent family names found in Faker's ar_SA data (research note synthetic-docs-mcp.md, part A)
+آل سعود
+Al Saud
+بن لادن
+Bin Laden
+Binladin
+العليان
+Olayan
+كانو
+Kanoo
+# Added in M1.8e (review): more real prominent families in Faker's ar_SA surname list, and
+# surnames of real public figures in Faker's ru_RU list (checked with Faker 40.43.0). The
+# generator no longer draws ar_SA surnames at all (ADR-0005); these entries guard the rest.
+Alsaud
+الجفالي
+Juffali
+الحكير
+Hokair
+بقشان
+Bugshan
+الشايع
+Alshaya
+Al Shaya
+الخرافي
+Kharafi
+المهيدب
+Muhaidib
+آل الشيخ
+Al Sheikh
+Медведев
+Medvedev
+Горбачев
+Горбачёв
+Gorbachev
+# Added in M1.8e (review): full names of public figures that the generator produced for
+# demo-mini (Faker en_GB names and curated names in words.py); the generator then draws another
+# name.
+Mark Jackson
+Duncan Robinson
+Philip Johnson
+Andrew Higgins
+Russell Armstrong
+Andrey Golubev
+Андрей Голубев
+Tatiana Lebedeva
+Татьяна Лебедева
+# Added in M1.8e (review): the example person of PHASE-1.md 5.1, replaced under OD-12.
+Omar Haddad
+عمر حداد
+Омар Хаддад
+# Added in M1.8e (review): well-known real people the curated or Faker lists could produce.
+Rana Sabbagh
+رنا صباغ
+Karim Sabbagh
+كريم صباغ
+Bassam Haddad
+بسام حداد
+Karim Bitar
+كريم بيطار
+Oleg Sokolov
+Олег Соколов
+Sergey Sokolov
+Сергей Соколов
+Sergey Lebedev
+Сергей Лебедев
+Natalia Komarova
+Наталья Комарова
+Olga Zaitseva
+Ольга Зайцева
+Elena Belova
+Елена Белова
+Elena Sokolova
+Елена Соколова
+Sergey Volkov
+Сергей Волков
+Sergey Belov
+Сергей Белов
+Sergey Novikov
+Сергей Новиков
+Ivan Zaitsev
+Иван Зайцев
+Ivan Sokolov
+Иван Соколов
+Andrey Sokolov
+Андрей Соколов
+Nikolay Sokolov
+Николай Соколов
+Theresa May
+Boris Johnson
+Gordon Brown
+David Cameron
+Сергей Иванов
+Сергей Миронов
+Андрей Белоусов
+Анатолий Карпов
+Михаил Прохоров
+Андрей Костин
+Вячеслав Лебедев

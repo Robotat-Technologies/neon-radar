@@ -1,0 +1,27 @@
+slug: pep_exposure
+name: Exposure to politically exposed persons through ownership, control, family or associates
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: extended                # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  A company or person is linked through ownership, control, a directorship, family or a close
+  association to a person whom a source lists as a politically exposed person (PEP) or as a
+  relative or close associate of one. Being a PEP, a relative or close associate of one, or
+  being linked to one, is not wrongdoing; the pattern describes the structure only.
+doc: docs/typologies/pep-exposure.md
+citations: [fatf_peps_2013, fatf_glossary, fatf_recommendations_2026, fatf_egmont_concealment_2018, ffiec_appendix_f, icij_faq, opensanctions_glossary]
+graph_pattern: >
+  Paths of at most 4 hops from a Person with the :PEP or :RCA flag through FAMILY_OF,
+  ASSOCIATE_OF, OWNS, CONTROLS or DIRECTOR_OF relationships to the subject.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - A different person with the same or a similar name as a listed person
+  - A person who left public office long ago
+  - Ordinary family relationships with no ownership or control link to the subject
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null

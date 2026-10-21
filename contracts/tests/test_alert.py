@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,10 @@ REAL_HOLDER = {
     "caption": "Quarrytide Holdings Ltd",
 }
 STRUCTURAL = "Funds returned to the originating account through 4 transfers within 7 days"
+# A stand-in for a Companies House ownership relationship (an FtM interval id), as above.
+REAL_EDGE = "gbch-own-T0000001"
+FULLWIDTH_M = unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER M")
+FULLWIDTH_SYNTHETIC = unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER S") + "ynthetic scenario"
 
 
 def example() -> dict[str, Any]:
@@ -54,6 +59,14 @@ def with_id(data: dict[str, Any]) -> dict[str, Any]:
         data["typology"], data["detector"]["version"], evidence["node_ids"], evidence["edge_ids"]
     )
     return data
+
+
+def with_edge(data: dict[str, Any], edge: str) -> dict[str, Any]:
+    """Add an evidence edge (and the ends of a composite id as evidence nodes); recompute the id."""
+    nodes = data["evidence"]["node_ids"]
+    nodes += [end for end in edge.split("|")[::2] if "|" in edge and end not in nodes]
+    data["evidence"]["edge_ids"].append(edge)
+    return with_id(data)
 
 
 def as_structural(data: dict[str, Any], datasets: list[str]) -> dict[str, Any]:
@@ -88,6 +101,43 @@ def test_schema_patterns_are_portable() -> None:
     for relative, text in schemas.documents().items():
         for pattern in re.findall(r'"pattern": "([^"]*)"', text):
             assert not re.search(r"\\\\[zZA]|\(\?P<", pattern), (relative, pattern)
+
+
+# The jsonschema package checks `pattern` with Python's re.search, where `$` also matches before
+# a final newline; fixed-length fields carry their length so that the schema rejects it anyway.
+FIXED_LENGTH: list[tuple[str, tuple[str | int, ...], str]] = [
+    ("alert.v1.json", ("properties", "alert_id"), EXAMPLE_ID),
+    ("alert.v1.json", ("properties", "run_id"), "run-20261021T101500-7f3a"),
+    ("alert.v1.json", ("properties", "created_at"), "2026-10-21T10:15:02Z"),
+    ("alert.v1.json", ("$defs", "Window", "properties", "start"), "2026-03-02T09:00:00Z"),
+    ("alert.v1.json", ("$defs", "Window", "properties", "end"), "2026-03-08T16:40:00Z"),
+    ("alert.v1.json", ("$defs", "Detector", "properties", "query_sha256"), "a" * 64),
+    ("record-manifest.v1.json", ("properties", "created_at"), "2026-10-23T09:00:00Z"),
+    (
+        "record-manifest.v1.json",
+        ("$defs", "Source", "properties", "retrieved_at", "anyOf", 0),
+        "2026-10-23T09:00:00Z",
+    ),
+    ("record-manifest.v1.json", ("$defs", "ManifestFile", "properties", "sha256"), "0" * 64),
+]
+
+
+@pytest.mark.parametrize(("document", "path", "value"), FIXED_LENGTH)
+def test_fixed_length_fields_reject_a_trailing_newline_in_the_json_schema(
+    document: str, path: tuple[str | int, ...], value: str
+) -> None:
+    node: Any = json.loads((CONTRACTS / "schemas" / document).read_text(encoding="utf-8"))
+    for key in path:
+        node = node[key]
+
+    def python_jsonschema_accepts(text: str) -> bool:
+        length = node["minLength"] <= len(text) <= node["maxLength"]
+        return length and re.search(node["pattern"], text) is not None
+
+    assert node["minLength"] == node["maxLength"] == len(value)
+    assert python_jsonschema_accepts(value)
+    assert re.search(node["pattern"], value + "\n"), "the pattern alone lets the newline through"
+    assert not python_jsonschema_accepts(value + "\n")
 
 
 def test_example_validates_and_round_trips() -> None:
@@ -252,6 +302,20 @@ def test_structural_alert_never_says_synthetic_scenario() -> None:
     rejects(data, "step 3")
 
 
+@pytest.mark.parametrize("where", ["headline", "explanation.summary", "step 2"])
+def test_structural_alert_never_says_synthetic_scenario_in_fullwidth(where: str) -> None:
+    """The phrase check reads NFKC-normalised text, so a fullwidth "s" does not hide it."""
+    data = as_structural(example(), ["nr_synthetic", "gb_companies_house"])
+    text = f"A {FULLWIDTH_SYNTHETIC} of four transfers."
+    if where == "headline":
+        data["headline"] = text
+    elif where == "explanation.summary":
+        data["explanation"]["summary"] = text
+    else:
+        data["explanation"]["steps"][1]["text"] = text
+    rejects(data, f"only a synthetic_scenario alert may say 'synthetic scenario'.*{where}")
+
+
 def test_synthetic_scenario_alert_may_say_so() -> None:
     data = example()
     data["explanation"]["summary"] = "Synthetic scenario: " + data["explanation"]["summary"]
@@ -269,6 +333,78 @@ def test_canonical_ids_prove_nothing_either_way() -> None:
     data = example()
     data["subjects"][1] = {**REAL_HOLDER, "entity_id": "nr-6f1c2a"}
     Alert.model_validate(data)
+
+
+def test_non_synthetic_evidence_edge_means_no_synthetic_activity() -> None:
+    data = with_edge(example(), REAL_EDGE)
+    rejects(
+        data,
+        r"synthetic_activity must be false: evidence relationships come from non-synthetic "
+        r"data \(gbch-own-T0000001\)",
+    )
+    data = as_structural(data, ["gb_companies_house", "nr_synthetic"])
+    rejects(data, "evidence relationships come from non-synthetic data")
+    data["data_flags"]["synthetic_activity"] = False
+    alert = Alert.model_validate(data)
+    assert alert.wording_class == "structural_pattern"
+    assert not alert.data_flags.synthetic_activity
+
+
+@pytest.mark.parametrize(
+    ("edge", "real_record"),
+    [
+        ("syn-co-0003|addr|gbch-addr-T0000001", False),  # built from the synthetic company
+        ("gbch-co-T0000001|addr|gbch-addr-T0000001", True),  # built from the real company
+        ("syn-co-0003|sanction|os-sanction-T0000001", True),  # built from the Sanction
+    ],
+)
+def test_a_composite_edge_counts_as_the_record_it_was_built_from(
+    edge: str, real_record: bool
+) -> None:
+    """C2: a relationship carries the dataset and synthetic flag of the record that built it."""
+    datasets = ["gb_companies_house", "nr_synthetic", "opensanctions_default"]
+    data = with_edge(as_structural(example(), datasets), edge)
+    if real_record:
+        rejects(data, f"non-synthetic data \\({re.escape(edge)}\\)")
+        data["data_flags"]["synthetic_activity"] = False
+    assert Alert.model_validate(data).data_flags.synthetic_activity is not real_record
+
+
+def test_all_synthetic_relationships_mean_synthetic_activity() -> None:
+    """Case F: a real holder next to synthetic payments; the activity is synthetic."""
+    data = as_structural(example(), ["gb_companies_house", "nr_synthetic"])
+    data["subjects"][1] = REAL_HOLDER
+    data["data_flags"]["synthetic_activity"] = False
+    rejects(data, "synthetic_activity must be true: every evidence relationship is synthetic")
+
+
+def test_no_relationships_next_to_real_entities_means_no_synthetic_activity() -> None:
+    data = as_structural(example(), ["gb_companies_house", "nr_synthetic"])
+    data["subjects"][1] = REAL_HOLDER
+    data["evidence"]["edge_ids"] = []
+    for step in data["explanation"]["steps"]:
+        step["edge_ids"] = []
+    rejects(with_id(data), "synthetic_activity must be false for an alert with real entities")
+    data["data_flags"]["synthetic_activity"] = False
+    Alert.model_validate(data)
+
+
+def test_datasets_list_every_dataset_the_ids_name() -> None:
+    data = as_structural(example(), ["nr_synthetic"])
+    data["subjects"][1] = REAL_HOLDER
+    rejects(data, "data_flags.datasets must list gb_companies_house")
+    data = with_edge(as_structural(example(), ["nr_synthetic"]), REAL_EDGE)
+    data["data_flags"]["synthetic_activity"] = False
+    rejects(data, "data_flags.datasets must list gb_companies_house")
+    data["data_flags"]["datasets"].append("gb_companies_house")
+    Alert.model_validate(data)
+
+
+@pytest.mark.parametrize("edge", ["syn-acct-0007|addr|syn-addr-0001", "nr-7d2e9b"])
+def test_synthetic_or_canonical_edges_keep_synthetic_activity(edge: str) -> None:
+    alert = Alert.model_validate(with_edge(example(), edge))
+    assert alert.wording_class == "synthetic_scenario"
+    assert alert.data_flags.synthetic_activity
 
 
 @pytest.mark.parametrize("datasets", [[], ["nr_synthetic", "nr_synthetic"], ["no_such_dataset"]])
@@ -291,7 +427,12 @@ def test_headline_length() -> None:
 
 @pytest.mark.parametrize(
     "headline",
-    ["Suspicious funds returned", "Laundered funds came back", "Mule accounts in a cycle"],
+    [
+        "Suspicious funds returned",
+        "Laundered funds came back",
+        "Mule accounts in a cycle",
+        f"{FULLWIDTH_M}ule accounts in a cycle",
+    ],
 )
 def test_headline_passes_the_wording_lint(headline: str) -> None:
     rejects({**example(), "headline": headline}, "wording lint")
@@ -334,6 +475,8 @@ def test_priority_values() -> None:
         ("created_at", "2026-10-21T10:15:02Z\n"),
         ("created_at", "2026-13-21T10:15:02Z"),
         ("run_id", "run-20261021-7f3a"),
+        ("run_id", "run-20261021T101500-7f3a\n"),
+        ("alert_id", EXAMPLE_ID + "\n"),
         ("typology", "Circular-Flow"),
         ("typology_version", "0.1"),
     ],
@@ -399,12 +542,41 @@ def test_subjects_are_required() -> None:
     rejects(data, "role")
 
 
+def test_subjects_do_not_repeat_an_entity() -> None:
+    """C2 FLAGS carries one role per alert and entity."""
+    data = example()
+    data["subjects"][1] = {**data["subjects"][0], "role": "origin_holder"}
+    rejects(data, "subjects must not repeat an entity_id")
+
+
 def test_metrics_are_numbers_or_strings() -> None:
     data = example()
     data["metrics"]["closed"] = True
     rejects(data, "metrics")
     data["metrics"]["closed"] = [1, 2]
     rejects(data, "metrics")
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_metrics_and_query_parameters_are_finite(value: float) -> None:
+    """JSON has no NaN or infinity; they used to pass and dump as null."""
+    data = example()
+    data["metrics"]["return_ratio"] = value
+    rejects(data, "finite number")
+    data = example()
+    data["evidence"]["query"]["parameters"]["max_window_days"] = [14, {"days": value}]
+    rejects(data, "finite number")
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("field", ['"return_ratio": 0.96', '"max_window_days": 14'])
+def test_json_text_with_nan_or_infinity_is_rejected(literal: str, field: str) -> None:
+    """Pydantic's JSON parser reads these literals, so the model must refuse them."""
+    text = EXAMPLE.read_text(encoding="utf-8")
+    assert field in text
+    changed = text.replace(field, field.split(": ")[0] + ": " + literal)
+    with pytest.raises(ValidationError, match="finite number"):
+        Alert.model_validate_json(changed)
 
 
 # --- evidence and explanation ---------------------------------------------------------------
@@ -453,12 +625,21 @@ def test_evidence_ids_are_distinct_and_present() -> None:
     rejects(with_id(data), "node_ids")
 
 
-def test_window_is_ordered_and_optional() -> None:
+def test_window_is_ordered_and_nullable() -> None:
     data = example()
     data["evidence"]["window"] = {"start": "2026-03-08T16:40:00Z", "end": "2026-03-02T09:00:00Z"}
     rejects(data, "must not be after")
-    del data["evidence"]["window"]
+    data["evidence"]["window"] = None
     assert Alert.model_validate(data).evidence.window is None
+    del data["evidence"]["window"]
+    rejects(data, r"evidence\.window\n  Field required")
+
+
+def test_window_is_required_in_the_json_schema() -> None:
+    """Every field is present, nullable ones as null (the rule C3's OpenAPI relies on)."""
+    evidence = Alert.model_json_schema()["$defs"]["Evidence"]
+    assert "window" in evidence["required"]
+    assert {"type": "null"} in evidence["properties"]["window"]["anyOf"]
 
 
 def test_steps_are_numbered_in_order() -> None:

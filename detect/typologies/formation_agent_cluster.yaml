@@ -1,0 +1,37 @@
+slug: formation_agent_cluster
+name: Companies clustered around one formation agent
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: extended                # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Many companies formed through one formation agent, incorporated in bursts, sharing the
+  agent's address and the same nominee directors or secretaries, and paying each other.
+  Company formation is a lawful business, and most companies an agent forms are ordinary.
+doc: docs/typologies/formation-agent-cluster.md
+citations:
+  - fatf_tcsp_2010
+  - fatf_egmont_concealment_2018
+  - fatf_corporate_vehicles_2006
+  - star_puppet_masters_2011
+  - fatf_glossary
+  - fincen_fin_2006_g014
+  - ffiec_appendix_f
+graph_pattern: >
+  One agent LegalEntity with outgoing REPRESENTS relationships to many Companies, or many
+  Companies with HAS_ADDRESS (role registered) to the agent's Address; incorporation_date
+  values that fall in bursts; the same Persons as directors or secretaries (DIRECTOR_OF, often
+  with is_nominee true, sometimes EMPLOYED_BY the agent when the agent is an Organization); and PAID between Accounts held by
+  those Companies.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Formation agents and corporate service firms forming companies for many unrelated ordinary clients
+  - A corporate group setting up several subsidiaries at once through one agent
+  - Ready-made companies formed in batches and kept in stock for later sale
+  - Professional directors and company secretaries who hold many appointments
+synthetic_support: medium     # high | medium | low | none
+generator_scenario: null
+detector: null                # null until implemented

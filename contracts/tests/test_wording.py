@@ -1,6 +1,7 @@
 """Contract tests for the wording rules (PHASE-1.md 7.1, 5.5, guardrail G5)."""
 
 import hashlib
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from neonradar_contracts.wording import (
     forbidden_patterns,
     load_disclaimer,
     parse_patterns,
+    says_synthetic_scenario,
 )
 
 pytestmark = pytest.mark.contract
@@ -125,6 +127,37 @@ def test_masked_source_values_are_not_linted() -> None:
     assert find_forbidden(step, mask=["NRSYN-FRAUD-TEST", "NRSYN0000000012", ""]) == []
 
 
+FULLWIDTH_S = unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER S")
+
+
+def _fullwidth(text: str) -> str:
+    return "".join(unicodedata.lookup(f"FULLWIDTH LATIN CAPITAL LETTER {c}") for c in text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER M") + "ule account",
+        unicodedata.lookup("MATHEMATICAL BOLD SMALL M") + "ule account",
+        _fullwidth("FRAUD") + " pattern",
+        "laun\u00addered funds",  # soft hyphen
+        "mu\u200ble account",  # zero-width space
+        "risk\u2060 score",  # word joiner
+    ],
+)
+def test_compatibility_forms_cannot_hide_a_term(text: str) -> None:
+    """NFKC, then no format characters: a fullwidth "m" reads as "m", a soft hyphen vanishes."""
+    assert find_forbidden(text), text
+
+
+def test_masks_are_normalised_like_the_text() -> None:
+    caption = _fullwidth("NRSYN") + "-" + _fullwidth("FRAUD")
+    step = f"{caption} sent EUR 5,000."
+    assert find_forbidden(step) == ["'FRAUD' (\\bfraud\\w*)"]
+    assert find_forbidden(step, mask=[caption]) == []
+    assert find_forbidden(step, mask=["NRSYN-FRAUD"]) == []
+
+
 def test_masking_blanks_only_whole_tokens() -> None:
     """A masked value inside a longer word is not blanked, so the word is still linted."""
     step = "NRSYN-FRAUDULENT sent EUR 5,000."
@@ -145,6 +178,16 @@ def test_masking_blanks_only_whole_tokens() -> None:
 )
 def test_synthetic_phrase(text: str, says_it: bool) -> None:
     assert bool(SYNTHETIC_PHRASE.search(text)) is says_it
+    assert says_synthetic_scenario(text) is says_it
+
+
+@pytest.mark.parametrize(
+    "text",
+    [FULLWIDTH_S + "ynthetic scenario", "Synthetic\u2060 scenario", "Synthe\u00adtic scenario"],
+)
+def test_synthetic_phrase_check_normalises_the_text(text: str) -> None:
+    assert not SYNTHETIC_PHRASE.search(text), "the bare pattern misses it"
+    assert says_synthetic_scenario(text)
 
 
 @pytest.mark.parametrize(

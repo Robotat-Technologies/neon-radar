@@ -98,6 +98,8 @@ def test_forbidden_term_after_a_yaml_escape_fails(
         ('HEADLINE = "Funds returned\\nLaundered funds"\n', 1),
         ('def f(n: int) -> str:\n    return f"{n} transfers\\tsuspicious"\n', 2),
         ('TEXT = "ok\\x20laundered"\n', 1),
+        ('TEXT = "\uff53uspicious"\n', 1),
+        ('TEXT = "laun\u00addered"\n', 1),
     ],
 )
 def test_forbidden_term_in_a_wording_literal_fails(

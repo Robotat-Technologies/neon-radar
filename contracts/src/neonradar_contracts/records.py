@@ -49,8 +49,11 @@ AMOUNT_RE = re.compile(r"^\d+(\.\d{1,2})?\Z")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}\Z")
 SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN\d{10}\Z")
 # A pydantic field pattern: `$` matches only at the very end there, so a trailing newline fails,
-# and unlike `\z` it is valid ECMA-262 in the exported JSON Schema.
+# and unlike `\z` it is valid ECMA-262 in the exported JSON Schema. Python's `re` (used by the
+# jsonschema package) lets `$` match before a final newline, so fixed-length fields also carry
+# their length, which rejects it there.
 UTC_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+UTC_TIMESTAMP_LENGTH = 20
 # Topics that set the C2 flag labels :Sanctioned, :PEP and :RCA; the only ones synthetic
 # records may carry (R9), so that no other topic can hint at a scenario.
 SYNTHETIC_TOPICS = frozenset({"sanction", "role.pep", "role.rca"})
@@ -395,6 +398,17 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
     synthetic = _check_synthetic(data, dataset, match, add)
     if schema is not None and schema.is_a("Payment"):
         _check_payment(props, data.get("nr"), synthetic, add)
+    if synthetic and schema is not None and schema.is_a("Sanction"):
+        # R6, guardrail G1: C2 builds SUBJECT_OF from the Sanction's entity, so a synthetic
+        # Sanction naming a real entity would show that entity as sanctioned. The prefix decides
+        # (R1, R6), so this needs no other record and holds in strict and non-strict mode.
+        for value in props.get("entity", []):
+            if value.split("-", 1)[0] != SYNTHETIC_PREFIX:
+                add(
+                    "R6",
+                    f"a synthetic Sanction names only synthetic entities (prefix syn), not"
+                    f" {value!r}: SUBJECT_OF would mark a real entity as sanctioned (G1)",
+                )
     if synthetic:  # R9: only the topics that set C2 flags; others could carry labels
         for topic in props.get("topics", []):
             if topic not in SYNTHETIC_TOPICS:
@@ -511,7 +525,7 @@ class _Strict(BaseModel):
 
 class ManifestFile(_Strict):
     path: str = Field(min_length=1)
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
     records: NonNegativeInt
 
 
@@ -523,7 +537,12 @@ class Producer(_Strict):
 
 class Source(_Strict):
     urls: list[str] = Field(default_factory=list)
-    retrieved_at: str | None = Field(default=None, pattern=UTC_TIMESTAMP)
+    retrieved_at: str | None = Field(
+        default=None,
+        pattern=UTC_TIMESTAMP,
+        min_length=UTC_TIMESTAMP_LENGTH,
+        max_length=UTC_TIMESTAMP_LENGTH,
+    )
     source_version: str | None = None
 
 
@@ -547,7 +566,9 @@ class Manifest(_Strict):
     record_contract: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     dataset: str = Field(min_length=1)
     files: list[ManifestFile] = Field(min_length=1)
-    created_at: str = Field(pattern=UTC_TIMESTAMP)
+    created_at: str = Field(
+        pattern=UTC_TIMESTAMP, min_length=UTC_TIMESTAMP_LENGTH, max_length=UTC_TIMESTAMP_LENGTH
+    )
     producer: Producer
     source: Source
     licence: ManifestLicence

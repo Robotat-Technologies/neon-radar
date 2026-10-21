@@ -118,7 +118,11 @@ def test_format_specs_are_allowed() -> None:
 
 @pytest.mark.parametrize(
     "template",
-    ["Synthetic scenario: {cycle_length} transfers", "A synthetic_scenario of {cycle_length}"],
+    [
+        "Synthetic scenario: {cycle_length} transfers",
+        "A synthetic_scenario of {cycle_length}",
+        "A \uff53ynthetic scenario of {cycle_length}",  # fullwidth s, read through NFKC
+    ],
 )
 def test_structural_template_never_says_synthetic_scenario(template: str) -> None:
     data = spec_example()

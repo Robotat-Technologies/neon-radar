@@ -44,15 +44,15 @@ SYNTHETIC_PREFIX = "syn"
 # field patterns end with `$`, which pydantic's engine matches only at the very end.
 ID_RE = re.compile(r"^(?P<prefix>[a-z][a-z0-9]{1,15})-(?P<rest>[A-Za-z0-9.-]{0,99}[A-Za-z0-9])\Z")
 ID_KIND_RE = re.compile(r"^[a-z0-9]{1,20}\Z")
-PAYMENT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\Z")
-AMOUNT_RE = re.compile(r"^\d+(\.\d{1,2})?\Z")
+PAYMENT_DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\Z")
+AMOUNT_RE = re.compile(r"^[0-9]+(\.[0-9]{1,2})?\Z")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}\Z")
-SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN\d{10}\Z")
+SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN[0-9]{10}\Z")
 # A pydantic field pattern: `$` matches only at the very end there, so a trailing newline fails,
 # and unlike `\z` it is valid ECMA-262 in the exported JSON Schema. Python's `re` (used by the
 # jsonschema package) lets `$` match before a final newline, so fixed-length fields also carry
 # their length, which rejects it there.
-UTC_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+UTC_TIMESTAMP = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
 UTC_TIMESTAMP_LENGTH = 20
 # Topics that set the C2 flag labels :Sanctioned, :PEP and :RCA; the only ones synthetic
 # records may carry (R9), so that no other topic can hint at a scenario.
@@ -577,7 +577,7 @@ class Manifest(_Strict):
     """
 
     manifest_version: Literal["1.0"]
-    record_contract: str = Field(pattern=r"^\d+\.\d+\.\d+$")
+    record_contract: str = Field(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$")
     dataset: str = Field(min_length=1)
     files: list[ManifestFile] = Field(min_length=1)
     created_at: str = Field(

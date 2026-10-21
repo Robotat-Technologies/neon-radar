@@ -290,6 +290,37 @@ def test_synthetic_background_links_may_name_real_records(
     assert _rules(_company(id="syn-link-0099", schema=schema, properties=props)) == []
 
 
+ARABIC_INDIC_DIGITS = str.maketrans("0123456789", "".join(chr(0x0660 + d) for d in range(10)))
+
+
+@pytest.mark.parametrize(
+    ("record_id", "prop", "rule"),
+    [
+        ("syn-payment-000001", "amount", "R7"),
+        ("syn-payment-000001", "date", "R5"),
+        ("syn-acct-0001", "accountNumber", "R8"),
+    ],
+)
+def test_non_ascii_digits_fail_c1_property_formats(record_id: str, prop: str, rule: str) -> None:
+    """Python's `\\d` matches any Unicode digit; C1 formats allow only 0 to 9."""
+    record = _demo(record_id)
+    value = record["properties"][prop][0]
+    keep = 5 if prop == "accountNumber" else 0  # the NRSYN prefix
+    record["properties"][prop] = [value[:keep] + value[keep:].translate(ARABIC_INDIC_DIGITS)]
+    assert _rules(record) == [rule]
+
+
+@pytest.mark.parametrize("key", ["created_at", "record_contract"])
+def test_non_ascii_digits_fail_the_manifest(key: str) -> None:
+    data = {**MANIFEST_EXAMPLE, key: MANIFEST_EXAMPLE[key].translate(ARABIC_INDIC_DIGITS)}
+    with pytest.raises(ValidationError, match=key):
+        Manifest.model_validate(data)
+
+
+def test_non_ascii_digits_fail_ids() -> None:
+    assert _rules(_company(id="syn-co-0099".translate(ARABIC_INDIC_DIGITS))) == ["R1"]
+
+
 # Each problem is reported once
 
 

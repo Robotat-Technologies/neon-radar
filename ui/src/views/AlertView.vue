@@ -8,6 +8,7 @@ import { api } from '@/api/client'
 import type { AlertDetail, Citation, TypologyDetail } from '@/api/types'
 import AlertDataLabel from '@/components/AlertDataLabel.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
+import ExternalLink from '@/components/ExternalLink.vue'
 import GraphCanvas from '@/components/GraphCanvas.vue'
 import { formatMetric, formatStrength, formatTimestamp, humanizeKey } from '@/lib/format'
 import { useMetaStore } from '@/stores/meta'
@@ -175,9 +176,7 @@ function openNode(id: string): void {
         <ul class="plain-list" data-testid="citations">
           <li v-for="item in citations" :key="item.key" class="row">
             <template v-if="item.citation">
-              <a :href="item.citation.url" rel="noopener noreferrer" target="_blank">{{
-                item.citation.title
-              }}</a>
+              <ExternalLink :href="item.citation.url">{{ item.citation.title }}</ExternalLink>
               <span class="muted">
                 {{ item.citation.publisher
                 }}<template v-if="item.citation.year !== null">, {{ item.citation.year }}</template>

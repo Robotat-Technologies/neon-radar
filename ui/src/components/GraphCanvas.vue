@@ -6,10 +6,10 @@ import fcose from 'cytoscape-fcose'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import type { Subgraph } from '@/api/types'
+import type { GraphNode, Subgraph } from '@/api/types'
 import EntityBadges from '@/components/EntityBadges.vue'
 import { datasetsOf } from '@/lib/flags'
-import { toCytoscapeElements } from '@/lib/graph'
+import { opensEntityPage, toCytoscapeElements } from '@/lib/graph'
 import { fcoseLayout, graphStyle } from '@/lib/graph-style'
 
 cytoscape.use(fcose)
@@ -43,7 +43,9 @@ function render(): void {
     minZoom: 0.2,
     maxZoom: 3,
   })
-  cy.on('tap', 'node', (event) => emit('select', String(event.target.id())))
+  cy.on('tap', 'node', (event) => {
+    if (opensEntityPage(event.target.data() as GraphNode)) emit('select', String(event.target.id()))
+  })
   applyHighlights()
 }
 
@@ -67,7 +69,8 @@ onBeforeUnmount(() => {
     ></div>
     <figcaption class="graph__legend">
       {{ props.subgraph.nodes.length }} nodes, {{ props.subgraph.edges.length }} relationships. A
-      dashed outline marks a synthetic node; select a node to open it.
+      dashed outline marks a synthetic node; select a node to open it (sanction records stay in the
+      graph and do not open).
       <strong v-if="props.subgraph.truncated">
         The graph was cut at {{ props.subgraph.limits.max_nodes }} nodes and
         {{ props.subgraph.limits.max_edges }} relationships.
@@ -77,9 +80,12 @@ onBeforeUnmount(() => {
       <summary>Nodes in this graph ({{ props.subgraph.nodes.length }})</summary>
       <ul>
         <li v-for="node in props.subgraph.nodes" :key="node.id" class="row">
-          <RouterLink :to="{ name: 'entity', params: { id: node.id } }">{{
-            node.caption
-          }}</RouterLink>
+          <RouterLink
+            v-if="opensEntityPage(node)"
+            :to="{ name: 'entity', params: { id: node.id } }"
+            >{{ node.caption }}</RouterLink
+          >
+          <span v-else>{{ node.caption }}</span>
           <span class="muted">{{ node.schema }}</span>
           <EntityBadges :flags="node.flags" :datasets="datasetsOf(node.properties)" />
         </li>

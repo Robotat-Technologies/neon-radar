@@ -84,6 +84,35 @@ describe('createApiClient', () => {
     expect(error).toMatchObject({ status: 404, problem, message: problem.detail })
   })
 
+  it('reports a 422 problem with the failed checks as its detail', async () => {
+    const problem: Problem = {
+      type: 'about:blank',
+      title: 'Unprocessable Content',
+      status: 422,
+      detail: 'query.q: String should have at least 2 characters',
+      instance: '/api/v1/search',
+    }
+    const fetch = mockFetch(jsonResponse(problem, 422, 'application/problem+json'))
+    const error = await createApiClient({ fetch })
+      .search({ q: 'f' })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 422, problem, message: problem.detail })
+  })
+
+  it('reports a 501 problem as the contract example has it', async () => {
+    const problem = readExample<Problem>('c3/problem-501.json')
+    expect(problem.status).toBe(501)
+    const fetch = mockFetch(jsonResponse(problem, 501, 'application/problem+json'))
+    const error = await createApiClient({ fetch })
+      .getMeta()
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 501, problem, message: problem.detail })
+  })
+
   it('keeps the status line when the error body is not a problem', async () => {
     const fetch = mockFetch(
       new Response('upstream down', { status: 502, statusText: 'Bad Gateway' }),

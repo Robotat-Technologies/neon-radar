@@ -8,8 +8,9 @@ import type { EntityDetail, Subgraph } from '@/api/types'
 import AlertList from '@/components/AlertList.vue'
 import EntityBadges from '@/components/EntityBadges.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
+import ExternalLink from '@/components/ExternalLink.vue'
 import GraphCanvas from '@/components/GraphCanvas.vue'
-import { formatValue, humanizeKey } from '@/lib/format'
+import { formatValue, humanizeKey, safeHref } from '@/lib/format'
 import { useMetaStore } from '@/stores/meta'
 
 const props = defineProps<{ id: string }>()
@@ -148,10 +149,10 @@ function openNode(id: string): void {
         <ul class="plain-list">
           <li v-for="record in detail.provenance" :key="`${record.dataset}-${record.record_id}`">
             {{ metaStore.datasetTitle(record.dataset) }}, record {{ record.record_id }}
-            <template v-if="record.source_url">
-              (<a :href="record.source_url" rel="noopener noreferrer" target="_blank">source page</a
-              >)
+            <template v-if="safeHref(record.source_url)">
+              (<ExternalLink :href="record.source_url">source page</ExternalLink>)
             </template>
+            <template v-else-if="record.source_url">(source: {{ record.source_url }})</template>
           </li>
         </ul>
       </section>

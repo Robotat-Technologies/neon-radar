@@ -42,6 +42,14 @@ export function toCytoscapeElements(subgraph: Subgraph): ElementDefinition[] {
   return [...nodes, ...edges]
 }
 
+/**
+ * Whether a node opens on the entity page. `:Sanction` nodes are sanction records, not entities:
+ * they are shown in the graph but not opened as an entity.
+ */
+export function opensEntityPage(node: Pick<GraphNode, 'schema'>): boolean {
+  return node.schema !== 'Sanction'
+}
+
 /** The label drawn on an edge: the amount for a payment, otherwise the relationship type. */
 export function edgeLabel(edge: Pick<GraphEdge, 'type' | 'properties'>): string {
   const { amount, currency } = edge.properties

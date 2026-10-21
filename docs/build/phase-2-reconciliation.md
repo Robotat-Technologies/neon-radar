@@ -40,8 +40,9 @@ Class: **D** decided, **M** mechanical (noted, no question), **Q** question for 
 | A8 | The two agent edits quote PHASE-1.md M1.2 wording | `reviewer.md` wraps the guardrail line over two lines; otherwise the merged text is the PHASE-1.md text | M | Same edits applied to the merged text |
 | A9 | "CODEOWNERS regenerated with the rows in 4.3" | `scripts/generate_codeowners.py` holds the ownership map in code | M | The 4.3 rows are added to the script's map, then `.github/CODEOWNERS` is regenerated |
 | A10 | Phase 2 dates in 1.3 (`phase_2_start` 26 October, freeze 29 October, labelling 2 November) | `project.yaml` shifted Phase 1 by three working days (`gate_1` 28 October) | M | The 1.3 dates are written as given; all dates are informational (OD-1) |
-| A11 | `neonradar data purge --graph` stops `neo4j-real` and deletes its volume (4.5) | New in Phase 2 | M | Note for M2.2: `neo4j-real` keeps its logs inside the container, not on a volume, so the purge also removes the container (`docker compose --profile real rm -sf neo4j-real`) before it deletes the volume |
+| A11 | `neonradar data purge --graph` stops `neo4j-real` and deletes its volume (4.5) | New in Phase 2 | M | Note for M2.2: `neo4j-real` keeps its logs inside the container, not on a volume, so the purge also removes the container (`docker compose --profile real rm -sf neo4j-real`) before it deletes the volume. Docker names the volume `neonradar_neo4j-real-data` (the Compose project name `neonradar`, then the volume key) |
 | A12 | Rule from now on: every Cypher statement that new or changed code runs lives in a `.cypher` file | Phase 1 runs several statements from Python strings (section 3) | M | They move into files when a later milestone touches that code, not in M2.0 |
+| A13 | Deny `Read(./data/cache/real/**)`, `Read(./data/cache/spikes/**)`, `Edit(./data/cache/**)` and `Write(./data/cache/**)` (M2.0 item 2) | Claude Code's permissions documentation (code.claude.com/docs/en/permissions, read 22 October 2026): `./path` and `path` are relative to the current directory, `/path` to the settings source (the primary working directory for project settings), `//path` is absolute. Path rules for `Write` are accepted but never consulted, with a warning at startup; `Edit` rules cover every tool that writes files, and a `Read` deny also blocks writes to the same path | M (2.7: the spec seems wrong, small and mechanical); Q tech lead | The spec's four entries stay as written. `Read(/data/cache/real/**)`, `Read(/data/cache/spikes/**)` and `Edit(/data/cache/**)` are added, so the rules hold wherever the session's current folder is. Question: drop the no-op `Write(./data/cache/**)`, which only causes the startup warning |
 
 ### 2.2 Record ids (PHASE-2.md 4.4)
 
@@ -138,7 +139,7 @@ The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and
 
 ## 5. Questions, by person
 
-**Tech lead:** A5 (`.mcp.json` and the hook, with #19), B5 (ICIJ relationship id key), B6 (list and Parliament id forms against `make_id`), C6 (GLEIF name types and C1 R10), C8 (ICIJ address roles), C11 (D5 and repeated ICIJ node ids), D8 (`opensanctions_default` status), E1 (`POSSIBLY_SAME_AS` in C3), E2 (I11 and sub-topics), E4 (relationship upsert template), E11 (where detection runs on real data write).
+**Tech lead:** A5 (`.mcp.json` and the hook, with #19), A13 (the no-op `Write` deny rule), B5 (ICIJ relationship id key), B6 (list and Parliament id forms against `make_id`), C6 (GLEIF name types and C1 R10), C8 (ICIJ address roles), C11 (D5 and repeated ICIJ node ids), D8 (`opensanctions_default` status), E1 (`POSSIBLY_SAME_AS` in C3), E2 (I11 and sub-topics), E4 (relationship upsert template), E11 (where detection runs on real data write).
 
 **Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors).
 

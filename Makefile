@@ -41,7 +41,7 @@ contracts-check: ## contract tests and drift checks (models against the committe
 	uv run neonradar contracts check
 
 cypher-lint: ## lint every .cypher file under graph/, detect/ and api/ with Cypher 5 rules
-	npm ci --prefix scripts/cypher-lint --silent && node scripts/cypher-lint/lint.mjs
+	npm ci --prefix scripts/cypher-lint --ignore-scripts --silent && node scripts/cypher-lint/lint.mjs
 
 check: lint typecheck test contracts-check cypher-lint ## everything a pull request needs
 	@if [ -f ui/package.json ]; then \

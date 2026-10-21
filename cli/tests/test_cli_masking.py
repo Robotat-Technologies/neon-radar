@@ -163,10 +163,43 @@ def test_validate_records_keeps_values_and_ids_for_synthetic_records(tmp_path: P
             "first_seen 19790801 is not an ISO 8601 date",
             "first_seen <value> is not an ISO 8601 date",
         ),
+        (
+            "nr.Test\nHolder: Extra inputs are not permitted",
+            "nr.<value>: Extra inputs are not permitted",
+        ),
+        (
+            "nr.address_roles.gbch-addr-T42\nSECRET: Input should be a valid string",
+            "nr.address_roles.<value>: Input should be a valid string",
+        ),
+        ("first_seen 1979 is not an ISO 8601 date", "first_seen <value> is not an ISO 8601 date"),
+        (
+            "last_change [1979, 'x'] is not an ISO 8601 date",
+            "last_change <value> is not an ISO 8601 date",
+        ),
+        (
+            "datasets must list exactly one slug from contracts/datasets.yaml (got 1979); create"
+            " records with ValueEntity(model[schema], {'id': ..., 'datasets': [slug]})",
+            "datasets must list exactly one slug from contracts/datasets.yaml (got <value>); create"
+            " records with ValueEntity(model[schema], {<value>: ..., <value>: [slug]})",
+        ),
     ],
 )
 def test_mask_nr_paths_and_numbers(message: str, masked: str) -> None:
     assert masking.mask(message) == masked
+
+
+def test_one_issue_is_one_line_whatever_the_message_holds(tmp_path: Path) -> None:
+    real = _lookalike(nr={"v": "1.0", "Test\nHolder\r\u2028Alias": 1})
+    synthetic = {**_synthetic(), "id": "syn-co-0098", "properties": {"nme\nx": ["Example"]}}
+    path = tmp_path / "lines.ftm.jsonl"
+    path.write_text(_line(real) + _line(synthetic), encoding="utf-8")
+    result = runner.invoke(app, ["contracts", "validate-records", str(path)])
+    assert result.exit_code == 1
+    issues = [line for line in result.output.splitlines() if line.startswith(f"{path}:")]
+    assert f"{path}:1: NR: nr.<value>: Extra inputs are not permitted" in issues
+    assert any(line.startswith(f"{path}:2: R3 syn-co-0098: ") and "\\n" in line for line in issues)
+    assert "Holder" not in result.output and "Alias" not in result.output
+    assert len(result.output.splitlines()) == len(issues) + 3  # 2 count lines and FAILED
 
 
 def test_hide_real_ids_keeps_synthetic_ids() -> None:

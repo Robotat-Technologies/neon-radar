@@ -37,10 +37,12 @@ class Server:
         return HttpClient(BASE, limiter=limiter, transport=transport, sleep=self.sleep, **kwargs)
 
 
-def test_sends_the_user_agent_and_the_timeouts() -> None:
-    server = Server(httpx.Response(200, json={"ok": True}))
+def test_sends_the_user_agent_and_the_timeouts_and_spaces_requests() -> None:
+    server = Server(httpx.Response(200, json={"ok": True}), httpx.Response(200))
     client = server.client(headers={"User-Agent": "other", "Accept": "application/json"})
     assert client.get_json("/records", {"page[size]": 1}) == {"ok": True}
+    client.head("/records")
+    assert (server.sleeps, client.requests) == ([1.0], 2)  # the limiter: 1 per second
     request = server.seen[0]
     assert request.url == f"{BASE}/records?page%5Bsize%5D=1"
     assert request.headers["User-Agent"] == "NeonRadar/0.1.0 (+https://neonradar.com)"

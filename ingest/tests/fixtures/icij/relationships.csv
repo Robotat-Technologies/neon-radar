@@ -1,0 +1,21 @@
+# synthetic: true
+node_id_start,node_id_end,rel_type,link,status,start_date,end_date,sourceID
+9900000001,9900000401,registered_address,registered address,,,,Panama Papers
+9900000101,9900000401,registered_address,registered address,,,,Panama Papers
+9900000002,9900000402,registered_address,mailing address; residential address,,,,Bahamas Leaks
+9900000201,9900000001,intermediary_of,intermediary of,,,,Panama Papers
+9900000101,9900000001,officer_of,shareholder of,,23-MAR-2006,,Panama Papers
+9900000101,9900000001,officer_of,shareholder of,,23-MAR-2006,,Panama Papers
+9900000102,9900000001,officer_of,Nominee Director of,,23-MAR-2006,15-JAN-2010,Panama Papers
+9900000101,9900000002,officer_of,beneficial owner of,,21-AUG-0200,,Panama Papers
+9900000102,9900000002,officer_of,secretary of,,01-JUL-2006,01/01/2012,Panama Papers
+9900000301,9900000002,officer_of,auditor of,,,,Paradise Papers - Appleby
+9900000001,9900000301,officer_of,director of,,,,Panama Papers
+9900000002,9900000001,related_entity,related entity,,,,Panama Papers
+9900000001,9900000002,same_as,same name and registration date as,,,,
+9900000001,9900000004,officer_of,shareholder of,,,,Panama Papers
+9900000103,9900000002,officer_of,director of,,,,Panama Papers
+9900000201,9900000003,intermediary_of,intermediary of,,,,Panama Papers
+9900000101,9900000104,same_name_as,same name as,,,,
+9900000104,9900000004,officer_of,director of,,,,Bahamas Leaks
+9900000401,9900000402,same_address_as,same address as,,,,

@@ -28,6 +28,8 @@ NOT_FOUND: Final = "No entity has this id."
 # Full-text hits read before the label filter; `total_estimate` counts within this window.
 SEARCH_WINDOW: Final = 200
 LUCENE_SPECIAL: Final = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
+# The classic query parser's operators, as whole words.
+OPERATOR: Final = re.compile(r"(?<!\S)(AND|OR|NOT)(?!\S)")
 WORD: Final = re.compile(r"\w+")
 
 FULLTEXT: Final = """
@@ -66,7 +68,7 @@ _HOP: Final = """
 CALL (seen, frontier) {
   UNWIND frontier AS h
   MATCH (h)-[r]-(x)
-  WHERE type(r) IN $types AND NOT x IN seen
+  WHERE type(r) IN $types AND (x:Entity OR x:Sanction) AND NOT x IN seen
   WITH DISTINCT x LIMIT $max_nodes
   RETURN collect(x) AS found
 }
@@ -94,9 +96,12 @@ NETWORK: Final[dict[int, LiteralString]] = {
 
 
 def lucene_query(text: str) -> str:
-    """The user's text as plain Lucene terms: lower case (so AND, OR and NOT are words, not
-    operators; the analyzer lowercases anyway) with every special character escaped."""
-    return LUCENE_SPECIAL.sub(r"\\\1", text.lower())
+    """The user's text as plain Lucene terms: every special character escaped, and the operator
+    words AND, OR and NOT in lower case so they are searched as words. The rest is left to the
+    index analyzer: Python lowercases some letters differently from Lucene (Turkish dotted I,
+    Greek final sigma), so lowercasing the whole text would lose hits."""
+    escaped = LUCENE_SPECIAL.sub(r"\\\1", text)
+    return OPERATOR.sub(lambda found: found[0].lower(), escaped)
 
 
 def matched_name(names: list[str], caption: str, text: str) -> str:
@@ -161,7 +166,7 @@ def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
     node = records[0]["node"]
     counts: list[tuple[RelationshipType, int]] = records[0]["counts"]
     props = node["props"]
-    flagged = alerts.queue(graph, entity_id=entity_id, limit=MAX_ENTITY_ALERTS)
+    flagged = alerts.queue(graph, entity_id=str(props["id"]), limit=MAX_ENTITY_ALERTS)
     return EntityDetail(
         entity=shapes.summary(node),
         names=[str(name) for name in props.get("names") or []],

@@ -1,8 +1,10 @@
 """`GET /meta`, `GET /typologies` and `GET /typologies/{slug}` (contracts/C3-api.md).
 
 Meta answers even when Neo4j cannot be read, so the disclaimers are always available: every
-`record_count` is then null and both count maps are empty. Typologies come from the catalog
-(`load_catalog()`) with the explainer Markdown from `docs/typologies/` when it exists.
+`record_count` is then null and both count maps are empty. Its registry and disclaimers come
+from the contracts package (`load_registry()`, `load_disclaimer()`), never from NR_REPO_ROOT.
+Typologies come from the catalog (`load_catalog()` under NR_REPO_ROOT) with the explainer
+Markdown from `docs/typologies/` when it exists.
 """
 
 import logging
@@ -17,11 +19,14 @@ from neonradar_api.problems import ProblemError
 from neonradar_contracts import versions
 from neonradar_contracts.api import (
     DatasetInfo,
+    Disclaimers,
     GraphCounts,
     MetaResponse,
     TypologyDetail,
     TypologySummary,
 )
+from neonradar_contracts.datasets import load_registry
+from neonradar_contracts.wording import load_disclaimer
 from neonradar_detect.catalog import TypologyFile
 from neonradar_graph.loader import STATS
 
@@ -33,7 +38,7 @@ NO_COUNTS: Final = GraphCounts(nodes_by_label={}, relationships_by_type={})
 RECORD_COUNTS: Final = """
 MATCH (n:Entity|Sanction)
 UNWIND n.datasets AS slug
-RETURN slug, count(*) AS count
+RETURN slug, count(DISTINCT n) AS count
 """
 
 
@@ -57,7 +62,8 @@ def _graph_counts(graph: GraphConnection) -> GraphCounts:
     )
 
 
-def meta(graph: GraphConnection, files: RepoFiles) -> MetaResponse:
+def meta(graph: GraphConnection) -> MetaResponse:
+    """The contract files come from the contracts package (C3), never from NR_REPO_ROOT."""
     counts = _record_counts(graph)
     datasets = [
         DatasetInfo(
@@ -71,14 +77,18 @@ def meta(graph: GraphConnection, files: RepoFiles) -> MetaResponse:
             record_count=None if counts is None else counts.get(dataset.slug, 0),
             loaded_at=None,
         )
-        for dataset in files.registry().datasets
+        for dataset in load_registry().datasets
     ]
     return MetaResponse(
         app_version=__version__,
         contracts_version=versions.CONTRACTS,
         schema_version=versions.GRAPH_SCHEMA,
         datasets=datasets,
-        disclaimers=files.disclaimers(),
+        disclaimers=Disclaimers(
+            standing=load_disclaimer("standing-v1"),
+            synthetic_demo=load_disclaimer("synthetic-demo-v1"),
+            real_data=load_disclaimer("real-data-v1"),
+        ),
         counts=NO_COUNTS if counts is None else _graph_counts(graph),
     )
 

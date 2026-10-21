@@ -220,3 +220,23 @@ def test_an_unavailable_graph_answers_a_503_problem_without_internals() -> None:
         problem = _problem(test_client.get("/needs-graph"), 503)
     assert problem.title == "Service Unavailable"
     assert problem.detail == "The graph database is not available."
+
+
+def test_only_the_allowed_hosts_are_answered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A page whose domain is rebound to 127.0.0.1 (DNS rebinding) sends its own Host."""
+    monkeypatch.delenv("NR_ALLOWED_HOSTS")  # the defaults: localhost, 127.0.0.1, api
+    with TestClient(create_app(OfflineGraph()), base_url="http://localhost:8000") as client:
+        assert client.get(f"{P}/health").status_code == 200
+        for host in ("127.0.0.1:8000", "api:8000", "localhost:5173"):
+            assert client.get(f"{P}/health", headers={"host": host}).status_code == 200
+        refused = client.get(f"{P}/health", headers={"host": "evil.example"})
+        assert refused.status_code == 400
+        preflight = client.options(
+            f"{P}/health",
+            headers={
+                "host": "evil.example",
+                "origin": "http://localhost:5173",
+                "access-control-request-method": "GET",
+            },
+        )
+        assert preflight.status_code == 400

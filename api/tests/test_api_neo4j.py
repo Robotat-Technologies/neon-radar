@@ -2,7 +2,9 @@
 
 Expected values come from the fixture files through the C2 mapping and from the run report,
 never from hard-coded demo-mini names or counts (the fixture is regenerated). Every response
-is validated against its C3 model.
+is validated against its C3 model. Three synthetic records built here (never committed as a
+fixture) join the load: a Sanction on the first demo-mini Company (a `:Sanction` node reached
+through SUBJECT_OF) and two Addresses whose names Python lowercases differently from Lucene.
 """
 
 from collections import Counter
@@ -31,16 +33,58 @@ from neonradar_contracts.api import (
     TypologySummary,
 )
 from neonradar_detect import runner
-from neonradar_graph.loader import collect_files, load_files, read_records, wipe
+from neonradar_graph.loader import collect_files, load_records, read_records, wipe
 from neonradar_graph.mapping import NodeRow, RelationshipRow, to_node_rows, to_relationship_rows
 from neonradar_graph.migrate import migrate
 
-from .conftest import REPO_ROOT
+from .conftest import REPO_ROOT, TEST_HOSTS
 
 pytestmark = pytest.mark.integration
 
 P = "/api/v1"
 DEMO_MINI = REPO_ROOT / "data" / "fixtures" / "demo-mini"
+SANCTION = "syn-sanction-t0001"
+TURKISH, GREEK = "İstanbul", "ΘΕΣΣΑΛΟΝΙΚΗΣ"  # dotted capital I; a final capital sigma
+
+
+def synthetic(rid: str, schema: str, **props: list[str]) -> dict[str, Any]:
+    return {
+        "id": rid,
+        "schema": schema,
+        "datasets": ["nr_synthetic"],
+        "referents": [],
+        "properties": props,
+        "nr": {"v": "1.0", "synthetic": True, "synthetic_kind": "registry"},
+    }
+
+
+def extra_records(demo: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    company = next(record["id"] for record in demo if record["schema"] == "Company")
+    return [
+        synthetic(
+            SANCTION,
+            "Sanction",
+            entity=[company],
+            authority=["Synthetic Test Authority"],
+            program=["Synthetic test programme"],
+        ),
+        synthetic("syn-addr-t-tr", "Address", full=[TURKISH], city=[TURKISH], country=["tr"]),
+        synthetic("syn-addr-t-gr", "Address", full=[GREEK], city=[GREEK], country=["gr"]),
+    ]
+
+
+def breadth_first(rels: list[RelationshipRow], root: str, depth: int) -> set[str]:
+    """The nodes within `depth` hops of `root`, either direction, over every record type."""
+    seen, frontier = {root}, {root}
+    for _ in range(depth):
+        frontier = {
+            end
+            for r in rels
+            for start, end in ((r.source, r.target), (r.target, r.source))
+            if start in frontier and end not in seen
+        }
+        seen |= frontier
+    return seen
 
 
 class SessionGraph(GraphConnection):
@@ -68,7 +112,9 @@ class Stack:
 def stack(neo4j: Neo4jTarget, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Stack]:
     wipe(neo4j.driver, neo4j.database)
     migrate(neo4j.driver, neo4j.database)
-    report = load_files(neo4j.driver, [DEMO_MINI], database=neo4j.database)
+    demo = read_records(collect_files([DEMO_MINI]))
+    records = [*demo, *extra_records(demo)]
+    report = load_records(neo4j.driver, records, database=neo4j.database)
     assert not report.failed
     run = runner.run(
         neo4j.driver,
@@ -77,9 +123,9 @@ def stack(neo4j: Neo4jTarget, tmp_path_factory: pytest.TempPathFactory) -> Itera
         runs_dir=tmp_path_factory.mktemp("runs"),
     )
     assert run.alerts, "demo-mini's round_trip scenario gives at least one alert"
-    records = read_records(collect_files([DEMO_MINI]))
     graph = SessionGraph(neo4j)
-    with TestClient(create_app(graph, RepoFiles(REPO_ROOT))) as client:
+    app = create_app(graph, RepoFiles(REPO_ROOT), allowed_hosts=TEST_HOSTS)
+    with TestClient(app) as client:
         yield Stack(
             client, graph, run, to_node_rows(records).rows, to_relationship_rows(records).rows
         )
@@ -168,15 +214,17 @@ def test_the_network_follows_the_mapping_and_caps_its_size(stack: Stack) -> None
     root = stack.run.alerts[0].subjects[0].entity_id
     url = f"{P}/entities/{root}/network"
     one = Subgraph.model_validate_json(ok(stack.client.get(url)))
-    neighbours = {
-        r.target if r.source == root else r.source
-        for r in stack.rels
-        if root in (r.source, r.target)
+    near = breadth_first(stack.rels, root, 1)
+    assert {node.id for node in one.nodes} == near
+    assert {edge.id for edge in one.edges} == {
+        r.id for r in stack.rels if r.source in near and r.target in near
     }
-    assert {node.id for node in one.nodes} == {root} | neighbours
     assert not one.truncated
-    two = Subgraph.model_validate_json(ok(stack.client.get(url, params={"depth": 2})))
-    assert {node.id for node in one.nodes} <= {node.id for node in two.nodes}
+    for depth in (2, 3):
+        params = {"depth": depth, "max_nodes": 500}
+        wider = Subgraph.model_validate_json(ok(stack.client.get(url, params=params)))
+        assert {node.id for node in wider.nodes} == breadth_first(stack.rels, root, depth)
+        assert not wider.truncated
     paid = Subgraph.model_validate_json(ok(stack.client.get(url, params={"rel_types": "PAID"})))
     assert {edge.type for edge in paid.edges} == {"PAID"}
     capped = Subgraph.model_validate_json(
@@ -228,3 +276,52 @@ def test_an_alert_comes_with_its_complete_evidence(stack: Stack) -> None:
 def test_typologies_are_served_from_the_catalog(stack: Stack) -> None:
     items = [TypologySummary.model_validate(t) for t in stack.client.get(f"{P}/typologies").json()]
     assert "circular_flow" in [t.slug for t in items if t.detector_available]
+
+
+def test_a_sanction_node_is_an_entity_reached_through_subject_of(stack: Stack) -> None:
+    listed = next(r.source for r in stack.rels if r.type == "SUBJECT_OF" and r.target == SANCTION)
+    sanction = EntityDetail.model_validate_json(ok(stack.client.get(f"{P}/entities/{SANCTION}")))
+    assert (sanction.entity.schema_, sanction.entity.labels) == ("Sanction", ["Sanction"])
+    assert sanction.relationship_counts == {"SUBJECT_OF": 1}
+    assert sanction.properties["authority"] == "Synthetic Test Authority"
+    url = f"{P}/entities/{SANCTION}/network"
+    network = Subgraph.model_validate_json(ok(stack.client.get(url)))
+    assert {node.id for node in network.nodes} == {SANCTION, listed}
+    assert [edge.type for edge in network.edges] == ["SUBJECT_OF"]
+    company = EntityDetail.model_validate_json(ok(stack.client.get(f"{P}/entities/{listed}")))
+    assert company.relationship_counts["SUBJECT_OF"] == 1
+    assert company.entity.flags.sanctioned is False  # only source topics set the flag (C2)
+    found = SearchResponse.model_validate_json(
+        ok(stack.client.get(f"{P}/search", params={"q": "Synthetic Test Authority"}))
+    )
+    assert SANCTION not in [hit.entity.id for hit in found.items]  # search never lists them
+
+
+def test_search_filters_on_supertype_labels(stack: Stack) -> None:
+    person = next(row for row in stack.nodes if row.schema == "Person")
+    word = str(person.props["names"][0]).split()[-1]
+    for labels, schemas in (
+        ("LegalEntity", {"Person", "Company", "Organization", "PublicBody", "LegalEntity"}),
+        ("Organization", {"Company", "Organization", "PublicBody"}),
+    ):
+        params = {"q": word, "labels": labels, "limit": 50}
+        found = SearchResponse.model_validate_json(
+            ok(stack.client.get(f"{P}/search", params=params))
+        )
+        assert {hit.entity.schema_ for hit in found.items} <= schemas
+    legal = SearchResponse.model_validate_json(
+        ok(
+            stack.client.get(
+                f"{P}/search", params={"q": word, "labels": "LegalEntity", "limit": 50}
+            )
+        )
+    )
+    assert person.id in [hit.entity.id for hit in legal.items]
+
+
+@pytest.mark.parametrize("name", [TURKISH, GREEK])
+def test_search_leaves_lowercasing_to_the_index(stack: Stack, name: str) -> None:
+    found = SearchResponse.model_validate_json(
+        ok(stack.client.get(f"{P}/search", params={"q": name, "labels": "Address"}))
+    )
+    assert [hit.matched_name for hit in found.items] == [name]

@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from neonradar_contracts.records import Manifest, validate_files
+from neonradar_ingest.http import RateLimiter
 from neonradar_ingest.sources.companies_house.client import BASE_URL, CompaniesHouseClient
 from neonradar_ingest.sources.companies_house.spike import CompanyNotFound, run_spike
 
@@ -32,8 +33,8 @@ def serve(request: httpx.Request) -> httpx.Response:
 
 
 def client() -> CompaniesHouseClient:
-    http = httpx.Client(base_url=BASE_URL, transport=httpx.MockTransport(serve))
-    return CompaniesHouseClient(http, sleep=lambda seconds: None)
+    limiter = RateLimiter(1.0, clock=lambda: 0.0, sleep=lambda seconds: None)
+    return CompaniesHouseClient("SYN-KEY", transport=httpx.MockTransport(serve), limiter=limiter)
 
 
 def spike(out: Path, company: str = "syn00001", **kwargs: int) -> Any:
@@ -55,7 +56,7 @@ def test_the_spike_writes_valid_records_and_a_manifest(tmp_path: Path) -> None:
     assert manifest.counts.skipped == {"psc:super-secure-person-with-significant-control": 1}
     assert manifest.source.retrieved_at == "2026-10-21T09:30:00Z"
     assert manifest.source.urls[0] == f"{BASE_URL}/company/SYN00001"
-    assert result.log.requests == 4  # profile, two officer pages, one PSC page
+    assert result.requests == 4  # profile, two officer pages, one PSC page
     lines = [json.loads(line) for line in result.records_path.read_text("utf-8").splitlines()]
     assert lines == load("records-SYN00001.expected.json")
 
@@ -64,7 +65,7 @@ def test_the_summary_has_counts_and_field_names_but_no_register_values(tmp_path:
     text = "\n".join(spike(tmp_path).summary())
     assert "officer appointments: 5 (1 corporate, 20%)" in text
     assert "'SURNAME, Forenames': 4 of 4 (100%)" in text
-    assert "officers 2" in text
+    assert "pages: officers 2, persons-with-significant-control 1; status codes: 200 4" in text
     assert "psc.appointment_verification_start_on 2" in text
     for value in ("HADDAD", "Haddad", "QUILLON", "Example Street", "1979", "SYNoff"):
         assert value not in text

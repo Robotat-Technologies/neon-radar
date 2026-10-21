@@ -1,21 +1,22 @@
 """Companies House Public Data REST API client (PHASE-1.md M1.8a steps 2 to 4).
 
 The API key is the HTTP basic auth username with an empty password. The limit is 600 requests
-per 5 minutes; a request over it gets 429 for the rest of the window, so on 429 the client
-waits until `X-Ratelimit-Reset` (epoch seconds, community-reported) or 300 seconds, records
-the wait and tries again. Lists page with `items_per_page` and `start_index`; the server may
-return fewer items than asked for, so the next page starts after the items received.
+per 5 minutes; a request over it gets 429 for the rest of the window, so after a 429 the
+shared `HttpClient` waits until `X-Ratelimit-Reset` (epoch seconds, community-reported) or
+300 seconds, and this client records the wait. Lists page with `items_per_page` and
+`start_index`; the server may return fewer items than asked for, so the next page starts
+after the items received.
 """
 
-import logging
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 
 import httpx
 
-logger = logging.getLogger(__name__)
+from neonradar_ingest.http import HttpClient, HttpError, RateLimiter, redact
 
 BASE_URL = "https://api.company-information.service.gov.uk"
 # 600 requests per 5 minutes is 2 per second; the limiter runs at that rate (M1.8a step 3).
@@ -23,22 +24,23 @@ REQUESTS_PER_WINDOW = 600
 WINDOW_SECONDS = 300.0
 REQUESTS_PER_SECOND = REQUESTS_PER_WINDOW / WINDOW_SECONDS
 PAGE_SIZE = 100  # the community-reported ceiling of the officers list
-MAX_RATE_LIMIT_WAITS = 3
-
-
-class CompaniesHouseError(RuntimeError):
-    """The API answered with an error the client does not retry."""
 
 
 @dataclass
 class RequestLog:
-    """What the spike report needs about the traffic; never keys, headers or bodies."""
+    """What the spike report needs about the traffic; never keys, header values or bodies."""
 
-    requests: int = 0
     pages: dict[str, int] = field(default_factory=dict)
     rate_limit_waits: list[float] = field(default_factory=list)
     rate_limit_headers: set[str] = field(default_factory=set)
     status_codes: dict[int, int] = field(default_factory=dict)
+
+    def see(self, response: httpx.Response) -> None:
+        code = response.status_code
+        self.status_codes[code] = self.status_codes.get(code, 0) + 1
+        self.rate_limit_headers.update(
+            name.lower() for name in response.headers if name.lower().startswith("x-ratelimit-")
+        )
 
 
 def reset_wait(headers: httpx.Headers, now: float) -> float:
@@ -50,52 +52,69 @@ def reset_wait(headers: httpx.Headers, now: float) -> float:
 
 
 class CompaniesHouseClient:
-    """Typed reads of the three spike endpoints over an `httpx.Client`.
-
-    `http` carries the base URL, the basic auth, timeouts, the User-Agent and the client-side
-    rate limiter (see `neonradar_ingest.sources.companies_house.spike.open_client`).
-    """
+    """Reads of the three spike endpoints through the shared, rate-limited `HttpClient`."""
 
     def __init__(
         self,
-        http: httpx.Client,
+        api_key: str,
         *,
         page_size: int = PAGE_SIZE,
+        transport: httpx.BaseTransport | None = None,
+        limiter: RateLimiter | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.time,
     ) -> None:
-        self._http = http
-        self._page_size = page_size
-        self._sleep = sleep
-        self._clock = clock
         self.log = RequestLog()
+        self._page_size, self._clock = page_size, clock
+        self._http = HttpClient(
+            BASE_URL,
+            follow_redirects=True,  # httpx drops the Authorization header on another host
+            limiter=limiter or RateLimiter(REQUESTS_PER_SECOND, sleep=sleep),
+            retry_hint=self._retry_hint,
+            max_hint=WINDOW_SECONDS,
+            sleep=sleep,
+            auth=httpx.BasicAuth(api_key, ""),
+            transport=transport,
+        )
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        error: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self._http.close()
+
+    @property
+    def requests(self) -> int:
+        """Requests sent, retries included."""
+        return self._http.requests
+
+    def _retry_hint(self, response: httpx.Response) -> float | None:
+        """After a 429, wait for the window to reset and record it; otherwise back off."""
+        self.log.see(response)
+        if response.status_code != 429:
+            return None
+        wait = reset_wait(response.headers, self._clock())
+        self.log.rate_limit_waits.append(wait)
+        return wait
 
     def get_json(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
-        """GET `path`; None on 404. Waits out a 429 window up to three times."""
-        waits = 0
-        while True:
-            response = self._http.get(path, params=params)
-            self.log.requests += 1
-            code = response.status_code
-            self.log.status_codes[code] = self.log.status_codes.get(code, 0) + 1
-            self.log.rate_limit_headers.update(
-                name for name in response.headers if name.lower().startswith("x-ratelimit-")
-            )
-            if code == 429 and waits < MAX_RATE_LIMIT_WAITS:
-                waits += 1
-                wait = reset_wait(response.headers, self._clock())
-                self.log.rate_limit_waits.append(wait)
-                logger.warning("Companies House rate limit reached; waiting %.0f s", wait)
-                self._sleep(wait)
-                continue
-            if code == 404:
-                return None
-            if code >= 400:
-                raise CompaniesHouseError(f"GET {path} answered HTTP {code}")
-            body = response.json()
-            if not isinstance(body, dict):
-                raise CompaniesHouseError(f"GET {path} did not answer with a JSON object")
-            return body
+        """GET `path`: None on 404, HttpError on other errors or a body that is not an object."""
+        response = self._http.get(path, params=params)
+        self.log.see(response)
+        where = f"GET {redact(response.request.url)}"
+        if response.status_code == 404:
+            return None
+        if response.is_error:
+            raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
+        body = response.json()
+        if not isinstance(body, dict):
+            raise HttpError(f"{where}: the body is not a JSON object", response.status_code)
+        return body
 
     def company(self, number: str) -> dict[str, Any] | None:
         """`/company/{number}`: the company profile, or None if the number is unknown."""

@@ -53,32 +53,28 @@ class SpikeResult:
     by_schema: dict[str, int]
     stats: MappingStats
     log: RequestLog
+    requests: int
     seconds: float
     notes: list[str]
 
     def summary(self) -> list[str]:
         """Printable lines: counts and field names only."""
         stats, log = self.stats, self.log
-        natural = stats.natural_appointments
+        natural, appointments = stats.natural_appointments, stats.appointments
         surname_share = stats.surname_first_names / natural if natural else 0.0
-        corporate_share = (
-            stats.corporate_appointments / stats.appointments if stats.appointments else 0.0
-        )
-        lines = [
+        corporate_share = stats.corporate_appointments / appointments if appointments else 0.0
+        pages = {path.rsplit("/", 1)[-1]: count for path, count in log.pages.items()}
+        waits = ", ".join(f"{wait:.0f} s" for wait in log.rate_limit_waits) or "none"
+        return [
             f"company {self.company_number}: {sum(self.by_schema.values())} records",
             *(f"  {schema}: {count}" for schema, count in sorted(self.by_schema.items())),
-            f"requests: {log.requests}; pages: "
-            + ", ".join(f"{path.rsplit('/', 1)[-1]} {n}" for path, n in sorted(log.pages.items())),
+            f"requests: {self.requests}; pages: {_counter(pages)};"
+            f" status codes: {_counter({str(k): v for k, v in log.status_codes.items()})}",
             f"time: {self.seconds:.1f} s; at {REQUESTS_PER_SECOND:g} requests/s the company costs"
-            f" {log.requests / REQUESTS_PER_SECOND:.1f} s",
-            f"rate limit: {len(log.rate_limit_waits)} wait(s)"
-            + (
-                f" ({', '.join(f'{w:.0f} s' for w in log.rate_limit_waits)})"
-                if log.rate_limit_waits
-                else ""
-            )
-            + f"; headers seen: {', '.join(sorted(log.rate_limit_headers)) or 'none'}",
-            f"officer appointments: {stats.appointments} ({stats.corporate_appointments} corporate,"
+            f" {self.requests / REQUESTS_PER_SECOND:.1f} s",
+            f"rate limit waits: {waits};"
+            f" headers seen: {', '.join(sorted(log.rate_limit_headers)) or 'none'}",
+            f"officer appointments: {appointments} ({stats.corporate_appointments} corporate,"
             f" {corporate_share:.0%}); natural names as 'SURNAME, Forenames':"
             f" {stats.surname_first_names} of {natural} ({surname_share:.0%})",
             "psc kinds: " + _counter(stats.psc_kinds),
@@ -91,7 +87,6 @@ class SpikeResult:
             f"records: {self.records_path}",
             f"manifest: {self.manifest_path}",
         ]
-        return lines
 
 
 def _counter(counter: dict[str, int]) -> str:
@@ -157,6 +152,7 @@ def run_spike(
         by_schema=by_schema,
         stats=mapper.stats,
         log=client.log,
+        requests=client.requests,
         seconds=clock() - started,
         notes=notes,
     )

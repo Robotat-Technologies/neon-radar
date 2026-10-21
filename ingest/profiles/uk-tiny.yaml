@@ -1,0 +1,46 @@
+# ingest/profiles/uk-tiny.yaml
+profile: uk-tiny
+description: >-
+  A small real slice for developers: the companies of a large group quoted on the London
+  Stock Exchange, found through Companies House PSC records, their officers and PSCs, their
+  GLEIF records and the sanctions lists. A test input for the loaders; implies nothing about
+  these companies.
+real_data: true
+sources:
+  gb_companies_house:
+    enabled: true
+    companies:
+      seeds: ["04190816", "01800000"]     # the Phase 1 spike pair: the group's holding company and its main subsidiary
+      postcode_districts: []
+      max_per_district: 0
+      max_companies: 400
+      sample_seed: 20261026
+    psc:
+      enabled: true
+      parent_depth: 4                     # follow corporate PSCs up to 4 levels, even outside the slice
+      child_depth: 3                      # add companies whose corporate PSC is in the set, 3 levels down
+      include_ceased: false
+    officers:
+      enabled: true
+      request_budget: 1500
+      cache_days: 30
+      appointments: false
+      active_only: false
+  gleif_lei:
+    enabled: true
+    scope: slice
+  icij_offshore_leaks:
+    enabled: false
+  gb_fcdo_sanctions: { enabled: true, keep_reasons: false, keep_positions: false }
+  us_ofac_sdn: { enabled: true, keep_reasons: false, keep_positions: false }
+  un_sc_sanctions: { enabled: true, keep_reasons: false, keep_positions: false }   # runs only if access.sanctions_lists allows it
+  eu_fsf: { enabled: true, keep_reasons: false, keep_positions: false }
+  gb_parliament_members:                  # runs only if access.pep_sources allows it; former members kept for access.pep_former_months
+    enabled: true
+    houses: [commons, lords]
+    request_budget: 3000
+    cache_days: 30
+  opensanctions_default: { enabled: false }
+resolution:
+  enabled: true
+  config: resolve/config/er.yaml

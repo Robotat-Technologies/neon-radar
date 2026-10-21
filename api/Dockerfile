@@ -19,6 +19,7 @@ WORKDIR /app
 
 # Third-party dependencies first, from the lock file and the workspace manifests only, so that a
 # code change does not rebuild PyICU; uv's build cache keeps the PyICU wheel when the lock changes.
+# One line per workspace member (scripts/tests/test_api_dockerfile.py checks the list).
 COPY pyproject.toml uv.lock ./
 COPY api/pyproject.toml api/
 COPY cli/pyproject.toml cli/
@@ -27,6 +28,8 @@ COPY copilot/pyproject.toml copilot/
 COPY detect/pyproject.toml detect/
 COPY graph/pyproject.toml graph/
 COPY ingest/pyproject.toml ingest/
+COPY keys/pyproject.toml keys/
+COPY resolve/pyproject.toml resolve/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --package neonradar-api --no-install-workspace
 

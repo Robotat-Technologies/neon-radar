@@ -47,7 +47,9 @@ PAYMENT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\Z")
 AMOUNT_RE = re.compile(r"^\d+(\.\d{1,2})?\Z")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}\Z")
 SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN\d{10}\Z")
-UTC_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z"  # pydantic (Rust) regex
+# pydantic patterns run on Rust regex, where `$` matches only at the very end (no final newline);
+# `$` rather than `\z` keeps the exported JSON Schema valid ECMA-262.
+UTC_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
 # Topics that set the C2 flag labels :Sanctioned, :PEP and :RCA; the only ones synthetic
 # records may carry (R9), so that no other topic can hint at a scenario.
 SYNTHETIC_TOPICS = frozenset({"sanction", "role.pep", "role.rca"})

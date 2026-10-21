@@ -1,0 +1,30 @@
+slug: cash_commingling
+name: Cash-intensive business commingling
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: extended                # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Cash from another source is mixed with the genuine takings of a business that handles a lot
+  of cash, so that the combined deposits look like revenue. In the graph it shows as a company
+  that deposits far more cash than similar companies and pays it on to related parties.
+doc: docs/typologies/cash-commingling.md
+citations: [ffiec_cash_intensive, europol_efecta_2023, egmont_100_cases, fatf_pml_2018, fatf_cash_transport_2015, ffiec_appendix_f]
+graph_pattern: >
+  An Account held by a Company whose inbound PAID relationships with channel cash_deposit
+  (from cash_ledger accounts) total far more than those of peer companies with the same
+  sector, deposited on days unrelated to trading, and whose outbound PAID relationships go to
+  accounts held by its owners or related parties (OWNS, CONTROLS, FAMILY_OF) rather than to
+  suppliers and payroll. Needs sector benchmarks; the generator documents its calibration
+  assumptions.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - A genuinely busy or growing cash business
+  - Seasonal peaks in trade
+  - A new branch or outlet
+synthetic_support: medium     # high | medium | low | none
+generator_scenario: null
+detector: null

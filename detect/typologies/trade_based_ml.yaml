@@ -1,0 +1,27 @@
+slug: trade_based_ml
+name: Trade-based money laundering (over- and under-invoicing)
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: explainer_only          # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Value is moved through trade by misrepresenting the price, quantity or quality of goods or
+  services. Explainer only: it teaches why payment data alone cannot show this typology.
+doc: docs/typologies/trade-based-ml.md
+citations: [fatf_egmont_tbml_2020, fatf_egmont_tbml_indicators_2021, fincen_fin_2014_a005, fincen_fin_2025_a003, fatf_pml_2018]
+graph_pattern: >
+  Not detectable in the C2 graph. Price, quantity and quality misrepresentation can only be
+  seen with invoices, shipments and price benchmarks, which C2 does not model. Payment-only
+  signals (third-party payments, circular routing, round amounts) are weak.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Ordinary price differences for quality, delivery terms, volume or exchange rates
+  - Transfer pricing between companies of one group
+  - Payments made by a trade finance or factoring company on a buyer's behalf
+  - Goods shipped through a trading hub on their way to the buyer
+synthetic_support: low        # high | medium | low | none
+generator_scenario: null
+detector: null

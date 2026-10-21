@@ -4,4 +4,10 @@
 
 One definition file per typology in `detect/typologies/` (the shape is in `contracts/C4-alert.md`) and a plain-language explainer for each in this folder. Every definition starts as `draft`; only a typology researcher sets it to `approved`.
 
-No typology files yet.
+| Slug | Name | Tier | Status | Owner | Detector |
+|---|---|---|---|---|---|
+| [`cash_commingling`](cash-commingling.md) | Cash-intensive business commingling | extended | draft | @robotat-com | no |
+| [`pep_exposure`](pep-exposure.md) | Exposure to politically exposed persons through ownership, control, family or associates | extended | draft | @robotat-com | no |
+| [`recycled_directors`](recycled-directors.md) | Recycled and professional directors | extended | draft | @robotat-com | no |
+| [`sanctions_exposure`](sanctions-exposure.md) | Sanctions exposure through indirect ownership or control | core | draft | @robotat-com | no |
+| [`trade_based_ml`](trade-based-ml.md) | Trade-based money laundering (over- and under-invoicing) | explainer_only | draft | @robotat-com | no |

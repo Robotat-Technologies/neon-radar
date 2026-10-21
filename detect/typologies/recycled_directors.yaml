@@ -1,0 +1,29 @@
+slug: recycled_directors
+name: Recycled and professional directors
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: extended                # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  One person or company is a director of many companies, often with appointments that start
+  and end in bursts, sometimes alongside relatives of the people who own or control those
+  companies, and the companies that share the director pay each other.
+doc: docs/typologies/recycled-directors.md
+citations: [fatf_egmont_concealment_2018, fincen_fin_2006_g014, europol_shadow_money_2021, fatf_glossary, fatf_tcsp_2010]
+graph_pattern: >
+  A LegalEntity with many DIRECTOR_OF relationships (a threshold parameter), whose
+  start_date and end_date values cluster in bursts; directors linked by FAMILY_OF to a
+  person who OWNS or CONTROLS the same company; and PAID relationships between Accounts
+  held (HOLDS_ACCOUNT) by companies that share the director. DIRECTOR_OF.is_nominee, where
+  the source sets it, is shown as the source published it.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Professional directors and company secretaries provided by a company service provider
+  - Directors shared by the companies of one corporate group
+  - Directors of investment fund and special purpose vehicle structures
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null

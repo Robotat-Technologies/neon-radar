@@ -97,10 +97,13 @@ def test_generated_files_have_no_drift() -> None:
 
 
 def test_schema_patterns_are_portable() -> None:
-    """JSON Schema patterns follow ECMA-262: no Python-only anchors or named groups."""
-    for relative, text in schemas.documents().items():
+    """JSON Schema patterns follow ECMA-262: no Python-only anchors or named groups, and no
+    `\\d`, `\\w` or `\\s`, which Python reads as Unicode classes and ECMAScript as ASCII ones."""
+    documents = schemas.documents()
+    documents["openapi/v1.json"] = (CONTRACTS / "openapi" / "v1.json").read_text(encoding="utf-8")
+    for relative, text in documents.items():
         for pattern in re.findall(r'"pattern": "([^"]*)"', text):
-            assert not re.search(r"\\\\[zZA]|\(\?P<", pattern), (relative, pattern)
+            assert not re.search(r"\\\\[zZAdDwWsS]|\(\?P<", pattern), (relative, pattern)
 
 
 # The jsonschema package checks `pattern` with Python's re.search, where `$` also matches before
@@ -138,6 +141,35 @@ def test_fixed_length_fields_reject_a_trailing_newline_in_the_json_schema(
     assert python_jsonschema_accepts(value)
     assert re.search(node["pattern"], value + "\n"), "the pattern alone lets the newline through"
     assert not python_jsonschema_accepts(value + "\n")
+
+
+ARABIC_INDIC_DIGITS = str.maketrans("0123456789", "".join(chr(0x0660 + d) for d in range(10)))
+
+
+def arabic_indic(text: str) -> str:
+    return text.translate(ARABIC_INDIC_DIGITS)
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("run_id",), "run-" + arabic_indic("20261021T101500") + "-7f3a"),
+        (("typology_version",), arabic_indic("0.1.0")),
+        (("detector", "version"), arabic_indic("0.1.0")),
+        (("created_at",), arabic_indic("2026-10-21T10:15:02Z")),
+        (("evidence", "window", "start"), arabic_indic("2026-03-02T09:00:00Z")),
+        (("alert_id",), "alr-" + arabic_indic("00000000000000000000")),
+    ],
+)
+def test_non_ascii_digits_are_rejected(path: tuple[str, ...], value: str) -> None:
+    """Python's `\\d` matches any Unicode digit; ECMAScript's (the UI, OpenAPI) only 0 to 9."""
+    data = example()
+    target = data
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValidationError, match=path[-1]):
+        Alert.model_validate(data)
 
 
 def test_example_validates_and_round_trips() -> None:

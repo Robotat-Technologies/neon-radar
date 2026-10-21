@@ -12,9 +12,9 @@ Milestone M1.8b ([PHASE-1.md](../../build/PHASE-1.md)). Research note checked: [
 | Network | Direct HTTPS from the build machine (macOS); nothing else about the network was measured. Requests went through `neonradar_ingest.http.HttpClient` at 1 per second (GLEIF allows 60 per minute). |
 | Output | `data/cache/spikes/gleif/gleif_lei-20261021-549300OWFMSO9NYV4H90.ftm.jsonl` with its manifest (gitignored) |
 | Validation | `uv run neonradar contracts validate-records data/cache/spikes/gleif/*.ftm.jsonl --strict`: 8 records, OK, 0 issues |
-| Maintenance window | GLEIF warned of brief interruptions from 19 October to 4 November 2026. No interruption was seen between 11:31 and 11:46 UTC: all 63 GLEIF requests answered, each in 0.3 to 2.5 s. |
+| Maintenance window | GLEIF warned of brief interruptions from 19 October to 4 November 2026. No interruption was seen between 11:31 and 12:13 UTC: all 73 GLEIF requests answered, each in 0.3 to 2.5 s. |
 
-The `@pytest.mark.network` test (`cli/tests/test_cli_spike_gleif.py::test_real_gleif_spike`) ran the same command without `--coverage`: 9 requests, 8.5 s, passed. A last change made the client build every path from the checked LEI instead of following URLs found in responses. After it, the network test and `uv run neonradar spike gleif` were run again, with the same output and validation, 9 requests each. Further measurements used the same client from one-off scripts that were not committed, 19 requests in all: response shapes (8), paging limits (3), cursor paging (2), name types (2) and synthetic LEI absence (4).
+The `@pytest.mark.network` test (`cli/tests/test_cli_spike_gleif.py::test_real_gleif_spike`) ran the same command without `--coverage`: 9 requests, 8.5 s, passed. A last change made the client build every path from the checked LEI instead of following URLs found in responses. After it, the network test and `uv run neonradar spike gleif` were run again, with the same output and validation, 9 requests each. After review, the client stopped following redirects, and the network test passed once more (9 requests, 8.4 s, 12:13 UTC): none of the spike's paths redirects. Further measurements used the same client from one-off scripts that were not committed, 20 requests in all: response shapes (8), paging limits (3), cursor paging (2), name types (2), address fields (1) and synthetic LEI absence (4).
 
 ## 2. What was fetched
 
@@ -33,7 +33,7 @@ Records written, by FtM schema: `Company` 2, `Address` 4, `Ownership` 2 (8 in to
 Spec checks (M1.8b step 1):
 
 - The record is at `RA000585` with `registeredAs` `01800000`. Its direct and ultimate parent are the same LEI, `213800LRO7NS5CYQMN21`, `registeredAs` `04190816` at `RA000585`.
-- The parent's own direct and ultimate parent links are reporting exceptions, as the spec expected. Both give the reason `NO_KNOWN_PERSON`.
+- The parent's own direct and ultimate parent links are reporting exceptions, as the spec expected.
 - **Join:** `registeredAs` matched the Companies House number for the spike company. The reverse lookup returned exactly the spike LEI, at the authority the research note's prefix rule expects (`RA000585`).
 
 ## 3. Measured facts against the research note
@@ -41,7 +41,7 @@ Spec checks (M1.8b step 1):
 | Topic | Research note (16 Oct) | Measured (21 Oct) |
 |---|---|---|
 | Access | No key | Confirmed |
-| Rate limit headers, 429 behaviour | UNVERIFIED | No rate limit headers on any response. No 429 at 1 request per second over 63 requests. |
+| Rate limit headers, 429 behaviour | UNVERIFIED | No rate limit headers on any response. No 429 at 1 request per second over 73 requests. |
 | Content type, redirects | not stated | `application/vnd.api+json`; no redirects |
 | `page[size]` maximum | 200; 201 rejected, error status UNVERIFIED | 201 gives **HTTP 400**, a JSON:API error with `title` "Invalid Query Parameter" and `detail` "The page.size must be between 1 and 200." |
 | Deep paging | page 50 at size 200 works, page 51 rejected; status UNVERIFIED | Page 50 works (records 9,801 to 10,000). Page 51 gives **HTTP 400**: "Deep page-based pagination is not supported beyond 10000 results ... Alternatively, you can use page[cursor]=* to start cursor-based pagination and then follow the `$.links.next` URL". |
@@ -85,7 +85,7 @@ Ids come from `neonradar_contracts.records.make_id`:
 | `entity.otherNames[]` of type `PREVIOUS_LEGAL_NAME` | `previousName` |
 | `entity.transliteratedOtherNames[]` of type `PREFERRED_ASCII_TRANSLITERATED_LEGAL_NAME` | `alias` |
 | `entity.transliteratedOtherNames[]` of type `AUTO_ASCII_TRANSLITERATED_LEGAL_NAME` | not written (C1 R10: no machine transliterations); counted in the notes |
-| `entity.jurisdiction` | `jurisdiction`. FtM writes `GB` as `gb`, keeps `GB-NIR` as `gb-nir`, and reduces `US-DE` to `us`. |
+| `entity.jurisdiction` | `jurisdiction`. FtM writes `GB` and `GB-ENG` as `gb`, keeps `GB-SCT`, `GB-WLS` and `GB-NIR` as `gb-sct`, `gb-wls` and `gb-nir`, and reduces `US-DE` to `us`. |
 | `entity.registeredAs` | `registrationNumber` (null on some records; the research note found `RA000585` sub-funds without it) |
 | `entity.status` | `status` (`ACTIVE`, `INACTIVE`) |
 | `entity.legalAddress` | `Address`, role `registered` (`nr.address_roles` on the Company) |
@@ -100,7 +100,9 @@ Ids come from `neonradar_contracts.records.make_id`:
 Not mapped in the spike, with the field names for Phase 2 to decide:
 
 - `entity.legalForm.id` (an ISO 20275 ELF code such as `H0PO`), `category`, `subCategory`, `creationDate`, `expiration`;
-- `successorEntity`, `successorEntities`, `associatedEntity`, `otherAddresses`, `eventGroups`;
+- `successorEntity`, `successorEntities`, `associatedEntity`, `eventGroups`;
+- `otherAddresses`, whose types `ALTERNATIVE_LANGUAGE_LEGAL_ADDRESS` and `ALTERNATIVE_LANGUAGE_HEADQUARTERS_ADDRESS` appeared in 28 of 50 records with a CN legal address;
+- LEI-CDF `TransliteratedOtherAddresses`, which the API did not return: no `transliteratedOtherAddresses` key in those 50 records. If it appears, its `AUTO_ASCII_TRANSLITERATED_*` entries are machine transliterations and must be skipped under R10, like the automatic names;
 - the address fields `mailRouting`, `addressNumberWithinBuilding` and `language`;
 - `registration.*` (`initialRegistrationDate`, `status`, `corroborationLevel`, `validatedAt`, `validatedAs`, `managingLou`);
 - the identifiers `bic`, `mic`, `ocid`, `qcc`, `gem`, `spglobal`, and `conformityFlag`;
@@ -118,11 +120,14 @@ The spike follows only one level of parents. For each parent it fetches, it read
   - the free-text exception `reference` could name someone.
 
   Records keep only the category and reason. `datasets.yaml` keeps `personal_data: false`.
+- **Sole proprietors:** LEI-CDF has an entity category `SOLE_PROPRIETOR`, and the legal name of such an entity can be a person's own name. None was fetched here: the spike's records are `GENERAL`, and the 50-record CN sample held `GENERAL` (42) and `FUND` (8). A Phase 2 bulk load from the golden copy will include sole proprietors. The data steward should decide whether `gleif_lei` stays `personal_data: false`, or whether `SOLE_PROPRIETOR` records are treated as personal data, for example kept out of the graph or marked.
 - **Output:** the output stays in `data/cache/spikes/gleif/` (gitignored). `neonradar spike clean` deletes it after `access.spike_cache_days`.
 - **Committed fixture:** `ingest/tests/fixtures/gleif/responses.json` is synthetic.
   - Its LEIs `SYN00000000000000128`, `...225`, `...322` and `...419` have valid check digits, and GLEIF answered 404 for each on 21 October 2026.
   - Its company numbers `ZZ000001` to `ZZ000004` and postcodes `ZZ0 0ZZ` and `ZZ9 9ZZ` are never issued.
   - Its names were checked on 21 October 2026 in the Companies House search (find-and-update.company-information.service.gov.uk/search/companies?q=), with no exact match for any of: SYNTHETIC CHILD EXAMPLE LIMITED, SYNTHETIC PARENT EXAMPLE PLC, SYNTHETIC APEX EXAMPLE HOLDINGS (PLC), SYNTHETIC JOIN EXAMPLE LIMITED, SYNTHETIC CHILD TRADING, SYNTHETIC CHILD EXAMPLE PUBLIC LIMITED COMPANY.
+  - After review, two more were checked on 21 October 2026 at 12:04 UTC: the Arabic legal name `شركة المثال الاصطناعية القابضة` (query `search/companies?q=%D8%B4%D8%B1%D9%83%D8%A9+%D8%A7%D9%84%D9%85%D8%AB%D8%A7%D9%84+%D8%A7%D9%84%D8%A7%D8%B5%D8%B7%D9%86%D8%A7%D8%B9%D9%8A%D8%A9+%D8%A7%D9%84%D9%82%D8%A7%D8%A8%D8%B6%D8%A9`) and the fake automatic transliteration `SHRKH ALMTHAL ALASTNAAYH ALQABDH` (query `search/companies?q=SHRKH+ALMTHAL+ALASTNAAYH+ALQABDH`). Both returned HTTP 200 with "No results found" and no company listed.
+  - Every link in the fixture points at `links.example.invalid`, so a client that followed a link from a response would fail the tests.
 
 ## 6. Gotchas and recommendations for the Phase 2 loader
 
@@ -132,9 +137,14 @@ The spike follows only one level of parents. For each parent it fetches, it read
 4. **Relationship record ids change with each version** (they embed a number and a hash). Key consolidation links on `child|parent|level`, as the spike does, and keep the GLEIF id in `nr.source_ref`.
 5. **Legal and headquarters addresses are often identical.** The spike writes two `Address` records (one per role), and Phase 2's `address_key` deduplicates them.
 6. **Strip times from dates.** GLEIF dates carry `T00:00:00Z`, and FtM would keep a minute-precision time.
-7. **Subdivision jurisdictions:** 882 records use `GB-ENG`, `GB-SCT`, `GB-WLS` or `GB-NIR`. FtM keeps `gb-nir` and the like, so C2 queries on `jurisdiction = 'gb'` must allow them.
+7. **Subdivision jurisdictions:** 882 records use `GB-ENG`, `GB-SCT`, `GB-WLS` or `GB-NIR`. FtM writes `GB-ENG` as `gb` but keeps `gb-sct`, `gb-wls` and `gb-nir`, so C2 queries on `jurisdiction = 'gb'` must allow those three.
 8. **Invalid LEIs vanish quietly.** FtM's `leiCode` drops a value whose check digits are wrong, so a loader should count records whose `leiCode` came out empty.
-9. **Maintenance window until 4 November 2026:** the GLEIF client gives up when told to wait more than 120 s, and every test runs on fixtures.
+9. **Maintenance window until 4 November 2026:** every test runs on fixtures. The GLEIF client:
+   - waits `Retry-After`, or 60 s after a 429 without one (GLEIF counts per minute);
+   - gives up when told to wait more than 120 s;
+   - never follows a redirect;
+   - reports a linked record or exception that answers 404 instead of failing;
+   - raises a clean error on a response without JSON:API `data`.
 
 ## 7. Verdict
 

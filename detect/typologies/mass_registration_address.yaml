@@ -1,0 +1,37 @@
+slug: mass_registration_address
+name: Mass registration addresses
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Many companies list the same address as their registered address. Most such addresses
+  belong to service providers that offer registered addresses as a business; the pattern
+  becomes more specific when the companies at one address also pay each other.
+doc: docs/typologies/mass-registration-address.md
+citations:
+  - fatf_egmont_concealment_2018
+  - fatf_egmont_tbml_indicators_2021
+  - fincen_fin_2006_g014
+  - fatf_tcsp_2010
+  - fatf_glossary
+  - star_puppet_masters_2011
+  - ffiec_appendix_f
+graph_pattern: >
+  An Address with many incoming HAS_ADDRESS relationships with role registered (threshold
+  parameter); stronger when Companies registered at that Address pay each other (PAID between
+  Accounts they hold through HOLDS_ACCOUNT), share directors, or were formed through the same
+  agent.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Registered agents and corporate service firms
+  - Serviced offices and business centres
+  - Law and accounting firms that act as registered office for clients
+  - Clusters created by address normalisation errors, such as missing unit numbers or transliteration variants
+  - Errors in the source register
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null                # null until implemented

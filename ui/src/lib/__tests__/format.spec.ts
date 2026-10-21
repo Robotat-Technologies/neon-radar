@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  formatAmount,
+  formatMetric,
+  formatStrength,
+  formatTimestamp,
+  formatValue,
+  humanizeKey,
+  safeHref,
+} from '@/lib/format'
+
+describe('format helpers', () => {
+  it('formats C3 timestamps and leaves partial dates alone', () => {
+    expect(formatTimestamp('2026-10-21T10:15:02Z')).toBe('2026-10-21 10:15:02 UTC')
+    expect(formatTimestamp('1979-08')).toBe('1979-08')
+  })
+
+  it('formats amounts with the currency minor units', () => {
+    expect(formatAmount(120000, 'EUR')).toBe('EUR 120,000.00')
+    expect(formatAmount(1, 'not a currency')).toBe('not a currency 1')
+  })
+
+  it('formats pattern strength, keys and property values', () => {
+    expect(formatStrength(0.79)).toBe('0.79')
+    expect(humanizeKey('registration_number')).toBe('registration number')
+    expect(formatValue(['gb', 'ie'])).toBe('gb, ie')
+    expect(formatValue({ a: 1 })).toBe('{"a":1}')
+    expect(formatValue(null)).toBe('')
+    expect(formatValue(3)).toBe('3')
+  })
+
+  it('formats metrics like the headline templates do', () => {
+    expect(formatMetric(120000)).toBe('120,000')
+    expect(formatMetric(151.7)).toBe('151.7')
+    expect(formatMetric(0.9634)).toBe('0.96')
+    expect(formatMetric('EUR')).toBe('EUR')
+  })
+
+  it('links only http and https addresses', () => {
+    expect(safeHref('https://www.fatf-gafi.org/en/publications.html')).toBe(
+      'https://www.fatf-gafi.org/en/publications.html',
+    )
+    expect(safeHref(' HTTP://example.org/a ')).toBe('HTTP://example.org/a')
+    expect(safeHref('javascript:alert(1)')).toBeNull()
+    expect(safeHref('JavaScript:alert(1)')).toBeNull()
+    expect(safeHref('data:text/html,<p>x</p>')).toBeNull()
+    expect(safeHref('//cdn.example.org/x.js')).toBeNull()
+    expect(safeHref('/api/v1/meta')).toBeNull()
+    expect(safeHref('about:blank')).toBeNull()
+    expect(safeHref('https://example.org/a b')).toBeNull()
+    expect(safeHref('')).toBeNull()
+    expect(safeHref(null)).toBeNull()
+    expect(safeHref(undefined)).toBeNull()
+  })
+})

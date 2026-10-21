@@ -21,7 +21,11 @@ from neonradar_contracts.alert import (
     SLUG_PATTERN,
     VERSION_PATTERN,
 )
-from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden, find_forbidden_in_name
+from neonradar_contracts.wording import (
+    find_forbidden,
+    find_forbidden_in_name,
+    says_synthetic_scenario,
+)
 
 # The workspace installs members editable, so this is the root of the repository.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -139,7 +143,7 @@ class TypologyFile(_Strict):
             if unknown:
                 raise ValueError(f"wording.{key} uses names that are not metrics: {unknown}")
         # 7.1: "synthetic scenario" only when every entity in the alert is synthetic.
-        if SYNTHETIC_PHRASE.search(wording.headline_structural):
+        if says_synthetic_scenario(wording.headline_structural):
             raise ValueError("wording.headline_structural must not say 'synthetic scenario'")
         if not wording.headline_synthetic.startswith("Synthetic scenario"):
             raise ValueError("wording.headline_synthetic must start with 'Synthetic scenario'")

@@ -6,7 +6,7 @@ When AI drafts most of the code, people do not learn by watching it happen. Lear
 2. **Owning decision records.** The agent drafts architecture decision records as `proposed`; the people who decide edit them until they say what they think, and accept them ([docs/decisions/](../decisions/README.md)).
 3. **Teaching it back.** Thirty minutes on Thursdays, two or three people at a time ([teach-back.md](teach-back.md)).
 
-This folder holds the rest of the track: your learning log, the skills self-assessment and, in the final week, your exit post.
+This folder holds the rest of the track: your learning log, the skills self-assessment, the reading list, the case notes and, in the final week, your exit post.
 
 | File | What it is | Who writes it |
 |---|---|---|
@@ -14,8 +14,8 @@ This folder holds the rest of the track: your learning log, the skills self-asse
 | `<your-handle>.md` | Your learning log | You, and only you |
 | [skills-self-assessment.md](skills-self-assessment.md) | The eight skills and the 1 to 5 scale | You score yourself, in your own log |
 | [teach-back.md](teach-back.md) | Sessions, rota and recordings | The community manager fills the rota; presenters prepare their talk |
-
-The reading list and the case notes arrive here with milestone M1.10c.
+| [reading-list.md](reading-list.md) | What to read in each sprint | Drafted by an agent; reviewed by the technical writer |
+| [cases/](cases/README.md) | Three real cases drawn as graphs of roles, with what was adjudicated and what is alleged | Drafted by an agent; reviewed by the technical writer and the typology researchers |
 
 ## Your learning log
 

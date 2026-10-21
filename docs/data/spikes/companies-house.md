@@ -19,10 +19,10 @@ This report holds counts, field names and coverage only. It says nothing about a
 ```bash
 uv run neonradar spike companies-house --company 01800000 --max-pages 5
 uv run neonradar contracts validate-records data/cache/spikes/companies_house/*.ftm.jsonl --strict
-CH_SPIKE_COMPANY=01800000 uv run pytest -m network ingest/tests/test_companies_house_network.py -v
+CH_SPIKE_COMPANY=01800000 uv run pytest -m network ingest/tests/test_companies_house_network.py -v -s
 ```
 
-`01800000` is the spec's default company number (PHASE-1.md M1.8a step 1), used here only as a command-line example. The first command prints the counts this report needs (records by schema, requests and pages, rate-limit waits and headers, officer and PSC counts, identity verification field names) and writes the records and manifest to `data/cache/spikes/companies_house/`. Paste its output into the pull request and fill in the "Network run" columns below; then set the verdict in section 7.
+`01800000` is the spec's default company number (PHASE-1.md M1.8a step 1), used here only as a command-line example. The first command prints the counts this report needs (records by schema, requests and pages, rate-limit waits and headers, officer and PSC counts, identity verification field names) and writes the records and manifest to `data/cache/spikes/companies_house/`. Paste the summary lines and the validation result into the pull request; if validation reports issues, paste the rule codes and their counts, never record ids. Then fill in the "Network run" columns below and set the verdict in section 7.
 
 Mock run, for comparison (synthetic company `SYN00001`, first lines of the summary; the command then prints the strict validation of its output, here 20 records, 0 issues):
 
@@ -118,7 +118,7 @@ Seen but not mapped (the spike counts how often each appears):
 ## 6. Gotchas and recommendations for the Phase 2 loader
 
 1. **Budget.** The spike costs 1 request for the profile plus one per officer page and per PSC page: at least 3 requests, 1.5 seconds at 2 requests per second, so at most about 200 companies per 5-minute window. The research note's estimate of about 4 requests per company includes PSC statements [research note A6]. Seed the graph from the PSC snapshot and Free Company Data, and use the API for a focus subgraph [CH2][CHF11].
-2. **Officer pages.** The officers list includes resigned appointments, so long-lived companies can need several pages. `--max-pages` caps the spike; when it stops early, the manifest `notes` say how many items were read.
+2. **Officer pages.** The officers list includes resigned appointments, so long-lived companies can need several pages. `--max-pages` caps the spike; when it stops early, the manifest `notes` say how many items were read. If pages overlap (the list changes while it is read), each appointment and PSC is still counted and mapped once.
 3. **One record per officer id, not per human.** `officer_id` is per appointment chain and `person_number` is not a guaranteed person key [CHF9]. Officers and PSCs of the same human get separate records (`gbch-off-...` and `gbch-psc-...`); entity resolution links them.
 4. **Names.** The officers list gives `SURNAME, Forenames[, Title]` [CHF19]; PSCs give `name_elements`. Phase 2 computes matching keys at load time (C1 R10), so records keep names as given.
 5. **Duplicates across files.** The records of two spike runs for companies that share an officer have the same officer id, so validating both files as one load reports a duplicate id (R4). A production loader merges records by id before writing.

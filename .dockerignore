@@ -1,0 +1,19 @@
+# Kept out of every image built from the repository root (PHASE-1.md M1.9e): secrets,
+# version control, local data and caches, and build output. The .env file never enters an image.
+.git
+.env
+.env.*
+secrets/
+data/*
+!data/fixtures/
+data/cache/
+data/runs/
+.venv/
+**/__pycache__/
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+.claude/worktrees/
+.claude/settings.local.json
+CLAUDE.local.md

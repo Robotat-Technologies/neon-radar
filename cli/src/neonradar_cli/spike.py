@@ -55,3 +55,43 @@ def clean(
     for path in deleted:
         typer.echo(f"deleted {path}")
     typer.echo(f"{len(deleted)} file(s) older than {keep} day(s) deleted from {root}")
+
+
+@app.command(name="opensanctions")
+def opensanctions(
+    collection: Annotated[str, typer.Option(help="sanctions, peps, default, crime, ...")] = (
+        "sanctions"
+    ),
+    rows: Annotated[int, typer.Option(min=1, help="Lines of entities.ftm.json to read.")] = 1000,
+) -> None:
+    """Stream a slice of OpenSanctions if access.opensanctions allows it; exit 3 if it does not.
+
+    Only `licensed` access writes output; a slice has dangling references, so it is validated
+    without --strict.
+    """
+    from neonradar_contracts.records import validate_files
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.sources.opensanctions import access
+    from neonradar_ingest.sources.opensanctions import spike as source
+
+    route = access.read_access()
+    try:
+        access.require_access(route)  # before any client exists: `none` sends nothing
+    except access.LicenceRequired as refusal:
+        typer.echo(str(refusal))
+        raise typer.Exit(code=3) from None
+    try:
+        with source.make_client() as client:
+            result = source.run_spike(client, access=route, collection=collection, rows=rows)
+    except (HttpError, ValueError) as exc:
+        typer.echo(f"FAIL  {exc}")
+        raise typer.Exit(code=1) from None
+    for line in source.summary_lines(result):
+        typer.echo(line)
+    if result.records_file is not None:
+        _, issues = validate_files([result.records_file], strict=False)
+        for issue in issues:
+            typer.echo(str(issue))
+        typer.echo(f"validate-records (a slice, not strict): {len(issues)} issue(s)")
+        if issues:
+            raise typer.Exit(code=1)

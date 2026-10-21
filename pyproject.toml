@@ -27,7 +27,7 @@ required-version = ">=0.13,<0.14"
 neonradar-cli = { workspace = true }
 
 [tool.uv.workspace]
-members = ["contracts", "ingest", "graph", "detect", "copilot", "api", "cli"]
+members = ["contracts", "keys", "ingest", "graph", "resolve", "detect", "copilot", "api", "cli"]
 
 [tool.ruff]
 line-length = 100
@@ -61,13 +61,21 @@ strict = true
 plugins = ["pydantic.mypy"]
 files = [
     "contracts/src",
+    "keys/src",
     "ingest/src",
     "graph/src",
+    "resolve/src",
     "detect/src",
     "copilot/src",
     "api/src",
     "cli/src",
 ]
+
+# PyArrow 26 ships no type information; Splink 5.0, DuckDB 1.5 and sqlglot 30 do (PHASE-2.md
+# 3.1, M2.0). Add a block like this only for a module that really has none.
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 markers = [
@@ -79,8 +87,10 @@ markers = [
 addopts = "-m 'not integration and not network and not e2e' --strict-markers --import-mode=importlib"
 testpaths = [
     "contracts/tests",
+    "keys/tests",
     "ingest/tests",
     "graph/tests",
+    "resolve/tests",
     "detect/tests",
     "copilot/tests",
     "api/tests",

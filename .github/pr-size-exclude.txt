@@ -13,3 +13,4 @@ docs/sources/bibliography.yaml
 LICENSE
 NOTICE
 .github/CODEOWNERS
+scripts/cypher-lint/package-lock.json

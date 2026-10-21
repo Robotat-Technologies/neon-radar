@@ -1,0 +1,14 @@
+{
+  "name": "neonradar-cypher-lint",
+  "version": "0.1.0",
+  "description": "Offline Cypher 5 lint for the .cypher files in graph/, detect/ and api/ (docs/build/PHASE-2.md M2.0).",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@neo4j-cypher/language-support": "2.0.0-next.39"
+  }
+}

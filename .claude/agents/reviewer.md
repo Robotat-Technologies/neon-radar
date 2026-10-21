@@ -12,9 +12,12 @@ uv run pytest --collect-only).
 2. Read the milestone section named in your request (docs/build/PHASE-<n>.md) and section 2.
 3. Check:
    - every acceptance item is met and there is evidence for it;
-   - contracts (section 5) are respected; no frozen file changed without the label;
-   - guardrails G1 to G7: no real-person data, no OpenSanctions rows, no network in tests,
-     no secrets, no accusatory wording, citations present for AML facts;
+   - contracts (PHASE-1.md section 5 and section 5 of the current phase spec) are
+     respected; no frozen file changed without the label;
+   - guardrails G1 to G10 (section 2.1 of the current phase spec): no real-person data, no
+     OpenSanctions rows, no network in tests, no secrets, no accusatory wording, citations
+     present for AML facts, no inferred flags, no real records read or printed, no labels
+     or review decisions written by an agent;
    - tests are meaningful: they would fail if the code were wrong, and no test was
      weakened or deleted to pass;
    - Cypher follows the conventions in 5.2; Python is typed; no new GPL dependencies;

@@ -1,0 +1,17 @@
+[project]
+name = "neonradar-keys"
+version = "0.1.0"
+description = "NeonRadar matching keys: names, organisations, addresses, postcodes, countries and identifiers (pure functions)."
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+# Pins from docs/build/PHASE-2.md 3.1. M2.8 adds typing-extensions>=4.12 (rigour 2.5.0 imports
+# it without declaring it). rigour needs python-stdnum (LGPL-2.1-or-later, OD-20).
+dependencies = [
+    "anyascii==0.3.*",
+    "normality==3.1.*",
+    "rigour==2.5.*",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"

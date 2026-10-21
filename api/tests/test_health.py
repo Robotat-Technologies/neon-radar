@@ -130,3 +130,27 @@ def test_driver_errors_mean_unavailable(monkeypatch: pytest.MonkeyPatch) -> None
     graph = _connection(monkeypatch, FakeDriver(ServiceUnavailable("refused")))
     with pytest.raises(GraphUnavailable):
         graph.read("RETURN 1 AS n")
+
+
+def test_a_malformed_uri_means_unavailable_and_health_stays_200() -> None:
+    def nonsense() -> Neo4jSettings:
+        return Neo4jSettings(uri="nonsense", password=SecretStr("unused"))
+
+    graph = GraphConnection(settings=nonsense)
+    with pytest.raises(GraphUnavailable, match="NEO4J_URI"):
+        graph.read("RETURN 1 AS n")
+    with TestClient(create_app(GraphConnection(settings=nonsense))) as client:
+        response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json()["neo4j"]["connected"] is False
+
+
+def test_an_unknown_database_means_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    missing = ClientError._hydrate_neo4j(
+        code="Neo.ClientError.Database.DatabaseNotFound", message="Database does not exist."
+    )
+    with pytest.raises(GraphUnavailable, match="no database 'neo4j'"):
+        _connection(monkeypatch, FakeDriver(missing)).read("RETURN 1 AS n")
+    syntax = ClientError._hydrate_neo4j(code="Neo.ClientError.Statement.SyntaxError", message="x")
+    with pytest.raises(ClientError):  # a query bug is not an unavailable database (500)
+        _connection(monkeypatch, FakeDriver(syntax)).read("RETURN 1 AS n")

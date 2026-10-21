@@ -2,13 +2,14 @@
 
 import importlib.util
 from collections.abc import Iterator
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
+from fastapi import Depends
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from neonradar_api.graph import GraphConnection, GraphUnavailable
+from neonradar_api.graph import GraphConnection, GraphUnavailable, get_graph
 from neonradar_api.main import create_app, router
 from neonradar_contracts.api import Problem
 
@@ -135,8 +136,11 @@ def test_unknown_routes_and_methods_answer_problems(client: TestClient) -> None:
     missing = _problem(client.get(f"{P}/nothing"), 404)
     assert missing.detail == f"No route matches GET {P}/nothing."
     wrong = client.delete(f"{P}/health")
-    _problem(wrong, 405)
+    problem = _problem(wrong, 405)
     assert wrong.headers["allow"] == "GET"
+    assert problem.detail == (
+        f"DELETE is not allowed on {P}/health; the Allow header lists the methods it accepts."
+    )
 
 
 def test_an_unexpected_error_answers_a_generic_500_problem() -> None:
@@ -189,3 +193,23 @@ def test_no_opentelemetry_sdk_or_exporter_is_installed() -> None:
         except ModuleNotFoundError:
             found = None
         assert found is None, module
+
+
+def test_an_unknown_body_key_is_reported_without_echoing_it(client: TestClient) -> None:
+    body = {"question": "q", "sentinel_key_7f3a": 1, "another_key_9c1d": 2}
+    problem = _problem(client.post(f"{P}/copilot/ask", json=body), 422)
+    assert problem.detail == "body: unknown keys are not permitted"
+    assert "sentinel" not in problem.detail and "another" not in problem.detail
+
+
+def test_an_unavailable_graph_answers_a_503_problem_without_internals() -> None:
+    app = create_app(OfflineGraph())
+
+    @app.get("/needs-graph")
+    def needs_graph(graph: Annotated[GraphConnection, Depends(get_graph)]) -> None:
+        graph.read("RETURN 1 AS n")
+
+    with TestClient(app) as test_client:
+        problem = _problem(test_client.get("/needs-graph"), 503)
+    assert problem.title == "Service Unavailable"
+    assert problem.detail == "The graph database is not available."

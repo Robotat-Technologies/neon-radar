@@ -68,10 +68,17 @@ def problem_response(
 
 
 def _validation_detail(error: RequestValidationError) -> str:
-    parts = []
+    """`<location>: <message>` per failed check. Never echoes input: an unknown body key is
+    reported at its parent, because the key itself is the caller's text."""
+    parts: list[str] = []
     for item in error.errors():
-        location = ".".join(str(part) for part in item.get("loc", ()))
-        parts.append(f"{location}: {item.get('msg', 'invalid value')}")
+        location = [str(part) for part in item.get("loc", ())]
+        message = item.get("msg", "invalid value")
+        if item.get("type") == "extra_forbidden":
+            location, message = location[:-1], "unknown keys are not permitted"
+        part = f"{'.'.join(location)}: {message}"
+        if part not in parts:
+            parts.append(part)
     return "; ".join(parts) or "The request is not valid."
 
 
@@ -87,6 +94,11 @@ def install(app: FastAPI) -> None:
         detail = str(error.detail)
         if error.status_code == 404 and detail == HTTPStatus.NOT_FOUND.phrase:
             detail = f"No route matches {request.method} {request.url.path}."
+        elif error.status_code == 405:
+            detail = (
+                f"{request.method} is not allowed on {request.url.path}; "
+                "the Allow header lists the methods it accepts."
+            )
         return problem_response(request, error.status_code, detail, error.headers)
 
     @app.exception_handler(RequestValidationError)

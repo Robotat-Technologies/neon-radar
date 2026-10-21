@@ -11,14 +11,16 @@ from typing import Any, LiteralString
 
 from fastapi import Request
 from neo4j import Driver, Record, RoutingControl
-from neo4j.exceptions import AuthError, DriverError, TransientError
+from neo4j.exceptions import AuthError, ClientError, DriverError, TransientError
 from pydantic import ValidationError
 
 from neonradar_graph.client import Neo4jSettings, get_driver
 
-# The driver retries an unavailable database for 30 s by default; a request should not hang that
-# long, so the API gives up after a few seconds at most and answers 503 (or `degraded` for health).
+# `execute_query` retries an unavailable database for 30 s by default; the API stops retrying
+# after 1 s and answers 503 (or `degraded` for health). One connection attempt can still take up
+# to the driver's 10 s connect timeout (neonradar_graph.client.get_driver).
 RETRY_SECONDS = 1.0
+DATABASE_NOT_FOUND = "Neo.ClientError.Database.DatabaseNotFound"
 
 
 class GraphUnavailable(Exception):
@@ -41,7 +43,11 @@ class GraphConnection:
                     settings = self._settings()
                 except ValidationError as error:
                     raise GraphUnavailable("Neo4j is not configured (NEO4J_PASSWORD)") from error
-                self._driver = get_driver(settings, max_transaction_retry_time=RETRY_SECONDS)
+                try:
+                    driver = get_driver(settings, max_transaction_retry_time=RETRY_SECONDS)
+                except (DriverError, ValueError, ImportError) as error:  # e.g. NEO4J_URI=nonsense
+                    raise GraphUnavailable("Neo4j is not configured (NEO4J_URI)") from error
+                self._driver = driver
                 self._database = settings.database
             return self._driver, self._database
 
@@ -56,6 +62,10 @@ class GraphConnection:
             )
         except (DriverError, AuthError, TransientError) as error:
             raise GraphUnavailable(f"Neo4j is not available: {error}") from error
+        except ClientError as error:
+            if error.code == DATABASE_NOT_FOUND:  # a wrong NEO4J_DATABASE
+                raise GraphUnavailable(f"Neo4j has no database {database!r}") from error
+            raise
         return list(records)
 
     def close(self) -> None:

@@ -3,24 +3,33 @@ name: neonradar
 services:
   neo4j:
     image: neo4j:5.26.32-community
-    # Copy the pinned GDS jar (mounted read-only at /nr-plugins, below) into the plugins folder,
-    # then run the image's own entrypoint. The entrypoint chowns NEO4J_HOME and /plugins, so the
-    # jar is mounted outside both and the host folder is never written.
+    # Build NEO4J_AUTH from the neo4j_password secret (so the password is in no printed config and
+    # not in `docker inspect`), copy the pinned GDS jar from /nr-plugins (mounted outside NEO4J_HOME
+    # and /plugins, which the entrypoint chowns), then run the image's own entrypoint.
     entrypoint:
       - tini
       - -g
       - --
       - sh
       - -c
-      - cp /nr-plugins/neo4j-graph-data-science-2.13.4.jar /var/lib/neo4j/plugins/ && exec /startup/docker-entrypoint.sh "$$@"
+      - |
+        p="$$(cat /run/secrets/neo4j_password 2>/dev/null || true)"
+        if [ "$${#p}" -lt 8 ]; then
+          echo "neonradar: NEO4J_PASSWORD is missing or shorter than 8 characters; set it in .env" >&2
+          exit 1
+        fi
+        export NEO4J_AUTH="neo4j/$$p"
+        unset p
+        cp /nr-plugins/neo4j-graph-data-science-2.13.4.jar /var/lib/neo4j/plugins/
+        exec /startup/docker-entrypoint.sh "$$@"
       - neonradar-entrypoint
     command: ["neo4j"]
     restart: unless-stopped
     ports:
       - "127.0.0.1:7474:7474"
       - "127.0.0.1:7687:7687"
+    secrets: [neo4j_password]
     environment:
-      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env (at least 8 characters)}"
       # APOC Core is installed from the image's labs/ folder. The Community image has no GDS jar
       # and "graph-data-science" here would download one on every start, so `make plugins`
       # fetches a pinned jar once instead; nothing is downloaded when the container starts.
@@ -48,11 +57,17 @@ services:
           create_host_path: false
     mem_limit: "${NEO4J_MEM_LIMIT:-5g}"
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' || exit 1"]
+      # cypher-shell reads NEO4J_PASSWORD, so the password stays out of the process list.
+      test: ["CMD-SHELL", "NEO4J_PASSWORD=\"$$(cat /run/secrets/neo4j_password)\" cypher-shell -u neo4j 'RETURN 1' || exit 1"]
       interval: 5s
       timeout: 10s
       retries: 30
       start_period: 30s
+
+secrets:
+  # NEO4J_PASSWORD from the environment or .env, as the file /run/secrets/neo4j_password.
+  neo4j_password:
+    environment: NEO4J_PASSWORD
 
 volumes:
   neo4j_data:

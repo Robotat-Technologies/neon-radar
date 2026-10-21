@@ -11,7 +11,14 @@ help: ## list the targets
 setup: ## install everything: Python packages, pre-commit hooks, .env and, once ui/ exists, npm
 	@bash scripts/ensure_env.sh
 	uv sync --all-packages
-	uv run pre-commit install
+# Inside the devcontainer, keep a hook the host installed: it points at the host's Python, and
+# replacing it would break commits on the host (docs/architecture/devcontainer.md).
+	@hook="$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null)"; \
+	if [ -n "$$NR_DEVCONTAINER" ] && [ -n "$$hook" ] && [ -e "$$hook" ]; then \
+		echo "pre-commit hook already installed ($$hook); kept as it is inside the devcontainer"; \
+	else \
+		echo "uv run pre-commit install"; uv run pre-commit install; \
+	fi
 	@if [ -f ui/package.json ]; then npm ci --prefix ui; fi
 
 fmt: ## format and fix Python code

@@ -1,7 +1,8 @@
 """The Neo4j the integration tests share (PHASE-1.md M1.7b).
 
 - `NR_TEST_NEO4J_URI` set: use that running database (faster locally), with the user and
-  password of `Neo4jSettings` (NEO4J_USER, NEO4J_PASSWORD or the root `.env`). The tests wipe
+  password of `Neo4jSettings` (NEO4J_USER, NEO4J_PASSWORD, the root `.env` or, in the
+  devcontainer, `/run/secrets/neo4j_password`). The tests wipe
   it, so a database that holds any node other than `:SchemaMigration` is refused unless
   `NR_TEST_ALLOW_WIPE=1`.
 - Otherwise: a throwaway Testcontainers Neo4j (`NR_NEO4J_IMAGE`, default the compose image)

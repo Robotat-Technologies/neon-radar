@@ -12,9 +12,17 @@ from neonradar_graph.client import Neo4jSettings, get_driver, wait_until_ready
 
 
 @pytest.fixture(autouse=True)
-def no_neo4j_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def no_neo4j_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for name in [key for key in os.environ if key.startswith("NEO4J_")]:
         monkeypatch.delenv(name)
+    monkeypatch.setattr(client, "SECRETS_DIR", tmp_path / "no-secrets")
+
+
+def write_secret(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    secrets = tmp_path / "secrets"
+    secrets.mkdir()
+    (secrets / "neo4j_password").write_text(value, encoding="utf-8")
+    monkeypatch.setattr(client, "SECRETS_DIR", secrets)
 
 
 def write_env(tmp_path: Path, text: str) -> Path:
@@ -51,6 +59,24 @@ def test_environment_variables_win_over_env_file(
 def test_password_is_required(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="password"):
         Neo4jSettings(_env_file=write_env(tmp_path, ""))
+
+
+def test_reads_the_password_from_a_compose_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_secret(tmp_path, monkeypatch, "from-secret-file")
+    settings = Neo4jSettings(_env_file=tmp_path / "missing.env")
+    assert settings.password.get_secret_value() == "from-secret-file"
+
+
+def test_environment_and_env_file_win_over_the_compose_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_secret(tmp_path, monkeypatch, "from-secret-file")
+    env = write_env(tmp_path, "NEO4J_PASSWORD=from-env-file\n")
+    assert Neo4jSettings(_env_file=env).password.get_secret_value() == "from-env-file"
+    monkeypatch.setenv("NEO4J_PASSWORD", "from-environment")
+    assert Neo4jSettings(_env_file=env).password.get_secret_value() == "from-environment"
 
 
 def test_get_driver_uses_the_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

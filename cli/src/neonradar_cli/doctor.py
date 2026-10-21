@@ -11,6 +11,10 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
+from neonradar_graph.client import Neo4jSettings
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PROJECT = "neonradar"  # `name:` in compose.yaml (M1.4)
 GIB = 1024**3
@@ -33,6 +37,10 @@ class Check:
     def line(self) -> str:
         return f"{self.status:<5} {self.name:<14} {self.detail}"
 
+
+# The devcontainer has no Docker by design (PHASE-1.md M1.5): Neo4j runs next to it as the
+# `neo4j` Compose service, and Docker work happens on the host. `NR_DEVCONTAINER=1` is set there.
+NO_DOCKER_IN_DEVCONTAINER = "none in the devcontainer (by design); Docker work runs on the host"
 
 # Neo4j runs only in the Compose stack, so another program on its ports blocks `make up`. The API
 # and the UI dev server may also run as plain processes (`make demo-dev`), which doctor cannot tell
@@ -108,9 +116,28 @@ def check_compose() -> Check:
     return Check("Compose", Status.OK, found)
 
 
-def check_env_file(root: Path) -> Check:
+def password_without_env_file() -> bool:
+    """True if the Neo4j password comes from the environment or a Compose secret, not `.env`."""
+    try:
+        Neo4jSettings(_env_file=None)
+    except ValidationError:
+        return False
+    return True
+
+
+def check_env_file(
+    root: Path, *, password_elsewhere: bool = False, devcontainer: bool = False
+) -> Check:
     if (root / ".env").is_file():
         return Check(".env", Status.OK, "present")
+    if password_elsewhere:
+        return Check(
+            ".env",
+            Status.OK,
+            "not needed; the Neo4j password comes from the environment or a secret",
+        )
+    if devcontainer:
+        return Check(".env", Status.WARN, "missing; run bash scripts/ensure_env.sh on the host")
     return Check(".env", Status.WARN, "missing; the Neo4j stack reads it (copy .env.example)")
 
 
@@ -171,15 +198,27 @@ def check_icu() -> Check:
     return Check("ICU", Status.OK, run("pkg-config", "--modversion", "icu-uc") or "found")
 
 
-def run_checks(root: Path = REPO_ROOT) -> list[Check]:
+def without_docker(check: Check) -> Check:
+    """Inside the devcontainer a missing Docker is expected, so it is a warning, not a failure."""
+    if check.status is Status.FAIL:
+        return Check(check.name, Status.WARN, NO_DOCKER_IN_DEVCONTAINER)
+    return check
+
+
+def run_checks(root: Path = REPO_ROOT, *, devcontainer: bool = False) -> list[Check]:
     info = docker_info()
     stack = stack_ports() if info else set()
+    docker, compose = check_docker(info), check_compose()
+    if devcontainer:
+        docker, compose = without_docker(docker), without_docker(compose)
     return [
         check_python(),
         check_uv(),
-        check_docker(info),
-        check_compose(),
-        check_env_file(root),
+        docker,
+        compose,
+        check_env_file(
+            root, password_elsewhere=password_without_env_file(), devcontainer=devcontainer
+        ),
         *(check_port(port, stack) for port in PORTS),
         check_memory(info),
         check_icu(),

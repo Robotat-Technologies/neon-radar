@@ -35,3 +35,5 @@
     Testcontainers Neo4j (it removes `NR_TEST_NEO4J_URI` and `NR_TEST_ALLOW_WIPE`) when Docker
     and the pinned GDS jar are there. A command that times out is killed with its whole process
     group. Exit 1 on any FAIL unless `--report-only` (`make gate-1 GATE_ARGS=--report-only`).
+  - Inside the devcontainer (`NR_DEVCONTAINER=1`, or `doctor --devcontainer`) a missing
+    Docker or Compose is a WARN: the container has no Docker by design (M1.5).

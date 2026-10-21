@@ -15,6 +15,6 @@ An index of the `docs/` tree. Folders marked "later" are created by a later Phas
 | [learning/](learning/README.md) | Learning logs (written by people, never by agents), the log [template](learning/_template.md), the [skills self-assessment](learning/skills-self-assessment.md), the [teach-back](learning/teach-back.md) rota, the [reading list](learning/reading-list.md) and the [case notes](learning/cases/README.md) | present |
 | [team/](team/) | [Assignment 1](team/assignment-1.md), [first queries](team/first-queries.md), [Assignment 2](team/assignment-2.md) and [squads and roles](team/roles.md) | present |
 | [data/](data/) | Data source [spike reports](data/spikes/); licence notes come later | present |
-| [architecture/](architecture/) | The [architecture overview](architecture/overview.md) and the [local Neo4j stack](architecture/local-stack.md) | present |
+| [architecture/](architecture/) | The [architecture overview](architecture/overview.md), the [local Neo4j stack](architecture/local-stack.md) and the [devcontainer and Codespaces](architecture/devcontainer.md) | present |
 
 Repository-level documents live in the root: [README](../README.md), [CONTRIBUTING](../CONTRIBUTING.md), [DATA_SOURCES](../DATA_SOURCES.md), [SECURITY](../SECURITY.md), [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md), [CHANGELOG](../CHANGELOG.md) and [CONTRIBUTORS](../CONTRIBUTORS.md). What may be committed under `data/` is in [data/README.md](../data/README.md).

@@ -1,0 +1,23 @@
+# Used together with ../compose.yaml. With several Compose files, relative paths resolve
+# from the folder of the first file (the repository root), not from this folder.
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    volumes:
+      - .:/workspaces/neonradar:cached
+    # The Neo4j password arrives only as the file /run/secrets/neo4j_password, never as a variable.
+    secrets: [neo4j_password]
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NR_TEST_NEO4J_URI: bolt://neo4j:7687
+      # `neonradar doctor` reports the missing Docker as a warning here (no Docker by design).
+      NR_DEVCONTAINER: "1"
+    # Nothing in the container needs root powers: drop every capability and block setuid.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      neo4j:
+        condition: service_healthy

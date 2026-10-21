@@ -5,11 +5,11 @@
   "files": [
     {
       "path": "demo.ftm.jsonl",
-      "sha256": "c8e580fd41e5c8c910aa61b284d0e530c5fe23d963caf03f93ff581a61dd952f",
+      "sha256": "98865dc3b7a6a4cf70d8438618dbe56ec66d0cdef837a53814208bfec34bdcec",
       "records": 10
     }
   ],
-  "created_at": "2026-10-21T10:19:40Z",
+  "created_at": "2026-10-21T11:29:32Z",
   "producer": {
     "name": "hand-written golden example (PHASE-1.md 5.1)",
     "version": "1.0.0",
@@ -41,6 +41,6 @@
   "synthetic": true,
   "seed": null,
   "notes": [
-    "C1 v1.0.0 golden example: the seven example lines of PHASE-1.md 5.1 (first company renamed under OD-12) plus syn-co-0002, syn-acct-0002 and syn-ownership-0003, which the payment references. Synthetic."
+    "C1 v1.0.0 golden example: the seven example lines of PHASE-1.md 5.1 (first company and the person renamed under OD-12) plus syn-co-0002, syn-acct-0002 and syn-ownership-0003, which the payment references. Synthetic."
   ]
 }

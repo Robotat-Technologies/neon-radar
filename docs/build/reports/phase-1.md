@@ -59,7 +59,7 @@ This report records facts and decisions. It states no AML facts; those live in t
 | M1.10c | Case notes, reading list, architecture overview (ADR-0010, ADR-0012) | #29 | merged |
 | M1.11a | Onboarding and learning kit (Assignment 1) | #22 | merged |
 | M1.11b | Assignment 2 kit | #34 | merged |
-| M1.12 | Gate 1 check command (`make gate-1`); this report | #32; this pull request | #32 merged; this one draft |
+| M1.12 | Gate 1 check command (`make gate-1`); this report | #32, #46 | #32 merged; #46 draft |
 | Later phases | Spec seeds for Phases 2, 3 and 4; Phase 2 handover (M2.0) | #36, #39, #40; #45 | seeds merged (OD-18, OD-23); open (#45) |
 
 ## 3. Metrics

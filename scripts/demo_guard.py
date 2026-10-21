@@ -14,7 +14,7 @@ Exit codes: 0 every entity is synthetic (or there are none), 3 some are not, 1 n
 import sys
 from typing import Final, LiteralString
 
-from neo4j import Driver, RoutingControl
+from neo4j import READ_ACCESS, Driver, NotificationMinimumSeverity
 from neo4j.exceptions import DriverError, Neo4jError
 from pydantic import ValidationError
 
@@ -28,9 +28,18 @@ REFUSED: Final = 3
 
 
 def count_not_synthetic(driver: Driver, database: str) -> int:
-    """How many `:Entity` nodes are not marked `synthetic = true`."""
-    records, _, _ = driver.execute_query(QUERY, database_=database, routing_=RoutingControl.READ)
-    return int(records[0]["real"])
+    """How many `:Entity` nodes are not marked `synthetic = true`.
+
+    Notifications are off: on an empty graph the server warns that the property key
+    `synthetic` does not exist yet, which is expected here.
+    """
+    with driver.session(
+        database=database,
+        default_access_mode=READ_ACCESS,
+        notifications_min_severity=NotificationMinimumSeverity.OFF,
+    ) as session:
+        record = session.run(QUERY).single(strict=True)
+    return int(record["real"])
 
 
 def check(driver: Driver, database: str) -> int:

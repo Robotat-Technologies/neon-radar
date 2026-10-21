@@ -1,10 +1,35 @@
 """scripts/demo_guard.py: the check that keeps `make demo-mini` from wiping real data."""
 
-from typing import Any, cast
+from types import TracebackType
+from typing import Any, Self, cast
 
 import demo_guard
 import pytest
-from neo4j import Driver, RoutingControl
+from neo4j import READ_ACCESS, Driver, NotificationMinimumSeverity
+
+
+class FakeResult:
+    def __init__(self, real: int) -> None:
+        self.real = real
+
+    def single(self, *, strict: bool) -> dict[str, int]:
+        assert strict
+        return {"real": self.real}
+
+
+class FakeSession:
+    def __init__(self, driver: "FakeDriver") -> None:
+        self.driver = driver
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc: type[BaseException] | BaseException | TracebackType | None) -> None:
+        return None
+
+    def run(self, query: str) -> FakeResult:
+        self.driver.queries.append(query)
+        return FakeResult(self.driver.real)
 
 
 class FakeDriver:
@@ -12,11 +37,12 @@ class FakeDriver:
 
     def __init__(self, real: int) -> None:
         self.real = real
-        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.sessions: list[dict[str, Any]] = []
+        self.queries: list[str] = []
 
-    def execute_query(self, query: str, **kwargs: Any) -> tuple[list[dict[str, int]], None, None]:
-        self.calls.append((query, kwargs))
-        return [{"real": self.real}], None, None
+    def session(self, **config: Any) -> FakeSession:
+        self.sessions.append(config)
+        return FakeSession(self)
 
 
 def test_only_synthetic_entities_pass(capsys: pytest.CaptureFixture[str]) -> None:
@@ -41,9 +67,16 @@ def test_one_real_entity_is_named_in_the_singular(capsys: pytest.CaptureFixture[
 def test_query_reads_every_entity_not_marked_synthetic() -> None:
     driver = FakeDriver(real=0)
     demo_guard.count_not_synthetic(cast(Driver, driver), "demo")
-    [(query, kwargs)] = driver.calls
+    [query] = driver.queries
     assert query.startswith("MATCH (n:Entity) WHERE n.synthetic IS NULL OR n.synthetic <> true")
-    assert kwargs == {"database_": "demo", "routing_": RoutingControl.READ}
+    # Read access, and no warning on an empty graph where `synthetic` is not a known key yet.
+    assert driver.sessions == [
+        {
+            "database": "demo",
+            "default_access_mode": READ_ACCESS,
+            "notifications_min_severity": NotificationMinimumSeverity.OFF,
+        }
+    ]
 
 
 def test_missing_password_fails_before_connecting(

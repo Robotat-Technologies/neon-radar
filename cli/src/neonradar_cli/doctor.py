@@ -40,9 +40,7 @@ class Check:
 
 # The devcontainer has no Docker by design (PHASE-1.md M1.5): Neo4j runs next to it as the
 # `neo4j` Compose service, and Docker work happens on the host. `NR_DEVCONTAINER=1` is set there.
-NO_DOCKER_IN_DEVCONTAINER = (
-    "none in the devcontainer (by design); make up and Testcontainers run on the host"
-)
+NO_DOCKER_IN_DEVCONTAINER = "none in the devcontainer (by design); Docker work runs on the host"
 
 # Neo4j runs only in the Compose stack, so another program on its ports blocks `make up`. The API
 # and the UI dev server may also run as plain processes (`make demo-dev`), which doctor cannot tell
@@ -139,9 +137,7 @@ def check_env_file(
             "not needed; the Neo4j password comes from the environment or a secret",
         )
     if devcontainer:
-        return Check(
-            ".env", Status.WARN, "missing; on the host run bash scripts/ensure_env.sh, then rebuild"
-        )
+        return Check(".env", Status.WARN, "missing; run bash scripts/ensure_env.sh on the host")
     return Check(".env", Status.WARN, "missing; the Neo4j stack reads it (copy .env.example)")
 
 

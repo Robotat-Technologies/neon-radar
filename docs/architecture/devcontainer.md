@@ -1,6 +1,6 @@
 # Devcontainer and GitHub Codespaces
 
-The devcontainer gives everyone the same ready environment: Python 3.14 with uv 0.13, ICU for PyICU, Node.js 24, `gh` and Claude Code, running next to the same Neo4j 5.26 server that `make up` starts ([local stack](local-stack.md)). It lives in `.devcontainer/` and works with VS Code Dev Containers, the `devcontainer` command line and GitHub Codespaces.
+The devcontainer gives everyone the same ready environment: Python 3.14 with uv 0.13, ICU for PyICU, Node.js 24 and `gh`, running next to the same Neo4j 5.26 server that `make up` starts ([local stack](local-stack.md)). It lives in `.devcontainer/` and works with VS Code Dev Containers, the `devcontainer` command line and GitHub Codespaces.
 
 ## When to use it
 
@@ -14,8 +14,8 @@ On macOS and Linux with the tools from `PHASE-1.md` 1.1 installed, the host setu
 
 | Part | Value |
 |---|---|
-| `dev` container | Built from `.devcontainer/Dockerfile`: `ghcr.io/astral-sh/uv:0.13-python3.14-trixie`, pinned by digest (Debian 13, Python 3.14, uv 0.13), plus `pkg-config`, `libicu-dev`, `build-essential`, `git`, `make`, `jq`. You work as the non-root user `dev` (uid 1000). The container drops every Linux capability and cannot gain privileges (`cap_drop: [ALL]`, `no-new-privileges`). |
-| Features | Node.js 24 (`ghcr.io/devcontainers/features/node:2`), GitHub CLI (`github-cli:1`), Claude Code (`ghcr.io/anthropics/devcontainer-features/claude-code:1.0`), pinned in `.devcontainer/devcontainer-lock.json`. The Claude Code feature installs the newest `@anthropic-ai/claude-code` from npm when the image is built. |
+| `dev` container | Built from `.devcontainer/Dockerfile` on `ghcr.io/astral-sh/uv:0.13-python3.14-trixie` (Debian 13, Python 3.14, uv 0.13). You work as the non-root user `dev` (uid 1000). The container drops every Linux capability and cannot gain privileges (`cap_drop: [ALL]`, `no-new-privileges`). |
+| Tools | Only what the spec names, from official sources, pinned: see [Tools and where they come from](#tools-and-where-they-come-from). No global npm packages, no `curl \| sh` installers, no VS Code extensions. |
 | Checkout | Your clone, mounted read-write at `/workspaces/neonradar` |
 | Python environment | `/home/dev/.venv`, inside the container and on `PATH`, so it never replaces your host's `.venv` (`UV_PROJECT_ENVIRONMENT`) |
 | Neo4j | The `neo4j` service from `compose.yaml`, unchanged: same image, GDS jar, memory profile, ports and data volume |
@@ -32,7 +32,7 @@ There is no Docker inside the container. That is deliberate: `dev` reaches Neo4j
    - `ensure_env.sh` creates `.env` with a generated Neo4j password if there is none. It does nothing if `.env` exists, or if `NEO4J_PASSWORD` is already set in the environment.
    - `fetch_gds.sh` downloads the pinned GDS jar once (about 64 MB from github.com) into `data/cache/neo4j-plugins/` and checks its SHA-256. `compose.yaml` mounts that folder, and Neo4j cannot start without it.
 4. Compose starts Neo4j, waits until it is healthy, then starts `dev`. Inside it, `postCreateCommand` runs `make setup` (Python packages, pre-commit hooks).
-   - The first image build takes a few minutes, mostly for the Node.js and Claude Code features.
+   - The first image build takes a few minutes: two image pulls, the Debian packages and the GitHub CLI.
    - The first `make setup` compiles PyICU, which takes about a minute.
 5. Check it in the VS Code terminal:
 
@@ -42,7 +42,7 @@ make smoke                # Neo4j 5.26.32 community, APOC 5.26.32, GDS 2.13.4
 make check
 ```
 
-Creating the container downloads the base image, the features (Node.js, `gh`, Claude Code), the Python packages and the GDS jar. NeonRadar itself makes no outbound calls (G3); the developer tools in the container connect to their own services as on any machine.
+Creating the container downloads the two images, the Debian packages, the GitHub CLI, the Python packages and the GDS jar. NeonRadar itself makes no outbound calls (G3); the developer tools in the container connect to their own services as on any machine.
 
 From a terminal instead of VS Code, run these from the repository root (`initializeCommand` uses paths relative to it):
 
@@ -60,14 +60,28 @@ npx --yes @devcontainers/cli exec --workspace-folder . make check
 - **Secrets.** Codespaces secrets become environment variables in the codespace, and environment variables win over `.env`. Put `CH_API_KEY` there rather than in `.env`. If `NEO4J_PASSWORD` reaches `initializeCommand` as well, `ensure_env.sh` creates no `.env` at all. This is not checked: whether Codespaces passes secrets to `initializeCommand`; if it does not, `.env` is created as usual.
 - **Ports.** `forwardPorts` lists Neo4j Browser (`neo4j:7474`), Bolt (`neo4j:7687`), the API (8000) and the UI dev server (5173); open them from the Ports tab. Neo4j Browser through Codespaces port forwarding has not been checked yet.
 
-## Claude Code inside the container
+## Tools and where they come from
 
-- The Claude Code CLI is installed, and VS Code adds the Claude Code extension. Run `claude` once and sign in. The login is kept in a Docker volume mounted at `/home/dev/.claude` (`CLAUDE_CONFIG_DIR`), so it survives a rebuild. Compose puts the project name in front of the volume's name: `neonradar_neonradar-claude-config-<id>`.
-- **Permissions.** Prefer Auto mode. `--dangerously-skip-permissions` is acceptable only inside this container and only as the non-root user `dev`; never use it on your own machine (`PHASE-1.md` 1.5). Know what the container does not protect:
+The operator decided on 2026-10-22 to install only safe, well-known tools from official sources, pinned. Nothing else is installed.
+
+| Tool | Source | Pinned by | Version (2026-10-22) |
+|---|---|---|---|
+| Debian 13, Python 3.14, uv | `ghcr.io/astral-sh/uv:0.13-python3.14-trixie`, the official uv image (built on the official `python:3.14-trixie`) | image digest in the Dockerfile | Python 3.14.8, uv 0.13.4 |
+| `pkg-config`, `libicu-dev`, `build-essential`, `git`, `make`, `jq`, `ca-certificates` | Debian apt (`deb.debian.org`, trixie), as the spec's Dockerfile names them | the base image's Debian release | ICU 76.1, git 2.47.3 |
+| Node.js 24, npm, npx, corepack | the official `node:24-trixie-slim` image: only these four are copied (no yarn) | image digest in the Dockerfile | Node 24.22.1, npm 11.19.1 |
+| GitHub CLI (`gh`) | `ghcr.io/devcontainers/features/github-cli:1`, which installs GitHub's `.deb` from github.com/cli/cli releases | feature digest in `.devcontainer/devcontainer-lock.json` | feature 1.1.3, gh 2.102.1 |
+| Python packages | PyPI, through `uv sync` | `uv.lock` | as locked |
+
+Dependabot proposes updates for both images and the feature. The Python packages and the pre-commit hooks are the project's own (`uv.lock`, `.pre-commit-config.yaml`).
+
+## Claude Code and the container
+
+- **Claude Code is not installed in the container.** The spec names the Claude Code feature (`ghcr.io/anthropics/devcontainer-features/claude-code`), but that feature installs Claude Code with `npm install -g`, which the operator's rule excludes. Run Claude Code on your computer: it works on the same checkout. The login volume (`/home/dev/.claude`, `CLAUDE_CONFIG_DIR`) is kept, so a later decision can add Claude Code without other changes.
+- **If you run an agent inside the container anyway:** prefer Auto mode. `--dangerously-skip-permissions` is acceptable only inside this container and only as the non-root user `dev`; never use it on your own machine (`PHASE-1.md` 1.5). Know what the container does not protect:
   - **The checkout is shared read-write with your computer.** A command can change `.git/hooks`, `.git/config`, the `Makefile`, `scripts/ensure_env.sh` or anything else that your computer later runs outside the container. Look at `git status` and `git diff` before you run `make` or commit on the host after such a session.
   - **Credentials are forwarded.** VS Code forwards your git credentials and SSH agent into the container, and a codespace has a `GITHUB_TOKEN`, so a command can push or call the GitHub API as you.
-  - **The network is open.** The Claude Code feature installs a firewall script (`/usr/local/bin/init-firewall.sh`) but does not switch it on, so outbound connections are unrestricted.
-- **The Neo4j MCP server** in `.mcp.json` connects to `NEO4J_URI`, which here is the `neo4j` service. It reads the password from `NEO4J_PASSWORD` in Claude Code's environment, which the container does not set. To use it, start Claude Code with `NEO4J_PASSWORD="$(cat /run/secrets/neo4j_password)" claude`. The password is then in that session's environment, so the rules in [Secrets and logs](#secrets-and-logs) apply to everything the session prints.
+  - **The network is open.** Nothing restricts outbound connections from the container.
+- **The Neo4j MCP server** in `.mcp.json` connects to `NEO4J_URI`, which inside the container is the `neo4j` service. It reads the password from `NEO4J_PASSWORD` in the agent's environment, which the container does not set. You would have to start the agent with `NEO4J_PASSWORD="$(cat /run/secrets/neo4j_password)"`; the password is then in that session's environment, so the rules in [Secrets and logs](#secrets-and-logs) apply to everything the session prints.
 
 ## Secrets and logs
 
@@ -85,7 +99,7 @@ Treat those logs as sensitive all the same:
 Rules:
 
 - Never paste these logs into an issue, a pull request, a chat or an AI session without first replacing every password and key with `<redacted>`.
-- In a Claude Code session inside the container, do not run `env`, `printenv` or `cat` on `.env` or `/run/secrets/`; everything a command prints goes into the session.
+- In an AI agent session (Claude Code or another), do not run `env`, `printenv` or `cat` on `.env` or `/run/secrets/`; everything a command prints goes into the session.
 - If a password leaked: change `NEO4J_PASSWORD` in `.env`, then run `make reset CONFIRM=yes` (this deletes the local database) and `make up`. The new password only takes effect when the database is created again. For an API key, revoke it with its provider and put the new one in `.env`.
 
 ## Limits

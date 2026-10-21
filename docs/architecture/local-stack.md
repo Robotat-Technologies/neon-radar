@@ -19,7 +19,7 @@ OK    APOC   5.26.32
 OK    GDS    2.13.4
 ```
 
-`neonradar doctor` checks Docker, Compose, `.env`, the ports and the memory Docker has.
+`neonradar doctor` checks Docker, Compose, `.env`, the ports and the memory Docker has. On Windows, on a weak laptop or in GitHub Codespaces, use the [devcontainer](devcontainer.md) instead: it starts this same Neo4j next to a ready development container.
 
 ## What runs
 
@@ -62,6 +62,7 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 - `make logs` follows the server log.
 - `make reset CONFIRM=yes` deletes the database and logs volumes. The next `make up` starts empty.
 - The password in `.env` takes effect only when the database is first created. If you change `NEO4J_PASSWORD` later, run `make reset CONFIRM=yes`, then `make up`.
+- A `NEO4J_PASSWORD` set in the environment (a Codespaces secret, a CI job, a throwaway value for a test run) wins over `.env` for Compose and for the `neonradar` command. When it is set and not empty, `bash scripts/ensure_env.sh` creates nothing and prints only `NEO4J_PASSWORD is set in the environment; .env not needed.`; it never shows the value.
 - All checkouts on one machine (the main checkout and every git worktree) share the same Compose project, `neonradar`, and so the same database. Give them the same `.env`: worktrees that Claude Code creates copy it (`.worktreeinclude`), and in any other worktree `bash scripts/ensure_env.sh` (run by `make setup`, `make plugins` and `make up`) links `.env` to the main checkout's. It stops with a message if the main checkout has no `.env` yet.
 - To fetch the GDS jar again, delete `data/cache/neo4j-plugins/` and run `make plugins`.
 - Worktrees that Claude Code creates also copy the GDS jar (`.worktreeinclude`); in a worktree you create yourself, run `make plugins` or copy `data/cache/neo4j-plugins/`.

@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help setup fmt lint typecheck test test-int contracts contracts-check check hygiene \
-	up down reset plugins smoke logs demo-mini e2e gate-1
+	up down reset plugins smoke logs fixtures demo-mini e2e gate-1
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
@@ -90,6 +90,9 @@ smoke: ## print the Neo4j, APOC and GDS versions; exit 1 if any is missing
 
 logs: ## follow the Neo4j logs
 	docker compose logs --follow --tail=200 neo4j
+
+fixtures: ## regenerate data/fixtures/demo-mini (then check new names against Companies House, OD-12)
+	uv run neonradar synth demo-mini --seed 20261023 --out data/fixtures/demo-mini/
 
 demo-mini e2e: ## synthetic demo and the end-to-end test
 	@echo "available after M1.9"

@@ -38,7 +38,7 @@ RUN uv sync --locked --no-dev --package neonradar-api
 ENV NR_REPO_ROOT=/app
 
 # The files stay owned by root and read-only for the user that runs the API.
-RUN useradd --system --uid 10001 --user-group --no-create-home --home-dir /nonexistent \
+RUN useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent \
     --shell /usr/sbin/nologin neonradar
 USER 10001:10001
 

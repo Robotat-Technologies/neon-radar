@@ -34,6 +34,6 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.10b-2 | todo | - | - | 2026-10-21 | - | - |
 | M1.10b-3 | todo | - | - | 2026-10-21 | - | - |
 | M1.10c | todo | - | - | 2026-10-21 | - | - |
-| M1.11a | todo | - | - | 2026-10-21 | - | - |
+| M1.11a | pr-open | p1/m1-11a-onboarding | #22 | 2026-10-21 | acceptance on a throwaway Neo4j 5.26.32 (not the shared stack): Assignment 1 run end to end from the guide (LOAD CSV: 51 nodes, 42 relationships; make onboarding-check: OK @example, 4 rows; reset removed 51); integration tests: 4 passed; make check: 291 passed; make hygiene: fixtures OK, size only with size-exception | 729 counted lines: size-exception requested under OD-15 (or split in two); CSV ids onb- and synthetic first column as the spec says; all 20 company and 15 person names checked on Companies House search (OD-12); dates presented as planned (OD-1); templates only, no per-intern files (OD-5, OD-6); GC-11, GC-12, GC-13 not met (no interns); optional issues not created; built in a worktree; review by the orchestrator after the PR opens (OD-4); other deviations listed in the PR |
 | M1.11b | todo | - | - | 2026-10-21 | - | - |
 | M1.12 | todo | - | - | 2026-10-21 | - | - |

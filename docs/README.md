@@ -13,6 +13,6 @@ An index of the `docs/` tree. Folders marked "later" are created by a later Phas
 | `learning/` | Learning logs (written by people, never by agents), templates, reading list and case notes | later |
 | `team/` | Assignments, roles and `first-queries.md` | later |
 | `data/` | Data source spike reports and licence notes | later |
-| `architecture/` | Architecture overview | later |
+| [architecture/](architecture/) | The [local Neo4j stack](architecture/local-stack.md); the architecture overview comes later | present |
 
 Repository-level documents live in the root: [README](../README.md), [CONTRIBUTING](../CONTRIBUTING.md), [DATA_SOURCES](../DATA_SOURCES.md), [SECURITY](../SECURITY.md), [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md), [CHANGELOG](../CHANGELOG.md) and [CONTRIBUTORS](../CONTRIBUTORS.md). What may be committed under `data/` is in [data/README.md](../data/README.md).

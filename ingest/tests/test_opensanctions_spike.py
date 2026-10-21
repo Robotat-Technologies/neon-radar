@@ -1,0 +1,199 @@
+"""The OpenSanctions spike against `httpx.MockTransport` (PHASE-1.md M1.8d).
+
+The mocked server answers like data.opensanctions.org since 17 August 2026: the
+`datasets/latest/...` path redirects (307) to `artifacts/<collection>/<version>/...`. Bodies
+are synthetic: `index.json` is built here and `entities.ftm.json` is the synthetic fixture.
+"""
+
+import json
+from collections import Counter
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+
+from neonradar_contracts.records import Manifest, manifest_path, validate_files
+from neonradar_ingest.sources.opensanctions.access import (
+    REFUSAL,
+    Access,
+    LicenceRequired,
+    read_access,
+    require_access,
+)
+from neonradar_ingest.sources.opensanctions.spike import (
+    BASE_URL,
+    IndexInfo,
+    index_url,
+    run_spike,
+    summary_lines,
+)
+
+ENTITIES = Path(__file__).parent / "fixtures" / "opensanctions" / "entities.ftm.json"
+ARTIFACTS = "https://data.opensanctions.org/artifacts/sanctions/20261015000000-syn"
+INDEX = {
+    "name": "sanctions",
+    "title": "Synthetic example collection",
+    "version": "20261015000000-syn",
+    "last_export": "2026-10-15T00:00:00",
+    "resources": [
+        {
+            "name": "entities.ftm.json",
+            "url": f"{ARTIFACTS}/entities.ftm.json",
+            "checksum": "0" * 40,
+            "mime_type": "application/json+ftm",
+            "size": ENTITIES.stat().st_size,
+        },
+        {"name": "targets.simple.csv", "url": f"{ARTIFACTS}/targets.simple.csv"},
+    ],
+}
+
+
+class SyntheticServer:
+    """Records every request; serves the synthetic index and entities after a 307."""
+
+    def __init__(self) -> None:
+        self.requests: list[str] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        self.requests.append(url)
+        if url.startswith(f"{BASE_URL}/sanctions/"):
+            location = url.replace(f"{BASE_URL}/sanctions", ARTIFACTS)
+            return httpx.Response(307, headers={"Location": location})
+        if url == f"{ARTIFACTS}/index.json":
+            return httpx.Response(200, json=INDEX)
+        if url == f"{ARTIFACTS}/entities.ftm.json":
+            return httpx.Response(200, content=ENTITIES.read_bytes())
+        return httpx.Response(404)
+
+
+@pytest.fixture
+def server() -> SyntheticServer:
+    return SyntheticServer()
+
+
+@pytest.fixture
+def client(server: SyntheticServer) -> Iterator[httpx.Client]:
+    with httpx.Client(transport=httpx.MockTransport(server), follow_redirects=True) as client:
+        yield client
+
+
+def test_none_refuses_before_any_request(
+    server: SyntheticServer, client: httpx.Client, tmp_path: Path
+) -> None:
+    with pytest.raises(LicenceRequired, match=REFUSAL):
+        run_spike(client, access=Access.NONE, out_dir=tmp_path / "out")
+    assert server.requests == []
+    assert not (tmp_path / "out").exists()
+
+
+def test_evaluation_without_the_confirmation_refuses(
+    server: SyntheticServer, client: httpx.Client, tmp_path: Path
+) -> None:
+    with pytest.raises(LicenceRequired, match="written confirmation"):
+        run_spike(client, access=Access.EVALUATION, licence_file=tmp_path / "missing.md")
+    assert server.requests == []
+
+
+@pytest.mark.parametrize("route", [Access.EVALUATION, Access.EXEMPT])
+def test_reading_routes_stream_count_and_write_nothing(
+    client: httpx.Client, tmp_path: Path, route: Access
+) -> None:
+    confirmation = tmp_path / "opensanctions.md"
+    confirmation.write_text("written confirmation (test)", encoding="utf-8")
+    out = tmp_path / "out"
+    result = run_spike(client, access=route, out_dir=out, licence_file=confirmation)
+    assert result.index.version == "20261015000000-syn"
+    assert result.index.checksum == "0" * 40
+    assert result.index.redirects == (307,)
+    assert result.index.url == f"{ARTIFACTS}/index.json"
+    assert result.entities_url == f"{ARTIFACTS}/entities.ftm.json"
+    assert result.stats.lines == 12
+    assert result.stats.mapped.total() == 10
+    assert result.stats.skipped == Counter(Identification=1, SynthFutureSchema=1)
+    assert result.stats.flags == Counter(PEP=1, RCA=1, Sanctioned=1)
+    assert result.issues == Counter()
+    assert result.records_file is None
+    assert not out.exists()
+
+
+def test_licensed_writes_valid_records_and_a_manifest_to_the_cache(
+    client: httpx.Client, tmp_path: Path
+) -> None:
+    out = tmp_path / "data" / "cache" / "spikes" / "opensanctions"
+    result = run_spike(client, access=Access.LICENSED, out_dir=out)
+    assert result.records_file is not None and result.records_file.parent == out
+    assert result.records_file.name.startswith("opensanctions_default-")
+    assert result.records_file.name.endswith("-sanctions.ftm.jsonl")
+    counts, issues = validate_files([result.records_file], strict=True)
+    assert counts.total() == 10 and issues == []
+    raw = json.loads(manifest_path(result.records_file).read_text(encoding="utf-8"))
+    manifest = Manifest.model_validate(raw)
+    assert manifest.dataset == "opensanctions_default"
+    assert manifest.licence.id == "CC-BY-NC-4.0"
+    assert manifest.synthetic is False
+    assert manifest.source.source_version == "20261015000000-syn"
+    assert manifest.counts.skipped == {"Identification": 1, "SynthFutureSchema": 1}
+
+
+def test_rows_limits_the_lines_read(client: httpx.Client, tmp_path: Path) -> None:
+    result = run_spike(client, access=Access.EXEMPT, rows=3, out_dir=tmp_path)
+    assert result.stats.lines == 3
+    with pytest.raises(ValueError, match="rows"):
+        run_spike(client, access=Access.EXEMPT, rows=0, out_dir=tmp_path)
+
+
+def test_unknown_collections_are_refused() -> None:
+    assert index_url("peps") == f"{BASE_URL}/peps/index.json"
+    for collection in ("all", "../sanctions", "Sanctions"):
+        with pytest.raises(ValueError, match="unknown collection"):
+            index_url(collection)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"version": "v1", "last_export": "2026-10-15T00:00:00", "resources": INDEX["resources"]},
+        {"dataset": {"version": "v1", "last_export": "2026-10-15T00:00:00"}, **INDEX},
+    ],
+)
+def test_index_json_with_or_without_a_dataset_key(body: dict[str, Any]) -> None:
+    info = IndexInfo.from_body(body, "sanctions", "u", ())
+    assert info.version == "v1"
+    assert info.entities_url == f"{ARTIFACTS}/entities.ftm.json"
+    assert info.size == ENTITIES.stat().st_size
+
+
+def test_index_without_resources_falls_back_to_the_latest_path() -> None:
+    info = IndexInfo.from_body({"version": 7}, "peps", "u", ())
+    assert info.version is None
+    assert info.checksum is None
+    assert info.entities_url == f"{BASE_URL}/peps/entities.ftm.json"
+
+
+@pytest.mark.network
+def test_live_spike_streams_a_small_slice(tmp_path: Path) -> None:
+    """Runs only when access.opensanctions allows it; skipped while it is none (G2, G7)."""
+    route = read_access()
+    try:
+        require_access(route)
+    except LicenceRequired as refusal:
+        pytest.skip(f"access.opensanctions is {route}: {refusal}")
+    with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(60, connect=10)) as client:
+        result = run_spike(client, access=route, rows=10, out_dir=tmp_path)
+    assert result.stats.lines == 10
+    assert result.index.version
+
+
+def test_summary_lines_show_counts_only(client: httpx.Client, tmp_path: Path) -> None:
+    result = run_spike(client, access=Access.EXEMPT, out_dir=tmp_path / "out")
+    text = "\n".join(summary_lines(result))
+    assert "version 20261015000000-syn" in text
+    assert "(redirects: 307)" in text
+    assert "read 12 lines" in text and "10 C1 records, 2 skipped" in text
+    assert "C2 flags: PEP 1, RCA 1, Sanctioned 1" in text
+    assert "dropped keys: target 10" in text
+    assert "wrote nothing (access exempt writes nothing)" in text
+    assert "Synthetic Person" not in text  # never names

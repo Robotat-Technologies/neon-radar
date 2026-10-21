@@ -43,7 +43,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.1a | todo | - | - | 2026-10-22 | - | - |
 | M2.1b | todo | - | - | 2026-10-22 | - | - |
 | M2.1c | todo | - | - | 2026-10-22 | - | - |
-| M2.2 | todo | - | - | 2026-10-22 | - | - |
+| M2.2 | pr-open | p2/m2-2-data-manager | #47 | 2026-10-22 | acceptance on synthetic data after merging main at 38714cd and the review fixes (data-guardian B1, S2 to S6; general B2, B3, S1 to S3; notes): data profiles lists 3 profiles, uk-sample and uk-tiny "may run on this machine: no"; test_data_gate.py 18 passed; data fetch --profile uk-tiny exit=3 (rule access.real_data_profiles), nothing written under data/cache/real/; data status 0 versions, summary in data/cache/reports/all-profiles/; ingest build --profile demo 454 records, summary in data/cache/reports/demo/; data tests 141 passed; make check exit 0 (1560 passed); make hygiene LABELS=size-exception | Plan first: plan in the PR body (OD-10). Size exception (header). Review fixes: a synthetic profile enables only nr_synthetic, the gate always checks a real dataset, real datasets always land under data/cache/real/; the gate runs per dataset in data fetch and per dataset and step in ingest build; strict Range resumption; the redaction guard never fails on its log and prints only plain names; neo4j-real gets a logs volume and purge --graph deletes both volumes after the container; make reset never runs down -v and refuses another COMPOSE_PROJECT_NAME. Deviations listed in PR #47. No real-data run |
 | M2.3a | todo | - | - | 2026-10-22 | - | - |
 | M2.3b | todo | - | - | 2026-10-22 | - | - |
 | M2.3c | todo | - | - | 2026-10-22 | - | - |

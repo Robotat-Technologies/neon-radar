@@ -2,10 +2,14 @@
 
 `neonradar contracts validate-records` prints each issue with the file and line of its record.
 A synthetic record's line is `<file>:<line>: <rule> <record id>: <message>`, as in Phase 1 with
-the place in front. Every other record (a dataset that is not synthetic or not in the registry,
-or an id without the `syn` prefix) gets `<file>:<line>: <rule>: <message>` with each quoted value
-replaced by `<value>`, anything after `input_value=` up to the next comma or closing bracket
-replaced too, and its record id left out: the line number identifies the record.
+the place in front, except that a quoted id of a record that is not synthetic (a synthetic record
+may reference a real one) shows as `<record id>`. Every other record (a dataset that is not
+synthetic or not in the registry, or an id without the `syn` prefix) gets
+`<file>:<line>: <rule>: <message>` with each quoted value replaced by `<value>`, anything after
+`input_value=` up to the next comma or closing bracket replaced too, the dict keys and unknown
+keys in an `nr.` path replaced, numbers of five or more digits replaced, and its record id left
+out: the line number identifies the record. A schema name that FollowTheMoney does not know is
+counted as `<unknown schema>`.
 
 The frozen validator in `neonradar_contracts.records` is used as it is: this module only reads
 each file once more to number its records, then formats what the validator reports.
@@ -30,6 +34,13 @@ RECORD_ID = "<record id>"
 # starts nothing), up to the matching quote, with backslash escapes inside.
 QUOTED = re.compile(r"""(?<![A-Za-z0-9])(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")""")
 INPUT_VALUE = re.compile(r"input_value=[^,\])}]*")
+# `nr.<path>: <message>` (records._check_nr): the path holds pydantic's location, whose dict keys
+# can be another record's id and whose first part, for an unknown key, can be any text. Greedy,
+# so a key with ": " in it is masked whole (pydantic messages start with a capital letter).
+NR_PATH = re.compile(r"^nr\.(?P<path>.*): (?=[A-Z])")
+NR_FIELDS = frozenset(records.NrExtension.model_fields)
+LONG_NUMBER = re.compile(r"\d{5,}")  # a number that is not a string value, such as 19790801
+UNKNOWN_SCHEMA = "<unknown schema>"
 DUPLICATE = "duplicate id"  # the start of the validator's R4 message for a repeated id
 
 
@@ -43,12 +54,30 @@ class Place:
     masked: bool
 
 
+def _nr_path(match: re.Match[str]) -> str:
+    field, _, rest = match["path"].partition(".")
+    return f"nr.{field if field in NR_FIELDS else VALUE}{'.' + VALUE if rest else ''}: "
+
+
 def mask(message: str, record_id: str | None = None) -> str:
-    """The message with the record id, every quoted value and every `input_value=` left out."""
+    """The message with the record id, quoted values, `input_value=`, `nr.` keys and long
+    numbers left out."""
     if record_id:
         message = message.replace(record_id, RECORD_ID)
+    message = NR_PATH.sub(_nr_path, message, count=1)
     message = INPUT_VALUE.sub("input_value=" + VALUE, message)
-    return QUOTED.sub(VALUE, message)
+    message = QUOTED.sub(VALUE, message)
+    return LONG_NUMBER.sub(VALUE, message)
+
+
+def _real_id(match: re.Match[str]) -> str:
+    ref = records.ID_RE.fullmatch(match.group(0)[1:-1])
+    return RECORD_ID if ref and ref["prefix"] != records.SYNTHETIC_PREFIX else match.group(0)
+
+
+def hide_real_ids(message: str) -> str:
+    """The message with every quoted id of a record that is not synthetic left out."""
+    return QUOTED.sub(_real_id, message)
 
 
 def is_synthetic(data: dict[str, Any], registry: Registry) -> bool:
@@ -70,13 +99,20 @@ def numbered_records(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
     `iter_records` skips the lines that are blank once decoded, so the same lines are skipped
     here; a line it cannot read raises `RecordFileError` from `iter_records` itself.
     """
+    yield from zip(_line_numbers(path), records.iter_records(path), strict=False)
+
+
+def _line_numbers(path: Path) -> Iterator[int]:
     with path.open("rb") as handle:
-        numbers = [
-            number
-            for number, raw in enumerate(handle, start=1)
-            if raw.decode("utf-8", errors="replace").strip()
-        ]
-    yield from zip(numbers, records.iter_records(path), strict=False)
+        for number, raw in enumerate(handle, start=1):
+            if raw.decode("utf-8", errors="replace").strip():
+                yield number
+
+
+def schema_name(data: dict[str, Any]) -> str:
+    """The record's schema for the counts, or `<unknown schema>` (it could be any text)."""
+    name = data.get("schema")
+    return name if isinstance(name, str) and model.get(name) is not None else UNKNOWN_SCHEMA
 
 
 def _seen_by_batch(data: dict[str, Any]) -> bool:
@@ -90,7 +126,7 @@ def line_for(place: Place, issue: records.RecordIssue) -> str:
     where = f"{place.path}:{place.line}"
     if place.masked:
         return f"{where}: {issue.rule}: {mask(issue.message, issue.record_id)}"
-    return f"{where}: {issue}"
+    return f"{where}: {issue.rule} {issue.record_id or '<no id>'}: {hide_real_ids(issue.message)}"
 
 
 def validate(paths: Sequence[Path], strict: bool) -> tuple[Counter[str], list[str]]:
@@ -104,7 +140,7 @@ def validate(paths: Sequence[Path], strict: bool) -> tuple[Counter[str], list[st
     places: dict[str, list[Place]] = {}
     for path in paths:
         for number, data in numbered_records(path):
-            counts[str(data.get("schema"))] += 1
+            counts[schema_name(data)] += 1
             rid = data["id"] if isinstance(data.get("id"), str) else None
             place = Place(path, number, rid, masked=not is_synthetic(data, registry))
             if rid is not None and _seen_by_batch(data):

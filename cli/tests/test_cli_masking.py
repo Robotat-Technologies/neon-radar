@@ -134,3 +134,81 @@ def test_validate_records_keeps_values_and_ids_for_synthetic_records(tmp_path: P
         in result.output
     )
     assert f"{second}:1: R4 syn-co-0099: duplicate id" in result.output
+
+
+@pytest.mark.parametrize(
+    ("message", "masked"),
+    [
+        (
+            "nr.address_roles.gbch-addr-T42SECRET: Input should be a valid string",
+            "nr.address_roles.<value>: Input should be a valid string",
+        ),
+        (
+            "nr.Test Holder Ltd: Extra inputs are not permitted",
+            "nr.<value>: Extra inputs are not permitted",
+        ),
+        (
+            "nr.Test: Holder: Extra inputs are not permitted",
+            "nr.<value>: Extra inputs are not permitted",
+        ),
+        (
+            "nr.channel: Input should be 'wire' or 'card'",
+            "nr.channel: Input should be <value> or <value>",
+        ),
+        (
+            "nr.share_pct_min is greater than nr.share_pct_max",
+            "nr.share_pct_min is greater than nr.share_pct_max",
+        ),
+        (
+            "first_seen 19790801 is not an ISO 8601 date",
+            "first_seen <value> is not an ISO 8601 date",
+        ),
+    ],
+)
+def test_mask_nr_paths_and_numbers(message: str, masked: str) -> None:
+    assert masking.mask(message) == masked
+
+
+def test_hide_real_ids_keeps_synthetic_ids() -> None:
+    message = "owner points to 'gbch-psc-T0000002', and asset to 'syn-co-0001'"
+    assert (
+        masking.hide_real_ids(message) == "owner points to <record id>, and asset to 'syn-co-0001'"
+    )
+
+
+def test_validate_records_masks_nr_keys_numbers_and_unknown_schemas(tmp_path: Path) -> None:
+    roles = _lookalike(
+        properties={"name": ["Test Holder Ltd"], "addressEntity": ["gbch-addr-T0000042"]},
+        nr={"v": "1.0", "address_roles": {"gbch-addr-T0000042": 5}, "Test Holder Alias": 1},
+        first_seen=19790801,
+    )
+    odd = {**_lookalike(), "id": "gbch-co-T0000005", "schema": "Test Holder Schema"}
+    path = tmp_path / "nr.ftm.jsonl"
+    path.write_text(_line(roles) + _line(odd), encoding="utf-8")
+    result = runner.invoke(app, ["contracts", "validate-records", str(path)])
+    assert result.exit_code == 1
+    assert "  <unknown schema>: 1" in result.output
+    assert f"{path}:1: NR: nr.address_roles.<value>: " in result.output
+    assert f"{path}:1: NR: nr.<value>: Extra inputs are not permitted" in result.output
+    assert f"{path}:1: R5: first_seen <value> is not an ISO 8601 date" in result.output
+    for secret in ("T0000042", "T0000005", "Test Holder", "19790801"):
+        assert secret not in result.output
+
+
+def test_validate_records_hides_real_ids_that_a_synthetic_record_names(tmp_path: Path) -> None:
+    link = {
+        "id": "syn-ownership-0001",
+        "schema": "Ownership",
+        "datasets": ["nr_synthetic"],
+        "properties": {"owner": ["gbch-psc-T0000002"], "asset": ["syn-acct-0001"]},
+        "nr": {"v": "1.0", "synthetic": True, "synthetic_kind": "activity"},
+    }
+    path = tmp_path / "join.ftm.jsonl"
+    path.write_text(_line(link), encoding="utf-8")
+    result = runner.invoke(app, ["contracts", "validate-records", str(path), "--strict"])
+    assert result.exit_code == 1
+    assert (
+        f"{path}:1: R4 syn-ownership-0001: owner points to <record id>, which is not in this load"
+        in result.output
+    )
+    assert "T0000002" not in result.output

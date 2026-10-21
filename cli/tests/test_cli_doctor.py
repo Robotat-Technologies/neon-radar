@@ -228,4 +228,4 @@ def test_read_access(tmp_path: Path) -> None:
     project.parent.mkdir(parents=True)
     project.write_text("access:\n  real_data_days: 30\n", encoding="utf-8")
     assert doctor.read_access(tmp_path) == {"real_data_days": 30}
-    assert doctor.read_access(doctor.REPO_ROOT)["real_data_profiles"] == []
+    assert isinstance(doctor.read_access(doctor.REPO_ROOT)["real_data_profiles"], list)

@@ -258,8 +258,10 @@ def check_real_data(root: Path, access: dict[str, Any], now: float | None = None
 def check_spill(root: Path) -> Check:
     folders = 0
     for spill in SPILL_DIRS:
-        if (root / spill).is_dir():
+        try:
             folders += sum(1 for entry in (root / spill).iterdir() if entry.is_dir())
+        except OSError:  # missing or unreadable: nothing to count
+            continue
     if folders:
         return Check(
             "DuckDB spill",

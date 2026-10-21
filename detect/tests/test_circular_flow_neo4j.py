@@ -118,6 +118,26 @@ def test_a_rerun_removes_flags_to_former_subjects(cases: Neo4jTarget, tmp_path: 
     assert sorted(row["id"] for row in flagged) == sorted(s.entity_id for s in alert.subjects)
 
 
+def test_a_run_id_used_again_keeps_only_what_it_finds(cases: Neo4jTarget, tmp_path: Path) -> None:
+    run_id = "run-20261021T101500-0abc"
+    first = detect_run(cases, tmp_path, run_id=run_id)
+    assert len(first.alerts) == 2
+    cases.driver.execute_query(
+        "MATCH ()-[p:PAID {id: $id}]->() DELETE p",
+        {"id": EXPECTED["cases"]["B"]["edge_ids"][0]},
+        database_=cases.database,
+    )
+    again = detect_run(cases, tmp_path, run_id=run_id)
+    assert [a.evidence.edge_ids for a in again.alerts] == [CASE_A]
+    stored = read(
+        cases,
+        "MATCH (a:Alert) RETURN a.alert_id AS id,"
+        " COUNT { (:DetectionRun {run_id: $run_id})-[:PRODUCED]->(a) } AS produced",
+        run_id=run_id,
+    )
+    assert stored == [{"id": again.alerts[0].alert_id, "produced": 1}]
+
+
 def test_case_f_real_holder_gives_a_structural_pattern(
     graph_db: Neo4jTarget, tmp_path: Path
 ) -> None:

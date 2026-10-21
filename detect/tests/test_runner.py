@@ -101,6 +101,7 @@ def test_a_run_writes_its_audit_copy_and_loads_the_alerts(
     use_detector(monkeypatch, findings("A", "B"))
     driver = FakeDriver()
     report = run(tmp_path, driver)
+    ids = [alert.alert_id for alert in report.alerts]
     assert report.status == "ok"
     assert report.run_id.startswith("run-20261021T101500-")
     lines = (report.directory / "alerts.jsonl").read_text(encoding="utf-8").splitlines()
@@ -117,8 +118,9 @@ def test_a_run_writes_its_audit_copy_and_loads_the_alerts(
         "alert_ids": [],
         "error": None,
     }
-    (merge_run, run_params), (_, alert_params) = driver.calls
+    (merge_run, run_params), (prune, prune_params), (_, alert_params) = driver.calls
     assert merge_run == runner.MERGE_RUN
+    assert (prune, prune_params["alert_ids"]) == (runner.PRUNE_RUN, ids)
     detectors = [{"name": circular_flow.NAME, "version": "0.1.0"}]
     assert json.loads(run_params["run"]["detectors"]) == detectors
     assert run_params["run"]["alert_count"] == 2
@@ -152,9 +154,11 @@ def test_a_wording_failure_fails_the_whole_run(
     meta = json.loads((directory / "run.json").read_text(encoding="utf-8"))
     assert (meta["status"], meta["alert_count"]) == ("failed", 0)
     assert "WordingError" in meta["error"]
-    [(cypher, params)] = driver.calls  # only the failed :DetectionRun, no alerts
-    assert cypher == runner.MERGE_RUN
+    # only the failed :DetectionRun, pruned of anything an earlier attempt produced
+    (merge_run, params), (prune, prune_params), (_, alert_params) = driver.calls
+    assert (merge_run, prune) == (runner.MERGE_RUN, runner.PRUNE_RUN)
     assert (params["run"]["status"], params["run"]["alert_count"]) == ("failed", 0)
+    assert prune_params["alert_ids"] == alert_params["rows"] == []
 
 
 def test_selection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

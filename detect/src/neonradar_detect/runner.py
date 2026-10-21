@@ -5,7 +5,8 @@ whole run if any alert breaks the contract or the wording lint. A run writes its
 `data/runs/<run_id>/alerts.jsonl` and `run.json`, and loads `(:DetectionRun)-[:PRODUCED]->
 (:Alert)-[:FLAGS {role}]->(:Entity)` into Neo4j in one transaction, merged on `run_id`,
 `alert_id` and the alert-subject pair, so a re-run on the same graph finds the same alerts. A
-run that fails writes `run.json` and a `:DetectionRun` with `status: failed` and no alerts.
+run id given again (`--run-id`) keeps only what the latest attempt found. A run that fails
+writes `run.json` and a `:DetectionRun` with `status: failed` and no alerts.
 """
 
 import json
@@ -45,6 +46,16 @@ class DetectorModule(Protocol):
 DETECTORS: Mapping[str, DetectorModule] = {circular_flow.NAME: circular_flow}
 
 MERGE_RUN = "MERGE (r:DetectionRun {run_id: $run.run_id}) SET r += $run"
+# A run id used again (`--run-id`): drop what the earlier attempt produced and this one did not
+# find, and alerts that no run produces any more.
+PRUNE_RUN = """
+MATCH (:DetectionRun {run_id: $run_id})-[p:PRODUCED]->(a:Alert)
+WHERE NOT a.alert_id IN $alert_ids
+DELETE p
+WITH DISTINCT a
+WHERE NOT EXISTS { (:DetectionRun)-[:PRODUCED]->(a) }
+DETACH DELETE a
+"""
 MERGE_ALERTS = """
 MATCH (r:DetectionRun {run_id: $run_id})
 UNWIND $rows AS row
@@ -166,6 +177,8 @@ def alert_row(alert: Alert) -> dict[str, Any]:
 
 def _store(tx: ManagedTransaction, run: dict[str, Any], alerts: Sequence[Alert]) -> None:
     tx.run(MERGE_RUN, run=run).consume()
+    ids = [alert.alert_id for alert in alerts]
+    tx.run(PRUNE_RUN, run_id=run["run_id"], alert_ids=ids).consume()
     rows = [alert_row(alert) for alert in alerts]
     record = tx.run(MERGE_ALERTS, run_id=run["run_id"], rows=rows).single(strict=True)
     expected = sum(len(row["subjects"]) for row in rows)
@@ -241,26 +254,24 @@ def run(
         _write_files(report, alerts=True)
         store(driver, database, report)
     except Exception as error:
-        _fail(driver, database, report, error)
+        _fail(driver, database, report, error, clock())
         raise RunError(f"run {run_id} failed: {error}") from error
     return report
 
 
-def _store_run(tx: ManagedTransaction, run: dict[str, Any]) -> None:
-    tx.run(MERGE_RUN, run=run).consume()
-
-
-def _fail(driver: Driver, database: str, report: RunReport, error: Exception) -> None:
+def _fail(
+    driver: Driver, database: str, report: RunReport, error: Exception, now: datetime
+) -> None:
     """Record a failed run: `run.json` and a `:DetectionRun` with `status: failed`, no alerts
     (and no `alerts.jsonl`)."""
     report.status = "failed"
     report.alerts = []
     report.error = f"{type(error).__name__}: {error}"
-    report.finished_at = report.finished_at or utc_text(now_utc())
+    report.finished_at = report.finished_at or utc_text(now)
     (report.directory / "alerts.jsonl").unlink(missing_ok=True)
     _write_files(report, alerts=False)
     try:
         with driver.session(database=database) as session:
-            session.execute_write(_store_run, report.node_properties())
+            session.execute_write(_store, report.node_properties(), [])
     except (DriverError, Neo4jError) as store_error:
         logger.warning("could not record the failed run %s: %s", report.run_id, store_error)

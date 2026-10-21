@@ -12,9 +12,9 @@ An index of the `docs/` tree. Folders marked "later" are created by a later Phas
 | [glossary.md](glossary.md) | The terms the documentation and the interface use, with their sources | present |
 | [wording.md](wording.md) | The disclaimers, the vocabulary for text about entities, the forbidden patterns and the documentation rules | present |
 | `typologies/` | Plain-language typology explainers | later |
-| `learning/` | Learning logs (written by people, never by agents), templates, reading list and case notes | later |
+| [learning/](learning/) | Learning logs (written by people, never by agents) and templates (later), the [reading list](learning/reading-list.md) and the [case notes](learning/cases/README.md) | present |
 | `team/` | Assignments, roles and `first-queries.md` | later |
 | `data/` | Data source spike reports and licence notes | later |
-| [architecture/](architecture/) | The [local Neo4j stack](architecture/local-stack.md); the architecture overview comes later | present |
+| [architecture/](architecture/) | The [architecture overview](architecture/overview.md) and the [local Neo4j stack](architecture/local-stack.md) | present |
 
 Repository-level documents live in the root: [README](../README.md), [CONTRIBUTING](../CONTRIBUTING.md), [DATA_SOURCES](../DATA_SOURCES.md), [SECURITY](../SECURITY.md), [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md), [CHANGELOG](../CHANGELOG.md) and [CONTRIBUTORS](../CONTRIBUTORS.md). What may be committed under `data/` is in [data/README.md](../data/README.md).

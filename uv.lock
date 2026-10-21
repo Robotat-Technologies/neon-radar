@@ -569,6 +569,7 @@ name = "neonradar-contracts"
 version = "0.1.0"
 source = { editable = "contracts" }
 dependencies = [
+    { name = "babel" },
     { name = "followthemoney" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -576,6 +577,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "babel", specifier = ">=2.16,<3" },
     { name = "followthemoney", specifier = ">=4.11,<5" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },

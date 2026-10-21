@@ -84,7 +84,7 @@ def test_arabic_surnames_come_only_from_the_curated_list() -> None:
         assert names.draw(slot, "ar").names[0].split()[-1] in curated
 
 
-def test_a_slot_is_independent_of_other_slots_and_can_be_redrawn() -> None:
+def test_a_faker_only_slot_is_independent_of_other_slots_and_can_be_redrawn() -> None:
     alone = PersonNames(seed=5).draw(9, "en")
     names = PersonNames(seed=5)
     for slot in range(9):
@@ -93,3 +93,15 @@ def test_a_slot_is_independent_of_other_slots_and_can_be_redrawn() -> None:
     again = PersonNames(seed=5).draw(9, "en", first_attempt=alone.attempt + 1)
     assert again.attempt > alone.attempt
     assert again.names != alone.names
+
+
+def test_curated_slots_depend_on_the_parts_earlier_slots_used() -> None:
+    """Curated parts are reused only when exhausted, so redrawing a curated slot can change
+    later curated slots: after any redraw, check every name again (OD-12)."""
+    alone = PersonNames(seed=5).draw(9, "ar", scripts=2)
+    names = PersonNames(seed=5)
+    for slot in range(9):
+        names.draw(slot, "ar", scripts=2)
+    later = names.draw(9, "ar", scripts=2)
+    assert later.attempt == alone.attempt
+    assert later.names != alone.names

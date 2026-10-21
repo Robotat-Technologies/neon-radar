@@ -8,8 +8,11 @@ cross-border payments in EUR. One `round_trip` scenario (4 hops, about 2 percent
 appears in the background, so nothing in the records gives it away (R9).
 
 The generator then removes background payments that close a cycle the circular-flow
-detector would report (`cycles.py`), so the labels list every such cycle: the scenario and
-two benign look-alikes (the loan, one full refund).
+detector would report with the default parameters (`cycles.py`), so the labels list every such
+cycle: the scenario and two benign look-alikes (the loan, one full refund). It removes
+one-off payments before periodic ones (salaries). The PEP holds no account, and the
+sanctioned company never pays or is paid by a round-trip account, so flags stay apart from
+planted patterns.
 """
 
 from collections.abc import Iterable
@@ -122,7 +125,7 @@ def round_trip(rng: np.random.Generator, ring: list[Account]) -> list[Pay]:
     each hop one or two calendar days after the previous one, Monday to Friday, office hours."""
     day = pick(rng, [d for d in BUSINESS_DAYS[10:-10] if d.weekday() == 0])
     gaps = pick(rng, ((1, 1, 1), (2, 1, 1), (1, 2, 1), (1, 1, 2)))  # ends by Friday
-    cents = between(rng, 6_000_000, 15_000_000)
+    cents = between(rng, 4_000_000, 11_000_000)  # inside the background EUR range, not its top
     purposes = (f"Invoice INV-{between(rng, 10000, 99999)}", *EUR_PURPOSES[1:])
     hops = []
     for hop in range(4):
@@ -161,7 +164,8 @@ def prune(pays: list[Pay], planted: list[list[Pay]], keep: list[Pay]) -> list[Pa
         removable = [by_key[k] for k in extra[0] if id(by_key[k]) not in kept]
         if not removable:
             raise RuntimeError("an unplanned cycle consists of planted payments only")
-        victim = max(removable, key=_order)
+        one_off = [p for p in removable if not p.purpose.startswith("Salary")]
+        victim = max(one_off or removable, key=_order)
         pays = [p for p in pays if p is not victim]
 
 
@@ -191,7 +195,8 @@ def demo_activity(reg: Registry, seed: int) -> list[Scenario]:
     roles = reg.roles
     gb = [c for c, j in reg.jurisdiction.items() if j == "gb" and c not in reg.branches]
     offshore = [c for c, j in reg.jurisdiction.items() if j != "gb"]
-    customers = [str(p) for p in rng.permutation(reg.persons)[:13]]
+    people = [p for p in reg.persons if p not in roles["pep"]]
+    customers = [str(p) for p in rng.permutation(people)[:13]]
     holders = [(c, "GBP", "customer") for c in gb] + [(c, "EUR", "customer") for c in offshore]
     holders += [(c, "EUR", "customer") for c in roles["eur_second"]]
     holders += [(p, "GBP", "customer") for p in customers]
@@ -220,12 +225,17 @@ def demo_activity(reg: Registry, seed: int) -> list[Scenario]:
         cents = amount(rng, 45_000, 900_000, 4_800_000)
         pays.append(Pay(payer, payee, cents, office(rng), "wire",
                         f"Invoice INV-{between(rng, 10000, 99999)}"))  # fmt: skip
+    ring_ids = {acct[c, "EUR"].id for c in roles["round_trip"]}
     for index in range(24):
-        payer, payee = (eur[int(i)] for i in rng.choice(len(eur), 2, replace=False))
+        while True:
+            payer, payee = (eur[int(i)] for i in rng.choice(len(eur), 2, replace=False))
+            pair = {payer.holder, payee.holder}
+            if not (pair & set(roles["sanctioned"]) and {payer.id, payee.id} & ring_ids):
+                break
         purpose = EUR_PURPOSES[index % 4]
         if purpose == "Invoice":
             purpose = f"Invoice INV-{between(rng, 10000, 99999)}"
-        cents = amount(rng, 500_000, 3_000_000, 15_000_000, p_low=0.5)
+        cents = amount(rng, 500_000, 3_000_000, 18_000_000, p_low=0.5)
         pays.append(Pay(payer, payee, cents, office(rng), "wire", purpose))
     for _ in range(16):
         shop = gbp[pick(rng, roles["retail"])]

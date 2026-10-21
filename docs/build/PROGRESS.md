@@ -66,7 +66,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.14 | todo | - | - | 2026-10-22 | - | - |
 | M2.15 | todo | - | - | 2026-10-22 | - | - |
 | M2.16 | todo | - | - | 2026-10-22 | - | - |
-| M3.0 | todo | - | - | 2026-10-22 | - | - |
+| M3.0 | pr-open | p3/m3-0-handover | #48 | 2026-10-22 | spec_extract check --milestone M3.0: 4 of 4 verbatim files match, 0 recorded deviations; test_spec_extract.py: 8 passed; test_hooks.sh: 174 passed, 0 failed (guard_real_data.py 179 cases); sync_labels: 31 of 31, freeze-change listed; make check: pass; make hygiene: pass (592 counted lines, size-exception) | Built before Gate 1 (OD-23) in a worktree; project model keys deferred to M3.3 (M2.2 not merged); the reconciliation finds that C4 1.0.0 refuses the code book's alerts (A1 query hash, A2 window key, A3 boolean metrics): stop-and-ask for M3.2, M3.5b, M3.5e, M3.5f; other deviations listed in PR #48 |
 | M3.1 | todo | - | - | 2026-10-22 | - | - |
 | M3.2 | todo | - | - | 2026-10-22 | - | - |
 | M3.3 | todo | - | - | 2026-10-22 | - | - |

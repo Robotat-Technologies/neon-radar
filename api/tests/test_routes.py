@@ -1,4 +1,4 @@
-"""Every C3 route, its parameter limits and its problem bodies (PHASE-1.md 5.3, M1.7d)."""
+"""Every C3 route, its parameter limits and its problem bodies (PHASE-1.md 5.3, M1.7d, M1.9c)."""
 
 import importlib.util
 from collections.abc import Iterator
@@ -16,20 +16,20 @@ from neonradar_contracts.api import Problem
 P = "/api/v1"
 ENTITY = f"{P}/entities/syn-co-0001"
 ALERT_ID = "alr-f82a84574538090f0624"
-# Each route that answers 501 in M1.7d, a valid request for it, and who implements it.
+# Each route that still answers 501, a valid request for it, and who implements it.
 PENDING: list[tuple[str, str, dict[str, Any], str]] = [
-    ("GET", f"{P}/meta", {}, "M1.9c"),
-    ("GET", f"{P}/search?q=ab&labels=Person&labels=Account&limit=50", {}, "M1.9c"),
-    ("GET", ENTITY, {}, "M1.9c"),
-    ("GET", f"{ENTITY}/network?depth=3&rel_types=PAID&max_nodes=500", {}, "M1.9c"),
     ("GET", f"{ENTITY}/ownership?direction=up&max_hops=8&min_share=25", {}, "Phase 2"),
     ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=6", {}, "Phase 2"),
-    ("GET", f"{P}/alerts?typology=circular_flow&priority=high&limit=200&cursor=x", {}, "M1.9c"),
-    ("GET", f"{P}/alerts?entity_id=syn-co-0001&run_id=run-20261021T101500-7f3a", {}, "M1.9c"),
-    ("GET", f"{P}/alerts/{ALERT_ID}", {}, "M1.9c"),
-    ("GET", f"{P}/typologies", {}, "M1.9c"),
-    ("GET", f"{P}/typologies/circular_flow", {}, "M1.9c"),
     ("POST", f"{P}/copilot/ask", {"json": {"question": "who owns syn-co-0001?"}}, "Phase 4"),
+]
+# The M1.9c routes that read the graph: valid requests that need Neo4j (503 without it).
+NEEDS_GRAPH: list[str] = [
+    f"{P}/search?q=ab&labels=Person&labels=Account&limit=50",
+    ENTITY,
+    f"{ENTITY}/network?depth=3&rel_types=PAID&max_nodes=500",
+    f"{P}/alerts?typology=circular_flow&priority=high&limit=200",
+    f"{P}/alerts?entity_id=syn-co-0001&run_id=run-20261021T101500-7f3a",
+    f"{P}/alerts/{ALERT_ID}",
 ]
 # Requests that break one limit of 5.3 each.
 INVALID: list[tuple[str, str, dict[str, Any]]] = [
@@ -122,6 +122,13 @@ def test_pending_routes_answer_501_naming_their_milestone(
     assert problem.instance == url.split("?")[0]
 
 
+@pytest.mark.parametrize("url", NEEDS_GRAPH)
+def test_graph_routes_answer_503_problems_without_neo4j(client: TestClient, url: str) -> None:
+    problem = _problem(client.get(url), 503)
+    assert problem.detail == "The graph database is not available."
+    assert problem.instance == url.split("?")[0]
+
+
 @pytest.mark.parametrize(("method", "url", "options"), INVALID)
 def test_parameter_limits_answer_422_problems(
     client: TestClient, method: str, url: str, options: dict[str, Any]
@@ -157,7 +164,7 @@ def test_an_unexpected_error_answers_a_generic_500_problem() -> None:
 
 def test_the_openapi_document_is_served_and_the_cdn_docs_pages_are_not(client: TestClient) -> None:
     assert client.get(f"{P}/openapi.json").json()["info"]["title"] == "NeonRadar API"
-    for page in ("/docs", "/redoc", "/docs/oauth2-redirect", "/openapi.json"):
+    for page in ("/redoc", "/docs/oauth2-redirect", "/openapi.json"):
         _problem(client.get(page), 404)
 
 

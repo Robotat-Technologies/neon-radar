@@ -7,6 +7,7 @@ import { api } from '@/api/client'
 import type { SearchLabel, SearchResponse } from '@/api/types'
 import EntityBadges from '@/components/EntityBadges.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
+import { searchCountText } from '@/lib/search'
 import { useMetaStore } from '@/stores/meta'
 
 const LABELS: readonly SearchLabel[] = [
@@ -66,14 +67,6 @@ watch(
   { immediate: true },
 )
 
-function countText(answer: SearchResponse): string {
-  const total = answer.total_estimate
-  if (answer.items.length === 0) return `No matches for “${answer.query}”.`
-  const noun = total === 1 ? 'match' : 'matches'
-  const about = total > answer.items.length ? 'About ' : ''
-  return `${about}${total} ${noun} for “${answer.query}”.`
-}
-
 function submit(): void {
   if (trimmed.value.length < MIN_LENGTH) return
   void router.push({
@@ -114,7 +107,7 @@ function submit(): void {
     <ErrorMessage v-else-if="error" :error="error" />
     <template v-else-if="result">
       <p class="muted" data-testid="search-count">
-        {{ countText(result) }}
+        {{ searchCountText(result) }}
       </p>
       <ul class="result-list" data-testid="search-results">
         <li v-for="hit in result.items" :key="hit.entity.id" class="card">

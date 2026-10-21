@@ -89,6 +89,6 @@ Neo4j restarting with `OutOfMemoryError`, an image build that stops with `Killed
 |---|---|
 | `The API or the UI did not become healthy` | `docker compose --profile app logs api ui`. The API is healthy only when Neo4j answers with APOC and GDS present. |
 | `container ... neo4j-1 is unhealthy` | `make logs`. A password changed after the database was created shows up as failed health checks: `make reset CONFIRM=yes`, then `make demo-mini`. |
-| `REFUSED  the graph holds ... entities that are not synthetic` | see "Stop and reset" above |
+| `REFUSED  the graph holds ... not synthetic` | see "Stop and reset" above |
 | `Set NEO4J_PASSWORD in .env` | run `bash scripts/ensure_env.sh` (in a git worktree, in the main checkout first) |
 | `make e2e` says Chromium is missing | `npx --prefix ui playwright install chromium` |

@@ -33,6 +33,11 @@ def test_any_real_entity_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
     assert "CONFIRM=yes" in err
 
 
+def test_one_real_entity_is_named_in_the_singular(capsys: pytest.CaptureFixture[str]) -> None:
+    assert demo_guard.check(cast(Driver, FakeDriver(real=1)), "neo4j") == demo_guard.REFUSED
+    assert "holds 1 entity that is not synthetic" in capsys.readouterr().err
+
+
 def test_query_reads_every_entity_not_marked_synthetic() -> None:
     driver = FakeDriver(real=0)
     demo_guard.count_not_synthetic(cast(Driver, driver), "demo")

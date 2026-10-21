@@ -37,10 +37,11 @@ def check(driver: Driver, database: str) -> int:
     """0 when the graph may be wiped for the demo, REFUSED otherwise; one line either way."""
     real = count_not_synthetic(driver, database)
     if real:
+        what = "entity that is" if real == 1 else "entities that are"
         print(
-            f"REFUSED  the graph holds {real} entities that are not synthetic, and the demo"
-            " wipes the graph before loading. Load the demo elsewhere, or run it again with"
-            " CONFIRM=yes to delete them (for example: make demo-mini CONFIRM=yes).",
+            f"REFUSED  the graph holds {real} {what} not synthetic, and the demo wipes the"
+            " graph before loading. Load the demo elsewhere, or run it again with CONFIRM=yes"
+            " to delete everything in the graph (for example: make demo-mini CONFIRM=yes).",
             file=sys.stderr,
         )
         return REFUSED

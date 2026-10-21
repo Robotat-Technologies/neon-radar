@@ -142,7 +142,7 @@ demo-dev: ## the synthetic demo without Docker (devcontainer, Codespaces): API a
 		uv run --no-project python -c "$(API_UP_PY)" 2>/dev/null && break; sleep 1; \
 	done; \
 	echo; echo "NeonRadar demo-mini (synthetic data), Ctrl-C stops both servers:"; \
-	echo "  UI        http://localhost:5173"; \
+	echo "  UI        http://localhost:5173 (if 5173 is taken, the port Vite prints below)"; \
 	echo "  API docs  http://localhost:8000/docs"; \
 	echo "  Neo4j     $${NEO4J_URI:-bolt://localhost:7687}"; \
 	npm run --prefix ui dev

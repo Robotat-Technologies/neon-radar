@@ -4,13 +4,13 @@ The explorer: Vue 3.5 (`<script setup lang="ts">`), TypeScript 6.0, Vite 8, Pini
 
 ## Pages
 
-| Path | Page |
-|---|---|
-| `/` | Search over names, addresses and account numbers |
-| `/entities/:id` | One entity: network canvas, details, sources, alerts |
-| `/alerts` | The alert queue, filtered by priority, typology or entity |
-| `/alerts/:id` | One alert: evidence graph, explanation steps, metrics, typology and citations |
-| `/sources` | The dataset registry with licences and what is loaded |
+| Path            | Page                                                                          |
+| --------------- | ----------------------------------------------------------------------------- |
+| `/`             | Search over names, addresses and account numbers                              |
+| `/entities/:id` | One entity: network canvas, details, sources, alerts                          |
+| `/alerts`       | The alert queue, filtered by priority, typology or entity                     |
+| `/alerts/:id`   | One alert: evidence graph, explanation steps, metrics, typology and citations |
+| `/sources`      | The dataset registry with licences and what is loaded                         |
 
 Every page waits for `GET /api/v1/meta` and shows its standing disclaimer, then the synthetic demo notice when every loaded dataset (`record_count` above 0) is synthetic, otherwise the real data notice (`src/lib/notices.ts`). If the notices cannot be loaded, no page is shown.
 
@@ -18,17 +18,17 @@ Every page waits for `GET /api/v1/meta` and shows its standing disclaimer, then 
 
 Run from the repository root with `--prefix ui`, or from this folder.
 
-| Command | What it does |
-|---|---|
-| `npm ci` | Install the locked dependencies |
-| `npm run dev` | Vite dev server on `http://localhost:5173`; `/api` goes to `http://127.0.0.1:8000` (`uv run neonradar api serve`) |
-| `npm run gen:api` | Regenerate `src/api/schema.d.ts` from `contracts/openapi/v1.json`; commit the result unchanged |
-| `npm run lint` | oxlint, ESLint and Prettier, checking only (CI) |
-| `npm run lint:fix` | The same, fixing what they can |
-| `npm run type-check` | `vue-tsc --build` |
-| `npm run test:unit -- --run` | Vitest unit and component tests |
-| `npm run build` | Type-check and build into `dist/` |
-| `npm run test:e2e` | Playwright tests (`e2e/`); `shell.spec.ts` answers every API call from the contract examples |
+| Command                      | What it does                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `npm ci`                     | Install the locked dependencies                                                                                   |
+| `npm run dev`                | Vite dev server on `http://localhost:5173`; `/api` goes to `http://127.0.0.1:8000` (`uv run neonradar api serve`) |
+| `npm run gen:api`            | Regenerate `src/api/schema.d.ts` from `contracts/openapi/v1.json`; commit the result unchanged                    |
+| `npm run lint`               | oxlint, ESLint and Prettier, checking only (CI)                                                                   |
+| `npm run lint:fix`           | The same, fixing what they can                                                                                    |
+| `npm run type-check`         | `vue-tsc --build`                                                                                                 |
+| `npm run test:unit -- --run` | Vitest unit and component tests                                                                                   |
+| `npm run build`              | Type-check and build into `dist/`                                                                                 |
+| `npm run test:e2e`           | Playwright tests (`e2e/`); `shell.spec.ts` answers every API call from the contract examples                      |
 
 ## Rules
 

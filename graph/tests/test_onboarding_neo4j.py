@@ -1,6 +1,7 @@
 """Assignment 1 against a real Neo4j (the shared integration database, tests/conftest.py): the
 documented load, the reference loader, the first queries (read-only, with a timeout), reset."""
 
+import os
 import re
 from typing import Any
 
@@ -32,9 +33,14 @@ EXPECTED = {
     "REGISTERED_AT": 20,
     "PARENT_OF": 2,
 }
-SNAPSHOT = """
+NODES = """
 MATCH (n:OnbCompany|OnbPerson|OnbAddress)
 RETURN labels(n) AS labels, properties(n) AS props ORDER BY coalesce(n.id, n.full)
+"""
+RELATIONSHIPS = """
+MATCH (a)-[r:DIRECTS|REGISTERED_AT|PARENT_OF]->(b)
+RETURN type(r) AS type, coalesce(a.id, a.full) AS start, coalesce(b.id, b.full) AS end
+ORDER BY type, start, end
 """
 
 pytestmark = pytest.mark.integration
@@ -52,37 +58,48 @@ def counts(db: Neo4jTarget) -> dict[str, int]:
     return {record["key"]: record["n"] for record in [*nodes, *rels]}
 
 
-def snapshot(db: Neo4jTarget) -> list[dict[str, Any]]:
-    records, _, _ = db.driver.execute_query(SNAPSHOT, database_=db.database)
-    return [record.data() for record in records]
+def graph(db: Neo4jTarget) -> list[list[dict[str, Any]]]:
+    """Every Onb* node with its properties, and every relationship by type and endpoints."""
+    return [
+        [record.data() for record in db.driver.execute_query(q, database_=db.database)[0]]
+        for q in (NODES, RELATIONSHIPS)
+    ]
 
 
 def documented_load() -> list[str]:
-    """The reference load printed in docs/team/assignment-1.md, reading `$rows` instead of the
-    file (the shared test database has no /import folder; the CSV's rows are the same, and
-    `read_rows` turns empty fields into None as LOAD CSV turns them into null)."""
+    """The reference load printed in docs/team/assignment-1.md.
+
+    The Testcontainers database has the CSV in its /import folder (conftest.py), so the
+    statements run as printed. A database from NR_TEST_NEO4J_URI may not have it, so there they
+    read `$rows` instead: `read_rows` gives the same strings and turns empty fields into None,
+    as LOAD CSV turns them into null.
+    """
     found = re.search(r"```cypher\n(// Reference load.*?)```", ASSIGNMENT.read_text(), re.S)
     assert found, "assignment-1.md has no cypher block starting '// Reference load'"
     statements = [part.strip() for part in found.group(1).split(";") if part.strip()]
     assert len(statements) == 2 and all(SOURCE in statement for statement in statements)
-    return [statement.replace(SOURCE, "UNWIND $rows AS row") for statement in statements]
+    if os.environ.get("NR_TEST_NEO4J_URI"):
+        return [statement.replace(SOURCE, "UNWIND $rows AS row") for statement in statements]
+    return statements
 
 
 def test_the_documented_load_and_the_reference_loader_build_the_same_graph(
     empty_neo4j: Neo4jTarget,
 ) -> None:
     db = empty_neo4j
+    assert load(db.driver, read_rows(), db.database) == Counts(20, 15, 16)
+    assert counts(db) == EXPECTED
+    loaded = graph(db)
+    db.driver.execute_query("MATCH (n) DETACH DELETE n", database_=db.database)
+
     for statement in documented_load():
         db.driver.execute_query(statement, rows=read_rows(), database_=db.database)
     assert counts(db) == EXPECTED
-    documented = snapshot(db)
-    assert documented[0]["props"]["synthetic"] is True
+    assert graph(db) == loaded
+    assert loaded[0][0]["props"]["synthetic"] is True
 
-    assert load(db.driver, read_rows(), db.database) == Counts(20, 15, 16)
-    assert counts(db) == EXPECTED
-    assert snapshot(db) == documented
-    load(db.driver, read_rows(), db.database)  # idempotent
-    assert counts(db) == EXPECTED
+    load(db.driver, read_rows(), db.database)  # on top of the documented load: no change
+    assert graph(db) == loaded
 
 
 def test_the_example_query_finds_the_companies_at_the_shared_address(

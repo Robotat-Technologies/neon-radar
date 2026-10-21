@@ -508,7 +508,7 @@ export interface components {
             /** Node Ids */
             node_ids: string[];
             query: components["schemas"]["EvidenceQuery"];
-            window?: components["schemas"]["Window"] | null;
+            window: components["schemas"]["Window"] | null;
         };
         /**
          * EvidenceQuery

@@ -76,12 +76,28 @@ def test_inline_wording_mapping_is_checked(root: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "template", ['"Funds returned\\nLaundered funds"', '"Funds returned\\tsuspicious"']
+)
+def test_forbidden_term_after_a_yaml_escape_fails(
+    root: Path, template: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write(
+        root, "detect/typologies/x.yaml", f"slug: x\nwording:\n  headline_structural: {template}\n"
+    )
+    assert run(root) == 1
+    assert "detect/typologies/x.yaml:3:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
     ("code", "line"),
     [
         ('HEADLINE = "Funds were laundered"\n', 1),
         ('def f(name: str) -> str:\n    return f"{name} is a Launderer"\n', 2),
         ('STEPS = (\n    "first",\n    """two\nlaundering lines""",\n)\n', 4),
         ('x = {"k": "suspicion score"}\n', 1),
+        ('HEADLINE = "Funds returned\\nLaundered funds"\n', 1),
+        ('def f(n: int) -> str:\n    return f"{n} transfers\\tsuspicious"\n', 2),
+        ('TEXT = "ok\\x20laundered"\n', 1),
     ],
 )
 def test_forbidden_term_in_a_wording_literal_fails(

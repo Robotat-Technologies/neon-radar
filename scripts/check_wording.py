@@ -26,6 +26,9 @@ TERMS_FILE = "contracts/wording/forbidden-terms.txt"
 TYPOLOGY_GLOB = "detect/typologies/*.yaml"
 WORDING_GLOB = "detect/src/**/wording.py"
 STATEMENT_START = {tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING}
+# Escape sequences in Python and YAML strings: in "\nLaundered" there is no word boundary before
+# "L" until the escape is blanked out (with as many spaces, so line numbers stay right).
+ESCAPES = re.compile(r"\\(?:[abfnrtv0]|x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4})")
 TEXT_PARTS = {
     getattr(tokenize, name)
     for name in ("FSTRING_MIDDLE", "TSTRING_MIDDLE")
@@ -79,9 +82,10 @@ def find_terms(
 ) -> list[str]:
     findings = []
     for number, piece in pieces:
+        text = ESCAPES.sub(lambda escape: " " * len(escape.group(0)), piece)
         for pattern in patterns:
-            for match in pattern.finditer(piece):
-                line = number + piece.count("\n", 0, match.start())
+            for match in pattern.finditer(text):
+                line = number + text.count("\n", 0, match.start())
                 findings.append(f"{path}:{line}: {match.group(0)!r} matches {pattern.pattern!r}")
     return findings
 

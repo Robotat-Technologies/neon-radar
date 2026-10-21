@@ -41,7 +41,7 @@ def test_synthetic_records_pass(git_repo: "GitRepo", path: str) -> None:
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        ({"id": "gbch-co-01800000"}, "does not start with 'syn-'"),
+        ({"id": "gbch-co-T0000001"}, "does not start with 'syn-'"),
         ({"datasets": ["gb_companies_house"]}, "not ['nr_synthetic']"),
         ({"datasets": ["nr_synthetic", "gleif_lei"]}, "not ['nr_synthetic']"),
         ({"nr": {"v": "1.0"}}, "nr.synthetic is not true"),

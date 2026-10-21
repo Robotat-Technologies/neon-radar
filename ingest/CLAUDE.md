@@ -6,8 +6,17 @@
 - Depends on: C1 records and `contracts/datasets.yaml` (licences, id prefixes).
 - Commands: `uv run pytest ingest/tests`; spikes and loaders through `uv run neonradar`.
 - Traps:
-  - The only package that may use the network: httpx with timeouts,
-    `follow_redirects=True`, retries with backoff and a rate limiter.
+  - The only package that may use the network, and only through
+    `neonradar_ingest.http.HttpClient` (an `httpx.Client`): pass `follow_redirects`
+    explicitly and a `RateLimiter` per source (Companies House 2 per second, GLEIF 1 per
+    second). It sets the timeouts (connect 10 s, read 60 s) and the NeonRadar User-Agent,
+    retries GET, HEAD and OPTIONS after a 429, 500, 502, 503, 504 or transport error with
+    backoff (`Retry-After`, or a source's own `retry_hint`; a wait over `max_hint` raises
+    `HttpError`), and redacts URLs in logs. Never log headers, keys or whole responses, and
+    never call `raise_for_status()` (its message has the unredacted URL): use `get_json` or
+    check the status and raise `HttpError` with `redact(url)`.
+  - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use
+    `httpx.MockTransport` with synthetic bodies; the one real run is `@pytest.mark.network`.
   - Output goes to `data/cache/` (gitignored); never commit real data or API responses.
   - OpenSanctions use follows `access.opensanctions` in `docs/build/project.yaml`.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.

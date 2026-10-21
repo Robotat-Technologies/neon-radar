@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from neonradar_cli import graph
 from neonradar_cli.main import app
-from neonradar_detect import runner
+from neonradar_detect import catalog, runner
 
 cli = CliRunner()
 
@@ -61,6 +61,27 @@ def test_a_failed_run_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     result = cli.invoke(app, ["detect", "run", "--typology", "nope"])
     assert result.exit_code == 1
     assert result.output == "FAIL  unknown typology 'nope'\n"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [catalog.CatalogError("circular_flow.yaml: not valid"), PermissionError("data/runs: denied")],
+)
+def test_catalog_and_file_errors_print_a_fail_line(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    def failing(driver: object, database: str, **kwargs: Any) -> runner.RunReport:
+        raise error
+
+    monkeypatch.setattr(runner, "run", failing)
+    result = cli.invoke(app, ["detect", "run"])
+    assert result.exit_code == 1
+    assert result.output == f"FAIL  {error}\n"
+
+
+def test_run_help_explains_a_reused_run_id() -> None:
+    result = cli.invoke(app, ["detect", "run", "--help"], env={"COLUMNS": "200"})
+    assert "Given again" in result.output
 
 
 def test_list_shows_the_typologies_with_a_detector() -> None:

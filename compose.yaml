@@ -54,6 +54,58 @@ services:
       retries: 30
       start_period: 30s
 
+  # The real-data instance (PHASE-2.md 4.1, C2 L17, M2.0). Real profiles load only here, never
+  # into neo4j above, which the API, the UI, the tests and the agent use. Its only database is
+  # realdata, so a query sent to the wrong instance fails. Same image, plugins, memory settings
+  # and healthcheck as neo4j. Started only with the profile: `make up-real` on an approved
+  # machine (docs/data/real-data-machines.md); `neonradar data purge --graph` deletes its volume.
+  neo4j-real:
+    profiles: [real]
+    image: neo4j:5.26.32-community
+    entrypoint:
+      - tini
+      - -g
+      - --
+      - sh
+      - -c
+      - cp /nr-plugins/neo4j-graph-data-science-2.13.4.jar /var/lib/neo4j/plugins/ && exec /startup/docker-entrypoint.sh "$$@"
+      - neonradar-entrypoint
+    command: ["neo4j"]
+    # Not restarted with Docker: real data is served only while someone works with it.
+    restart: "no"
+    ports:
+      - "127.0.0.1:7475:7474"
+      - "127.0.0.1:7688:7687"
+    environment:
+      # Empty unless set: no :? guard, because Compose checks every service, so a guard here
+      # would stop `make up` on machines without real data. `make up-real` checks it instead.
+      NEO4J_AUTH: "neo4j/${NEO4J_REAL_PASSWORD:-}"
+      NEO4J_initial_dbms_default__database: realdata
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-2G}"
+      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-2G}"
+      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-2G}"
+      NEO4J_server_jvm_additional: "-XX:+ExitOnOutOfMemoryError"
+      NEO4J_client_allow__telemetry: "false"
+      NEO4J_dbms_usage__report_enabled: "false"
+    volumes:
+      - neo4j-real-data:/data
+      - type: bind
+        source: ./data/cache/neo4j-plugins
+        target: /nr-plugins
+        read_only: true
+        bind:
+          create_host_path: false
+    mem_limit: "${NEO4J_MEM_LIMIT:-5g}"
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
 volumes:
   neo4j_data:
   neo4j_logs:
+  neo4j-real-data:

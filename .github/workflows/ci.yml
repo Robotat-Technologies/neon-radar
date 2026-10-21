@@ -84,6 +84,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      # The Cypher lint (PHASE-2.md M2.0) runs whether or not ui/ exists yet, so it has its own
+      # Node setup; the steps below set Node up again for the UI once ui/package.json exists.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: scripts/cypher-lint/package-lock.json
+      - name: Cypher lint
+        run: make cypher-lint
       - uses: actions/setup-node@v7
         if: ${{ hashFiles('ui/package.json') != '' }}
         with:

@@ -32,6 +32,7 @@ OK    GDS    2.13.4
 | APOC Core | installed from the image |
 | GDS | `data/cache/neo4j-plugins/neo4j-graph-data-science-2.13.4.jar`, written by `make plugins` and checked against its SHA-256 by `make up` |
 | Settings | `.env` (created from `.env.example` by `scripts/ensure_env.sh`; never commit it) |
+| Password | Compose passes `NEO4J_PASSWORD` to Neo4j as the secret `neo4j_password` (the file `/run/secrets/neo4j_password` in the container). The `compose.yaml` entrypoint wrapper builds `NEO4J_AUTH` from it, and the health check gives it to `cypher-shell` through the environment, so the password is not in `docker compose config` output, in `docker inspect` or on a command line. Logs can still hold secrets: see [Secrets and logs](devcontainer.md#secrets-and-logs). |
 
 The Community image has no GDS jar, and letting it install GDS would mean a download on every start. `scripts/fetch_gds.sh` pins the version and the SHA-256. To move to another GDS version, change both in that script and the jar name in `compose.yaml`, in a reviewed pull request. If the image or the jar is missing, or the jar is damaged, `make up` stops and tells you to run `make plugins`; it never pulls or downloads anything itself.
 
@@ -62,7 +63,7 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 - `make logs` follows the server log.
 - `make reset CONFIRM=yes` deletes the database and logs volumes. The next `make up` starts empty.
 - The password in `.env` takes effect only when the database is first created. If you change `NEO4J_PASSWORD` later, run `make reset CONFIRM=yes`, then `make up`.
-- A `NEO4J_PASSWORD` set in the environment (a Codespaces secret, a CI job, a throwaway value for a test run) wins over `.env` for Compose and for the `neonradar` command. When it is set and not empty, `bash scripts/ensure_env.sh` creates nothing and prints only `NEO4J_PASSWORD is set in the environment; .env not needed.`; it never shows the value.
+- A `NEO4J_PASSWORD` set in the environment (a Codespaces secret, a CI job, a throwaway value for a test run) wins over `.env` for Compose and for the `neonradar` command. When it is set and not empty, `bash scripts/ensure_env.sh` creates nothing and prints only `NEO4J_PASSWORD is set in the environment; .env not needed.`; it never shows the value. Inside the devcontainer, the password comes from the Compose secret instead ([devcontainer](devcontainer.md)), and `ensure_env.sh` does nothing there either.
 - All checkouts on one machine (the main checkout and every git worktree) share the same Compose project, `neonradar`, and so the same database. Give them the same `.env`: worktrees that Claude Code creates copy it (`.worktreeinclude`), and in any other worktree `bash scripts/ensure_env.sh` (run by `make setup`, `make plugins` and `make up`) links `.env` to the main checkout's. It stops with a message if the main checkout has no `.env` yet.
 - To fetch the GDS jar again, delete `data/cache/neo4j-plugins/` and run `make plugins`.
 - Worktrees that Claude Code creates also copy the GDS jar (`.worktreeinclude`); in a worktree you create yourself, run `make plugins` or copy `data/cache/neo4j-plugins/`.
@@ -72,9 +73,9 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 | Symptom | What to do |
 |---|---|
 | `make up` says the GDS jar or the Neo4j image is missing | `make plugins` (it needs the network once) |
-| `Set NEO4J_PASSWORD in .env` and there is no `.env` | run `bash scripts/ensure_env.sh` (in a git worktree, run it in the main checkout first; the worktree then links to that `.env`) |
+| `environment variable "NEO4J_PASSWORD" required by secret ... is not set` | `.env` is missing or has no password: run `bash scripts/ensure_env.sh` (in a git worktree, run it in the main checkout first; the worktree then links to that `.env`) |
+| Neo4j exits at once; its log says `neonradar: NEO4J_PASSWORD is missing or shorter than 8 characters` | set a password of at least 8 characters in `.env`, then `make up` |
 | `.env` exists but has no password (`ensure_env: .env has no NEO4J_PASSWORD`) | delete `.env`, run `bash scripts/ensure_env.sh`, then `make reset CONFIRM=yes` if a database already exists with another password |
-| `make down`, `make logs` or `make reset` fail with `Set NEO4J_PASSWORD in .env` | Compose needs the variable even to stop: `NEO4J_PASSWORD=unused make down` (likewise for `logs` and `reset`), then fix `.env` as above |
 | `container neonradar-neo4j-1 is unhealthy` | `make logs`. A password changed after the first start shows up as failed health checks: see above |
 | Port 7474 or 7687 already in use | `neonradar doctor` shows it; stop the other program or the other Neo4j |
 | Neo4j restarts with `OutOfMemoryError` | use a bigger profile, or give Docker more memory |

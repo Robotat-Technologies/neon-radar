@@ -4,7 +4,7 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: "Security issues do not belong here: follow SECURITY.md instead. Never paste personal data, API keys or OpenSanctions rows into an issue."
+      value: "Security issues do not belong here: follow SECURITY.md instead. Never paste personal data, API keys, passwords, devcontainer logs or OpenSanctions rows into an issue."
   - type: textarea
     id: what-happened
     attributes: { label: What happened, description: "What you did, what you expected and what happened instead." }

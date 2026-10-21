@@ -2,10 +2,11 @@
 
 Every route is declared with its final response model, parameter limits and problem responses,
 so the OpenAPI snapshot (contracts/openapi/v1.json) does not change when a route is
-implemented. In M1.7d only `GET /health` is implemented; the others answer 501 with a problem
-naming the milestone or phase that implements them. The API is read-only, binds to 127.0.0.1
-(`neonradar api serve`) and makes no outbound calls: FastAPI's OpenTelemetry is switched off
-and the CDN-backed `/docs` and `/redoc` pages are not served (guardrail G3).
+implemented. The Phase 1 routes are implemented (M1.9c); ownership and paths (Phase 2) and the
+copilot (Phase 4) answer 501 with a problem naming the phase that implements them. The API is
+read-only, binds to 127.0.0.1 (`neonradar api serve`) and makes no outbound calls: FastAPI's
+OpenTelemetry is switched off, and instead of its CDN-backed `/docs` and `/redoc` pages it
+serves an offline page at `/docs` (guardrail G3).
 """
 
 from collections.abc import AsyncIterator, Callable
@@ -14,10 +15,12 @@ from typing import Annotated, Any, Final
 
 from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from fastapi.telemetry import TelemetryConfig
 
-from neonradar_api import problems
+from neonradar_api import alerts, docs_page, entities, problems, reference
+from neonradar_api.files import RepoFiles, get_files
 from neonradar_api.graph import GraphConnection, get_graph
 from neonradar_api.health import check_health
 from neonradar_api.problems import not_implemented, responses
@@ -63,7 +66,6 @@ TELEMETRY_OFF: Final[TelemetryConfig] = {
     "operation_spans": False,
     "auto_configure": False,
 }
-M19C: Final = "M1.9c"
 PHASE_2: Final = "Phase 2"
 PHASE_4: Final = "Phase 4"
 
@@ -73,48 +75,51 @@ RelTypes = Annotated[
     list[RelationshipType] | None, Query(description="Repeatable; all record types if absent.")
 ]
 
+Graph = Annotated[GraphConnection, Depends(get_graph)]
+Files = Annotated[RepoFiles, Depends(get_files)]
+
 router = APIRouter(prefix=API_PREFIX)
 
 
 @router.get("/health", tags=["meta"])
-def get_health(graph: Annotated[GraphConnection, Depends(get_graph)]) -> HealthResponse:
+def get_health(graph: Graph) -> HealthResponse:
     """Neo4j connectivity and versions; always 200, `degraded` unless Neo4j, APOC and GDS answer."""
     return check_health(graph)
 
 
 @router.get("/meta", tags=["meta"])
-def get_meta(request: Request) -> MetaResponse:
+def get_meta(graph: Graph, files: Files) -> MetaResponse:
     """Versions, datasets with licences and counts, disclaimers and graph counts."""
-    not_implemented(request, M19C)
+    return reference.meta(graph, files)
 
 
 @router.get("/search", tags=["entities"], responses=responses(422, 503))
 def search(
-    request: Request,
+    graph: Graph,
     q: Annotated[str, Query(min_length=2, max_length=200)],
     labels: Annotated[list[SearchLabel] | None, Query(description="Repeatable.")] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> SearchResponse:
     """Full-text search over names (and exact account numbers)."""
-    not_implemented(request, M19C)
+    return entities.search(graph, q, labels, limit)
 
 
 @router.get("/entities/{entity_id}", tags=["entities"], responses=responses(404, 422, 503))
-def get_entity(request: Request, entity_id: EntityIdPath) -> EntityDetail:
+def get_entity(graph: Graph, entity_id: EntityIdPath) -> EntityDetail:
     """One `:Entity` or `:Sanction` node, by its id or any id in its `referents`."""
-    not_implemented(request, M19C)
+    return entities.entity(graph, entity_id)
 
 
 @router.get("/entities/{entity_id}/network", tags=["entities"], responses=responses(404, 422, 503))
 def get_network(
-    request: Request,
+    graph: Graph,
     entity_id: EntityIdPath,
     depth: Annotated[int, Query(ge=1, le=3)] = 1,
     rel_types: RelTypes = None,
     max_nodes: Annotated[int, Query(ge=1, le=500)] = 200,
 ) -> Subgraph:
     """The neighbourhood of a node, up to `depth` hops, capped at `max_nodes`."""
-    not_implemented(request, M19C)
+    return entities.network(graph, entity_id, depth=depth, rel_types=rel_types, max_nodes=max_nodes)
 
 
 @router.get(
@@ -147,7 +152,7 @@ def find_paths(
 
 @router.get("/alerts", tags=["alerts"], responses=responses(422, 503))
 def list_alerts(
-    request: Request,
+    graph: Graph,
     typology: Annotated[str | None, Query(pattern=SLUG_PATTERN)] = None,
     priority: Annotated[Priority | None, Query()] = None,
     entity_id: Annotated[str | None, Query(pattern=ENTITY_ID_PATTERN)] = None,
@@ -159,33 +164,39 @@ def list_alerts(
     cursor: Annotated[str | None, Query(min_length=1, max_length=MAX_CURSOR_LENGTH)] = None,
 ) -> AlertPage:
     """The alert queue: priority, then pattern strength, then alert id; opaque cursor."""
-    not_implemented(request, M19C)
+    return alerts.queue(
+        graph,
+        typology=typology,
+        priority=priority,
+        entity_id=entity_id,
+        run_id=run_id,
+        limit=limit,
+        cursor=cursor,
+    )
 
 
 @router.get("/alerts/{alert_id}", tags=["alerts"], responses=responses(404, 422, 503))
 def get_alert(
-    request: Request,
+    graph: Graph,
     alert_id: Annotated[
         str,
         Path(pattern=ALERT_ID_PATTERN, min_length=ALERT_ID_LENGTH, max_length=ALERT_ID_LENGTH),
     ],
 ) -> AlertDetail:
     """The complete C4 alert and its evidence subgraph."""
-    not_implemented(request, M19C)
+    return alerts.detail(graph, alert_id)
 
 
 @router.get("/typologies", tags=["typologies"])
-def list_typologies(request: Request) -> list[TypologySummary]:
+def list_typologies(files: Files) -> list[TypologySummary]:
     """Every typology of the catalog, by slug."""
-    not_implemented(request, M19C)
+    return reference.typologies(files)
 
 
 @router.get("/typologies/{slug}", tags=["typologies"], responses=responses(404, 422))
-def get_typology(
-    request: Request, slug: Annotated[str, Path(pattern=SLUG_PATTERN)]
-) -> TypologyDetail:
+def get_typology(files: Files, slug: Annotated[str, Path(pattern=SLUG_PATTERN)]) -> TypologyDetail:
     """One typology with its explainer, citations, parameters and false positives."""
-    not_implemented(request, M19C)
+    return reference.typology(files, slug)
 
 
 @router.post("/copilot/ask", tags=["copilot"], responses=responses(422, 501, 503))
@@ -211,8 +222,18 @@ def _with_problem_schema(app: FastAPI) -> Callable[[], dict[str, Any]]:
     return openapi
 
 
-def create_app(graph: GraphConnection | None = None) -> FastAPI:
-    """The app; nothing connects to Neo4j until a route needs it (`uvicorn --factory`)."""
+def _docs_page() -> HTMLResponse:
+    """The offline API page (not in the OpenAPI document)."""
+    headers = {
+        "content-security-policy": docs_page.CONTENT_SECURITY_POLICY,
+        "x-content-type-options": "nosniff",
+    }
+    return HTMLResponse(docs_page.PAGE, headers=headers)
+
+
+def create_app(graph: GraphConnection | None = None, files: RepoFiles | None = None) -> FastAPI:
+    """The app; nothing connects to Neo4j or reads the repository files until a route needs
+    them (`uvicorn --factory`)."""
     connection = graph if graph is not None else GraphConnection()
 
     @asynccontextmanager
@@ -237,6 +258,7 @@ def create_app(graph: GraphConnection | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.graph = connection
+    app.state.files = files if files is not None else RepoFiles()
     problems.install(app)
     app.add_middleware(
         CORSMiddleware,
@@ -245,5 +267,6 @@ def create_app(graph: GraphConnection | None = None) -> FastAPI:
         allow_headers=["content-type"],
     )
     app.include_router(router)
+    app.add_api_route("/docs", _docs_page, methods=["GET"], include_in_schema=False)
     app.openapi = _with_problem_schema(app)  # type: ignore[method-assign]
     return app

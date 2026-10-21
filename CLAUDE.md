@@ -33,7 +33,8 @@ Operator decisions in docs/build/operator-decisions.md override the spec.
 ## Commands
 - `make setup`            install everything (uv sync, npm ci, pre-commit)
 - `make check`            lint, types, unit tests, contract checks: run before every PR
-- `make up` / `make down` start or stop Neo4j (Docker Compose); `make smoke` checks it
+- `make up` / `make down` start or stop Neo4j (Docker Compose); `make smoke` checks it;
+  `make plugins` once first (downloads the pinned GDS jar; docs/architecture/local-stack.md)
 - `make test-int`         integration tests (Neo4j via Testcontainers)
 - `make contracts`        regenerate JSON Schemas and the OpenAPI snapshot
 - `make demo-mini`        load the synthetic demo, run detection, start API and UI
@@ -67,8 +68,9 @@ Each Python package: <dir>/src/neonradar_<dir>/, tests in <dir>/tests/, notes in
 
 ## Known traps (verified 16 Oct 2026)
 - followthemoney 4.x: build records with `ValueEntity(model[schema], {"id": ..., "datasets":
-  [slug]})`; `model.make_entity` output has no `datasets`; CompositeEntity is gone; Payment
-  dates lose their timezone, so write UTC without an offset.
+  [slug]})`; `model.make_entity` output has no `datasets`; CompositeEntity is gone. Payment
+  dates: FtM converts an offset to UTC but cuts a trailing `Z` to minutes (fails C1 R5), so
+  pass `dt.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%S')`. Ids: `records.make_id`.
 - `CALL { } IN TRANSACTIONS` needs an auto-commit `session.run()`, not `execute_query`.
 - pydantic-settings reading `.env`: `extra="ignore"`.
 - Splink 5, not 4: `db_api.register(df)` then `Linker(sdf, settings)`.

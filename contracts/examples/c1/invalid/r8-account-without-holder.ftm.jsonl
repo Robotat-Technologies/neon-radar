@@ -1,0 +1,1 @@
+{"id": "syn-acct-0001", "schema": "BankAccount", "datasets": ["nr_synthetic"], "properties": {"accountNumber": ["NRSYN0000000001"], "bankName": ["Synthetic Bank One"], "currency": ["EUR"], "openingDate": ["2020-01-15"]}, "nr": {"v": "1.0", "synthetic": true, "synthetic_kind": "activity", "account_kind": "customer"}}

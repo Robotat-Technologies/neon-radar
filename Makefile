@@ -3,12 +3,13 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help setup fmt lint typecheck test test-int contracts contracts-check check hygiene \
-	up down reset smoke logs demo-mini e2e gate-1
+	up down reset plugins smoke logs demo-mini e2e gate-1
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
 
-setup: ## install everything: Python packages, pre-commit hooks and, once ui/ exists, npm packages
+setup: ## install everything: Python packages, pre-commit hooks, .env and, once ui/ exists, npm
+	@bash scripts/ensure_env.sh
 	uv sync --all-packages
 	uv run pre-commit install
 	@if [ -f ui/package.json ]; then npm ci --prefix ui; fi
@@ -33,8 +34,8 @@ test-int: ## integration tests (Neo4j through Testcontainers)
 contracts: ## regenerate JSON Schemas and the OpenAPI snapshot
 	@echo "available after M1.7"
 
-contracts-check: ## contract tests and drift checks
-	@echo "available after M1.7"
+contracts-check: ## contract tests and drift checks (M1.7c and M1.7d add the drift checks)
+	uv run pytest -m contract
 
 check: lint typecheck test contracts-check ## everything a pull request needs
 	@if [ -f ui/package.json ]; then \
@@ -61,8 +62,34 @@ hygiene: ## the pull request checks CI runs (title, size, contract paths, fixtur
 	$(HYGIENE_PY) scripts/check_wording.py || status=1; \
 	exit $$status
 
-up down reset smoke logs: ## local Neo4j stack
-	@echo "available after M1.4"
+plugins: ## once, with network: pull the Neo4j image and fetch the pinned GDS jar
+	@bash scripts/ensure_env.sh
+	docker compose pull neo4j
+	bash scripts/fetch_gds.sh
+
+up: ## start Neo4j and wait until it is healthy (offline once make plugins has run)
+	@bash scripts/ensure_env.sh
+	@bash scripts/fetch_gds.sh --check
+	@image="$$(docker compose config --images neo4j)" || exit 1; \
+	docker image inspect "$$image" >/dev/null 2>&1 || { \
+		echo "The Neo4j image $$image is missing. Run 'make plugins' once, then 'make up'." >&2; \
+		exit 1; }
+	docker compose up -d --wait --pull never neo4j
+
+down: ## stop Neo4j; the data volume is kept
+	docker compose down
+
+reset: ## delete the local Neo4j data and logs volumes (needs CONFIRM=yes)
+	@if [ "$(CONFIRM)" != "yes" ]; then \
+		echo "reset deletes the local Neo4j database. Run: make reset CONFIRM=yes" >&2; exit 1; \
+	fi
+	docker compose down -v
+
+smoke: ## print the Neo4j, APOC and GDS versions; exit 1 if any is missing
+	uv run neonradar graph smoke
+
+logs: ## follow the Neo4j logs
+	docker compose logs --follow --tail=200 neo4j
 
 demo-mini e2e: ## synthetic demo and the end-to-end test
 	@echo "available after M1.9"

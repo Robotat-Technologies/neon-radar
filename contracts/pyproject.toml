@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "NeonRadar contracts: C1 record, C2 graph schema, C3 API and C4 alert."
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
-dependencies = ["pydantic>=2.14,<3"]
+dependencies = [
+    "pydantic>=2.14,<3",
+    "followthemoney>=4.11,<5",
+    "pyyaml>=6,<7",
+    "babel>=2.16,<3",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14"]

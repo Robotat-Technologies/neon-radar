@@ -107,8 +107,9 @@ def load_command(
         bool,
         typer.Option(
             "--strict/--no-strict",
-            help="Strict (default): any C1 issue, mapping issue or dangling reference fails the"
-            " load, and nothing is written before the checks pass. Non-strict: skip and report.",
+            help="Strict (default): any C1 issue or mapping issue refuses the load before anything"
+            " is written, and a dangling reference found while writing fails it (exit 1)."
+            " Non-strict: skip and report.",
         ),
     ] = True,
     timeout: Timeout = 30,
@@ -129,6 +130,8 @@ def load_command(
             raise typer.Exit(code=1) from None
     mode = "strict" if report.strict else "non-strict"
     typer.echo(f"{report.records} records from {len(report.files)} file(s), {mode}")
+    for path in report.empty_files:
+        typer.echo(f"WARN  {path} holds no records")
     _echo_counts("nodes by label", report.nodes_by_label)
     _echo_counts("relationships by type", report.relationships_by_type)
     written = report.written
@@ -145,9 +148,12 @@ def load_command(
         typer.echo(f"{title}: {len(items)}")
         _echo_some(items)
     if report.failed:
-        typer.echo(f"FAILED (strict): {len(report.dangling)} dangling reference(s)")
+        typer.echo(
+            f"FAILED (strict): {len(report.dangling)} dangling reference(s); the rest of the load"
+            " was written: fix the input and load again"
+        )
         raise typer.Exit(code=1)
-    warned = report.dangling or report.rejected or report.skipped
+    warned = report.dangling or report.rejected or report.skipped or report.empty_files
     typer.echo(f"{'WARN' if warned else 'OK'} in {report.duration_s:.1f} s")
 
 

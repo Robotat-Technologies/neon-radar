@@ -103,5 +103,5 @@ onboarding-check: ## Assignment 1: load the onboarding CSV, run docs/team/first-
 demo-mini e2e: ## synthetic demo and the end-to-end test
 	@echo "available after M1.9"
 
-gate-1: ## Gate 1 check
-	@echo "available after M1.12"
+gate-1: ## Gate 1 evidence, GC-01 to GC-17 (GATE_ARGS=--report-only or --offline)
+	uv run neonradar gate check --phase 1 $(GATE_ARGS)

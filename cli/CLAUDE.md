@@ -14,6 +14,8 @@
     `neonradar_ingest.sources.<source>`, write with `neonradar_ingest.spikes.write_output`
     (only into `data/cache/spikes/<source>/`), and finish with `report_output(path)`, which
     validates in strict mode and exits 1 on any issue. Import ingest code inside the command
-    so `neonradar --help` stays fast.
+    so `neonradar --help` stays fast. `spike clean` deletes files, so it only ever cleans
+    `spikes.SPIKE_ROOT` (no folder option); its tests monkeypatch `SPIKE_ROOT` and
+    `PROJECT_FILE` to tmp paths.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.

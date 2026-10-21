@@ -17,9 +17,13 @@ def report_output(path: Path) -> None:
 
     Exits 1 on any issue.
     """
-    from neonradar_contracts.records import validate_files  # loads FollowTheMoney
+    from neonradar_contracts.records import RecordFileError, validate_files  # loads FtM
 
-    counts, issues = validate_files([path], strict=True)
+    try:
+        counts, issues = validate_files([path], strict=True)
+    except RecordFileError as exc:
+        typer.echo(f"FORMAT {exc}")
+        raise typer.Exit(code=1) from exc
     typer.echo(f"wrote {path} and its manifest: {counts.total()} records")
     for schema, count in sorted(counts.items()):
         typer.echo(f"  {schema}: {count}")
@@ -33,10 +37,12 @@ def report_output(path: Path) -> None:
 
 @app.command(name="clean")
 def clean(
-    folder: Annotated[Path | None, typer.Option("--dir", help="Default: data/cache/spikes")] = None,
     days: Annotated[int | None, typer.Option(min=0, help="Default: project.yaml")] = None,
 ) -> None:
-    """Delete spike output older than access.spike_cache_days; it can hold personal data."""
+    """Delete spike output older than access.spike_cache_days; it can hold personal data.
+
+    It only ever cleans data/cache/spikes/, so it has no option for another folder.
+    """
     from neonradar_ingest import spikes  # not at import time: `neonradar --help` stays fast
 
     try:
@@ -44,7 +50,7 @@ def clean(
     except (OSError, ValueError) as exc:
         typer.echo(f"FAIL  {exc}")
         raise typer.Exit(code=1) from None
-    root = folder or spikes.SPIKE_ROOT
+    root = spikes.SPIKE_ROOT  # never anywhere else: the command deletes files
     deleted = spikes.clean_expired(keep, root)
     for path in deleted:
         typer.echo(f"deleted {path}")

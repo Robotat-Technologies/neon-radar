@@ -9,7 +9,7 @@ There are two kinds of text, with different rules:
 
 ## Disclaimers
 
-The three texts below are verbatim. Milestone M1.7c commits them as text files in `contracts/wording/`, and `GET /api/v1/meta` serves them; this page and those files must stay identical.
+The four texts below (three disclaimers and the README limitations text) are verbatim. Milestone M1.7c commits the three disclaimers as text files in `contracts/wording/`, and `GET /api/v1/meta` serves them; this page and those files must stay identical.
 
 **Standing disclaimer** (`contracts/wording/standing-v1.txt`). Shown near the top of the README, on every interface page that shows entities or alerts, and served by the API.
 
@@ -54,7 +54,7 @@ NeonRadar adds what is specific to it: it is educational, it finds structural pa
 | "listed in <dataset> as sanctioned", "as a politically exposed person", "as a relative or close associate of a politically exposed person" | "sanctioned criminal", "corrupt official" | Flags come from source data and say only what the source published. No other source topics are shown next to entities. |
 | "shares a registered address with 14 other companies" | "shell company", "front company" (about a specific entity) | Describe the structure, not a label. Most shell companies are formed for legitimate purposes [fincen_fin_2006_g014], and the glossary terms describe structures, not a verdict on a named company. |
 | "pattern strength" | "risk score", "suspicion score", "likelihood of laundering" | Pattern strength measures how closely the evidence matches a typology's graph pattern (C4 alert contract). It is not a probability of anything. |
-| "synthetic scenario" (only when the alert's `wording_class` is `synthetic_scenario`: every evidence node, subject and evidence-account holder is synthetic) | "laundering case", "the launderer" | Only scenarios the generator planted among synthetic entities are scenarios at all; nothing in NeonRadar is a case about a real person. |
+| "synthetic scenario" (only when the alert's `wording_class` is `synthetic_scenario`: every evidence node, subject and evidence-account holder is synthetic) | "laundering case", "the launderer" | Only scenarios the generator planted among synthetic entities are scenarios at all; nothing NeonRadar shows next to an entity is a case about a real person. |
 | "linked to", "holds an account that received" | "accomplice", "mule", "fraudster" | These words claim knowledge or intent. Money mules can act "wittingly or unwittingly" [fincen_fin_2025_a003], and the graph shows neither. |
 
 The display name of any typology that has a detector must pass the lint, because alert and interface text say "matches the graph pattern of <name>".
@@ -94,7 +94,7 @@ The lint (`scripts/check_wording.py`, run by `make hygiene` and CI) applies to N
 
 ## Documentation rules
 
-These rules are also in `.claude/rules/aml-docs.md`, for AI sessions.
+Rules 1 to 3 are also in `.claude/rules/aml-docs.md`, for AI sessions; rules 4 and 5 are only here.
 
 1. Every factual statement about money laundering cites a key from the [bibliography](sources/bibliography.yaml) ([how to cite](sources/README.md)). Quote sources in quotation marks with the key; otherwise paraphrase and cite.
 2. Use the terms in the [glossary](glossary.md). "Beneficial owner" means a natural person only.
@@ -108,7 +108,7 @@ Use this statement in the README, slides and anywhere else that gives a global f
 
 > UNODC estimated that about USD 1.6 trillion, or 2.7 percent of global GDP, was laundered in 2009, and attributes the often-quoted range of 2 to 5 percent to the IMF in 1998 [unodc_iff_2011].
 
-Do not write that UNODC estimates "2 to 5 percent" or "as much as 5 percent of GDP": that range is the IMF's 1998 figure, which UNODC cites (PHASE-1.md section 0.5, item 9).
+Do not write that UNODC estimates "2 to 5 percent" or "as much as 5 percent of GDP": that range is the IMF's 1998 figure, which UNODC cites [unodc_iff_2011] (PHASE-1.md section 0.5, item 9).
 
 ## Sources
 

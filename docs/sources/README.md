@@ -7,7 +7,7 @@ Every factual statement about money laundering, its typologies, its law or its c
 **In Markdown**, put the key in square brackets right after the statement it supports, one key per bracket:
 
 ```markdown
-A money mule receives money from a third party and transfers it on [europol_money_muling] [fatf_pml_2018].
+A money mule receives money from a third party and transfers it on [europol_money_muling].
 ```
 
 - Quote a source only in quotation marks, with its key. Otherwise paraphrase and cite.
@@ -20,7 +20,7 @@ A money mule receives money from a third party and transfers it on [europol_mone
 citations: [fatf_egmont_concealment_2018, ffiec_appendix_f]
 ```
 
-**Wording and terminology.** Use the terms in [docs/glossary.md](../glossary.md) and follow the wording rules in [docs/wording.md](../wording.md). A red flag or indicator is a reason to look closer, not evidence.
+**Wording and terminology.** Use the terms in [docs/glossary.md](../glossary.md) and follow the wording rules in [docs/wording.md](../wording.md). A red flag or indicator is a reason to look closer, not evidence [ffiec_appendix_f].
 
 ## How to add a source
 
@@ -41,7 +41,7 @@ citations: [fatf_egmont_concealment_2018, ffiec_appendix_f]
 3. Choose the key in lowercase snake case with at least one underscore, publisher first; a dated source ends with its year (`fincen_fin_2006_g014`, `europol_efecta_2023`).
 4. If you could verify the source only indirectly, could not open it, or a title still needs confirming, say so in `note`. If a URL no longer resolves, keep the entry, record what happened in `note` and ask the typology researchers.
 
-Some publishers (fatf-gafi.org, bsaaml.ffiec.gov, justice.gov, eba.europa.eu) answer automated clients with a bot challenge. Entries from those sites keep the date a person or the research note last opened them, and their note says to re-open them in a browser.
+Some publishers (fatf-gafi.org, bsaaml.ffiec.gov, justice.gov, eba.europa.eu, register.openownership.org, eur-lex.europa.eu) answer automated clients with a bot challenge. Entries from those sites keep the date a person or the research note last opened them, and their note says to re-open them in a browser.
 
 ## The check
 
@@ -57,3 +57,7 @@ uv run python scripts/check_citations.py docs/ detect/typologies/ README.md
 - It also fails when the bibliography has a duplicate key, a key that cannot be cited, or an entry without `key`, `title`, `publisher`, `year`, `url` or `verified`.
 
 `make hygiene` and the `python` job in CI run it on every pull request.
+
+## Sources
+
+- [ffiec_appendix_f] FFIEC, *BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags*, living document. <https://bsaaml.ffiec.gov/manual/Appendices/07>

@@ -12,14 +12,13 @@ RUN apt-get update \
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
-    UV_NO_CACHE=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
 # Third-party dependencies first, from the lock file and the workspace manifests only, so that a
-# code change does not rebuild PyICU.
+# code change does not rebuild PyICU; uv's build cache keeps the PyICU wheel when the lock changes.
 COPY pyproject.toml uv.lock ./
 COPY api/pyproject.toml api/
 COPY cli/pyproject.toml cli/
@@ -28,14 +27,18 @@ COPY copilot/pyproject.toml copilot/
 COPY detect/pyproject.toml detect/
 COPY graph/pyproject.toml graph/
 COPY ingest/pyproject.toml ingest/
-RUN uv sync --locked --no-dev --package neonradar-api --no-install-workspace
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --package neonradar-api --no-install-workspace
 
 # Then the repository. Workspace members stay editable, so contracts/, detect/ and docs/ files
 # resolve as in development (NR_REPO_ROOT).
 COPY . .
-RUN uv sync --locked --no-dev --package neonradar-api
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --package neonradar-api
 
-ENV NR_REPO_ROOT=/app
+# At run time uv only starts the installed environment and needs no cache.
+ENV NR_REPO_ROOT=/app \
+    UV_NO_CACHE=1
 
 # The files stay owned by root and read-only for the user that runs the API.
 RUN useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent \

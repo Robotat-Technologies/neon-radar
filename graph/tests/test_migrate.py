@@ -68,8 +68,8 @@ def test_discover_refuses_bad_folders(tmp_path: Path, names: tuple[str, ...], me
 
 
 class FakeSession:
-    def __init__(self, log: list[str]) -> None:
-        self.log = log
+    def __init__(self, driver: FakeDriver) -> None:
+        self.driver = driver
 
     def __enter__(self) -> FakeSession:
         return self
@@ -77,8 +77,10 @@ class FakeSession:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def run(self, query: str, **params: Any) -> FakeSession:
-        self.log.append(query if not params else f"{query} {params}")
+    def run(self, query: str, **params: Any) -> Any:
+        if query == m.APPLIED:
+            return [{"id": key, "checksum": value} for key, value in self.driver.applied.items()]
+        self.driver.log.append(query if not params else f"{query} {params}")
         return self
 
     def consume(self) -> None:
@@ -92,14 +94,12 @@ class FakeDriver:
         self.applied = dict(applied or {})
         self.log: list[str] = []
 
-    def session(self, database: str) -> FakeSession:
+    def session(self, database: str, **config: Any) -> FakeSession:
         assert database == "neo4j"
-        return FakeSession(self.log)
+        assert config in ({}, {"notifications_min_severity": "OFF"})
+        return FakeSession(self)
 
-    def execute_query(self, query: str, **params: Any) -> tuple[list[dict[str, str]], None, None]:
-        if query == m.APPLIED:
-            rows = [{"id": key, "checksum": value} for key, value in self.applied.items()]
-            return rows, None, None
+    def execute_query(self, query: str, **params: Any) -> tuple[list[Any], None, None]:
         assert query == m.RECORD
         assert params["applied_at"] == "2026-10-22T10:00:00Z"
         self.applied[params["id"]] = params["checksum"]

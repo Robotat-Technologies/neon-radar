@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from neo4j import Driver, RoutingControl
+from neo4j import Driver
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +114,10 @@ def migrate(
     """Apply the pending migrations in order; raise MigrationError before applying anything if
     an applied migration was edited or is missing from `directory`."""
     migrations = discover(directory)
-    records, _, _ = driver.execute_query(APPLIED, database_=database, routing_=RoutingControl.READ)
-    applied = {str(record["id"]): str(record["checksum"]) for record in records}
+    # Before 0001 the label and its properties do not exist yet; the server's warnings about
+    # that are expected, so this one read asks for no notifications.
+    with driver.session(database=database, notifications_min_severity="OFF") as session:
+        applied = {str(record["id"]): str(record["checksum"]) for record in session.run(APPLIED)}
     on_disk = {migration.id: migration for migration in migrations}
     missing = sorted(set(applied) - set(on_disk))
     if missing:

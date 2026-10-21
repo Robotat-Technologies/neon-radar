@@ -50,19 +50,11 @@ class Neo4jSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Arguments, then environment, then `.env`, then Compose secrets if the folder exists.
-
-        The folder is checked when the settings are read, not at import, so hosts without
-        `/run/secrets` behave exactly as before.
-        """
-        sources: tuple[PydanticBaseSettingsSource, ...] = (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-        )
+        """Arguments, environment, `.env`, then Compose secrets if the folder exists (per call)."""
+        sources = [init_settings, env_settings, dotenv_settings]
         if SECRETS_DIR.is_dir():
-            sources += (SecretsSettingsSource(settings_cls, secrets_dir=SECRETS_DIR),)
-        return sources
+            sources.append(SecretsSettingsSource(settings_cls, secrets_dir=SECRETS_DIR))
+        return tuple(sources)
 
 
 def get_driver(settings: Neo4jSettings | None = None) -> Driver:

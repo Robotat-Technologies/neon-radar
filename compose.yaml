@@ -3,11 +3,9 @@ name: neonradar
 services:
   neo4j:
     image: neo4j:5.26.32-community
-    # Build NEO4J_AUTH from the neo4j_password secret (below), so the password never appears in
-    # the container's configuration, in `docker inspect` or in printed Compose configurations.
-    # Then copy the pinned GDS jar (mounted read-only at /nr-plugins) into the plugins folder and
-    # run the image's own entrypoint. The entrypoint chowns NEO4J_HOME and /plugins, so the jar
-    # is mounted outside both and the host folder is never written.
+    # Build NEO4J_AUTH from the neo4j_password secret (so the password is in no printed config and
+    # not in `docker inspect`), copy the pinned GDS jar from /nr-plugins (mounted outside NEO4J_HOME
+    # and /plugins, which the entrypoint chowns), then run the image's own entrypoint.
     entrypoint:
       - tini
       - -g
@@ -67,8 +65,7 @@ services:
       start_period: 30s
 
 secrets:
-  # NEO4J_PASSWORD from the environment or, through Compose's usual lookup, from .env. Compose
-  # hands it to the containers as the file /run/secrets/neo4j_password.
+  # NEO4J_PASSWORD from the environment or .env, as the file /run/secrets/neo4j_password.
   neo4j_password:
     environment: NEO4J_PASSWORD
 

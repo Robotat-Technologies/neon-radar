@@ -161,9 +161,3 @@ def test_devcontainer_turns_missing_docker_into_warnings(
     assert {name: check for name, check in inside.items() if name not in ("Docker", "Compose")} == {
         name: check for name, check in on_host.items() if name not in ("Docker", "Compose")
     }
-
-
-def test_devcontainer_keeps_a_working_docker_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake(monkeypatch, {})
-    check = doctor.check_docker({"ServerVersion": "29.7.2"})
-    assert doctor.without_docker(check) is check

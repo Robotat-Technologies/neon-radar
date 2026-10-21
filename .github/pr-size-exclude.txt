@@ -1,5 +1,6 @@
 uv.lock
 ui/package-lock.json
+.devcontainer/devcontainer-lock.json
 ui/src/api/schema.d.ts
 contracts/openapi/**
 contracts/schemas/**

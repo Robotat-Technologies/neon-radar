@@ -8,8 +8,7 @@ services:
     command: sleep infinity
     volumes:
       - .:/workspaces/neonradar:cached
-    # The Neo4j password arrives as the file /run/secrets/neo4j_password (the same secret Neo4j
-    # gets), never as an environment variable; the neonradar command reads it from there.
+    # The Neo4j password arrives only as the file /run/secrets/neo4j_password, never as a variable.
     secrets: [neo4j_password]
     environment:
       NEO4J_URI: bolt://neo4j:7687

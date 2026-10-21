@@ -654,6 +654,7 @@ name = "neonradar-graph"
 version = "0.1.0"
 source = { editable = "graph" }
 dependencies = [
+    { name = "followthemoney" },
     { name = "neo4j" },
     { name = "neonradar-contracts" },
     { name = "pydantic-settings" },
@@ -661,6 +662,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "followthemoney", specifier = ">=4.11,<5" },
     { name = "neo4j", specifier = ">=6.4,<7" },
     { name = "neonradar-contracts", editable = "contracts" },
     { name = "pydantic-settings", specifier = ">=2.16,<3" },

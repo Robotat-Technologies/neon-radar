@@ -28,7 +28,8 @@ typecheck: ## mypy strict over the package sources
 test: ## unit tests (no integration, network or e2e tests)
 	uv run pytest
 
-test-int: ## integration tests (Neo4j through Testcontainers)
+test-int: ## integration tests (Neo4j through Testcontainers, with the GDS jar from make plugins)
+	@bash scripts/fetch_gds.sh --check
 	uv run pytest -m integration
 
 contracts: ## regenerate JSON Schemas and the OpenAPI snapshot

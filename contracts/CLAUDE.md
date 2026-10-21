@@ -10,6 +10,8 @@
 - Commands: `uv run pytest contracts/tests`, `make contracts` (`neonradar contracts export`),
   `make contracts-check` (tests plus `neonradar contracts check`, the drift check),
   `uv run neonradar contracts validate-records <files> --strict` (C1-record.md).
+- C2 (C2-graph-schema.md): `graph` holds the mapping as data; the code that applies it is
+  `neonradar_graph.mapping` and the schema is `graph/schema/migrations/`.
 - Traps:
   - Frozen at Gate 1 (tag `contracts-v1.0.0`): after that, only an approved
     contract-change issue (`/contract-change`); the guard hook blocks edits.

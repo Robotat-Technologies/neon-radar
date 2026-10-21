@@ -1,43 +1,45 @@
-"""Integration smoke test: a Neo4j 5.26 container answers, with APOC and GDS loaded.
+"""Integration smoke test on the shared Neo4j fixture: the server, APOC and the pinned GDS answer,
+and Neo4j reads the C2 `PAID.ts` format as a UTC DATETIME.
 
-It gives CI's integration job a real test from the start (`pytest -m integration` exits with
-code 5 when nothing matches). M1.7b moves it onto the shared Neo4j fixture.
+It also gives CI's integration job a real test (`pytest -m integration` exits with code 5 when
+nothing matches).
 """
 
-import os
+from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
-from testcontainers.community.neo4j import Neo4jContainer
-from testcontainers.core.config import testcontainers_config
 
-IMAGE = os.environ.get("NR_NEO4J_IMAGE", "neo4j:5.26.32-community")
-# NEO4J_PLUGINS downloads the GDS jar from graphdatascience.ninja when the container starts,
-# which can take minutes; the default wait is 120 s. Operator decision OD-13 asks for the jar
-# fetched and checked by scripts/fetch_gds.sh (M1.4) instead; M1.7b makes that switch.
-STARTUP_TIMEOUT_S = 300
+from neonradar_contracts.records import iter_records
+from neonradar_graph.mapping import to_relationship_rows
+from neonradar_graph.smoke import run_smoke
 
-# Small enough to run next to the local stack (M1.4) and on a 7 GB CI runner.
-MEMORY = {
-    "NEO4J_server_memory_heap_initial__size": "512m",
-    "NEO4J_server_memory_heap_max__size": "512m",
-    "NEO4J_server_memory_pagecache_size": "256m",
-}
+from .conftest import Neo4jTarget, pinned_gds
+
+pytestmark = pytest.mark.integration
+
+FIXTURE = Path(__file__).parent / "fixtures" / "mapping" / "all-schemata.ftm.jsonl"
 
 
-@pytest.mark.integration
-def test_neo4j_answers_with_apoc_and_gds(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(testcontainers_config, "max_tries", STARTUP_TIMEOUT_S)
-    monkeypatch.setattr(testcontainers_config, "sleep_time", 1.0)
-    container = (
-        Neo4jContainer(IMAGE, mem_limit="1536m")
-        .with_env("NEO4J_PLUGINS", '["apoc", "graph-data-science"]')
-        .with_envs(**MEMORY)
-    )
-    with container, container.get_driver() as driver:
-        one, _, _ = driver.execute_query("RETURN 1 AS one", database_="neo4j")
-        apoc, _, _ = driver.execute_query("RETURN apoc.version() AS version", database_="neo4j")
-        gds, _, _ = driver.execute_query("RETURN gds.version() AS version", database_="neo4j")
-
+def test_neo4j_answers_with_apoc_and_gds(neo4j: Neo4jTarget) -> None:
+    one, _, _ = neo4j.driver.execute_query("RETURN 1 AS one", database_=neo4j.database)
+    report = run_smoke(neo4j.driver, neo4j.database)
     assert one[0]["one"] == 1
-    assert apoc[0]["version"].startswith("5.26")
-    assert gds[0]["version"].startswith("2.13")
+    assert report.ok, report.lines()
+    assert report.neo4j is not None and report.neo4j.startswith("5.26.")
+    assert report.neo4j.endswith(" community")
+    assert report.apoc is not None and report.apoc.startswith("5.26.")
+    assert report.gds == pinned_gds()[0]
+
+
+def test_paid_ts_is_read_as_a_utc_datetime(neo4j: Neo4jTarget) -> None:
+    (paid,) = [
+        row for row in to_relationship_rows(list(iter_records(FIXTURE))).rows if row.type == "PAID"
+    ]
+    records, _, _ = neo4j.driver.execute_query(
+        "WITH datetime($ts) AS ts RETURN ts.timezone AS zone, ts.epochSeconds AS seconds",
+        ts=paid.ts,
+        database_=neo4j.database,
+    )
+    assert records[0]["zone"] == "Z"
+    assert records[0]["seconds"] == int(datetime(2026, 3, 14, 10, 22, 5, tzinfo=UTC).timestamp())

@@ -36,9 +36,11 @@ def load_disclaimer(disclaimer_id: DisclaimerId) -> str:
 
 
 def normalize(text: str) -> str:
-    """NFKC, so compatibility forms such as fullwidth or mathematical letters read as plain ones
-    and cannot hide a term from the lint or the phrase check."""
-    return unicodedata.normalize("NFKC", text)
+    """NFKC without format characters (Unicode category Cf: soft hyphen, zero-width space, word
+    joiner, direction marks), so fullwidth or mathematical letters and invisible characters
+    cannot hide a term from the lint or the phrase check."""
+    text = unicodedata.normalize("NFKC", text)
+    return "".join(char for char in text if unicodedata.category(char) != "Cf")
 
 
 def says_synthetic_scenario(text: str) -> bool:
@@ -63,8 +65,7 @@ def find_forbidden(text: str, mask: Iterable[str] = ()) -> list[str]:
 
     `mask` holds source values that are not NeonRadar's wording, such as entity captions and
     account numbers (7.1): each occurrence as a whole token (not inside a longer word) is
-    blanked out before the check. The text and the mask are NFKC-normalised first, so
-    compatibility forms such as fullwidth or mathematical letters cannot hide a term.
+    blanked out before the check. The text and the mask are normalised first (`normalize`).
     """
     text = normalize(text)
     mask = {normalize(value) for value in mask if value}

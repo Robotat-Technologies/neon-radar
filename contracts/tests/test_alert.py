@@ -351,11 +351,53 @@ def test_non_synthetic_evidence_edge_means_no_synthetic_activity() -> None:
 
 
 @pytest.mark.parametrize(
-    "edge", ["gbch-co-T0000001|addr|gbch-addr-T0000001", "syn-co-0003|addr|gbch-addr-T0000001"]
+    ("edge", "real_record"),
+    [
+        ("syn-co-0003|addr|gbch-addr-T0000001", False),  # built from the synthetic company
+        ("gbch-co-T0000001|addr|gbch-addr-T0000001", True),  # built from the real company
+        ("syn-co-0003|sanction|os-sanction-T0000001", True),  # built from the Sanction
+    ],
 )
-def test_either_end_of_a_composite_edge_id_counts(edge: str) -> None:
-    data = with_edge(as_structural(example(), ["gb_companies_house", "nr_synthetic"]), edge)
-    rejects(data, f"non-synthetic data \\({re.escape(edge)}\\)")
+def test_a_composite_edge_counts_as_the_record_it_was_built_from(
+    edge: str, real_record: bool
+) -> None:
+    """C2: a relationship carries the dataset and synthetic flag of the record that built it."""
+    datasets = ["gb_companies_house", "nr_synthetic", "opensanctions_default"]
+    data = with_edge(as_structural(example(), datasets), edge)
+    if real_record:
+        rejects(data, f"non-synthetic data \\({re.escape(edge)}\\)")
+        data["data_flags"]["synthetic_activity"] = False
+    assert Alert.model_validate(data).data_flags.synthetic_activity is not real_record
+
+
+def test_all_synthetic_relationships_mean_synthetic_activity() -> None:
+    """Case F: a real holder next to synthetic payments; the activity is synthetic."""
+    data = as_structural(example(), ["gb_companies_house", "nr_synthetic"])
+    data["subjects"][1] = REAL_HOLDER
+    data["data_flags"]["synthetic_activity"] = False
+    rejects(data, "synthetic_activity must be true: every evidence relationship is synthetic")
+
+
+def test_no_relationships_next_to_real_entities_means_no_synthetic_activity() -> None:
+    data = as_structural(example(), ["gb_companies_house", "nr_synthetic"])
+    data["subjects"][1] = REAL_HOLDER
+    data["evidence"]["edge_ids"] = []
+    for step in data["explanation"]["steps"]:
+        step["edge_ids"] = []
+    rejects(with_id(data), "synthetic_activity must be false for an alert with real entities")
+    data["data_flags"]["synthetic_activity"] = False
+    Alert.model_validate(data)
+
+
+def test_datasets_list_every_dataset_the_ids_name() -> None:
+    data = as_structural(example(), ["nr_synthetic"])
+    data["subjects"][1] = REAL_HOLDER
+    rejects(data, "data_flags.datasets must list gb_companies_house")
+    data = with_edge(as_structural(example(), ["nr_synthetic"]), REAL_EDGE)
+    data["data_flags"]["synthetic_activity"] = False
+    rejects(data, "data_flags.datasets must list gb_companies_house")
+    data["data_flags"]["datasets"].append("gb_companies_house")
+    Alert.model_validate(data)
 
 
 @pytest.mark.parametrize("edge", ["syn-acct-0007|addr|syn-addr-0001", "nr-7d2e9b"])

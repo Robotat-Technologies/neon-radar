@@ -398,6 +398,17 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
     synthetic = _check_synthetic(data, dataset, match, add)
     if schema is not None and schema.is_a("Payment"):
         _check_payment(props, data.get("nr"), synthetic, add)
+    if synthetic and schema is not None and schema.is_a("Sanction"):
+        # R6, guardrail G1: C2 builds SUBJECT_OF from the Sanction's entity, so a synthetic
+        # Sanction naming a real entity would show that entity as sanctioned. The prefix decides
+        # (R1, R6), so this needs no other record and holds in strict and non-strict mode.
+        for value in props.get("entity", []):
+            if value.split("-", 1)[0] != SYNTHETIC_PREFIX:
+                add(
+                    "R6",
+                    f"a synthetic Sanction names only synthetic entities (prefix syn), not"
+                    f" {value!r}: SUBJECT_OF would mark a real entity as sanctioned (G1)",
+                )
     if synthetic:  # R9: only the topics that set C2 flags; others could carry labels
         for topic in props.get("topics", []):
             if topic not in SYNTHETIC_TOPICS:

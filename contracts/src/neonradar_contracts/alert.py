@@ -81,6 +81,9 @@ def _fixed(pattern: str, length: int) -> Any:
 EntityId = Annotated[str, Field(pattern=ENTITY_ID_PATTERN)]
 EdgeId = Annotated[str, Field(pattern=EDGE_ID_PATTERN)]
 UtcTime = Annotated[str, _fixed(UTC_PATTERN, UTC_LENGTH), AfterValidator(_is_utc_time)]
+# Shared with C3 (the API models refer to alerts and echo query parameters).
+AlertId = Annotated[str, _fixed(ALERT_ID_PATTERN, ALERT_ID_LENGTH)]
+FiniteJsonValue = Annotated[JsonValue, AfterValidator(_is_finite)]
 Slug = Annotated[str, Field(pattern=SLUG_PATTERN)]
 CitationKey = Annotated[str, Field(pattern=CITATION_KEY_PATTERN)]
 Text = Annotated[str, Field(min_length=1)]
@@ -125,9 +128,17 @@ def _unique(values: list[str], what: str) -> None:
         raise ValueError(f"{what} must not repeat an id")
 
 
-def _id_parts(edge_id: str) -> list[str]:
-    """The entity ids in a C2 relationship id: both ends of `a|addr|b`, or the interval id."""
-    return edge_id.split("|")[::2]
+def _prefix(record_id: str) -> str:
+    return record_id.split("-", 1)[0]
+
+
+def _edge_record(edge_id: str) -> str:
+    """The record a C2 relationship was built from, whose dataset and synthetic flag it carries:
+    the interval id itself, the entity of `a|addr|b`, the Sanction of `a|sanction|b`."""
+    parts = edge_id.split("|")
+    if len(parts) == 1:
+        return edge_id
+    return parts[0] if parts[1] == "addr" else parts[2]
 
 
 class _Strict(BaseModel):
@@ -154,7 +165,7 @@ class EvidenceQuery(_Strict):
     """The Cypher query and parameters that reproduce the finding."""
 
     cypher: Text
-    parameters: dict[str, Annotated[JsonValue, AfterValidator(_is_finite)]]
+    parameters: dict[str, FiniteJsonValue]
 
 
 class Window(_Strict):
@@ -188,7 +199,7 @@ class Evidence(_Strict):
         # (`a|addr|b`, `a|sanction|b`); for plain interval ids the detector checks it (M1.9b).
         nodes = set(self.node_ids)
         for edge in self.edge_ids:
-            ends = _id_parts(edge) if "|" in edge else []
+            ends = edge.split("|")[::2] if "|" in edge else []
             missing = [end for end in ends if end not in nodes]
             if missing:
                 raise ValueError(f"evidence edge {edge} needs its endpoints in node_ids: {missing}")
@@ -245,7 +256,7 @@ class DataFlags(_Strict):
 class Alert(_Strict):
     """C4 Alert v1.0.0 (5.4). `pattern_strength` orders the queue; it is never a risk score."""
 
-    alert_id: Annotated[str, _fixed(ALERT_ID_PATTERN, ALERT_ID_LENGTH)]
+    alert_id: AlertId
     contract_version: Annotated[str, Field(pattern=CONTRACT_VERSION_PATTERN)]
     typology: Slug
     typology_version: Annotated[str, Field(pattern=VERSION_PATTERN)]
@@ -290,7 +301,7 @@ class Alert(_Strict):
         if stray:
             raise ValueError(f"explanation steps cite edges not in the evidence: {stray}")
         self._check_wording()
-        self._check_wording_class()
+        self._check_data_flags()
         return self
 
     def _check_wording(self) -> None:
@@ -318,40 +329,56 @@ class Alert(_Strict):
                 f"{', '.join(said)}"
             )
 
-    def _check_wording_class(self) -> None:
+    def _check_data_flags(self) -> None:
+        """Guardrail G1: the wording class and the data flags agree with each other and with the
+        dataset id prefixes of the subjects, the evidence nodes and the records the evidence
+        relationships were built from (C4-alert.md, rules 1 to 7). A prefix of no dataset (`nr`,
+        Phase 2 canonical ids) proves nothing either way."""
         flags = self.data_flags
+        registry = load_registry().datasets
+        slug_of = {dataset.id_prefix: dataset.slug for dataset in registry}
+        real = {dataset.id_prefix for dataset in registry if not dataset.synthetic}
+        synthetic = {dataset.id_prefix for dataset in registry if dataset.synthetic}
+        entity_ids = [subject.entity_id for subject in self.subjects] + self.evidence.node_ids
+        edges = {edge: _prefix(_edge_record(edge)) for edge in self.evidence.edge_ids}
         if (self.wording_class == "synthetic_scenario") == flags.involves_real_entities:
             raise ValueError(
                 "wording_class must be synthetic_scenario exactly when "
                 "data_flags.involves_real_entities is false"
             )
-        # An id prefix of a non-synthetic dataset means real data. Prefixes of no dataset (`nr`,
-        # canonical ids from Phase 2) prove nothing either way.
-        real_datasets = [dataset for dataset in load_registry().datasets if not dataset.synthetic]
-        slugs = {dataset.slug for dataset in real_datasets}
-        prefixes = {dataset.id_prefix for dataset in real_datasets}
-        if flags.synthetic_activity:
-            real_edges = [
-                edge
-                for edge in self.evidence.edge_ids
-                if any(part.split("-", 1)[0] in prefixes for part in _id_parts(edge))
-            ]
-            if real_edges:
+        if not flags.involves_real_entities:
+            named = [slug for slug in flags.datasets if slug in {slug_of[p] for p in real}]
+            named += [entity_id for entity_id in entity_ids if _prefix(entity_id) in real]
+            if named:
                 raise ValueError(
-                    "data_flags.synthetic_activity must be false: evidence relationships come "
-                    f"from non-synthetic data ({', '.join(real_edges)})"
+                    "data_flags.involves_real_entities must be true: the alert names "
+                    f"non-synthetic data ({', '.join(named)})"
                 )
-        if flags.involves_real_entities:
-            return
-        ids = [subject.entity_id for subject in self.subjects] + self.evidence.node_ids
-        real = [slug for slug in flags.datasets if slug in slugs]
-        real += [entity_id for entity_id in ids if entity_id.split("-", 1)[0] in prefixes]
-        if real:
+            if not flags.synthetic_activity:
+                raise ValueError(
+                    "data_flags.synthetic_activity must be true when every entity is synthetic"
+                )
+        real_edges = [edge for edge, prefix in edges.items() if prefix in real]
+        if flags.synthetic_activity and real_edges:
             raise ValueError(
-                "data_flags.involves_real_entities must be true: the alert names "
-                f"non-synthetic data ({', '.join(real)})"
+                "data_flags.synthetic_activity must be false: evidence relationships come "
+                f"from non-synthetic data ({', '.join(real_edges)})"
             )
-        if not flags.synthetic_activity:
+        if edges and not flags.synthetic_activity and set(edges.values()) <= synthetic:
             raise ValueError(
-                "data_flags.synthetic_activity must be true when every entity is synthetic"
+                "data_flags.synthetic_activity must be true: every evidence relationship is "
+                "synthetic"
+            )
+        if not edges and flags.involves_real_entities and flags.synthetic_activity:
+            raise ValueError(
+                "data_flags.synthetic_activity must be false for an alert with real entities "
+                "and no evidence relationships: there is no generated activity to point to"
+            )
+        named_prefixes = {_prefix(entity_id) for entity_id in entity_ids} | set(edges.values())
+        listed = {slug_of[prefix] for prefix in named_prefixes if prefix in slug_of}
+        missing = sorted(listed - set(flags.datasets))
+        if missing:
+            raise ValueError(
+                f"data_flags.datasets must list {', '.join(missing)}: the alert names ids of "
+                "those datasets"
             )

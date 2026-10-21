@@ -140,10 +140,13 @@ def _fullwidth(text: str) -> str:
         unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER M") + "ule account",
         unicodedata.lookup("MATHEMATICAL BOLD SMALL M") + "ule account",
         _fullwidth("FRAUD") + " pattern",
+        "laun\u00addered funds",  # soft hyphen
+        "mu\u200ble account",  # zero-width space
+        "risk\u2060 score",  # word joiner
     ],
 )
 def test_compatibility_forms_cannot_hide_a_term(text: str) -> None:
-    """The text is NFKC-normalised before matching, so a fullwidth or bold "m" reads as "m"."""
+    """NFKC, then no format characters: a fullwidth "m" reads as "m", a soft hyphen vanishes."""
     assert find_forbidden(text), text
 
 
@@ -178,9 +181,12 @@ def test_synthetic_phrase(text: str, says_it: bool) -> None:
     assert says_synthetic_scenario(text) is says_it
 
 
-def test_synthetic_phrase_check_normalises_the_text() -> None:
-    text = FULLWIDTH_S + "ynthetic scenario"
-    assert not SYNTHETIC_PHRASE.search(text), "the bare pattern misses the fullwidth s"
+@pytest.mark.parametrize(
+    "text",
+    [FULLWIDTH_S + "ynthetic scenario", "Synthetic\u2060 scenario", "Synthe\u00adtic scenario"],
+)
+def test_synthetic_phrase_check_normalises_the_text(text: str) -> None:
+    assert not SYNTHETIC_PHRASE.search(text), "the bare pattern misses it"
     assert says_synthetic_scenario(text)
 
 

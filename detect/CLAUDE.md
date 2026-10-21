@@ -17,7 +17,13 @@
     numbers as int or float, never strings or bools; `query_sha256` = `query_sha256(cypher)`;
     `alert_id` = `compute_alert_id(...)`. Lint summary and steps with `find_forbidden(text,
     mask=[captions, account numbers])` before building the alert. No NaN or infinity in
-    metrics or query parameters; one subject per entity id; `synthetic_activity` is false
-    when any evidence edge id (either end of a composite id) has a non-synthetic prefix.
+    metrics or query parameters; one subject per entity id.
+  - Data flags (C4 rules 1 to 7): an edge counts as the record that built it (interval id,
+    entity of `a|addr|b`, Sanction of `a|sanction|b`); `synthetic_activity` is false if any
+    is real, true if all are synthetic, false with no edges next to real entities; list every
+    named id's dataset. Collect holders with `collect(DISTINCT holder)`. In case F (real
+    holder, synthetic account) the holding Ownership is a `syn-` record, so it is synthetic.
+  - Loading alerts: one `FLAGS` per alert and subject (`MERGE` on the pair, `SET` role); a
+    re-run deletes `FLAGS` to entities that are no longer subjects.
   - A detector waits for its typology's approval; every query has a fixture test.
   - Bounded Cypher: at most 8 hops, LIMIT, a time window; GDS with `concurrency: 4`.

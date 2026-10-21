@@ -33,7 +33,8 @@ Operator decisions in docs/build/operator-decisions.md override the spec.
 ## Commands
 - `make setup`            install everything (uv sync, npm ci, pre-commit)
 - `make check`            lint, types, unit tests, contract checks: run before every PR
-- `make up` / `make down` start or stop Neo4j (Docker Compose); `make smoke` checks it
+- `make up` / `make down` start or stop Neo4j (Docker Compose); `make smoke` checks it;
+  `make plugins` once first (downloads the pinned GDS jar; docs/architecture/local-stack.md)
 - `make test-int`         integration tests (Neo4j via Testcontainers)
 - `make contracts`        regenerate JSON Schemas and the OpenAPI snapshot
 - `make demo-mini`        load the synthetic demo, run detection, start API and UI

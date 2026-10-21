@@ -18,7 +18,7 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def settings_from_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
-    """Never read the repository's real .env in these tests (conftest.py hides the secret)."""
+    """Never read the repository's real .env in these tests."""
     for name in [key for key in os.environ if key.startswith("NEO4J_")]:
         monkeypatch.delenv(name)
     monkeypatch.setitem(graph.Neo4jSettings.model_config, "env_file", tmp_path / "missing.env")

@@ -15,7 +15,6 @@ from neonradar_graph.client import Neo4jSettings, get_driver, wait_until_ready
 def no_neo4j_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for name in [key for key in os.environ if key.startswith("NEO4J_")]:
         monkeypatch.delenv(name)
-    # Inside the devcontainer /run/secrets/neo4j_password exists; tests never read it.
     monkeypatch.setattr(client, "SECRETS_DIR", tmp_path / "no-secrets")
 
 

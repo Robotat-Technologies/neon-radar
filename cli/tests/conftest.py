@@ -1,5 +1,3 @@
-"""Shared fixtures for the command-line tests."""
-
 from pathlib import Path
 
 import pytest

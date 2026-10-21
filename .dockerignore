@@ -1,4 +1,3 @@
-# Never send secrets, local data, environments or git history to a Docker build (G2, G6).
 .git
 .env
 .env.*

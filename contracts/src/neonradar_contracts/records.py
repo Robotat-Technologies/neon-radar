@@ -57,6 +57,16 @@ UTC_TIMESTAMP_LENGTH = 20
 # Topics that set the C2 flag labels :Sanctioned, :PEP and :RCA; the only ones synthetic
 # records may carry (R9), so that no other topic can hint at a scenario.
 SYNTHETIC_TOPICS = frozenset({"sanction", "role.pep", "role.rca"})
+# R6, guardrail G1: what C2 would say about a real record named by a synthetic one of these
+# schemata, so they reference only synthetic records (Sanction: M1.7c follow-up; the others:
+# orchestrator decision under OD-10, listed for Gate 1). Ownership, Representation, Membership
+# and the other links may name real records: that is synthetic background activity.
+SYNTHETIC_ONLY_LINKS = {
+    "Sanction": "SUBJECT_OF would mark a real entity as sanctioned",
+    "Family": "FAMILY_OF would make a real person a relative of someone",
+    "Associate": "ASSOCIATE_OF would make a real person a close associate of someone",
+    "Occupancy": "HOLDS_POSITION would give a real person a post",
+}
 LABEL_KEY_RE = re.compile(r"typolog|scenario|illicit|lookalike|ground.?truth|label", re.IGNORECASE)
 ENVELOPE_KEYS = ("id", "schema", "properties", "datasets")
 OPTIONAL_KEYS = ("referents", "caption", "first_seen", "last_seen", "last_change", "nr")
@@ -398,17 +408,21 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
     synthetic = _check_synthetic(data, dataset, match, add)
     if schema is not None and schema.is_a("Payment"):
         _check_payment(props, data.get("nr"), synthetic, add)
-    if synthetic and schema is not None and schema.is_a("Sanction"):
-        # R6, guardrail G1: C2 builds SUBJECT_OF from the Sanction's entity, so a synthetic
-        # Sanction naming a real entity would show that entity as sanctioned. The prefix decides
-        # (R1, R6), so this needs no other record and holds in strict and non-strict mode.
-        for value in props.get("entity", []):
-            if value.split("-", 1)[0] != SYNTHETIC_PREFIX:
-                add(
-                    "R6",
-                    f"a synthetic Sanction names only synthetic entities (prefix syn), not"
-                    f" {value!r}: SUBJECT_OF would mark a real entity as sanctioned (G1)",
-                )
+    reason = SYNTHETIC_ONLY_LINKS.get(schema.name) if synthetic and schema is not None else None
+    if schema is not None and reason is not None:
+        # The prefix decides (R1, R6), so this needs no other record and holds in strict and
+        # non-strict mode. Malformed references are R4's.
+        for reference in schema.properties.values():
+            if reference.type != registry.entity:
+                continue
+            for value in props.get(reference.name, []):
+                ref = ID_RE.fullmatch(value)
+                if ref and ref["prefix"] != SYNTHETIC_PREFIX:
+                    add(
+                        "R6",
+                        f"a synthetic {schema.name} references only synthetic records (prefix"
+                        f" syn) in {reference.name}, not {value!r}: {reason} (G1)",
+                    )
     if synthetic:  # R9: only the topics that set C2 flags; others could carry labels
         for topic in props.get("topics", []):
             if topic not in SYNTHETIC_TOPICS:

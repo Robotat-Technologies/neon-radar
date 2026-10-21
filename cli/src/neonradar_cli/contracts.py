@@ -38,12 +38,21 @@ def validate_records(
     typer.echo("OK, 0 issues")
 
 
-@app.command(name="export")
-def export_command() -> None:
-    """Write the generated contract files (contracts/schemas/*.json) from the models."""
+def _documents() -> dict[str, str]:
+    """Every generated contract file: the JSON Schemas and the API's OpenAPI snapshot (C3)."""
+    from neonradar_api.main import create_app
     from neonradar_contracts import schemas
 
-    for path in schemas.export():
+    openapi = schemas.render_json(create_app().openapi())
+    return {**schemas.documents(), schemas.OPENAPI_SNAPSHOT: openapi}
+
+
+@app.command(name="export")
+def export_command() -> None:
+    """Write the generated contract files (JSON Schemas and contracts/openapi/v1.json)."""
+    from neonradar_contracts import schemas
+
+    for path in schemas.export(docs=_documents()):
         typer.echo(f"wrote {path.relative_to(schemas.CONTRACTS_DIR.parent).as_posix()}")
 
 
@@ -52,10 +61,11 @@ def check_command() -> None:
     """Export to a temporary folder and fail on any difference from the committed files."""
     from neonradar_contracts import schemas
 
-    problems = schemas.check()
+    docs = _documents()
+    problems = schemas.check(docs=docs)
     for problem in problems:
         typer.echo(f"DRIFT contracts/{problem}")
     if problems:
         typer.echo(f"FAILED, {len(problems)} difference(s)")
         raise typer.Exit(code=1)
-    typer.echo(f"OK, {len(schemas.documents())} generated files match the models")
+    typer.echo(f"OK, {len(docs)} generated files match the models")

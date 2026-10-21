@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help setup fmt lint typecheck test test-int contracts contracts-check cypher-lint check \
 	hygiene up down up-real down-real reset plugins smoke logs fixtures onboarding-check demo-mini \
-	e2e gate-1
+	e2e gate-1 spec-check
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
@@ -122,6 +122,10 @@ onboarding-check: ## Assignment 1: load the onboarding CSV, run docs/team/first-
 
 demo-mini e2e: ## synthetic demo and the end-to-end test
 	@echo "available after M1.9"
+
+spec-check: ## check a milestone's verbatim files against the code book (M=M3.x; PHASE-3.md 2.10)
+	@if [ -z "$(M)" ]; then echo "usage: make spec-check M=M3.x" >&2; exit 2; fi
+	uv run python scripts/spec_extract.py check --milestone $(M)
 
 gate-1: ## Gate 1 evidence, GC-01 to GC-17 (GATE_ARGS=--report-only or --offline)
 	uv run neonradar gate check --phase 1 $(GATE_ARGS)

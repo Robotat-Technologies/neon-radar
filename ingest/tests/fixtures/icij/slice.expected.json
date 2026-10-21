@@ -1,0 +1,482 @@
+[
+  {
+    "id": "icij-directorship-712aa24ea0f08bd5bd56",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "icij-node-9900000102"
+      ],
+      "organization": [
+        "icij-node-9900000002"
+      ],
+      "role": [
+        "secretary of"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ],
+      "startDate": [
+        "2006-07-01"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "is_nominee": false
+    }
+  },
+  {
+    "id": "icij-directorship-b7a0ae93cc47fc1ad55f",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "icij-node-9900000102"
+      ],
+      "organization": [
+        "icij-node-9900000001"
+      ],
+      "role": [
+        "Nominee Director of"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ],
+      "startDate": [
+        "2006-03-23"
+      ],
+      "endDate": [
+        "2010-01-15"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "is_nominee": true
+    }
+  },
+  {
+    "id": "icij-node-9900000001",
+    "schema": "Company",
+    "properties": {
+      "icijId": [
+        "9900000001"
+      ],
+      "name": [
+        "Synthetic Entity One Ltd"
+      ],
+      "previousName": [
+        "Synthetic Entity One Former Ltd"
+      ],
+      "jurisdiction": [
+        "vg"
+      ],
+      "status": [
+        "Defaulted"
+      ],
+      "registrationNumber": [
+        "SYN555001"
+      ],
+      "country": [
+        "vg"
+      ],
+      "notes": [
+        "The Panama Papers data is current through 2015"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ],
+      "incorporationDate": [
+        "2006-03-23"
+      ],
+      "dissolutionDate": [
+        "2010-01-15"
+      ],
+      "addressEntity": [
+        "icij-node-9900000401"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000001",
+      "address_roles": {
+        "icij-node-9900000401": "registered"
+      }
+    }
+  },
+  {
+    "id": "icij-node-9900000002",
+    "schema": "Company",
+    "properties": {
+      "icijId": [
+        "9900000002"
+      ],
+      "name": [
+        "Synthetic Entity Two S.A."
+      ],
+      "jurisdiction": [
+        "pa"
+      ],
+      "address": [
+        "Unit 2, 7 Sample Road, Testville"
+      ],
+      "status": [
+        "Active"
+      ],
+      "country": [
+        "pa",
+        "hk"
+      ],
+      "notes": [
+        "The Panama Papers data is current through 2015"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ],
+      "incorporationDate": [
+        "2006-07-01"
+      ],
+      "addressEntity": [
+        "icij-node-9900000402"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000002",
+      "address_roles": {
+        "icij-node-9900000402": "residential"
+      }
+    }
+  },
+  {
+    "id": "icij-node-9900000101",
+    "schema": "LegalEntity",
+    "properties": {
+      "icijId": [
+        "9900000101"
+      ],
+      "name": [
+        "Synthetic Officer Alpha"
+      ],
+      "country": [
+        "jo"
+      ],
+      "notes": [
+        "The Panama Papers data is current through 2015"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000101"
+    }
+  },
+  {
+    "id": "icij-node-9900000102",
+    "schema": "LegalEntity",
+    "properties": {
+      "icijId": [
+        "9900000102"
+      ],
+      "name": [
+        "Synthetic Nominee Officer Ltd"
+      ],
+      "country": [
+        "sc"
+      ],
+      "notes": [
+        "The Panama Papers data is current through 2015"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000102"
+    }
+  },
+  {
+    "id": "icij-node-9900000201",
+    "schema": "LegalEntity",
+    "properties": {
+      "icijId": [
+        "9900000201"
+      ],
+      "name": [
+        "Synthetic Agent Services Ltd"
+      ],
+      "address": [
+        "1 Sample Lane, Testville"
+      ],
+      "status": [
+        "ACTIVE"
+      ],
+      "country": [
+        "ch"
+      ],
+      "notes": [
+        "The Panama Papers data is current through 2015"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000201"
+    }
+  },
+  {
+    "id": "icij-node-9900000301",
+    "schema": "LegalEntity",
+    "properties": {
+      "icijId": [
+        "9900000301"
+      ],
+      "name": [
+        "Synthetic Foundation Gamma"
+      ],
+      "jurisdiction": [
+        "bm"
+      ],
+      "legalForm": [
+        "FOUNDATION"
+      ],
+      "country": [
+        "bm"
+      ],
+      "notes": [
+        "Appleby data is current through 2014"
+      ],
+      "publisher": [
+        "Paradise Papers - Appleby"
+      ],
+      "incorporationDate": [
+        "2001-02-01"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000301"
+    }
+  },
+  {
+    "id": "icij-node-9900000401",
+    "schema": "Address",
+    "properties": {
+      "full": [
+        "12 Example Street, Sampletown, Testland"
+      ],
+      "country": [
+        "pa"
+      ],
+      "notes": [
+        "The Panama Papers data is current through 2015"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000401"
+    }
+  },
+  {
+    "id": "icij-node-9900000402",
+    "schema": "Address",
+    "properties": {
+      "full": [
+        "4 Placeholder Road, Sample City"
+      ],
+      "country": [
+        "bs"
+      ],
+      "notes": [
+        "The Bahamas Leaks data is current through early 2016"
+      ],
+      "publisher": [
+        "Bahamas Leaks"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "9900000402"
+    }
+  },
+  {
+    "id": "icij-ownership-834f13721868ff407078",
+    "schema": "Ownership",
+    "properties": {
+      "owner": [
+        "icij-node-9900000101"
+      ],
+      "asset": [
+        "icij-node-9900000001"
+      ],
+      "role": [
+        "shareholder of"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ],
+      "startDate": [
+        "2006-03-23"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ]
+  },
+  {
+    "id": "icij-ownership-fd3fec352f23db6b67ee",
+    "schema": "Ownership",
+    "properties": {
+      "owner": [
+        "icij-node-9900000101"
+      ],
+      "asset": [
+        "icij-node-9900000002"
+      ],
+      "role": [
+        "beneficial owner of"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ]
+  },
+  {
+    "id": "icij-representation-96b768a2c1ae0f35e4ba",
+    "schema": "Representation",
+    "properties": {
+      "agent": [
+        "icij-node-9900000201"
+      ],
+      "client": [
+        "icij-node-9900000001"
+      ],
+      "role": [
+        "intermediary"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ]
+  },
+  {
+    "id": "icij-unknownlink-71d795712a32dede6166",
+    "schema": "UnknownLink",
+    "properties": {
+      "subject": [
+        "icij-node-9900000301"
+      ],
+      "object": [
+        "icij-node-9900000002"
+      ],
+      "role": [
+        "auditor of"
+      ],
+      "publisher": [
+        "Paradise Papers - Appleby"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ]
+  },
+  {
+    "id": "icij-unknownlink-83a594b61df81b385ad6",
+    "schema": "UnknownLink",
+    "properties": {
+      "subject": [
+        "icij-node-9900000001"
+      ],
+      "object": [
+        "icij-node-9900000301"
+      ],
+      "role": [
+        "director of"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ]
+  },
+  {
+    "id": "icij-unknownlink-f9b8d7576df14cd64f98",
+    "schema": "UnknownLink",
+    "properties": {
+      "subject": [
+        "icij-node-9900000002"
+      ],
+      "object": [
+        "icij-node-9900000001"
+      ],
+      "role": [
+        "related entity"
+      ],
+      "publisher": [
+        "Panama Papers"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "icij_offshore_leaks"
+    ]
+  }
+]

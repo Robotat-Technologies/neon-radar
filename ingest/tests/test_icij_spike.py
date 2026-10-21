@@ -4,7 +4,7 @@ import io
 import json
 import re
 import zipfile
-from collections.abc import Callable
+from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
@@ -12,6 +12,7 @@ import pytest
 
 from neonradar_contracts.records import Manifest, manifest_path, validate_batch, validate_files
 from neonradar_contracts.records import validate_record as check
+from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.icij import mapping
 from neonradar_ingest.sources.icij.archive import open_archive
 from neonradar_ingest.sources.icij.spike import read_slice, run_spike, summary_lines
@@ -32,30 +33,48 @@ def build_zip() -> bytes:
     return buffer.getvalue()
 
 
+class BreakingStream(httpx.SyncByteStream):
+    """A response body that breaks off halfway, like a dropped connection."""
+
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield self.data[: len(self.data) // 2]
+        raise httpx.ReadError("synthetic connection drop")
+
+
 def server(
-    body: bytes, ranges: bool = True, seen: list[httpx.Request] | None = None
-) -> httpx.Client:
-    """A mock host for the archive: HEAD, range GETs (206) and conditional GETs (304)."""
-    etag = '"synthetic-1"'
+    body: bytes, ranges: str = "bytes", seen: list[httpx.Request] | None = None, breaks: int = 0
+) -> HttpClient:
+    """A mock archive host. `ranges`: "bytes" (206 answers), "none" (not advertised) or
+    "refused" (advertised, but every range request gets 200). The first `breaks` range
+    bodies break off halfway. Conditional GETs with the right ETag get 304."""
+    etag, broken = '"synthetic-1"', [0]
 
     def handle(request: httpx.Request) -> httpx.Response:
         if seen is not None:
             seen.append(request)
         headers = {"Content-Length": str(len(body)), "ETag": etag,
-                   "Last-Modified": "Fri, 01 Jan 2099 00:00:00 GMT"}  # fmt: skip
-        if ranges:
-            headers["Accept-Ranges"] = "bytes"
+                   "Last-Modified": "Fri, 01 Jan 2099 00:00:00 GMT",
+                   "Accept-Ranges": "none" if ranges == "none" else "bytes"}  # fmt: skip
         if request.method == "HEAD":
             return httpx.Response(200, headers=headers)
         if request.headers.get("If-None-Match") == etag:
             return httpx.Response(304, headers={"ETag": etag})
         match = re.fullmatch(r"bytes=(\d+)-", request.headers.get("Range", ""))
-        if ranges and match:
-            start = int(match.group(1))
-            return httpx.Response(206, content=body[start:], headers={"ETag": etag})
-        return httpx.Response(200, content=body, headers={**headers, "Accept-Ranges": "none"})
+        if ranges == "bytes" and match:
+            part = body[int(match.group(1)) :]
+            if broken[0] < breaks:
+                broken[0] += 1
+                return httpx.Response(206, stream=BreakingStream(part))
+            return httpx.Response(206, content=part)
+        return httpx.Response(200, content=body, headers=headers)
 
-    return httpx.Client(transport=httpx.MockTransport(handle))
+    transport = httpx.MockTransport(handle)
+    limiter = RateLimiter(1000.0)
+    return HttpClient("https://archive.test", follow_redirects=True, limiter=limiter,
+                      transport=transport)  # fmt: skip
 
 
 def test_slice_maps_to_the_expected_records_and_validates_strictly() -> None:
@@ -134,43 +153,31 @@ def test_run_spike_reads_ranges_and_writes_a_valid_load(tmp_path: Path) -> None:
     assert not any(name in text for name in NAMES)
 
 
-@pytest.mark.parametrize(
-    "make_client",
-    [
-        lambda body: server(body, ranges=False),
-        lambda body: server_refusing_ranges(body),
-    ],
-    ids=["no-ranges", "ranges-refused"],
-)
-def test_without_ranges_downloads_once_then_revalidates(
-    tmp_path: Path, make_client: Callable[[bytes], httpx.Client]
+def test_a_broken_range_body_resumes_from_the_same_byte(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    body = build_zip()
-    with make_client(body) as client:
+    seen: list[httpx.Request] = []
+    with server(build_zip(), seen=seen, breaks=3) as client:
+        zf, _, mode, reader = open_archive(client, URL, Path("unused"))
+        records = read_slice(zf, rows=3).mapper.records()
+    assert mode == "range" and reader is not None
+    assert records == json.loads(EXPECTED.read_text(encoding="utf-8"))
+    assert reader.requests == len([r for r in seen if r.method == "GET"])
+    assert caplog.text.count("resuming") == 3
+
+
+@pytest.mark.parametrize("ranges", ["none", "refused"])
+def test_without_ranges_downloads_once_then_revalidates(tmp_path: Path, ranges: str) -> None:
+    body, seen = build_zip(), list[httpx.Request]()
+    with server(body, ranges=ranges, seen=seen) as client:
         zf, _, mode, reader = open_archive(client, URL, tmp_path)
         assert (mode, reader, zf.namelist()[0]) == ("download", None, "GENERATED_ON_20990101.txt")
         cached = tmp_path / "full-oldb.LATEST.zip"
         assert cached.read_bytes() == body
         headers = json.loads((tmp_path / "full-oldb.LATEST.zip.headers.json").read_text())
-        assert headers["If-None-Match"] == '"synthetic-1"'
-        cached.write_bytes(body)  # a 304 must reuse this file, not rewrite it
+        assert headers == {"If-None-Match": '"synthetic-1"',
+                           "If-Modified-Since": "Fri, 01 Jan 2099 00:00:00 GMT"}  # fmt: skip
+        seen.clear()
         zf2, _, mode2, _ = open_archive(client, URL, tmp_path)
-        assert mode2 == "download" and zf2.namelist() == zf.namelist()
-
-
-def server_refusing_ranges(body: bytes) -> httpx.Client:
-    """Advertises byte ranges but answers every range request with 200 and the whole body."""
-
-    def handle(request: httpx.Request) -> httpx.Response:
-        headers = {
-            "Content-Length": str(len(body)),
-            "Accept-Ranges": "bytes",
-            "ETag": '"synthetic-1"',
-        }
-        if request.method == "HEAD":
-            return httpx.Response(200, headers=headers)
-        if request.headers.get("If-None-Match") == '"synthetic-1"':
-            return httpx.Response(304)
-        return httpx.Response(200, content=body, headers=headers)
-
-    return httpx.Client(transport=httpx.MockTransport(handle))
+    assert mode2 == "download" and zf2.namelist() == zf.namelist()
+    assert seen[-1].headers["If-None-Match"] == '"synthetic-1"'  # answered 304: file reused

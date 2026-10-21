@@ -18,9 +18,12 @@ from typing import Literal
 
 import httpx
 
+from neonradar_ingest.http import HttpClient, HttpError, redact
+
 log = logging.getLogger(__name__)
 ARCHIVE_URL = "https://offshoreleaks-data.icij.org/offshoreleaks/csv/full-oldb.LATEST.zip"
 CHUNK = 1 << 16
+RESUMES = 3  # HttpClient retries opening a request, not reading its body
 
 
 class RangeNotSupportedError(Exception):
@@ -40,9 +43,15 @@ class ArchiveInfo:
     content_type: str | None
 
 
-def head(client: httpx.Client, url: str) -> ArchiveInfo:
-    response = client.head(url, follow_redirects=True)
-    response.raise_for_status()
+def _check(response: httpx.Response) -> None:
+    if response.is_error:
+        where = f"{response.request.method} {redact(response.request.url)}"
+        raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
+
+
+def head(client: HttpClient, url: str) -> ArchiveInfo:
+    response = client.head(url)
+    _check(response)
     length = response.headers.get("Content-Length")
     return ArchiveInfo(
         url=str(response.url),
@@ -56,9 +65,10 @@ def head(client: httpx.Client, url: str) -> ArchiveInfo:
 
 class RangeReader(io.RawIOBase):
     """A read-only, seekable remote file. Reads continue one streamed `Range: bytes=<pos>-`
-    response; a seek elsewhere closes it, and the next read opens another."""
+    response; a seek elsewhere closes it, and the next read opens another. A body that breaks
+    off is resumed from the same byte, up to RESUMES times per read."""
 
-    def __init__(self, client: httpx.Client, url: str, size: int) -> None:
+    def __init__(self, client: HttpClient, url: str, size: int) -> None:
         super().__init__()
         self._client, self._url, self._size = client, url, size
         self._pos = 0
@@ -89,13 +99,11 @@ class RangeReader(io.RawIOBase):
         if wanted <= 0:
             return 0
         if self._stream_pos != self._pos:
-            self._open()
+            self._open(self._pos)
         filled = 0
         while filled < wanted:  # fill completely: zipfile treats a short read as truncation
             if not self._buffer:
-                self._buffer = next(self._chunks, b"")
-                if not self._buffer:
-                    raise OSError(f"range response ended early at byte {self._pos + filled}")
+                self._buffer = self._next_chunk(self._pos + filled)
                 self.bytes_received += len(self._buffer)
             take = self._buffer[: wanted - filled]
             view[filled : filled + len(take)] = take
@@ -105,17 +113,32 @@ class RangeReader(io.RawIOBase):
         self._stream_pos = self._pos
         return filled
 
-    def _open(self) -> None:
+    def _next_chunk(self, at: int) -> bytes:
+        for attempt in range(RESUMES + 1):
+            try:
+                chunk = next(self._chunks, b"")
+            except httpx.TransportError as exc:
+                if attempt == RESUMES:
+                    raise
+                log.warning("range body broke at byte %d (%s); resuming", at, type(exc).__name__)
+                self._open(at)
+                continue
+            if not chunk:
+                raise OSError(f"range response ended early at byte {at}")
+            return chunk
+        raise AssertionError("unreachable")
+
+    def _open(self, start: int) -> None:
         self._close_stream()
-        headers = {"Range": f"bytes={self._pos}-", "Accept-Encoding": "identity"}
+        headers = {"Range": f"bytes={start}-", "Accept-Encoding": "identity"}
         request = self._client.build_request("GET", self._url, headers=headers)
-        response = self._client.send(request, stream=True, follow_redirects=True)
+        response = self._client.send(request, stream=True)
         self.requests += 1
         if response.status_code != httpx.codes.PARTIAL_CONTENT:
-            response.close()
+            response.close()  # a 200 would be the whole archive: never read it here
             raise RangeNotSupportedError(f"range request answered {response.status_code}")
         self._response, self._chunks = response, response.iter_bytes(CHUNK)
-        self._stream_pos = self._pos
+        self._stream_pos = start
 
     def _close_stream(self) -> None:
         if self._response is not None:
@@ -127,7 +150,7 @@ class RangeReader(io.RawIOBase):
         super().close()
 
 
-def download(client: httpx.Client, url: str, cache_dir: Path) -> Path:
+def download(client: HttpClient, url: str, cache_dir: Path) -> Path:
     """Download the archive into `cache_dir` once; later calls send conditional headers."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     target = cache_dir / httpx.URL(url).path.rsplit("/", 1)[-1]
@@ -136,11 +159,11 @@ def download(client: httpx.Client, url: str, cache_dir: Path) -> Path:
     if target.exists() and meta.exists():
         saved = json.loads(meta.read_text(encoding="utf-8"))
         headers = {k: v for k, v in saved.items() if k in ("If-None-Match", "If-Modified-Since")}
-    with client.stream("GET", url, headers=headers, follow_redirects=True) as response:
+    with client.stream("GET", url, headers=headers) as response:
         if response.status_code == httpx.codes.NOT_MODIFIED:
             log.info("archive not modified; reusing %s", target)
             return target
-        response.raise_for_status()
+        _check(response)
         partial = target.with_name(target.name + ".part")
         with partial.open("wb") as handle:
             for chunk in response.iter_bytes(1 << 20):
@@ -156,7 +179,7 @@ Mode = Literal["range", "download"]
 
 
 def open_archive(
-    client: httpx.Client, url: str, cache_dir: Path
+    client: HttpClient, url: str, cache_dir: Path
 ) -> tuple[zipfile.ZipFile, ArchiveInfo, Mode, RangeReader | None]:
     """HEAD, then the zip over range requests if possible, else from a cached download."""
     info = head(client, url)

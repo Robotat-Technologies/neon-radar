@@ -21,11 +21,10 @@ from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
-import httpx
-
 from neonradar_contracts.records import Producer, Source, write_manifest
 from neonradar_ingest import __version__
-from neonradar_ingest.sources.icij.archive import ArchiveInfo, Mode, open_archive
+from neonradar_ingest.http import HttpClient, RateLimiter
+from neonradar_ingest.sources.icij.archive import ARCHIVE_URL, ArchiveInfo, Mode, open_archive
 from neonradar_ingest.sources.icij.mapping import (
     DATASET,
     SKIP_HINT,
@@ -38,6 +37,8 @@ RELATIONSHIPS = "relationships.csv"
 OTHER_NODES = ("nodes-officers.csv", "nodes-intermediaries.csv", "nodes-others.csv",
                "nodes-addresses.csv")  # fmt: skip
 GENERATED_RE = re.compile(r"GENERATED_ON_(\d{8})\.txt")
+ARCHIVE_HOST = "https://offshoreleaks-data.icij.org"
+REQUESTS_PER_SECOND = 2.0  # ICIJ publishes no limit; a run needs about 15 requests
 
 
 @dataclass
@@ -139,7 +140,7 @@ def write_records(mapper: Mapper, out_dir: Path, source: Source, notes: list[str
 
 
 def run_spike(
-    client: httpx.Client, *, url: str, rows: int, out_dir: Path, cache_dir: Path
+    client: HttpClient, *, url: str, rows: int, out_dir: Path, cache_dir: Path
 ) -> SpikeResult:
     started = time.monotonic()
     retrieved_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -165,6 +166,13 @@ def run_spike(
         slice=piece,
         output=output,
     )
+
+
+def run(*, rows: int, out_dir: Path, cache_dir: Path, url: str = ARCHIVE_URL) -> SpikeResult:
+    """The real spike, over the shared HttpClient."""
+    limiter = RateLimiter(REQUESTS_PER_SECOND)
+    with HttpClient(ARCHIVE_HOST, follow_redirects=True, limiter=limiter) as client:
+        return run_spike(client, url=url, rows=rows, out_dir=out_dir, cache_dir=cache_dir)
 
 
 def summary_lines(result: SpikeResult, top: int = 30) -> list[str]:

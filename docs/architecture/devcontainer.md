@@ -67,9 +67,9 @@ The operator decided on 2026-10-22 to install only safe, well-known tools from o
 | Tool | Source | Pinned by | Version (2026-10-22) |
 |---|---|---|---|
 | Debian 13, Python 3.14, uv | `ghcr.io/astral-sh/uv:0.13-python3.14-trixie`, the official uv image (built on the official `python:3.14-trixie`) | image digest in the Dockerfile | Python 3.14.8, uv 0.13.4 |
-| `pkg-config`, `libicu-dev`, `build-essential`, `git`, `make`, `jq`, `ca-certificates` | Debian apt (`deb.debian.org`, trixie), as the spec's Dockerfile names them | the base image's Debian release | ICU 76.1, git 2.47.3 |
+| `pkg-config`, `libicu-dev`, `build-essential`, `git`, `make`, `jq`, `ca-certificates` | Debian apt (`deb.debian.org`, trixie), as the spec's Dockerfile names them | the base image's Debian release | ICU 76.1, git 2.47.3, jq 1.7.1, pkgconf 1.8.1, build-essential 12.12 |
 | Node.js 24, npm, npx, corepack | the official `node:24-trixie-slim` image: only these four are copied (no yarn) | image digest in the Dockerfile | Node 24.22.1, npm 11.19.1 |
-| GitHub CLI (`gh`) | `ghcr.io/devcontainers/features/github-cli:1`, which installs GitHub's `.deb` from github.com/cli/cli releases | feature digest in `.devcontainer/devcontainer-lock.json` | feature 1.1.3, gh 2.102.1 |
+| GitHub CLI (`gh`) | `ghcr.io/devcontainers/features/github-cli:1`, which installs GitHub's `.deb` from github.com/cli/cli releases | feature digest in `.devcontainer/devcontainer-lock.json`; gh itself is the newest release when the image is built | feature 1.1.3, gh 2.103.0 |
 | Python packages | PyPI, through `uv sync` | `uv.lock` | as locked |
 
 Dependabot proposes updates for both images and the feature. The Python packages and the pre-commit hooks are the project's own (`uv.lock`, `.pre-commit-config.yaml`).

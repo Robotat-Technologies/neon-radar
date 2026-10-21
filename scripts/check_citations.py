@@ -163,9 +163,10 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(keys)} entries)"
         )
         return 0
+    count = f"{len(findings)} problem" + ("" if len(findings) == 1 else "s")
     annotate(
         "error",
-        f"check_citations: FAIL: {len(findings)} problems; cite only keys from {BIBLIOGRAPHY} "
+        f"check_citations: FAIL: {count}; cite only keys from {BIBLIOGRAPHY} "
         "(docs/sources/README.md)",
     )
     for finding in findings:

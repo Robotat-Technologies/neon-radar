@@ -2,7 +2,7 @@
 
 Short and mandatory, because an unbounded list gets ignored ([project plan](../plan/neonradar-project-plan.md), "Learning track"). Each sprint has one column for everyone and one for the squad that needs it most. The plan's sprints map onto the build phases as the first column shows.
 
-Every link below was opened on 21 October 2026 and goes to an official page. Where an official page could not be opened by the build, the title is given without a link and marked "link to be added". Write what you read, and what still confuses you, in your learning log.
+Every link below was opened on 21 October 2026 and goes to an official page. Where an official page could not be opened by the build, the title is given without a link and marked "link to be added". Write what you read, and what still confuses you, in your [learning log](README.md#your-learning-log).
 
 ## Sprint 0 (Phase 1: foundation and contracts)
 

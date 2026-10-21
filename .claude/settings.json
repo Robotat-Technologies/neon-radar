@@ -30,6 +30,8 @@
       "Bash(git merge --no-edit origin/main)",
       "Bash(git push -u origin p1/*)",
       "Bash(git push origin p1/*)",
+      "Bash(git push -u origin p2/*)",
+      "Bash(git push origin p2/*)",
       "Bash(gh pr create *)",
       "Bash(gh pr view *)",
       "Bash(gh pr checks *)",
@@ -54,7 +56,19 @@
       "WebFetch(domain:followthemoney.tech)",
       "WebFetch(domain:www.opensanctions.org)",
       "WebFetch(domain:offshoreleaks.icij.org)",
-      "WebFetch(domain:www.fatf-gafi.org)"
+      "WebFetch(domain:www.fatf-gafi.org)",
+      "WebFetch(domain:www.gov.uk)",
+      "WebFetch(domain:assets.publishing.service.gov.uk)",
+      "WebFetch(domain:www.legislation.gov.uk)",
+      "WebFetch(domain:ico.org.uk)",
+      "WebFetch(domain:ofac.treasury.gov)",
+      "WebFetch(domain:main.un.org)",
+      "WebFetch(domain:www.un.org)",
+      "WebFetch(domain:data.europa.eu)",
+      "WebFetch(domain:www.parliament.uk)",
+      "WebFetch(domain:creativecommons.org)",
+      "WebFetch(domain:moj-analytical-services.github.io)",
+      "WebFetch(domain:duckdb.org)"
     ],
     "ask": [
       "Bash(docker compose down -v*)",
@@ -63,13 +77,24 @@
       "Bash(gh variable *)",
       "Bash(git reset *)",
       "Bash(git branch -D *)",
-      "Bash(rm -rf *)"
+      "Bash(rm -rf *)",
+      "WebFetch(domain:sanctionslist.fcdo.gov.uk)",
+      "WebFetch(domain:sanctionslistservice.ofac.treas.gov)",
+      "WebFetch(domain:scsanctions.un.org)",
+      "WebFetch(domain:webgate.ec.europa.eu)",
+      "WebFetch(domain:download.companieshouse.gov.uk)",
+      "WebFetch(domain:goldencopy.gleif.org)",
+      "WebFetch(domain:members-api.parliament.uk)"
     ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.local)",
       "Read(./secrets/**)",
       "Edit(./.env)",
+      "Read(./data/cache/real/**)",
+      "Read(./data/cache/spikes/**)",
+      "Edit(./data/cache/**)",
+      "Write(./data/cache/**)",
       "Bash(gh pr merge)",
       "Bash(gh pr merge *--squash*)",
       "Bash(gh pr merge *--rebase*)",
@@ -111,6 +136,12 @@
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_git.py" }
+        ]
+      },
+      {
+        "matcher": "Bash|Read|Grep|Glob|WebFetch|mcp__neo4j__.*",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_real_data.py" }
         ]
       }
     ],

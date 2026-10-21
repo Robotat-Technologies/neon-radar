@@ -3,7 +3,8 @@
 Open-source, local-first graph investigation toolkit for anti-money-laundering and
 anti-corruption work. Python 3.14 (uv workspace), Neo4j 5.26 LTS Community with APOC and
 GDS, FastAPI, Vue 3. Licence Apache-2.0. The build spec for the current phase is
-docs/build/PHASE-<n>.md; project facts are in docs/build/project.yaml.
+docs/build/PHASE-2.md (PHASE-1.md section 5 still defines the frozen contracts); project
+facts are in docs/build/project.yaml.
 Operator decisions in docs/build/operator-decisions.md override the spec.
 
 ## Non-negotiable rules
@@ -82,3 +83,49 @@ Each Python package: <dir>/src/neonradar_<dir>/, tests in <dir>/tests/, notes in
 - The Neo4j image has wget and cypher-shell, not curl.
 - Never add @neo4j-nvl (proprietary) or GPL packages (unidecode, pyarabic).
 - Faker ar_SA surnames include real prominent families: use the denylist.
+
+## Non-negotiable rules (Phase 2 additions)
+9. No inferred flags. Flags and topics come only from a node's own source records. A
+   listed record merges with an unlisted one or one listed for another reason, and a
+   leaked (ICIJ) record with another source, only by a deterministic identifier rule whose
+   records share an exact name key, or by a human decision that two reviewers or a senior
+   reviewer made; otherwise it is a POSSIBLY_SAME_AS link, always described as "not
+   confirmed" (PHASE-2.md G8, 7.1.4).
+10. Never read real data. Real records live in data/cache/real/, data/cache/spikes/ and the
+    neo4j-real instance (ports 7475 and 7688). Never open, print, grep, fetch (WebFetch,
+    curl, wget) or query them; the default Neo4j instance, the API on port 8000, the UI and the Neo4j MCP server
+    hold synthetic data only. Real-data commands print counts only. Reproduce failures on
+    the demo profile or the ER benchmark (G9). guard_real_data.py and the deny rules
+    enforce this.
+11. Humans label. Never write, edit, pre-fill or infer labels or review decisions, never
+    run er label, er review or api serve --real, and never tune thresholds, rules or models
+    on evaluation labels (G10).
+
+## Commands (Phase 2 additions; each works once the milestone in brackets has merged)
+- `make cypher-lint`              lint every .cypher file (Cypher 5 rules) [M2.0]
+- `make up-real`, `make down-real` start or stop the real-data instance (approved machines) [M2.0]
+- `uv run neonradar data status`  downloads, versions, ages, retention (counts only) [M2.2]
+- `uv run neonradar er run --profile demo`   one resolution run (synthetic) [M2.10a]
+- `uv run neonradar er bench --size small`   the ER benchmark with precision and recall [M2.10a]
+- `uv run neonradar graph verify` graph invariants I1 to I14 [M2.11]
+- `make load PROFILE=demo`        synthetic profile end to end: build, resolve, load, verify [M2.13]
+
+## Layout (Phase 2 additions)
+keys/ (matching keys, pure functions), resolve/ (entity resolution), ingest/profiles/,
+data/cache/real/ (real data: never read), data/cache/synthetic/ (synthetic runs: free to read),
+data/cache/reports/ (counts-only summaries)
+
+## Known traps (Phase 2, verified 18 Oct 2026)
+- Splink 5 only: `sdf = db_api.register(table, ...)`, then `Linker(sdf, settings)`; results
+  with `as_record_list()`; no `db_api=` on Linker, no `as_record_dict`, no `bf_` columns.
+- NameComparison always adds term-frequency adjustment: build name comparisons from levels.
+- An empty DuckDB list is not NULL: write NULL for every empty list in feature tables.
+- DuckDB memory and threads go on `duckdb.connect(config=...)`; tests use one thread.
+- XML: defusedxml only (ruff S314); compare tags without namespaces (OFAC changed its).
+- OFAC needs a User-Agent; never store the UN redirect URL or log the EU token.
+- Companies House bulk headers start with spaces; PSC bands: (25,50], (50,75), [75,100].
+- `person_number` comes only from /company/{n}/officers; D3 uses its first 8 characters.
+- GLEIF Level 2 is accounting consolidation: CONSOLIDATES, never OWNS.
+- `CALL { } IN TRANSACTIONS` only through `session.run()`; Neo4j 5.26 has no ON ERROR RETRY.
+- `from rigour.text.scripts import text_scripts`; never fuzzy country lookups; keys come
+  from neonradar_keys only.

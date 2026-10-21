@@ -42,7 +42,7 @@ done
 
 echo "== files"
 for file in .claude/hooks/guard_git.py .claude/hooks/guard-contracts.sh \
-  .claude/hooks/format-file.sh scripts/test_hooks.sh; do
+  .claude/hooks/format-file.sh .claude/hooks/guard_real_data.py scripts/test_hooks.sh; do
   [ -x "$ROOT/$file" ]
   report $? "executable: $file"
 done
@@ -306,6 +306,10 @@ done <<'CASES'
 2 p1 gh pr merge 4>/dev/null --merge
 2 p1 gh pr merge 4 --merge '>' 5
 CASES
+
+echo "== guard_real_data.py (PHASE-2.md M2.0; the cases are in scripts/tests/test_guard_real_data.py)"
+(cd "$ROOT" && uv run --no-sync pytest -q scripts/tests/test_guard_real_data.py >/dev/null)
+report $? "guard_real_data.py (171 cases)"
 
 [ "$(git -C "$ROOT" tag -l 'contracts-v*')" = "$tags_before" ]
 report $? "this repository's contracts-v* tags are unchanged by the test"

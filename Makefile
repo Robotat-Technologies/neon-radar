@@ -46,13 +46,19 @@ check: lint typecheck test contracts-check ## everything a pull request needs
 hygiene: ## the pull request checks CI runs (size, fixtures, wording)
 	@echo "available after M1.6"
 
-plugins: ## download the pinned GDS jar once into data/cache/neo4j-plugins (uses the network)
+plugins: ## once, with network: pull the Neo4j image and fetch the pinned GDS jar
+	@bash scripts/ensure_env.sh
+	docker compose pull neo4j
 	bash scripts/fetch_gds.sh
 
-up: ## start Neo4j and wait until it is healthy (offline; run make plugins once before)
+up: ## start Neo4j and wait until it is healthy (offline once make plugins has run)
 	@bash scripts/ensure_env.sh
 	@bash scripts/fetch_gds.sh --check
-	docker compose up -d --wait neo4j
+	@image="$$(docker compose config --images neo4j)" || exit 1; \
+	docker image inspect "$$image" >/dev/null 2>&1 || { \
+		echo "The Neo4j image $$image is missing. Run 'make plugins' once, then 'make up'." >&2; \
+		exit 1; }
+	docker compose up -d --wait --pull never neo4j
 
 down: ## stop Neo4j; the data volume is kept
 	docker compose down

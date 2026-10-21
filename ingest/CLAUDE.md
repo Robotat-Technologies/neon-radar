@@ -44,7 +44,9 @@
     `labels/*.csv`, never into records (R9). Person names come from Faker plus curated lists
     in `synth/words.py` (never Faker `ar_SA` surnames, never mimesis), filtered by
     `synth/denylist.txt`.
-  - The synthetic join (`synth/join.py`, ADR-0005 rule 2) gives input organisations only
-    background activity with one-way synthetic counterparties; no person or bare
-    LegalEntity gets an account; scenarios, labels, topics and every other schema stay off
-    input entities (`touches_input` must report all zeros). New ids use `syn-<kind>-j<seed>-`.
+  - The synthetic join (`synth/join.py`, ADR-0005 rule 2) gives only live registry
+    organisations (`gb_companies_house`, `gleif_lei`; status empty or in `LIVE`; fail closed
+    on anything else) background activity with one-way synthetic counterparties. People,
+    bare LegalEntity and PublicBody records and ICIJ records get nothing; scenarios, labels,
+    topics and every other schema stay off input entities (`touches_input` must report all
+    zeros). New ids use `syn-<kind>-j<seed>-`; account numbers a per-seed block.

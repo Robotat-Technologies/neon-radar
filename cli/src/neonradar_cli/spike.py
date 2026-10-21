@@ -217,18 +217,19 @@ def synthetic_join(
         typer.Option(exists=True, dir_okay=False, help="C1 files to attach to; read only."),
     ],
     seed: Annotated[
-        int, typer.Option(help="Root seed: the same input and seed, same records.")
+        int, typer.Option(min=0, help="Root seed: the same input and seed, same records.")
     ] = 7,
     max_holders: Annotated[int, typer.Option(min=1, help="Input organisations at most.")] = 200,
 ) -> None:
     """Synthetic accounts and payments for existing entities; one scenario among new synthetic
     companies only (G1, ADR-0005). Prints counts and rule codes only, never input names or ids."""
+    import shutil
     from collections import Counter
 
     from neonradar_contracts.records import RecordFileError, iter_records, validate_files
     from neonradar_ingest import spikes
     from neonradar_ingest.synth import join
-    from neonradar_ingest.synth.emit import write_labels
+    from neonradar_ingest.synth.emit import amend_manifest, write_labels
 
     try:
         inputs = [record for path in entities for record in iter_records(path)]
@@ -236,10 +237,14 @@ def synthetic_join(
         typer.echo(f"FORMAT {exc}")
         raise typer.Exit(code=1) from exc
     result = join.synthetic_join(inputs, seed, max_holders)
-    notes = [f"seed {seed}; {len(entities)} input file(s), {len(inputs)} input records"]
+    notes = [f"synthetic join: {len(entities)} input file(s), {len(inputs)} input records"]
+    folder = spikes.SPIKE_ROOT / "synthetic_join"
+    if folder.is_dir() and not folder.is_symlink():  # one run per folder: no stale labels
+        shutil.rmtree(folder)
     path = spikes.write_output(
         result.records, "synthetic_join", dataset="nr_synthetic", part="synthetic-join", notes=notes
     )
+    amend_manifest(path, seed)
     write_labels(path.parent / "labels", result.scenarios)
     typer.echo(f"input: {len(entities)} file(s), {len(inputs)} records")
     for key, value in sorted(result.counts.items()):

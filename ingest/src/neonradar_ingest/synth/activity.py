@@ -37,6 +37,7 @@ OPEN, CLOSE = 8 * 3600, 18 * 3600 - 1
 PAYDAYS = ((date(2026, 1, 30), "January"), (date(2026, 2, 27), "February"),
            (date(2026, 3, 31), "March"))  # fmt: skip
 EUR_PURPOSES = ("Invoice", "Commission", "Service fee", "Shareholder loan")
+EUR_BACKGROUND = (500_000, 3_000_000, 18_000_000)  # cents: EUR 5,000 to 180,000, see `amount`
 TYPOLOGY = "circular_flow"
 
 
@@ -126,7 +127,7 @@ def round_trip(rng: np.random.Generator, ring: list[Account]) -> list[Pay]:
     each hop one or two calendar days after the previous one, Monday to Friday, office hours."""
     day = pick(rng, [d for d in BUSINESS_DAYS[10:-10] if d.weekday() == 0])
     gaps = pick(rng, ((1, 1, 1), (2, 1, 1), (1, 2, 1), (1, 1, 2)))  # ends by Friday
-    cents = between(rng, 4_000_000, 11_000_000)  # inside the background EUR range, not its top
+    cents = between(rng, 4_000_000, 11_000_000)  # EUR 40,000 to 110,000, inside EUR_BACKGROUND
     purposes = (f"Invoice INV-{between(rng, 10000, 99999)}", *EUR_PURPOSES[1:])
     hops = []
     for hop in range(4):
@@ -236,7 +237,7 @@ def demo_activity(reg: Registry, seed: int) -> list[Scenario]:
         purpose = EUR_PURPOSES[index % 4]
         if purpose == "Invoice":
             purpose = f"Invoice INV-{between(rng, 10000, 99999)}"
-        cents = amount(rng, 500_000, 3_000_000, 18_000_000, p_low=0.5)
+        cents = amount(rng, *EUR_BACKGROUND, p_low=0.5)
         pays.append(Pay(payer, payee, cents, office(rng), "wire", purpose))
     for _ in range(16):
         shop = gbp[pick(rng, roles["retail"])]

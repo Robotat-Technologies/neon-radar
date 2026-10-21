@@ -130,13 +130,20 @@ def write_load(
         path, dataset=SYNTHETIC_DATASET, producer=producer, seed=seed, notes=notes,
         created_at=created_at,
     )  # fmt: skip
-    # write_manifest records FollowTheMoney only; the names and streams also depend on these.
-    manifest_file = manifest_path(path)
+    amend_manifest(path, seed)
+    return path
+
+
+def amend_manifest(record_file: Path, seed: int) -> None:
+    """Add what `write_manifest` does not record: the generator as producer, the seed, and the
+    Faker and numpy versions (the names and the random streams depend on them)."""
+    manifest_file = manifest_path(record_file)
     data = json.loads(manifest_file.read_text(encoding="utf-8"))
+    data["producer"] = {"name": GENERATOR, "version": GENERATOR_VERSION, "git_sha": None}
+    data["seed"] = seed
     for package in ("faker", "numpy"):
         data["dependencies"][package] = version(package)
     data["dependencies"] = dict(sorted(data["dependencies"].items()))
     manifest = Manifest.model_validate(data)
     text = json.dumps(manifest.model_dump(mode="json"), indent=2, ensure_ascii=False)
     _write_text(manifest_file, text + "\n")
-    return path

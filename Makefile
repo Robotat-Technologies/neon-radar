@@ -42,8 +42,24 @@ check: lint typecheck test contracts-check ## everything a pull request needs
 		npm run --prefix ui test:unit -- --run; \
 	fi
 
-hygiene: ## the pull request checks CI runs (size, fixtures, wording)
-	@echo "available after M1.6"
+# Labels come from LABELS=a,b, else from the branch's pull request, else none; the title comes
+# from TITLE=, else from the pull request, else the title check is skipped.
+HYGIENE_PY := uv run --no-project python
+hygiene: ## the pull request checks CI runs (title, size, contract paths, fixtures, wording)
+	@git fetch --quiet origin main || echo "hygiene: could not fetch origin/main; using the local copy"
+	@labels='$(LABELS)'; title='$(TITLE)'; status=0; \
+	if [ -z "$$labels" ]; then \
+		labels="$$(gh pr view --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || true)"; \
+	fi; \
+	if [ -z "$$title" ]; then title="$$(gh pr view --json title --jq .title 2>/dev/null || true)"; fi; \
+	echo "hygiene: labels: $${labels:-none}"; \
+	if [ -n "$$title" ]; then $(HYGIENE_PY) scripts/check_pr_title.py "$$title" || status=1; \
+	else echo "check_pr_title: skipped: no pull request yet (pass TITLE='type(scope): summary')"; fi; \
+	$(HYGIENE_PY) scripts/check_pr_size.py --base origin/main --labels "$$labels" || status=1; \
+	$(HYGIENE_PY) scripts/check_contract_paths.py --base origin/main --labels "$$labels" || status=1; \
+	$(HYGIENE_PY) scripts/check_fixtures.py || status=1; \
+	$(HYGIENE_PY) scripts/check_wording.py || status=1; \
+	exit $$status
 
 up down reset smoke logs: ## local Neo4j stack
 	@echo "available after M1.4"

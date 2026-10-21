@@ -163,7 +163,11 @@ def check_icu() -> Check:
     if shutil.which("pkg-config") is None:
         return Check("ICU", Status.WARN, "pkg-config not found; install pkg-config and ICU")
     if run("pkg-config", "--exists", "icu-uc") is None:
-        return Check("ICU", Status.WARN, "icu-uc not found by pkg-config; install ICU headers")
+        return Check(
+            "ICU",
+            Status.WARN,
+            "icu-uc not found by pkg-config; install ICU headers or point PKG_CONFIG_PATH at them",
+        )
     return Check("ICU", Status.OK, run("pkg-config", "--modversion", "icu-uc") or "found")
 
 

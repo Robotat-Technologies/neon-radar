@@ -95,6 +95,12 @@ def test_port_in_use_sees_a_listening_socket() -> None:
         assert doctor.port_in_use(server.getsockname()[1])
 
 
+def test_port_in_use_is_false_when_nothing_listens() -> None:
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))  # held but not listening, so nothing can accept
+        assert not doctor.port_in_use(reserved.getsockname()[1])
+
+
 @pytest.mark.parametrize(
     ("memory", "status"),
     [(8 * GIB, Status.OK), (4 * GIB, Status.WARN), (2 * GIB, Status.FAIL), (None, Status.WARN)],

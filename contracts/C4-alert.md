@@ -3,8 +3,9 @@
 The object every detector produces, the API serves and the copilot (Phase 4) explains. A detection run writes its alerts to `data/runs/<run_id>/alerts.jsonl` and loads them into Neo4j as `:Alert` nodes linked with `FLAGS` to their subjects (C2). The API reads alerts only from Neo4j and parses the `payload` property, which holds the complete alert as JSON.
 
 - Status: version 1.0.0, **not frozen yet**. The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0` (`docs/build/PHASE-1.md` sections 5.0 and 8). After that, changes need an approved contract-change issue.
-- Code: `neonradar_contracts.alert` (`Alert`, `compute_alert_id`, `default_priority`), `neonradar_contracts.wording` (disclaimers and the wording lint); in the detect package, `neonradar_detect.catalog` (`TypologyFile`, `load_catalog`) and `neonradar_detect.wording` (`render_headline`).
-- JSON Schema: `contracts/schemas/alert.v1.json`, generated from the model by `neonradar contracts export` (`make contracts`); `neonradar contracts check` (part of `make contracts-check`) fails when the committed file differs from the model.
+- Code: `neonradar_contracts.alert` (`Alert`, `compute_alert_id`, `query_sha256`, `default_priority`), `neonradar_contracts.wording` (disclaimers, the wording lint and `SYNTHETIC_PHRASE`); in the detect package, `neonradar_detect.catalog` (`TypologyFile`, `load_catalog`) and `neonradar_detect.wording` (`render_headline`).
+- JSON Schema: `contracts/schemas/alert.v1.json`, generated from the model by `neonradar contracts export` (`make contracts`); `neonradar contracts check` (part of `make contracts-check`) fails when the committed file differs from the model. The JSON Schema checks shapes and formats only; id recomputation, wording class and data flags, the wording lint, step edges, evidence edge endpoints, registered datasets and window order need `neonradar_contracts.alert.Alert`.
+- Validation reads `contracts/datasets.yaml` and `contracts/wording/forbidden-terms.txt` from next to the package (the workspace installs it editable), so the model sees the repository's registry and patterns.
 - Example: `contracts/examples/c4/circular_flow.json` (synthetic; validates).
 - Wording files: `contracts/wording/` (the three disclaimers and the forbidden patterns, verbatim from `PHASE-1.md` 7.1).
 - Source: `docs/build/PHASE-1.md` sections 5.4 and 7.1, with the changes and clarifications listed in [CHANGELOG.md](CHANGELOG.md).
@@ -15,21 +16,21 @@ Every object is closed: an unknown key fails validation. Values are strict: `"0.
 
 | Field | Type | Rule |
 |---|---|---|
-| `alert_id` | string | `alr-` plus the first 20 hex characters of SHA-1 over `typology`, `detector.version`, sorted `evidence.edge_ids` and sorted `evidence.node_ids`, joined with `\|` (see [The alert id](#the-alert-id)). Re-running the same detector on the same graph yields the same ids. The model recomputes it and rejects a mismatch. |
-| `contract_version` | string | `"1.0.0"` |
-| `typology` | string | A slug from the typology catalog (lowercase snake case) |
+| `alert_id` | string | `alr-` plus the first 20 hex characters of SHA-1 over `typology`, `detector.version`, sorted `evidence.edge_ids` and sorted `evidence.node_ids`, hashed as one compact JSON array (see [The alert id](#the-alert-id)). Re-running the same detector on the same graph yields the same ids. The model recomputes it and rejects a mismatch. |
+| `contract_version` | string | The C4 version the alert was written under, `1.<minor>.<patch>`: `"1.0.0"` today. A later 1.x model accepts every earlier 1.x value, and a model rejects a version newer than itself; a major version needs detection to be re-run (the same rule as the record contract's `nr.v`) |
+| `typology` | string | A slug from the typology catalog (lowercase snake case; passes the wording lint with `_` read as a space) |
 | `typology_version` | string | Version of the typology definition used (`MAJOR.MINOR.PATCH`) |
-| `detector` | object | `name` (dotted module path), `version` (`MAJOR.MINOR.PATCH`), `query_sha256` (64 lower-case hex: SHA-256 of the detector's Cypher query text in UTF-8) |
+| `detector` | object | `name` (dotted module path), `version` (`MAJOR.MINOR.PATCH`), `query_sha256` (64 lower-case hex: the SHA-256 of `evidence.query.cypher` in UTF-8; the model recomputes it) |
 | `run_id` | string | `run-<UTC yyyymmddThhmmss>-<4 hex>` |
 | `created_at` | string | UTC ISO datetime `YYYY-MM-DDTHH:MM:SSZ` |
 | `priority` | `"high"`, `"medium"`, `"low"` | Queue ordering. Default rule (`default_priority()`): `pattern_strength` of at least 0.75 is high, at least 0.5 medium, else low; a typology may document its own rule, so the model does not enforce it |
 | `pattern_strength` | number in [0, 1] | How closely the evidence matches the typology's graph pattern. Never called a risk or suspicion score. |
-| `headline` | string, 1 to 140 characters | Rendered from the typology's wording template; passes the wording lint (checked by the model) |
+| `headline` | string, 1 to 140 characters | Rendered from the typology's wording template; passes the wording lint and says "synthetic scenario" only in a `synthetic_scenario` alert (both checked by the model) |
 | `wording_class` | `"structural_pattern"` or `"synthetic_scenario"` | `synthetic_scenario` when every evidence node, every subject and every holder (source of `HOLDS_ACCOUNT`) of an evidence account is synthetic; otherwise `structural_pattern`. So `synthetic_scenario` holds exactly when `data_flags.involves_real_entities` is false |
-| `subjects` | list of `{entity_id, role, caption}`, at least one | Roles are typology-defined, lowercase snake case (`origin`, `origin_holder`, `collector`, `intermediary`, `owner`, ...); `entity_id` is a C2 entity id |
-| `evidence` | object | `node_ids` (C2 entity ids, at least one), `edge_ids` (C2 relationship ids), neither repeating an id; `query` (`cypher`, `parameters`) so the finding can be reproduced; optional `window` (`start`, `end`, UTC like `created_at`, start not after end) |
-| `metrics` | object | Typology-specific numbers (and strings such as a currency) documented in the typology file. For circular flow: `cycle_length`, `sent_amount` (first hop), `returned_amount` (last hop), `currency`, `duration_hours`, `duration_days` (hours divided by 24, rounded up), `return_ratio` |
-| `explanation` | object | `summary` (plain language), `steps` (ordered `{order, text, edge_ids}`, numbered 1, 2, 3, ..., each text at most 280 characters, each `edge_ids` drawn from `evidence.edge_ids`), `typology_reference` (`slug` equal to `typology`, `doc_path` under `docs/typologies/`, `citations`: at least one bibliography key), `false_positive_notes` (from the typology file) |
+| `subjects` | list of `{entity_id, role, caption}`, at least one | Roles are typology-defined, lowercase snake case (`origin`, `origin_holder`, `collector`, `intermediary`, `owner`, ...) and pass the wording lint with `_` read as a space (so `mule_account` fails); `entity_id` is a C2 entity id |
+| `evidence` | object | `node_ids` (C2 entity ids, at least one), `edge_ids` (C2 relationship ids), neither repeating an id, and both endpoints of every evidence edge among `node_ids` (the model checks composite ids such as `a\|addr\|b`; for plain interval ids the detector checks it, M1.9b); `query` (`cypher`, `parameters`) so the finding can be reproduced; optional `window` (`start`, `end`, UTC like `created_at`, start not after end) |
+| `metrics` | object | Typology-specific scalar values documented in the typology file: numbers, and strings that are codes such as a currency. Detectors never put names in metrics (metrics fill headline templates). For circular flow: `cycle_length`, `sent_amount` (first hop), `returned_amount` (last hop), `currency`, `duration_hours`, `duration_days` (hours divided by 24, rounded up), `return_ratio`. A typology with several findings per subject emits one alert per finding, so metrics stay scalar (for example `sanctions_exposure`, Phase 3: one alert per sanctioned owner) |
+| `explanation` | object | `summary` (plain language), `steps` (ordered `{order, text, edge_ids}`, numbered 1, 2, 3, ..., each text at most 280 characters, each `edge_ids` drawn from `evidence.edge_ids`), `typology_reference` (`slug` equal to `typology`, `doc_path` under `docs/typologies/`, `citations`: at least one bibliography key), `false_positive_notes` (from the typology file; they pass the wording lint) |
 | `data_flags` | object | `involves_real_entities` (true if any evidence node, subject or holder of an evidence account has `synthetic = false`), `synthetic_activity` (true if every evidence relationship is synthetic, so the UI can say that a pattern next to a real entity lies in generated background activity), `datasets` (the distinct dataset slugs of the evidence nodes and relationships, the subjects and the evidence-account holders; at least one, each in `contracts/datasets.yaml`) |
 | `disclaimer_id` | string | `"standing-v1"`; the API adds the text from `MetaResponse.disclaimers` |
 
@@ -38,9 +39,12 @@ C2 ids: an entity id has the C1 form (rule R1, as changed by OD-11: `<prefix>-<r
 ## The alert id
 
 ```python
-parts = [typology, detector_version, *sorted(edge_ids), *sorted(node_ids)]
-alert_id = "alr-" + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20]
+text = json.dumps([typology, detector_version, sorted(edge_ids), sorted(node_ids)],
+                  ensure_ascii=False, separators=(",", ":"))
+alert_id = "alr-" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:20]
 ```
+
+For the example, the hashed text starts `["circular_flow","0.1.0",["syn-payment-000101",`. A JSON array rather than text joined with `|`: composite C2 edge ids contain `|`, and the boundary between the edge and node lists would otherwise be unmarked.
 
 Sorting is by Unicode code point (Python's `sorted`), so the order in which a query returns the ids does not matter. The id changes when the typology, the detector version or any evidence id changes; it does not depend on `run_id` or `created_at`, so a re-run finds the same alert again and the loader can `MERGE` on it. Use `neonradar_contracts.alert.compute_alert_id`.
 
@@ -51,8 +55,15 @@ The wording class decides whether an alert may say "synthetic scenario". Detecto
 1. `wording_class` is `synthetic_scenario` exactly when `involves_real_entities` is false.
 2. `involves_real_entities` must be true when `data_flags.datasets` lists a dataset that is not synthetic, or when a subject or evidence node id has the id prefix of a dataset that is not synthetic (`gbch`, `gleif`, `icij`, `os`). An id whose prefix belongs to no dataset (the reserved `nr` prefix of Phase 2 canonical ids) proves nothing either way, so the datasets decide.
 3. An alert in which every entity is synthetic has `synthetic_activity: true`: relationships between synthetic entities are synthetic.
+4. Only a `synthetic_scenario` alert says "synthetic scenario": in a `structural_pattern` alert the headline, the summary and every step text are checked against `SYNTHETIC_PHRASE` (`\bsynthetic[\s_-]+scenario`, case-insensitive), so "Synthetic-Scenario" fails too.
 
 A holder of an evidence account is not always a subject (an intermediate account's holder, for example), so its dataset must appear in `data_flags.datasets`.
+
+## Runs and storage
+
+- The detection run loads each alert as an `:Alert` node merged on `alert_id`, linked with `PRODUCED` from its `:DetectionRun` and with `FLAGS` to its subjects. Because the id does not depend on the run, a re-run finds the same node: the merged `:Alert` keeps the latest run's payload, scalar properties and `run_id`, and every run that found it keeps its `PRODUCED` relationship.
+- To list the alerts of one run, the API (M1.9c) filters `run_id` through `PRODUCED` (`(:DetectionRun {run_id: $run_id})-[:PRODUCED]->(a:Alert)`), not through the alert's own `run_id` property, which names only the latest run.
+- `data/runs/<run_id>/alerts.jsonl` is each run's audit copy, not an API source.
 
 ## Example
 
@@ -60,7 +71,7 @@ A holder of an evidence account is not always a subject (an intermediate account
 
 ```json
 {
-  "alert_id": "alr-0bf3e018d9b833981991",
+  "alert_id": "alr-f82a84574538090f0624",
   "contract_version": "1.0.0",
   "typology": "circular_flow",
   "typology_version": "0.1.0",
@@ -145,9 +156,13 @@ Rules:
 - `headline_structural` never says "synthetic scenario" (7.1: only `synthetic_scenario` alerts may).
 - `citations` holds at least one bibliography key (`scripts/check_citations.py`, M1.10a, checks that each exists in `docs/sources/bibliography.yaml`).
 - `status` is `approved` only when `approved_by` is set. Only a typology researcher sets either.
-- The file name is `<slug>.yaml`; `doc` is `docs/typologies/<slug with hyphens>.md`; `metrics` does not repeat a name; a numeric parameter's `default` lies within its `min` and `max`; `owner` and `approved_by` are GitHub handles.
+- The file name is `<slug>.yaml`; `doc` is `docs/typologies/<slug with hyphens>.md`; `metrics` does not repeat a name; a numeric parameter's `default` lies within its `min` and `max`; `owner` and `approved_by` are GitHub handles, and `approved_by` is never `@TODO`.
+- An `explainer_only` typology has `detector: null`.
+- `headline_synthetic` starts with "Synthetic scenario"; `headline_structural` never says it (`SYNTHETIC_PHRASE`).
+- NeonRadar's own words pass the wording lint: both templates, every `false_positives` entry, the slug (with `_` read as a space) and, for a typology with a detector, the name ("matches the graph pattern of <name>"). Names of typologies without a detector are explainer titles and may name the subject.
+- Metrics are scalar: numbers, or strings that are codes such as a currency. Detectors never put names in metrics. A typology with several findings per subject emits one alert per finding (for example `sanctions_exposure`, Phase 3: one alert per sanctioned owner).
 
-`neonradar_detect.wording.render_headline(typology, wording_class, metrics)` picks `headline_synthetic` for a `synthetic_scenario` alert and `headline_structural` otherwise, fills in the metrics (without a format spec: thousands separators and at most two decimals, so `120000.0` gives `120,000`), and refuses a result that is longer than 140 characters or matches a forbidden pattern.
+`neonradar_detect.wording.render_headline(typology, wording_class, metrics)` picks `headline_synthetic` for a `synthetic_scenario` alert and `headline_structural` otherwise, fills in the metrics (without a format spec: thousands separators and at most two decimals, so `120000.0` gives `120,000`), and refuses a result that is longer than 140 characters, matches a forbidden pattern, or says "synthetic scenario" for a `structural_pattern` alert; a format spec that does not fit the value (such as `.0f` on a currency) is a `WordingError` too.
 
 ## Wording rules (PHASE-1.md 7.1)
 
@@ -226,8 +241,8 @@ The lint applies to NeonRadar's own entity-facing wording: typology `wording` te
 
 Where it runs:
 
-- `Alert` rejects a headline that matches a pattern; `render_headline` refuses to produce one.
-- `neonradar_contracts.wording.find_forbidden(text, mask=[...])` checks rendered text, blanking out the masked source values first (the detection runner, M1.9b).
+- `Alert` rejects a headline, a false-positive note, a typology slug or a subject role that matches a pattern; `render_headline` refuses to produce such a headline; `TypologyFile` rejects such templates, false positives, slugs and detector typology names.
+- `neonradar_contracts.wording.find_forbidden(text, mask=[...])` checks rendered text such as summaries and steps, blanking out the masked source values first, each only as a whole token, never inside a longer word (the detection runner, M1.9b).
 - `scripts/check_wording.py` (in `make hygiene` and CI's `hygiene` job) lints the typology templates and the string literals of `detect/src/**/wording.py`.
 - `contracts/tests/test_wording.py` checks every catalog template, every "Never write" phrase above against the patterns, every "Write" phrase as allowed, "matches the graph pattern of <name>" for every typology with a detector, and that the wording files are unchanged.
 

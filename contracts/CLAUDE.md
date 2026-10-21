@@ -19,4 +19,5 @@
   - Field patterns run on pydantic's Rust regex and land in the JSON Schemas: anchor with
     `^...$` (no `\z`, `\Z` or named groups), which also rejects a trailing newline there.
   - wording/*.txt are verbatim from PHASE-1.md 7.1; changing one is a contract change
-    (test_wording.py pins their hashes).
+    (test_wording.py pins their hashes). `Alert` validation reads them and datasets.yaml
+    from next to the package (editable install).

@@ -643,11 +643,15 @@ name = "neonradar-detect"
 version = "0.1.0"
 source = { editable = "detect" }
 dependencies = [
+    { name = "neo4j" },
     { name = "neonradar-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "neonradar-contracts", editable = "contracts" }]
+requires-dist = [
+    { name = "neo4j", specifier = ">=6.4,<7" },
+    { name = "neonradar-contracts", editable = "contracts" },
+]
 
 [[package]]
 name = "neonradar-graph"

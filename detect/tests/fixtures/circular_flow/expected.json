@@ -1,0 +1,42 @@
+{
+  "description": "Known right answer for cases.ftm.jsonl (synthetic, handcrafted; PHASE-1.md M1.9b) under the catalog defaults of detect/typologies/circular_flow.yaml: min_hops 2, max_hops 6, max_window_days 14, min_return_ratio 0.8. `found` is the exact set of evidence edge-id lists (in hop order) the detector must report. Each case lists its cycle's payments in hop order and the one rule that excludes it, if any; test_circular_flow_fixture.py checks that every other rule holds for that cycle.",
+  "parameters": {"min_hops": 2, "max_hops": 6, "max_window_days": 14, "min_return_ratio": 0.8},
+  "found": [
+    ["syn-payment-cfa1", "syn-payment-cfa2", "syn-payment-cfa3", "syn-payment-cfa4"],
+    ["syn-payment-cfb1", "syn-payment-cfb2", "syn-payment-cfb3"]
+  ],
+  "cases": {
+    "A": {
+      "story": "4 hops, time-ordered, 6 days, return ratio 0.96",
+      "edge_ids": ["syn-payment-cfa1", "syn-payment-cfa2", "syn-payment-cfa3", "syn-payment-cfa4"],
+      "found": true,
+      "fails": null,
+      "metrics": {"cycle_length": 4, "sent_amount": 120000.0, "returned_amount": 115200.0, "currency": "EUR", "duration_hours": 144.0, "duration_days": 6, "return_ratio": 0.96},
+      "pattern_strength": 0.8
+    },
+    "B": {
+      "story": "3 hops within the limits (2 days 2 hours, return ratio 0.965)",
+      "edge_ids": ["syn-payment-cfb1", "syn-payment-cfb2", "syn-payment-cfb3"],
+      "found": true,
+      "fails": null
+    },
+    "C": {
+      "story": "case A's accounts and shape two months later; the third payment is earlier than the second",
+      "edge_ids": ["syn-payment-cfc1", "syn-payment-cfc2", "syn-payment-cfc3", "syn-payment-cfc4"],
+      "found": false,
+      "fails": "time_order"
+    },
+    "D": {
+      "story": "2 hops over 40 days",
+      "edge_ids": ["syn-payment-cfd1", "syn-payment-cfd2"],
+      "found": false,
+      "fails": "window"
+    },
+    "E": {
+      "story": "2 hops, return ratio 0.3",
+      "edge_ids": ["syn-payment-cfe1", "syn-payment-cfe2"],
+      "found": false,
+      "fails": "return_ratio"
+    }
+  }
+}

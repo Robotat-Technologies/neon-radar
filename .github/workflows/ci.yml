@@ -101,5 +101,8 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - if: ${{ hashFiles('ui/package.json') != '' }}
         run: npm ci --prefix ui
+      - name: API types match the OpenAPI snapshot
+        if: ${{ hashFiles('ui/package.json') != '' }}
+        run: npm run --prefix ui gen:api && git diff --exit-code ui/src/api/schema.d.ts
       - if: ${{ hashFiles('ui/package.json') != '' }}
         run: npm run --prefix ui lint && npm run --prefix ui type-check && npm run --prefix ui test:unit -- --run && npm run --prefix ui build

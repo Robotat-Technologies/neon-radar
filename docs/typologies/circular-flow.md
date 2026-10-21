@@ -71,12 +71,36 @@ These come from the definition file. They are starting points for the typology r
 | `max_window_days` | 14 | 1 to 90 | The longest time from the first payment to the last |
 | `min_return_ratio` | 0.8 | 0.0 to 1.0 | The smallest share of the sent amount that must come back |
 
+### How the Phase 1 detector applies them
+
+The detector `neonradar_detect.detectors.circular_flow` (milestone M1.9b; query in `detect/src/neonradar_detect/queries/circular_flow.cypher`) reports a cycle of payments `(a:Account)-[t:PAID]->{min_hops,max_hops}(a)` when all of these hold:
+
+- each payment is strictly later than the one before it, so a cycle is reported once, from the account where it starts;
+- no account is visited twice before the money is back at the origin (a simple cycle);
+- the time from the first payment to the last is at most `max_window_days`;
+- the first and the last payment are in the same currency, and the last amount divided by the first (the return ratio) is at least `min_return_ratio`.
+
+The fixture `detect/tests/fixtures/circular_flow/` holds one cycle that passes and one cycle that breaks each rule in turn, with the expected result in `expected.json`.
+
+### Pattern strength
+
+Each alert carries a `pattern_strength` between 0 and 1 that orders the review queue (priority `high` from 0.75, `medium` from 0.5):
+
+```text
+pattern_strength = 0.5 x return_ratio
+                 + 0.3 x (1 - duration_hours / (max_window_days x 24))
+                 + 0.2 x min(1, (cycle_length - 1) / 4)
+```
+
+clipped to the range 0 to 1 and rounded to two decimals, from the metrics the alert reports (`duration_hours` rounded to one decimal; `duration_days` is that number divided by 24, rounded up). Up to a return ratio of 1, a cycle that brings back more of the sent amount, closes faster and passes through more accounts scores higher. The return ratio has a lower bound only, so a cycle that brings back more than was sent also scores high, although its amounts are not near-equal (see Open questions). This is NeonRadar's heuristic for sorting the queue, not a measure from the sources, and it is not a risk score: a high value says only that the structure is close to the pattern above, never that anyone did anything wrong.
+
 ## Open questions
 
 - The research note describes round trips as often presented as investment, loan or trade payments, so that the returning money looks like revenue or foreign investment. The quoted source passages support only the trade presentation, so the investment and loan framing is left out until a source passage is found.
 - The definition at the top of this page (a return to the originating account or to a party under the same control) is NeonRadar's project definition from PHASE-1.md 5.4. The sources quoted here describe payments routed in a circle and funds returned with little loss; the typology researcher confirms that the definition matches them.
 - Confirm against the indicator list that the FATF and Egmont Group indicator itself describes funds leaving a country and returning to it (the sentence above follows the research note's reading of it).
 - The research note says that public transaction generators emit a "simple cycle" pattern. Those generators have no bibliography entry, so the claim is left out.
+- The definition asks for near-equal amounts, but the Phase 1 detector encodes only half of it: the return ratio has a lower bound (`min_return_ratio`) and no upper bound, so a cycle that brings back far more than was sent (a return ratio of 2,500, say) is still reported, with pattern strength 1.0 and priority high. Only the first and the last payment are compared; the amounts of the hops in between are not checked. For the typology researcher: add a `max_return_ratio` parameter, or use min(r, 1/r) for the return ratio r in the pattern-strength formula, and decide whether the hops in between need amount checks.
 - For the typology researcher: confirm the parameter defaults, and decide how "a party under the same control" should be modelled in Phase 3 (accounts held by the same `:LegalEntity`, or also by companies with the same owner), and whether foreign exchange hedging legs (in the PHASE-1.md 7.2 look-alike list and on this page) should join the definition file's `false_positives`, which keep the 5.4 text for now.
 
 ## Sources

@@ -63,7 +63,10 @@ Version = Annotated[str, Field(pattern=VERSION_PATTERN)]
 PackageVersion = Annotated[
     str,
     Field(
-        pattern=r"^\d+(\.\d+)*((a|b|rc)\d+)?(\.post\d+)?(\.dev\d+)?(\+[a-z0-9]+(\.[a-z0-9]+)*)?$"
+        pattern=(
+            r"^[0-9]+(\.[0-9]+)*((a|b|rc)[0-9]+)?(\.post[0-9]+)?(\.dev[0-9]+)?"
+            r"(\+[a-z0-9]+(\.[a-z0-9]+)*)?$"
+        )
     ),
 ]
 

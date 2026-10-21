@@ -31,9 +31,9 @@ PEOPLE: tuple[tuple[Origin, int], ...] = (
 BANDS = {"25-50": (25.0, 50.0), "50-75": (50.0, 75.0), "75-100": (75.0, 100.0)}
 
 
-def sid(kind: str, number: int, width: int = 4) -> str:
-    """A synthetic record id such as `syn-co-0001`."""
-    return make_id(SYNTHETIC_PREFIX, kind, f"{number:0{width}d}")
+def sid(kind: str, number: int, width: int = 4, ns: str = "") -> str:
+    """A synthetic record id such as `syn-co-0001`, or `syn-co-j7-0001` in namespace `j7-`."""
+    return make_id(SYNTHETIC_PREFIX, kind, f"{ns}{number:0{width}d}")
 
 
 @dataclass
@@ -46,6 +46,7 @@ class Registry:
     branches: list[str] = field(default_factory=list)
     roles: dict[str, list[str]] = field(default_factory=dict)
     ownerships: int = 0
+    ns: str = ""  # id namespace, for loads that sit next to other synthetic records
     attempts: dict[str, int] = field(default_factory=dict)  # record id -> name draw used
     origin: dict[str, str] = field(default_factory=dict)  # person id -> en, ar or ru
 
@@ -56,7 +57,7 @@ class Registry:
         if band is None:
             props["role"] = ["account holder"]
             self.records.append(
-                Rec(sid("ownership", self.ownerships), "Ownership", "activity", props)
+                Rec(sid("ownership", self.ownerships, ns=self.ns), "Ownership", "activity", props)
             )
             return
         nature = f"ownership-of-shares-{band.replace('-', '-to-')}-percent"
@@ -64,7 +65,7 @@ class Registry:
         low, high = BANDS[band]
         nr = {"natures_of_control": [nature], "share_pct_min": low, "share_pct_max": high}
         self.records.append(
-            Rec(sid("ownership", self.ownerships), "Ownership", "registry", props, nr)
+            Rec(sid("ownership", self.ownerships, ns=self.ns), "Ownership", "registry", props, nr)
         )
 
 

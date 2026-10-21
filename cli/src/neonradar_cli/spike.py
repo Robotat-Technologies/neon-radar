@@ -210,3 +210,63 @@ def companies_house(
     for line in result.summary():
         typer.echo(line)
     report_output(result.records_path)
+
+
+@app.command(name="synthetic-join")
+def synthetic_join(
+    entities: Annotated[
+        list[Path],
+        typer.Option(exists=True, dir_okay=False, help="C1 files to attach to; read only."),
+    ],
+    seed: Annotated[
+        int, typer.Option(min=0, help="Root seed: the same input and seed, same records.")
+    ] = 7,
+    max_holders: Annotated[int, typer.Option(min=1, help="Input organisations at most.")] = 200,
+) -> None:
+    """Synthetic accounts and payments for existing entities; one scenario among new synthetic
+    companies only (G1, ADR-0005). Prints counts and rule codes only, never input names or ids."""
+    import shutil
+    from collections import Counter
+
+    from neonradar_contracts.records import RecordFileError, iter_records, validate_files
+    from neonradar_ingest import spikes
+    from neonradar_ingest.synth import join
+    from neonradar_ingest.synth.emit import amend_manifest, write_labels
+
+    try:
+        inputs = [record for path in entities for record in iter_records(path)]
+    except RecordFileError as exc:
+        typer.echo(f"FORMAT {exc}")
+        raise typer.Exit(code=1) from exc
+    result = join.synthetic_join(inputs, seed, max_holders)
+    notes = [f"synthetic join: {len(entities)} input file(s), {len(inputs)} input records"]
+    folder = spikes.SPIKE_ROOT / "synthetic_join"
+    if folder.is_dir() and not folder.is_symlink():  # one run per folder: no stale labels
+        shutil.rmtree(folder)
+    path = spikes.write_output(
+        result.records, "synthetic_join", dataset="nr_synthetic", part="synthetic-join", notes=notes
+    )
+    amend_manifest(path, seed)
+    write_labels(path.parent / "labels", result.scenarios)
+    typer.echo(f"input: {len(entities)} file(s), {len(inputs)} records")
+    for key, value in sorted(result.counts.items()):
+        typer.echo(f"  {key}: {value}")
+    g1 = join.touches_input(result, {str(r.get("id")) for r in inputs})
+    typer.echo("G1, links to input entities other than account holding and background payments:")
+    typer.echo("  " + ", ".join(f"{key} {value}" for key, value in sorted(g1.items())))
+    typer.echo(f"wrote {path} and its manifest: {len(result.records)} records, labels in labels/")
+    for schema, count in sorted(Counter(r["schema"] for r in result.records).items()):
+        typer.echo(f"  {schema}: {count}")
+    _, issues = validate_files([*entities, path], strict=True)
+    new = {r["id"] for r in result.records}
+    ours = [issue for issue in issues if issue.record_id in new]
+    theirs = Counter(issue.rule for issue in issues if issue.record_id not in new)
+    for issue in ours:  # no message: it can name an input record
+        typer.echo(f"{issue.rule} {issue.record_id}")
+    rules = ", ".join(sorted(theirs)) or "none"
+    typer.echo(f"strict validation of input plus output: {len(ours)} issue(s) in the new records;")
+    typer.echo(f"  {sum(theirs.values())} in the input (rules: {rules})")
+    if ours or any(g1.values()):
+        typer.echo("FAILED")
+        raise typer.Exit(code=1)
+    typer.echo("OK")

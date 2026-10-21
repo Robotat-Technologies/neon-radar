@@ -13,9 +13,9 @@ app = typer.Typer(help="Synthetic data generator.", no_args_is_help=True)
 
 @app.command(name="demo-mini")
 def demo_mini(
-    seed: Annotated[int, typer.Option(help="Root seed; the same seed gives the same bytes.")] = (
-        DEMO_SEED
-    ),
+    seed: Annotated[
+        int, typer.Option(min=0, help="Root seed; the same seed gives the same bytes.")
+    ] = DEMO_SEED,
     out: Annotated[Path, typer.Option(help="Output folder.")] = Path("data/fixtures/demo-mini"),
 ) -> None:
     """Generate demo-mini: C1 records, their manifest and the label files."""

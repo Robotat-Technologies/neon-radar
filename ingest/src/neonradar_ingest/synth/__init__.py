@@ -8,3 +8,4 @@ generator on top of this one.
 
 GENERATOR = "neonradar_ingest.synth"
 GENERATOR_VERSION = "0.1.0"
+DEMO_SEED = 20261023  # the committed demo-mini fixture

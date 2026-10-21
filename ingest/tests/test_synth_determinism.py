@@ -7,7 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from neonradar_ingest.synth.demo import DEMO_SEED, STEM, write_demo_mini
+from neonradar_ingest.synth import DEMO_SEED
+from neonradar_ingest.synth.demo import STEM, write_demo_mini
 
 FIXTURE = Path(__file__).resolve().parents[2] / "data" / "fixtures" / "demo-mini"
 OUTPUTS = (f"{STEM}.ftm.jsonl", "labels/transactions.csv", "labels/scenarios.csv")

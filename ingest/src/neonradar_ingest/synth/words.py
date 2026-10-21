@@ -7,19 +7,21 @@ the demo-mini fixture and check every new name against the Companies House searc
 
 People with names in several scripts use the curated spellings below, never a machine
 transliteration (C1 R10). Arabic-script surnames come only from this list: Faker's `ar_SA`
-surname list is mostly real, prominent families (ADR-0005).
+surname list includes real, prominent families (ADR-0005).
 """
 
 COMPANY_FIRST = (
-    "Alder", "Amber", "Aspen", "Basalt", "Birch", "Bramble", "Briar", "Cobalt", "Copper",
-    "Elder", "Fennel", "Flint", "Garnet", "Hazel", "Indigo", "Kestrel", "Larch", "Linnet",
-    "Marram", "Myrtle", "Ochre", "Osier", "Plover", "Rowan", "Saffron", "Sorrel", "Tansy",
+    "Alder", "Amber", "Basalt", "Birch", "Bracken", "Bramble", "Briar", "Copper", "Elder",
+    "Fennel", "Flint", "Garnet", "Hazel", "Kestrel", "Larch", "Lichen", "Linnet", "Marram",
+    "Myrtle", "Ochre", "Osier", "Plover", "Russet", "Saffron", "Sedge", "Sorrel", "Tansy",
     "Teasel", "Umber", "Yarrow",
 )  # fmt: skip
+# Words that are a listed company or a brand on their own were replaced in the M1.8e review
+# (for example Aspen, Indigo, Cobalt, Rowan, Beck, Cairn, Croft, Glade, Knoll, Mead, Reach, Shaw).
 COMPANY_SECOND = (
-    "Acre", "Beck", "Cairn", "Combe", "Croft", "Dell", "Fold", "Garth", "Gill", "Glade",
-    "Holm", "Knoll", "Lea", "Mead", "Mere", "Moss", "Ness", "Quay", "Reach", "Scar", "Shaw",
-    "Strand", "Tarn", "Thorpe", "Weald", "Wold",
+    "Acre", "Brae", "Combe", "Dale", "Fold", "Garth", "Gill", "Heath", "Holm", "Howe", "Lea",
+    "Leat", "Mere", "Moss", "Ness", "Quay", "Rigg", "Scar", "Sike", "Strand", "Tarn", "Thorpe",
+    "Toft", "Weald", "Wold",
 )  # fmt: skip
 COMPANY_ACTIVITY = (
     "Trading", "Logistics", "Supplies", "Consulting", "Services", "Holdings", "Ventures",

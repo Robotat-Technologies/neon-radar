@@ -72,7 +72,8 @@ class PersonName:
 
 
 class PersonNames:
-    """Unique, denylist-checked person names. Each (slot, attempt) has its own seeded stream."""
+    """Unique, denylist-checked person names. Each (slot, attempt) has its own seeded stream;
+    Faker's own `random.Random` is seeded from it for each draw."""
 
     def __init__(self, seed: int, taken: set[str] | None = None):
         self.seed = seed
@@ -120,7 +121,10 @@ class PersonNames:
         """The name of one slot; `scripts` above 1 uses the curated multi-script spellings.
 
         `first_attempt` skips earlier draws of this slot, for a name that matched a real one
-        (OD-12); no other slot changes.
+        (OD-12). Faker-only slots (`en`, and `ru` in one script) are independent. Slots that use
+        the curated lists (`ar`, and every multi-script name) prefer parts no earlier slot used,
+        so redrawing one can change later curated slots: after any redraw, check every name
+        again.
         """
         for attempt in range(first_attempt, first_attempt + MAX_TRIES):
             rng = slot_stream(self.seed, "names", slot, attempt)

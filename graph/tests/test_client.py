@@ -53,11 +53,15 @@ def test_password_is_required(tmp_path: Path) -> None:
         Neo4jSettings(_env_file=write_env(tmp_path, ""))
 
 
-def test_get_driver_uses_the_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_driver_uses_the_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[tuple[Any, ...]] = []
     monkeypatch.setattr(client.GraphDatabase, "driver", lambda *a, **kw: calls.append((a, kw)))
-    get_driver(Neo4jSettings(uri="bolt://h:1", user="u", password=SecretStr("p")))
-    assert calls == [(("bolt://h:1",), {"auth": ("u", "p")})]
+    settings = Neo4jSettings(
+        _env_file=tmp_path / "missing.env", uri="bolt://h:1", user="u", password=SecretStr("p")
+    )
+    get_driver(settings)
+    options = {"auth": ("u", "p"), "telemetry_disabled": True, "connection_timeout": 10.0}
+    assert calls == [(("bolt://h:1",), options)]
 
 
 class FlakyDriver:

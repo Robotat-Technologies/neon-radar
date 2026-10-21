@@ -12,4 +12,4 @@ targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''^docs/sources/bibliography\.yaml$''']
 regexTarget = "line"
-regexes = ['''^\s*- key: [a-z][a-z0-9]*(?:_[a-z0-9]+)+\s*$''']
+regexes = ['''^\s*- key: [a-z][a-z0-9]{0,15}(?:_[a-z0-9]{1,15}){1,8}\s*$''']

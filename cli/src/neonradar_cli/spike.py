@@ -186,6 +186,8 @@ def companies_house(
     Prints counts and field names only; the records hold personal data and stay in
     data/cache/spikes/companies_house/ until `neonradar spike clean`.
     """
+    import httpx
+
     from neonradar_ingest.http import HttpError
     from neonradar_ingest.settings import IngestSettings
     from neonradar_ingest.sources.companies_house.client import CompaniesHouseClient
@@ -198,7 +200,9 @@ def companies_house(
     try:
         with CompaniesHouseClient(key) as client:
             result = run_spike(client, company, max_pages=max_pages)
-    except (CompanyNotFound, HttpError, ValueError) as exc:
+    except (CompanyNotFound, HttpError, httpx.HTTPError, ValueError) as exc:
+        # httpx.HTTPError: errors the shared client does not retry (DecodingError,
+        # TooManyRedirects); ValueError: a bad number or a body that is not JSON.
         typer.echo(f"FAIL  {exc}")
         raise typer.Exit(code=1) from None
     for line in result.summary():

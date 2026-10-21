@@ -107,7 +107,7 @@ def run_spike(
     if profile is None:
         raise CompanyNotFound(f"company {number} not found (unknown, or dissolved before 2010)")
     mapper = Mapper()
-    company_id = mapper.add_company(profile)
+    company_id = mapper.add_company(profile, number)
     notes: list[str] = []
     for label, pages, add in (
         ("officers", client.officers(number, max_pages), mapper.add_officer),

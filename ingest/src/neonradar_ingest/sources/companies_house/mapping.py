@@ -182,6 +182,7 @@ class Mapper:
         self.entities: dict[str, ValueEntity] = {}
         self.nr: dict[str, dict[str, Any]] = {}
         self.stats = MappingStats()
+        self._seen: set[str] = set()  # appointments and PSCs already mapped (pages can overlap)
 
     def records(self) -> list[dict[str, Any]]:
         """Every record as a C1 dict, sorted by id."""
@@ -218,9 +219,15 @@ class Mapper:
             for key in sorted(details):
                 self.stats.identity_verification[f"{where}.{key}"] += 1
 
-    def add_company(self, profile: dict[str, Any]) -> str:
-        """The company profile to a `Company` and its registered office to an `Address`."""
-        number = normalise_company_number(str(profile["company_number"]))
+    def add_company(self, profile: dict[str, Any], number: str | None = None) -> str:
+        """The company profile to a `Company` and its registered office to an `Address`.
+
+        `number` is the number that was asked for, used if the profile has none.
+        """
+        raw = profile.get("company_number") or number
+        if not raw:
+            raise ValueError("the company profile has no company_number")
+        number = normalise_company_number(str(raw))
         rid = company_id(number)
         company = self._entity("Company", rid, source_ref=number)
         self._put(company, "name", profile.get("company_name"))
@@ -272,6 +279,11 @@ class Mapper:
         if native is None or not role:
             self.stats.skipped["officer-without-id-or-role"] += 1
             return
+        appointment = last_segment(_obj(item, "links").get("self")) or native
+        link_id = edge_id("Directorship", number, appointment, role)
+        if link_id in self._seen:
+            return  # the same appointment on two overlapping pages: count and map it once
+        self._seen.add(link_id)
         self.stats.appointments += 1
         self._count_identity_verification("officers", item)
         for key in ("person_number", "address", "occupation", "former_names", "appointed_before"):
@@ -298,12 +310,8 @@ class Mapper:
             self._put(officer, "birthDate", birth_month(item.get("date_of_birth")))
             self._put(officer, "nationality", list(_segments(item.get("nationality"))))
             self._put(officer, "country", list(_segments(item.get("country_of_residence"))))
-        appointment = last_segment(_obj(item, "links").get("self")) or native
         link = self._entity(
-            "Directorship",
-            edge_id("Directorship", number, appointment, role),
-            source_ref=appointment,
-            is_nominee="nominee-" in role,
+            "Directorship", link_id, source_ref=appointment, is_nominee="nominee-" in role
         )
         link.add("director", rid)
         link.add("organization", company)
@@ -315,12 +323,16 @@ class Mapper:
         """One PSC item to a Person, Company or LegalEntity, plus one `Ownership` or `Control`
         per nature of control. Super-secure and unknown kinds are skipped and counted."""
         kind = str(item.get("kind") or "unknown")
+        native = last_segment(_obj(item, "links").get("self"))
+        if native is not None:
+            if f"psc|{native}" in self._seen:
+                return  # the same PSC on two overlapping pages: count and map it once
+            self._seen.add(f"psc|{native}")
         self.stats.psc_kinds[kind] += 1
         self._count_identity_verification("psc", item)
         if kind in PSC_SUPER_SECURE or kind not in PSC_PERSON | PSC_COMPANY | PSC_LEGAL:
             self.stats.skipped[f"psc:{kind}"] += 1
             return
-        native = last_segment(_obj(item, "links").get("self"))
         if native is None:
             self.stats.skipped["psc-without-id"] += 1
             return

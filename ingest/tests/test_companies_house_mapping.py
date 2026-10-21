@@ -1,5 +1,6 @@
 """Companies House to C1 mapping (M1.8a step 5) against synthetic response bodies."""
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -131,9 +132,10 @@ def test_both_spellings_of_the_legal_person_kind_map_to_a_legal_entity(kind: str
 
 def test_unknown_kinds_and_unmapped_natures_are_skipped_and_counted() -> None:
     mapper = Mapper()
-    mapper.add_psc(psc("persons-with-significant-control-statement", []), COMPANY, NUMBER)
+    statement = psc("persons-with-significant-control-statement", [], "SYNpsc-1")
+    mapper.add_psc(statement, COMPANY, NUMBER)
     nominee = "registered-owner-as-nominee-person-scotland-registered-overseas-entity"
-    mapper.add_psc(psc("individual-beneficial-owner", [nominee]), COMPANY, NUMBER)
+    mapper.add_psc(psc("individual-beneficial-owner", [nominee], "SYNpsc-2"), COMPANY, NUMBER)
     mapper.add_psc({"kind": "individual-person-with-significant-control"}, COMPANY, NUMBER)
     assert mapper.stats.skipped == {
         "psc:persons-with-significant-control-statement": 1,
@@ -193,3 +195,24 @@ def test_a_jurisdiction_outside_the_uk_is_counted_not_mapped() -> None:
     (company,) = mapper.records()
     assert "jurisdiction" not in company["properties"]
     assert mapper.stats.unmapped_fields == {"company.jurisdiction=noneu": 1}
+
+
+def test_care_of_is_left_out_of_the_address() -> None:
+    assert load("company-SYN00001.json")["registered_office_address"]["care_of"]
+    assert "CARE OF" not in json.dumps(mapped().records())
+
+
+def test_overlapping_pages_count_and_map_each_appointment_and_psc_once() -> None:
+    mapper = mapped()
+    before = (copy.deepcopy(mapper.stats), mapper.records())
+    for item in load("officers-SYN00001-2.json")["items"]:  # page 2 again
+        mapper.add_officer(item, COMPANY, NUMBER)
+    for item in load("psc-SYN00001.json")["items"]:
+        mapper.add_psc(item, COMPANY, NUMBER)
+    assert (mapper.stats, mapper.records()) == before
+
+
+def test_the_number_asked_for_stands_in_for_a_missing_company_number() -> None:
+    assert Mapper().add_company({"company_name": "SYN"}, "syn00009") == "gbch-co-SYN00009"
+    with pytest.raises(ValueError, match="no company_number"):
+        Mapper().add_company({"company_name": "SYN"})

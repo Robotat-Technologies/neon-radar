@@ -10,6 +10,7 @@
   "registered_office_is_in_dispute": false,
   "undeliverable_registered_office_address": false,
   "registered_office_address": {
+    "care_of": "SYN CARE OF NAME",
     "premises": "Unit 4",
     "address_line_1": "12 Example Street",
     "locality": "London",

@@ -24,6 +24,9 @@ def serve(request: httpx.Request) -> httpx.Response:
     return httpx.Response(404)
 
 
+HANDLER = {"server": serve}  # a test can swap the mock server
+
+
 @pytest.fixture
 def mocked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     real = ch_client.CompaniesHouseClient
@@ -31,7 +34,8 @@ def mocked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     def fake(key: str, **kwargs: Any) -> ch_client.CompaniesHouseClient:
         assert key == "SYN-KEY"
         limiter = RateLimiter(1.0, clock=lambda: 0.0, sleep=lambda seconds: None)
-        return real(key, transport=httpx.MockTransport(serve), limiter=limiter)
+        transport = httpx.MockTransport(lambda request: HANDLER["server"](request))
+        return real(key, transport=transport, limiter=limiter)
 
     monkeypatch.setattr(ch_client, "CompaniesHouseClient", fake)
     monkeypatch.setattr(spikes, "SPIKE_ROOT", tmp_path)
@@ -67,3 +71,15 @@ def test_without_a_key_the_command_stops_before_any_request(
         "FAIL  CH_API_KEY is not set: the operator adds it to .env (OD-14)\n",
     )
     assert not (mocked / "companies_house").exists()
+
+
+def test_errors_the_shared_client_does_not_retry_fail_cleanly(
+    mocked: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def loop(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": str(request.url)})
+
+    monkeypatch.setitem(HANDLER, "server", loop)
+    result = runner.invoke(app, ["spike", "companies-house", "--company", "SYN00001"])
+    assert (result.exit_code, result.output) == (1, "FAIL  Exceeded maximum allowed redirects.\n")
+    assert result.exception is None or isinstance(result.exception, SystemExit)

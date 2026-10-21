@@ -10,9 +10,10 @@ contracts/wording/forbidden-terms.txt next to the package. See contracts/C4-aler
 
 import hashlib
 import json
+import math
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, model_validator
 
@@ -38,6 +39,12 @@ MODULE_PATTERN = r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+$"
 RUN_ID_PATTERN = r"^run-\d{8}T\d{6}-[0-9a-f]{4}$"
 ALERT_ID_PATTERN = r"^alr-[0-9a-f]{20}$"
 UTC_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+SHA256_PATTERN = r"^[0-9a-f]{64}$"
+# Lengths of the fixed-length fields. Python's `re` (which the jsonschema package uses for
+# `pattern`) lets `$` match before a final newline; the length bounds reject it there too.
+UTC_LENGTH = 20
+ALERT_ID_LENGTH = RUN_ID_LENGTH = 24
+SHA256_LENGTH = 64
 HEADLINE_MAX = 140
 STEP_TEXT_MAX = 280
 
@@ -50,9 +57,26 @@ def _is_utc_time(value: str) -> str:
     return value
 
 
+def _is_finite(value: JsonValue) -> JsonValue:
+    """JSON has no NaN or infinity. `allow_inf_nan=False` covers float fields and Python input,
+    but pydantic lets `NaN` and `Infinity` in JSON text through a `JsonValue`."""
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("must be a finite number: JSON has no NaN or infinity")
+    if isinstance(value, list | dict):
+        for item in value.values() if isinstance(value, dict) else value:
+            _is_finite(item)
+    return value
+
+
+def _fixed(pattern: str, length: int) -> Any:
+    """A field of fixed length: the pattern, plus the length so that the exported JSON Schema
+    rejects a trailing newline under Python's `re` as well."""
+    return Field(pattern=pattern, min_length=length, max_length=length)
+
+
 EntityId = Annotated[str, Field(pattern=ENTITY_ID_PATTERN)]
 EdgeId = Annotated[str, Field(pattern=EDGE_ID_PATTERN)]
-UtcTime = Annotated[str, Field(pattern=UTC_PATTERN), AfterValidator(_is_utc_time)]
+UtcTime = Annotated[str, _fixed(UTC_PATTERN, UTC_LENGTH), AfterValidator(_is_utc_time)]
 Slug = Annotated[str, Field(pattern=SLUG_PATTERN)]
 CitationKey = Annotated[str, Field(pattern=CITATION_KEY_PATTERN)]
 Text = Annotated[str, Field(min_length=1)]
@@ -97,8 +121,13 @@ def _unique(values: list[str], what: str) -> None:
         raise ValueError(f"{what} must not repeat an id")
 
 
+def _id_parts(edge_id: str) -> list[str]:
+    """The entity ids in a C2 relationship id: both ends of `a|addr|b`, or the interval id."""
+    return edge_id.split("|")[::2]
+
+
 class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
 
 
 class Detector(_Strict):
@@ -106,7 +135,7 @@ class Detector(_Strict):
 
     name: Annotated[str, Field(pattern=MODULE_PATTERN)]
     version: Annotated[str, Field(pattern=VERSION_PATTERN)]
-    query_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    query_sha256: Annotated[str, _fixed(SHA256_PATTERN, SHA256_LENGTH)]
 
 
 class Subject(_Strict):
@@ -121,7 +150,7 @@ class EvidenceQuery(_Strict):
     """The Cypher query and parameters that reproduce the finding."""
 
     cypher: Text
-    parameters: dict[str, JsonValue]
+    parameters: dict[str, Annotated[JsonValue, AfterValidator(_is_finite)]]
 
 
 class Window(_Strict):
@@ -153,7 +182,7 @@ class Evidence(_Strict):
         # (`a|addr|b`, `a|sanction|b`); for plain interval ids the detector checks it (M1.9b).
         nodes = set(self.node_ids)
         for edge in self.edge_ids:
-            ends = edge.split("|")[::2] if "|" in edge else []
+            ends = _id_parts(edge) if "|" in edge else []
             missing = [end for end in ends if end not in nodes]
             if missing:
                 raise ValueError(f"evidence edge {edge} needs its endpoints in node_ids: {missing}")
@@ -210,12 +239,12 @@ class DataFlags(_Strict):
 class Alert(_Strict):
     """C4 Alert v1.0.0 (5.4). `pattern_strength` orders the queue; it is never a risk score."""
 
-    alert_id: Annotated[str, Field(pattern=ALERT_ID_PATTERN)]
+    alert_id: Annotated[str, _fixed(ALERT_ID_PATTERN, ALERT_ID_LENGTH)]
     contract_version: Annotated[str, Field(pattern=CONTRACT_VERSION_PATTERN)]
     typology: Slug
     typology_version: Annotated[str, Field(pattern=VERSION_PATTERN)]
     detector: Detector
-    run_id: Annotated[str, Field(pattern=RUN_ID_PATTERN)]
+    run_id: Annotated[str, _fixed(RUN_ID_PATTERN, RUN_ID_LENGTH)]
     created_at: UtcTime
     priority: Priority
     pattern_strength: Annotated[float, Field(ge=0, le=1)]
@@ -244,6 +273,10 @@ class Alert(_Strict):
             raise ValueError("detector.query_sha256 must be the SHA-256 of evidence.query.cypher")
         if self.explanation.typology_reference.slug != self.typology:
             raise ValueError("explanation.typology_reference.slug must equal typology")
+        # C2 FLAGS carries one role per alert and entity, so an entity is a subject only once.
+        entity_ids = [subject.entity_id for subject in self.subjects]
+        if len(set(entity_ids)) != len(entity_ids):
+            raise ValueError("subjects must not repeat an entity_id (FLAGS holds one role each)")
         stray = sorted(
             {edge for step in self.explanation.steps for edge in step.edge_ids}
             - set(self.evidence.edge_ids)
@@ -286,13 +319,24 @@ class Alert(_Strict):
                 "wording_class must be synthetic_scenario exactly when "
                 "data_flags.involves_real_entities is false"
             )
-        if flags.involves_real_entities:
-            return
-        # A dataset or an id prefix of a non-synthetic dataset means a real entity is involved.
-        # Prefixes of no dataset (`nr`, canonical ids from Phase 2) prove nothing either way.
+        # An id prefix of a non-synthetic dataset means real data. Prefixes of no dataset (`nr`,
+        # canonical ids from Phase 2) prove nothing either way.
         real_datasets = [dataset for dataset in load_registry().datasets if not dataset.synthetic]
         slugs = {dataset.slug for dataset in real_datasets}
         prefixes = {dataset.id_prefix for dataset in real_datasets}
+        if flags.synthetic_activity:
+            real_edges = [
+                edge
+                for edge in self.evidence.edge_ids
+                if any(part.split("-", 1)[0] in prefixes for part in _id_parts(edge))
+            ]
+            if real_edges:
+                raise ValueError(
+                    "data_flags.synthetic_activity must be false: evidence relationships come "
+                    f"from non-synthetic data ({', '.join(real_edges)})"
+                )
+        if flags.involves_real_entities:
+            return
         ids = [subject.entity_id for subject in self.subjects] + self.evidence.node_ids
         real = [slug for slug in flags.datasets if slug in slugs]
         real += [entity_id for entity_id in ids if entity_id.split("-", 1)[0] in prefixes]

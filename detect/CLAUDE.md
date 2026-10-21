@@ -3,7 +3,8 @@
 - Purpose: the typology catalog (`detect/typologies/*.yaml`, read by `catalog.py`), headline
   rendering (`wording.py`), detectors (Cypher plus Python) and the alert writer.
 - Owner: detect squad (nr-detect); typology definitions belong to typology researchers.
-- Depends on: C2 graph schema (reads only C2 labels, types and properties) and C4 alerts.
+- Depends on: C2 graph schema (reads only C2 labels, types and properties) and C4 alerts;
+  pyyaml (the catalog).
 - Commands: `uv run pytest detect/tests`, `make test-int`,
   `uv run neonradar docs typology-index [--check]` (renders docs/typologies/README.md).
 - Traps:
@@ -15,6 +16,8 @@
     `strftime("%Y-%m-%dT%H:%M:%SZ")` (`datetime.isoformat()` gives `+00:00` and fails);
     numbers as int or float, never strings or bools; `query_sha256` = `query_sha256(cypher)`;
     `alert_id` = `compute_alert_id(...)`. Lint summary and steps with `find_forbidden(text,
-    mask=[captions, account numbers])` before building the alert.
+    mask=[captions, account numbers])` before building the alert. No NaN or infinity in
+    metrics or query parameters; one subject per entity id; `synthetic_activity` is false
+    when any evidence edge id (either end of a composite id) has a non-synthetic prefix.
   - A detector waits for its typology's approval; every query has a fixture test.
   - Bounded Cypher: at most 8 hops, LIMIT, a time window; GDS with `concurrency: 4`.

@@ -9,6 +9,7 @@ scripts/check_wording.py reads the same file with the standard library only.
 """
 
 import re
+import unicodedata
 from collections.abc import Iterable
 from functools import cache
 from pathlib import Path
@@ -50,9 +51,12 @@ def find_forbidden(text: str, mask: Iterable[str] = ()) -> list[str]:
 
     `mask` holds source values that are not NeonRadar's wording, such as entity captions and
     account numbers (7.1): each occurrence as a whole token (not inside a longer word) is
-    blanked out before the check.
+    blanked out before the check. The text and the mask are NFKC-normalised first, so
+    compatibility forms such as fullwidth or mathematical letters cannot hide a term.
     """
-    for value in sorted({value for value in mask if value}, key=len, reverse=True):
+    text = unicodedata.normalize("NFKC", text)
+    mask = {unicodedata.normalize("NFKC", value) for value in mask if value}
+    for value in sorted(mask, key=len, reverse=True):
         token = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)")
         text = token.sub(lambda found: " " * len(found.group(0)), text)
     return [

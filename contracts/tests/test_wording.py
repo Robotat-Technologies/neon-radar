@@ -1,6 +1,7 @@
 """Contract tests for the wording rules (PHASE-1.md 7.1, 5.5, guardrail G5)."""
 
 import hashlib
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -123,6 +124,31 @@ def test_masked_source_values_are_not_linted() -> None:
     step = "NRSYN-FRAUD-TEST sent EUR 5,000 to NRSYN0000000012 on 2 March."
     assert find_forbidden(step) == ["'FRAUD' (\\bfraud\\w*)"]
     assert find_forbidden(step, mask=["NRSYN-FRAUD-TEST", "NRSYN0000000012", ""]) == []
+
+
+def _fullwidth(text: str) -> str:
+    return "".join(unicodedata.lookup(f"FULLWIDTH LATIN CAPITAL LETTER {c}") for c in text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER M") + "ule account",
+        unicodedata.lookup("MATHEMATICAL BOLD SMALL M") + "ule account",
+        _fullwidth("FRAUD") + " pattern",
+    ],
+)
+def test_compatibility_forms_cannot_hide_a_term(text: str) -> None:
+    """The text is NFKC-normalised before matching, so a fullwidth or bold "m" reads as "m"."""
+    assert find_forbidden(text), text
+
+
+def test_masks_are_normalised_like_the_text() -> None:
+    caption = _fullwidth("NRSYN") + "-" + _fullwidth("FRAUD")
+    step = f"{caption} sent EUR 5,000."
+    assert find_forbidden(step) == ["'FRAUD' (\\bfraud\\w*)"]
+    assert find_forbidden(step, mask=[caption]) == []
+    assert find_forbidden(step, mask=["NRSYN-FRAUD"]) == []
 
 
 def test_masking_blanks_only_whole_tokens() -> None:

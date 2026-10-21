@@ -111,7 +111,7 @@ Three lines of `contracts/examples/c1/demo.ftm.jsonl` (all synthetic; the file h
 }
 ```
 
-`files[].path` is relative to the manifest's folder and `created_at` is UTC with a `Z`. Unknown keys fail validation.
+`files[].path` is relative to the manifest's folder and `created_at` is UTC with a `Z`. `created_at` and `source.retrieved_at` are 20 characters and `files[].sha256` is 64 lower-case hex; the JSON Schema states these lengths as well, so a validator that matches `pattern` with Python's `re` (where `$` also matches before a final newline) rejects a trailing newline too. Unknown keys fail validation.
 
 ## Dataset registry
 

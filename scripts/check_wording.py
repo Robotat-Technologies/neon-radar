@@ -18,6 +18,7 @@ import io
 import re
 import sys
 import tokenize
+import unicodedata
 from pathlib import Path
 
 from hygiene_common import ROOT, annotate
@@ -83,6 +84,8 @@ def find_terms(
     findings = []
     for number, piece in pieces:
         text = ESCAPES.sub(lambda escape: " " * len(escape.group(0)), piece)
+        # As neonradar_contracts.wording.find_forbidden: a fullwidth "m" reads as "m" (NFKC).
+        text = unicodedata.normalize("NFKC", text)
         for pattern in patterns:
             for match in pattern.finditer(text):
                 line = number + text.count("\n", 0, match.start())

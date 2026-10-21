@@ -172,7 +172,9 @@ class Evidence(_Strict):
     node_ids: Annotated[list[EntityId], Field(min_length=1)]
     edge_ids: list[EdgeId]
     query: EvidenceQuery
-    window: Window | None = None
+    # Required but nullable: the key is always present, null when the finding has no time
+    # window, so the JSON Schema and C3's OpenAPI list it as required (CHANGELOG, C4).
+    window: Window | None
 
     @model_validator(mode="after")
     def _distinct(self) -> Self:

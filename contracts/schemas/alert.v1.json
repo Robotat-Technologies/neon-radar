@@ -92,14 +92,14 @@
             {
               "type": "null"
             }
-          ],
-          "default": null
+          ]
         }
       },
       "required": [
         "node_ids",
         "edge_ids",
-        "query"
+        "query",
+        "window"
       ],
       "title": "Evidence",
       "type": "object"

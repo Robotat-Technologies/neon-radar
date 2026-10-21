@@ -568,12 +568,21 @@ def test_evidence_ids_are_distinct_and_present() -> None:
     rejects(with_id(data), "node_ids")
 
 
-def test_window_is_ordered_and_optional() -> None:
+def test_window_is_ordered_and_nullable() -> None:
     data = example()
     data["evidence"]["window"] = {"start": "2026-03-08T16:40:00Z", "end": "2026-03-02T09:00:00Z"}
     rejects(data, "must not be after")
-    del data["evidence"]["window"]
+    data["evidence"]["window"] = None
     assert Alert.model_validate(data).evidence.window is None
+    del data["evidence"]["window"]
+    rejects(data, r"evidence\.window\n  Field required")
+
+
+def test_window_is_required_in_the_json_schema() -> None:
+    """Every field is present, nullable ones as null (the rule C3's OpenAPI relies on)."""
+    evidence = Alert.model_json_schema()["$defs"]["Evidence"]
+    assert "window" in evidence["required"]
+    assert {"type": "null"} in evidence["properties"]["window"]["anyOf"]
 
 
 def test_steps_are_numbered_in_order() -> None:

@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | File | `docs/build/phase-3-reconciliation.md` (PHASE-3.md M3.0 deliverable 1) |
-| Reconciled against | `main` at `f4eec99` (22 October 2026, after M2.0 merged in #45). Open pull requests #43 (M1.9e), #46 (M1.12-2, draft) and #19 (M1.5, paused) were read but not relied on; M2.2 and M2.8 are in progress with no pull request yet |
+| Reconciled against | `main` at `f4eec99` (22 October 2026, after M2.0 merged in #45), then brought up to `main` at `38714cd`, after #43 (M1.9e) and #46 (M1.12-2, the Phase 1 report) merged. #19 (M1.5, paused) and #47 (M2.2, open) were read but not relied on; M2.8 is in progress with no pull request yet |
 | Written by | The M3.0 build agent; the tech lead owns it |
-| Gate 1 | **Not passed** (operator decision OD-23: Phase 3 is seeded before Gate 1). No tag `contracts-v1.0.0` or `contracts-v1.1.0`; no `docs/build/reports/phase-1.md` (#46) |
+| Gate 1 | **Not passed** (operator decision OD-23: Phase 3 is seeded before Gate 1). No tag `contracts-v1.0.0` or `contracts-v1.1.0`. `docs/build/reports/phase-1.md` is on `main` (#46) |
 | Method | Reading the code on `main` and the command line's `--help`. Then, in a scratch folder outside the repository, the whole code book extracted with `scripts/spec_extract.py extract --root <scratch>` and run against the repository's own packages, on synthetic data only: the code book's test kit, the committed `data/fixtures/demo-mini/` and the circular-flow fixture. Nothing from the scratch folder is committed |
 
 PHASE-3.md and its code book were written on 18 and 19 October, before Gate 1, against a prototype that stood in for Phase 1 and Phase 2 code (code book, introduction). This file records, for every seam of PHASE-3.md 2.10 and every item of 0.6, what `main` has today and what the milestone that adapts it will do. Each Phase 3 milestone that adapts a seam checks it again and appends what it finds here (PHASE-3.md 2.2 step 2).
@@ -26,7 +26,7 @@ Classes: **M** mechanical: the adapting milestone adapts and, for a verbatim fil
 | The fifteen typology files (M1.10b) | 15 files in `detect/typologies/`, every one `version: 0.1.0`, `status: draft`, `approved_by: null`, owner `@robotat-com`; only `circular_flow` names a detector | Present. The code book replaces 14 of them; each differs from the repository's copy, so `spec_extract extract` keeps only the owner line (2.10). `trade_based_ml.yaml` stays |
 | Generator v0 with its name modules and denylist (M1.8e) | `ingest/src/neonradar_ingest/synth/`: `names.py`, `companies.py`, `words.py`, `rng.py`, `namecheck.py`, `registry.py`, `activity.py`, `cycles.py`, `emit.py`, `demo.py`, `join.py`, `denylist.txt` (98 lines); the committed `data/fixtures/demo-mini/` | Present; seams N1 to N3 |
 | The graph mapping and loader (M1.7b, M1.9a) | `neonradar_graph.mapping` and `neonradar_graph.loader` (2.1 and 2.7 below) | Present; seams G1 to G5 |
-| `make demo-mini` and `make e2e` | Both still print "available after M1.9" | **Pending #43** (M1.9e). M3.8 (`make demo`) and M3.13 (Gate 3 check) need it |
+| `make demo-mini` and `make e2e` | Merged with #43 (M1.9e): `make demo-data` (migrate, wipe, load `demo-mini`, then `neonradar detect run` with no option), `make demo-mini` (the same in Docker, with the API and the UI), `make demo-dev`, and `make e2e` (Playwright; `ui/e2e/demo-mini.spec.ts` expects at least one alert whose headline starts "Synthetic scenario") | Present; seam L5 |
 
 ### 1.2 Phase 2
 
@@ -175,6 +175,7 @@ Callers of the replaced names: `cli/src/neonradar_cli/detect.py` (`runner.run`, 
 | L2 | `graph load --profile NAME --overlay latest` | P | Pending M2.11 (profile loads); M3.4 |
 | L3 | `synth world` and `synth overlay` | M | M3.3 |
 | L4 | The `eval` group | M | M3.6 and M3.11. The guard blocks `eval run --split test` from this pull request on |
+| L5 | `make demo-data` (and so `make demo-mini`, `demo-dev` and the e2e job) runs `neonradar detect run` with no option on the default instance, and the e2e test needs one "Synthetic scenario" alert. Measured in memory: `circular_flow` 0.2.0 on `demo-mini` over its `PAID` time range gives 1 finding and 1 `synthetic_scenario` alert ("Synthetic scenario: funds returned to the originating account through 4 transfers within 4 days") | M | M3.2 keeps `detect run` without options working on the default instance (its goal says so); the alert only validates once A1 is answered |
 
 ### 2.11 Profiles and layout
 
@@ -219,12 +220,12 @@ What each milestone waits for on 22 October, beyond its Phase 3 dependencies (PH
 | M3.5a to M3.5f | M3.2; an answer to A3 before M3.5b, M3.5e and M3.5f; M2.1a before M3.5e (A4) |
 | M3.6 | M3.2 |
 | M3.7 | M3.4 and M3.6; M2.13 |
-| M3.8 | M3.7 and M3.5a to M3.5e; #43 (`make demo-mini`) |
+| M3.8 | M3.7 and M3.5a to M3.5e |
 | M3.9 | M3.7 |
 | M3.10 | M3.5a to M3.5e and M3.6 |
 | M3.11 | M3.5a to M3.5e, M3.6 and M3.10; `people.freeze_deciders` (still `@TODO`) |
 | M3.12 | M3.11 and the human holdout run |
-| M3.13 | Everything above; #46 (the Phase 1 report) |
+| M3.13 | Everything above |
 
 ## 6. Questions, by person
 

@@ -1,6 +1,6 @@
 """`neonradar graph`: commands for the Neo4j graph."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated
@@ -77,3 +77,112 @@ def migrate_command(
     if not report.applied:
         count = len(report.already_applied)
         typer.echo(f"nothing to apply ({count} migration{'s' * (count != 1)} already applied)")
+
+
+SHOWN = 25  # issues printed per kind; the rest are counted
+
+
+def _echo_some(lines: Sequence[object]) -> None:
+    for line in lines[:SHOWN]:
+        typer.echo(f"  {line}")
+    if len(lines) > SHOWN:
+        typer.echo(f"  ... and {len(lines) - SHOWN} more")
+
+
+def _echo_counts(title: str, counts: Mapping[str, int]) -> None:
+    typer.echo(f"{title}:")
+    for name, count in sorted(counts.items()):
+        typer.echo(f"  {name}: {count}")
+
+
+@app.command(name="load")
+def load_command(
+    paths: Annotated[
+        list[Path],
+        typer.Argument(
+            exists=True, help="C1 record files, or folders of *.ftm.jsonl files; one load."
+        ),
+    ],
+    strict: Annotated[
+        bool,
+        typer.Option(
+            "--strict/--no-strict",
+            help="Strict (default): any C1 issue, mapping issue or dangling reference fails the"
+            " load, and nothing is written before the checks pass. Non-strict: skip and report.",
+        ),
+    ] = True,
+    timeout: Timeout = 30,
+) -> None:
+    """Load C1 records into the graph, nodes before relationships; loading twice changes nothing."""
+    from neonradar_graph import loader  # FollowTheMoney loads only for this command
+
+    settings = _settings()
+    with _connected(settings, timeout) as driver:
+        try:
+            report = loader.load_files(driver, paths, strict=strict, database=settings.database)
+        except loader.LoadRefused as refused:
+            _echo_some([*refused.issues, *refused.skipped])
+            typer.echo(f"REFUSED (strict): {refused}")
+            raise typer.Exit(code=1) from None
+        except loader.LoadError as error:
+            typer.echo(f"FAIL  {error}")
+            raise typer.Exit(code=1) from None
+    mode = "strict" if report.strict else "non-strict"
+    typer.echo(f"{report.records} records from {len(report.files)} file(s), {mode}")
+    _echo_counts("nodes by label", report.nodes_by_label)
+    _echo_counts("relationships by type", report.relationships_by_type)
+    written = report.written
+    typer.echo(
+        f"created {written['nodes_created']} nodes and {written['relationships_created']}"
+        f" relationships; moved {written['relationships_deleted']} relationships; labels"
+        f" {written['labels_added']} added and {written['labels_removed']} removed"
+    )
+    for title, items in (
+        ("dangling references", report.dangling),
+        ("records that failed C1, skipped", report.rejected),
+        ("mapping issues, skipped", report.skipped),
+    ):
+        typer.echo(f"{title}: {len(items)}")
+        _echo_some(items)
+    if report.failed:
+        typer.echo(f"FAILED (strict): {len(report.dangling)} dangling reference(s)")
+        raise typer.Exit(code=1)
+    warned = report.dangling or report.rejected or report.skipped
+    typer.echo(f"{'WARN' if warned else 'OK'} in {report.duration_s:.1f} s")
+
+
+@app.command(name="stats")
+def stats_command(timeout: Timeout = 30) -> None:
+    """Print node counts by label and relationship counts by type (apoc.meta.stats)."""
+    from neonradar_graph import loader
+
+    settings = _settings()
+    with _connected(settings, timeout) as driver:
+        counted = loader.stats(driver, settings.database)
+    typer.echo(f"nodes: {counted.nodes}")
+    for name, count in counted.labels.items():
+        typer.echo(f"  {name}: {count}")
+    typer.echo(f"relationships: {counted.relationships}")
+    for name, count in counted.relationship_types.items():
+        typer.echo(f"  {name}: {count}")
+
+
+@app.command(name="wipe")
+def wipe_command(
+    yes: Annotated[
+        bool, typer.Option("--yes", help="Confirm: delete every node except :SchemaMigration.")
+    ] = False,
+    timeout: Timeout = 30,
+) -> None:
+    """Delete every node except :SchemaMigration; the schema stays. Refuses without --yes."""
+    if not yes:
+        typer.echo(
+            "REFUSED  graph wipe deletes every node except :SchemaMigration; add --yes to confirm"
+        )
+        raise typer.Exit(code=1)
+    from neonradar_graph import loader
+
+    settings = _settings()
+    with _connected(settings, timeout) as driver:
+        deleted = loader.wipe(driver, settings.database)
+    typer.echo(f"deleted {deleted} nodes from {settings.uri} (database {settings.database})")

@@ -26,3 +26,14 @@
     gate in `sources/opensanctions/access.py`: `none` sends no request, and only `licensed`
     writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
+  - The synthetic generator (`synth/`, ADR-0005) must stay byte-reproducible: draw only
+    through `synth.rng` (numpy `integers`, `random`, `choice`, `permutation`; never normal or
+    lognormal), never iterate a set, never read the clock or the network, write `\n` line
+    ends. `test_synth_determinism.py` regenerates `data/fixtures/demo-mini/` and compares
+    bytes; after any change that alters the output, run `make fixtures`, check every new
+    company and Latin-script person name against the Companies House search (OD-12), and
+    record a matching name's slot in `synth/demo.py` `REDRAW`, never the real name.
+  - Planted scenarios run only among synthetic entities (G1); ground truth goes only to
+    `labels/*.csv`, never into records (R9). Person names come from Faker plus curated lists
+    in `synth/words.py` (never Faker `ar_SA` surnames, never mimesis), filtered by
+    `synth/denylist.txt`.

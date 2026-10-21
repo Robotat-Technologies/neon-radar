@@ -22,7 +22,9 @@
   - Ids use letters, digits, dots and hyphens only (FtM drops `_` or `:`): use `make_id`.
   - A model change regenerates JSON Schemas and OpenAPI in the same pull request.
   - Field patterns run on pydantic's Rust regex and land in the JSON Schemas: anchor with
-    `^...$` (no `\z`, `\Z` or named groups), which also rejects a trailing newline there.
+    `^...$` (no `\z`, `\Z` or named groups), which also rejects a trailing newline there. Use
+    `[0-9]` and explicit ASCII classes, never `\d`, `\w` or `\s` (Unicode in Python, ASCII in
+    ECMAScript); test_alert.py checks every exported pattern.
   - wording/*.txt are verbatim from PHASE-1.md 7.1; changing one is a contract change
     (test_wording.py pins their hashes). `Alert` validation reads them and datasets.yaml
     from next to the package (editable install).

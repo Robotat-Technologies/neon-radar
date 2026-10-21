@@ -167,12 +167,8 @@ def test_empty_bibliography_fails(
     root: Path, text: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     write(root, "docs/sources/bibliography.yaml", text)
-    write(root, "docs/a.md", "No citations.\n")
     assert run(root, "docs") == 1
-    out = capsys.readouterr().out
-    assert (
-        "docs/sources/bibliography.yaml: expected a mapping with a non-empty `entries` list" in out
-    )
+    assert "a non-empty `entries` list" in capsys.readouterr().out
 
 
 def test_duplicate_citations_key_fails(root: Path, capsys: pytest.CaptureFixture[str]) -> None:

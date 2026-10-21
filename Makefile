@@ -46,8 +46,7 @@ check: lint typecheck test contracts-check ## everything a pull request needs
 	fi
 
 # Labels come from LABELS=a,b, else from the branch's pull request, else none; the title comes
-# from TITLE=, else from the pull request, else the title check is skipped. check_citations needs
-# PyYAML, so it runs in the uv workspace rather than with --no-project.
+# from TITLE=, else from the pull request, else the title check is skipped.
 HYGIENE_PY := uv run --no-project python
 hygiene: ## the pull request checks CI runs (title, size, contract paths, fixtures, wording, citations)
 	@git fetch --quiet origin main || echo "hygiene: could not fetch origin/main; using the local copy"

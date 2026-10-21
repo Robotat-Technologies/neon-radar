@@ -4,11 +4,10 @@
 Guardrail G4 and milestone M1.10a in docs/build/PHASE-1.md. In Markdown files, outside fenced
 code blocks and inline code, every `[key]` that looks like a citation key must be a key of
 docs/sources/bibliography.yaml; in detect/typologies/*.yaml, every `citations` entry must be one.
-docs/research/ and docs/plan/ are skipped: they keep source material as delivered.
+docs/research/ and docs/plan/ are skipped: they keep source material as delivered. Needs PyYAML,
+which the uv workspace provides:
 
     uv run python scripts/check_citations.py docs/ detect/typologies/ README.md
-
-Needs PyYAML, which the uv workspace provides (so not the standard-library-only hygiene job).
 """
 
 import argparse

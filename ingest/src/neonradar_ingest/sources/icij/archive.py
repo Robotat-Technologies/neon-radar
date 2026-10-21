@@ -119,7 +119,8 @@ class RangeReader(io.RawIOBase):
                 chunk = next(self._chunks, b"")
             except httpx.TransportError as exc:
                 if attempt == RESUMES:
-                    raise
+                    where = f"GET {redact(self._url)}"
+                    raise HttpError(f"{where}: body broke off at byte {at}: {exc}") from exc
                 log.warning("range body broke at byte %d (%s); resuming", at, type(exc).__name__)
                 self._open(at)
                 continue

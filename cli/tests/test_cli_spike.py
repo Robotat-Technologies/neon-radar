@@ -63,3 +63,36 @@ def test_report_output_prints_counts_and_fails_on_issues(
         spike.report_output(path)
     assert stopped.value.exit_code == 1
     assert capsys.readouterr().out.startswith(f"FORMAT {path}:1: invalid JSON")
+
+
+def test_spike_icij_prints_the_summary_then_validates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.sources.icij import spike as icij_spike
+
+    output = tmp_path / "icij_offshore_leaks-20261021-slice.ftm.jsonl"
+    output.write_text("", encoding="utf-8")  # an empty load is valid
+    calls: list[dict[str, Any]] = []
+
+    def fake_run(**options: Any) -> Any:
+        calls.append(options)
+        return type("Result", (), {"output": output})()
+
+    monkeypatch.setattr(icij_spike, "run", fake_run)
+    monkeypatch.setattr(icij_spike, "summary_lines", lambda result: ["archive facts"])
+    result = runner.invoke(app, ["spike", "icij", "--rows", "5"])
+    assert result.exit_code == 0, result.output
+    assert calls == [{"rows": 5, "cache_dir": None}]
+    assert result.output.splitlines()[0] == "archive facts"
+    assert result.output.splitlines()[-1] == "OK, 0 issues (strict)"
+
+    def failing_run(**options: Any) -> Any:
+        raise HttpError("HEAD https://archive.test/x.zip: HTTP 503", 503)
+
+    monkeypatch.setattr(icij_spike, "run", failing_run)
+    result = runner.invoke(app, ["spike", "icij"])
+    assert (result.exit_code, result.output) == (
+        1,
+        "FAIL  HEAD https://archive.test/x.zip: HTTP 503\n",
+    )

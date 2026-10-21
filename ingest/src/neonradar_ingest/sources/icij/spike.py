@@ -9,7 +9,6 @@ is counted and left out, so the output validates in strict mode.
 
 import csv
 import io
-import json
 import re
 import time
 import zipfile
@@ -17,12 +16,11 @@ from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
-from neonradar_contracts.records import Producer, Source, write_manifest
-from neonradar_ingest import __version__
+from neonradar_contracts.records import Source
+from neonradar_ingest import spikes
 from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.icij.archive import ARCHIVE_URL, ArchiveInfo, Mode, open_archive
 from neonradar_ingest.sources.icij.mapping import (
@@ -32,6 +30,7 @@ from neonradar_ingest.sources.icij.mapping import (
     classify_link,
 )
 
+SPIKE = "icij"
 ENTITIES = "nodes-entities.csv"
 RELATIONSHIPS = "relationships.csv"
 OTHER_NODES = ("nodes-officers.csv", "nodes-intermediaries.csv", "nodes-others.csv",
@@ -127,23 +126,19 @@ class SpikeResult:
     output: Path
 
 
-def write_records(mapper: Mapper, out_dir: Path, source: Source, notes: list[str]) -> Path:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{DATASET}-{datetime.now(UTC):%Y%m%d}-slice.ftm.jsonl"
-    with path.open("w", encoding="utf-8") as handle:
-        for record in mapper.records():
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    producer = Producer(name="neonradar_ingest.sources.icij", version=__version__)
-    write_manifest(path, dataset=DATASET, producer=producer, source=source,
-                   skipped=dict(sorted(mapper.skipped.items())), notes=notes)  # fmt: skip
-    return path
-
-
 def run_spike(
-    client: HttpClient, *, url: str, rows: int, out_dir: Path, cache_dir: Path
+    client: HttpClient,
+    *,
+    url: str,
+    rows: int,
+    cache_dir: Path | None = None,
+    out_root: Path | None = None,
 ) -> SpikeResult:
-    started = time.monotonic()
-    retrieved_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    """HEAD, read the slice, write records and manifest to `<out_root>/icij/` (default
+    data/cache/spikes/icij/). Without byte ranges the archive is cached in `cache_dir`
+    (default `<out_root>/icij/download/`, so that `spike clean` removes it too)."""
+    started, retrieved_at = time.monotonic(), spikes.utc_timestamp()
+    cache_dir = cache_dir or (out_root or spikes.SPIKE_ROOT) / SPIKE / "download"
     zf, info, mode, reader = open_archive(client, url, cache_dir)
     with zf:
         piece = read_slice(zf, rows)
@@ -156,7 +151,10 @@ def run_spike(
         " the nodes those relationships name; same_* and similar* rows are not loaded.",
         "ICIJ Offshore Leaks Database: database under ODbL 1.0, contents under CC BY-SA 3.0.",
     ]
-    output = write_records(piece.mapper, out_dir, source, notes)
+    output = spikes.write_output(
+        piece.mapper.records(), SPIKE, dataset=DATASET, part="slice", source=source,
+        skipped=dict(sorted(piece.mapper.skipped.items())), notes=notes, root=out_root,
+    )  # fmt: skip
     return SpikeResult(
         info=info,
         mode=mode,
@@ -168,11 +166,11 @@ def run_spike(
     )
 
 
-def run(*, rows: int, out_dir: Path, cache_dir: Path, url: str = ARCHIVE_URL) -> SpikeResult:
-    """The real spike, over the shared HttpClient."""
+def run(*, rows: int, cache_dir: Path | None = None, url: str = ARCHIVE_URL) -> SpikeResult:
+    """The real spike, over the shared HttpClient; output in data/cache/spikes/icij/."""
     limiter = RateLimiter(REQUESTS_PER_SECOND)
     with HttpClient(ARCHIVE_HOST, follow_redirects=True, limiter=limiter) as client:
-        return run_spike(client, url=url, rows=rows, out_dir=out_dir, cache_dir=cache_dir)
+        return run_spike(client, url=url, rows=rows, cache_dir=cache_dir)
 
 
 def summary_lines(result: SpikeResult, top: int = 30) -> list[str]:
@@ -208,5 +206,4 @@ def summary_lines(result: SpikeResult, top: int = 30) -> list[str]:
     )
     dates, misses = piece.mapper.dates, piece.mapper.date_misses.most_common()
     lines.append(f"dates: {dates['kept']} of {dates['seen']} parsed; not parsed: {misses}")
-    lines.append(f"wrote {result.output} and its manifest")
     return lines

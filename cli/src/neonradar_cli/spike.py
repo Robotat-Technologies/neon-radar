@@ -55,3 +55,27 @@ def clean(
     for path in deleted:
         typer.echo(f"deleted {path}")
     typer.echo(f"{len(deleted)} file(s) older than {keep} day(s) deleted from {root}")
+
+
+@app.command(name="icij")
+def icij(
+    rows: Annotated[int, typer.Option(min=1, help="Entities that seed the slice.")] = 1000,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option(
+            help="Archive copy, only if byte ranges are refused. Default: inside the output"
+        ),
+    ] = None,
+) -> None:
+    """ICIJ Offshore Leaks: a closed slice of the bulk archive as C1 records."""
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.sources.icij import spike as icij_spike
+
+    try:
+        result = icij_spike.run(rows=rows, cache_dir=cache_dir)
+    except (HttpError, OSError, ValueError) as exc:
+        typer.echo(f"FAIL  {exc}")
+        raise typer.Exit(code=1) from None
+    for line in icij_spike.summary_lines(result):
+        typer.echo(line)
+    report_output(result.output)

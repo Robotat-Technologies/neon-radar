@@ -12,7 +12,7 @@ import pytest
 
 from neonradar_contracts.records import Manifest, manifest_path, validate_batch, validate_files
 from neonradar_contracts.records import validate_record as check
-from neonradar_ingest.http import HttpClient, RateLimiter
+from neonradar_ingest.http import HttpClient, HttpError, RateLimiter
 from neonradar_ingest.sources.icij import mapping
 from neonradar_ingest.sources.icij.archive import open_archive
 from neonradar_ingest.sources.icij.spike import read_slice, run_spike, summary_lines
@@ -136,10 +136,14 @@ def test_question_mark_names_become_empty() -> None:
 def test_run_spike_reads_ranges_and_writes_a_valid_load(tmp_path: Path) -> None:
     seen: list[httpx.Request] = []
     with server(build_zip(), seen=seen) as client:
-        result = run_spike(client, url=URL, rows=3, out_dir=tmp_path / "out", cache_dir=tmp_path)
+        result = run_spike(client, url=URL, rows=3, out_root=tmp_path)
     assert result.mode == "range"
     assert all("Range" in r.headers for r in seen if r.method == "GET")
-    assert not (tmp_path / "full-oldb.LATEST.zip").exists()
+    assert result.output.parent == tmp_path / "icij"
+    assert sorted(p.name for p in result.output.parent.iterdir()) == [
+        result.output.name,
+        manifest_path(result.output).name,
+    ]  # no archive copy, no download folder
     counts, issues = validate_files([result.output], strict=True)
     assert issues == []
     assert counts.total() == 16
@@ -164,6 +168,11 @@ def test_a_broken_range_body_resumes_from_the_same_byte(
     assert records == json.loads(EXPECTED.read_text(encoding="utf-8"))
     assert reader.requests == len([r for r in seen if r.method == "GET"])
     assert caplog.text.count("resuming") == 3
+
+
+def test_a_body_that_keeps_breaking_raises_http_error() -> None:
+    with server(build_zip(), breaks=99) as client, pytest.raises(HttpError, match="broke off"):
+        open_archive(client, URL, Path("unused"))
 
 
 @pytest.mark.parametrize("ranges", ["none", "refused"])

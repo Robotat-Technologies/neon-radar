@@ -644,10 +644,14 @@ version = "0.1.0"
 source = { editable = "detect" }
 dependencies = [
     { name = "neonradar-contracts" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "neonradar-contracts", editable = "contracts" }]
+requires-dist = [
+    { name = "neonradar-contracts", editable = "contracts" },
+    { name = "pyyaml", specifier = ">=6,<7" },
+]
 
 [[package]]
 name = "neonradar-graph"

@@ -42,7 +42,7 @@ The spec's rules are kept; these say how the validator reads them.
 
 #### Changed from `docs/build/PHASE-1.md` 5.4 (tech lead sign-off at Gate 1)
 
-- The example's origin holder, "Cedar Gate Holdings Ltd", is "Fenwhistle Holdings Ltd": the first name matches a live UK company (OD-12). The new name had no result on the Companies House search on 21 October 2026.
+- The example's origin holder is "Fenwhistle Holdings Ltd": the spec's example name matches a live UK company (OD-12). The new name had no result on the Companies House company or officer search on 21 October 2026.
 - The golden example carries all four explanation steps (the spec shows one), a computed `alert_id`, and a `query_sha256` computed over the example's query text, which stays abbreviated with `...` as in the spec.
 
 #### Clarifications of 5.4 (tech lead sign-off at Gate 1)

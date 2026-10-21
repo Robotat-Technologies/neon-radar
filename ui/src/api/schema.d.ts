@@ -272,7 +272,7 @@ export interface components {
             headline: string;
             /** Metrics */
             metrics: {
-                [key: string]: number | string;
+                [key: string]: boolean | number | string;
             };
             /** Pattern Strength */
             pattern_strength: number;

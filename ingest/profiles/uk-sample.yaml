@@ -1,0 +1,50 @@
+# ingest/profiles/uk-sample.yaml
+profile: uk-sample
+description: >-
+  A neutral slice of the UK register for local investigation and the published entity
+  resolution figure: companies registered in eight city-centre postcode districts across
+  the UK, sampled evenly, with their ownership chains, officers, GLEIF records, the ICIJ
+  records in the same postcode districts and their direct neighbours, and the sanctions
+  lists. The districts were chosen for spread, not for anything about the companies in them.
+real_data: true
+sources:
+  gb_companies_house:
+    enabled: true
+    companies:
+      seeds: []
+      postcode_districts: [EC2A, M1, B3, LS1, EH3, CF10, BS1, NE1]
+      max_per_district: 5000              # deterministic sample per district (sha256 of seed and number)
+      max_companies: 50000                # leaves room for the parent companies the PSC expansion adds
+      sample_seed: 20261026
+    psc:
+      enabled: true
+      parent_depth: 4
+      child_depth: 0
+      include_ceased: false
+    officers:
+      enabled: true
+      request_budget: 20000               # about three hours at 2 requests per second
+      cache_days: 30
+      appointments: false
+      active_only: false
+  gleif_lei:
+    enabled: true
+    scope: slice
+  icij_offshore_leaks:
+    enabled: true
+    mode: district-linked                 # addresses in the districts above, their entities and officers, one hop more (M2.5)
+    max_nodes: 50000
+    sample_seed: 20261026
+  gb_fcdo_sanctions: { enabled: true, keep_reasons: false, keep_positions: false }
+  us_ofac_sdn: { enabled: true, keep_reasons: false, keep_positions: false }
+  un_sc_sanctions: { enabled: true, keep_reasons: false, keep_positions: false }   # runs only if access.sanctions_lists allows it
+  eu_fsf: { enabled: true, keep_reasons: false, keep_positions: false }
+  gb_parliament_members:                  # runs only if access.pep_sources allows it; former members kept for access.pep_former_months
+    enabled: true
+    houses: [commons, lords]
+    request_budget: 3000
+    cache_days: 30
+  opensanctions_default: { enabled: false }   # a data-steward-approved pull request enables it, only with a licence (M2.7)
+resolution:
+  enabled: true
+  config: resolve/config/er.yaml

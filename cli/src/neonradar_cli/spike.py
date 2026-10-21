@@ -17,10 +17,11 @@ def report_output(path: Path) -> None:
 
     Exits 1 on any issue.
     """
-    from neonradar_contracts.records import RecordFileError, validate_files  # loads FtM
+    from neonradar_cli import masking  # loads FtM; real records' issues show no values (G9)
+    from neonradar_contracts.records import RecordFileError
 
     try:
-        counts, issues = validate_files([path], strict=True)
+        counts, issues = masking.validate([path], strict=True)
     except RecordFileError as exc:
         typer.echo(f"FORMAT {exc}")
         raise typer.Exit(code=1) from exc
@@ -28,7 +29,7 @@ def report_output(path: Path) -> None:
     for schema, count in sorted(counts.items()):
         typer.echo(f"  {schema}: {count}")
     for issue in issues:
-        typer.echo(str(issue))
+        typer.echo(issue)
     if issues:
         typer.echo(f"FAILED, {len(issues)} issue(s)")
         raise typer.Exit(code=1)
@@ -97,7 +98,8 @@ def opensanctions(
     Only `licensed` access writes output; a slice has dangling references, so it is validated
     without --strict.
     """
-    from neonradar_contracts.records import RecordFileError, validate_files
+    from neonradar_cli import masking
+    from neonradar_contracts.records import RecordFileError
     from neonradar_ingest.http import HttpError
     from neonradar_ingest.sources.opensanctions import access
     from neonradar_ingest.sources.opensanctions import spike as source
@@ -118,12 +120,12 @@ def opensanctions(
         typer.echo(line)
     if result.records_file is not None:
         try:
-            _, issues = validate_files([result.records_file], strict=False)
+            _, issues = masking.validate([result.records_file], strict=False)
         except RecordFileError as exc:
             typer.echo(f"FORMAT {exc}")
             raise typer.Exit(code=1) from None
         for issue in issues:
-            typer.echo(str(issue))
+            typer.echo(issue)
         typer.echo(f"validate-records (a slice, not strict): {len(issues)} issue(s)")
         if issues:
             raise typer.Exit(code=1)

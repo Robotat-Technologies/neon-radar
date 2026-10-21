@@ -1,21 +1,38 @@
-"""`neonradar doctor`: check that this machine can build and run NeonRadar (PHASE-1.md M1.3)."""
+"""`neonradar doctor`: check that this machine can build and run NeonRadar (PHASE-1.md M1.3).
 
+Phase 2 (PHASE-2.md M2.0) adds disk space, DuckDB, real data and its age, DuckDB spill folders,
+the real-data instance and the real-profile settings. Those checks only warn: doctor still exits
+1 only on a Phase 1 FAIL. They read file ages and counts, never a file's contents.
+"""
+
+import importlib
 import json
+import os
 import re
 import shutil
 import socket
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PROJECT = "neonradar"  # `name:` in compose.yaml (M1.4)
 GIB = 1024**3
 STANDARD_MEMORY = 5 * GIB  # NEO4J_MEM_LIMIT=5g, the "standard" memory profile (M1.4)
 SMALL_MEMORY = 2500 * 1024**2  # NEO4J_MEM_LIMIT=2500m, the "small" memory profile
+GB = 1000**3
+DISK_NEEDED = 25 * GB  # free space uk-sample needs (PHASE-2.md 1.1)
+DAY = 86_400
+REAL_DIR = Path("data", "cache", "real")
+SPILL_DIRS = (REAL_DIR / "duckdb-tmp", Path("data", "cache", "synthetic", "duckdb-tmp"))
+PROJECT_FILE = Path("docs", "build", "project.yaml")
+MACHINES_DOC = "docs/data/real-data-machines.md"
 
 
 class Status(StrEnum):
@@ -171,9 +188,127 @@ def check_icu() -> Check:
     return Check("ICU", Status.OK, run("pkg-config", "--modversion", "icu-uc") or "found")
 
 
+def check_disk(root: Path) -> Check:
+    free = shutil.disk_usage(root).free
+    found = f"{free / GB:.0f} GB free"
+    if free < DISK_NEEDED:
+        return Check("disk space", Status.WARN, f"{found}; the uk-sample profile needs about 25 GB")
+    return Check("disk space", Status.OK, found)
+
+
+def check_duckdb() -> Check:
+    try:
+        duckdb = importlib.import_module("duckdb")
+    except ImportError:
+        return Check("DuckDB", Status.WARN, "not importable; run uv sync --all-packages")
+    return Check("DuckDB", Status.OK, str(getattr(duckdb, "__version__", "importable")))
+
+
+def read_access(root: Path) -> dict[str, Any]:
+    """The `access` mapping of docs/build/project.yaml, or {} when it cannot be read."""
+    try:
+        data = yaml.safe_load((root / PROJECT_FILE).read_text(encoding="utf-8"))
+    except OSError, yaml.YAMLError:
+        return {}
+    access = data.get("access") if isinstance(data, dict) else None
+    return access if isinstance(access, dict) else {}
+
+
+def _days(value: Any) -> int | None:
+    return value if type(value) is int and value >= 0 else None
+
+
+def check_real_data(root: Path, access: dict[str, Any], now: float | None = None) -> Check:
+    """Count real files and compare their ages with the retention settings (stat only)."""
+    folder = root / REAL_DIR
+    now = time.time() if now is None else now
+    data_days, label_days = _days(access.get("real_data_days")), _days(access.get("label_days"))
+    files = expired = 0
+    oldest = now
+    for directory, _, names in os.walk(folder):  # symbolic links to folders are not followed
+        labels = Path(directory).relative_to(folder).parts[:1] == ("labels",)
+        limit = label_days if labels else data_days
+        for name in names:
+            try:
+                modified = os.lstat(os.path.join(directory, name)).st_mtime
+            except OSError:
+                continue
+            files += 1
+            oldest = min(oldest, modified)
+            if limit is not None and now - modified > limit * DAY:
+                expired += 1
+    if not files:
+        return Check("real data", Status.OK, f"none under {REAL_DIR.as_posix()}/")
+    age = int((now - oldest) // DAY)
+    found = f"{files} files under {REAL_DIR.as_posix()}/, the oldest {age} days old"
+    if data_days is None or label_days is None:
+        return Check(
+            "real data", Status.WARN, f"{found}; access.real_data_days or label_days unset"
+        )
+    if expired:
+        return Check(
+            "real data",
+            Status.WARN,
+            f"{found}; {expired} older than access.real_data_days ({data_days}) or label_days"
+            f" ({label_days}): purge them (neonradar data purge --expired)",
+        )
+    return Check("real data", Status.OK, f"{found}; within access.real_data_days ({data_days})")
+
+
+def check_spill(root: Path) -> Check:
+    folders = 0
+    for spill in SPILL_DIRS:
+        if (root / spill).is_dir():
+            folders += sum(1 for entry in (root / spill).iterdir() if entry.is_dir())
+    if folders:
+        return Check(
+            "DuckDB spill",
+            Status.WARN,
+            f"{folders} leftover run folder(s) in data/cache/*/duckdb-tmp/; a finished run deletes"
+            " its own, so a run crashed: purge them",
+        )
+    return Check("DuckDB spill", Status.OK, "no leftover folders")
+
+
+def check_real_instance(info: dict[str, Any] | None) -> Check:
+    if info is None:
+        return Check("neo4j-real", Status.OK, "not running (Docker is not reachable)")
+    project = f"label=com.docker.compose.project={COMPOSE_PROJECT}"
+    service = "label=com.docker.compose.service=neo4j-real"
+    names = run("docker", "ps", "--filter", project, "--filter", service, "--format", "{{.Names}}")
+    if names:
+        return Check(
+            "neo4j-real",
+            Status.WARN,
+            "the real-data instance is running; stop it with `make down-real` when you are done",
+        )
+    return Check("neo4j-real", Status.OK, "not running")
+
+
+def check_real_profiles(access: dict[str, Any]) -> Check:
+    profiles = access.get("real_data_profiles")
+    if not profiles:
+        return Check("real profiles", Status.OK, "none allowed (access.real_data_profiles is [])")
+    allowed = (
+        ", ".join(str(profile) for profile in profiles)
+        if isinstance(profiles, list)
+        else str(profiles)
+    )
+    reminder = f"this machine must be listed in {MACHINES_DOC} before NR_REAL_DATA_MACHINE=approved"
+    if access.get("data_protection_filed") is not True:
+        return Check(
+            "real profiles",
+            Status.WARN,
+            f"{allowed} allowed, but access.data_protection_filed is false, so they refuse to"
+            f" run; {reminder}",
+        )
+    return Check("real profiles", Status.OK, f"{allowed} allowed; {reminder}")
+
+
 def run_checks(root: Path = REPO_ROOT) -> list[Check]:
     info = docker_info()
     stack = stack_ports() if info else set()
+    access = read_access(root)
     return [
         check_python(),
         check_uv(),
@@ -183,4 +318,10 @@ def run_checks(root: Path = REPO_ROOT) -> list[Check]:
         *(check_port(port, stack) for port in PORTS),
         check_memory(info),
         check_icu(),
+        check_disk(root),
+        check_duckdb(),
+        check_real_data(root, access),
+        check_spill(root),
+        check_real_instance(info),
+        check_real_profiles(access),
     ]

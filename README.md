@@ -33,7 +33,7 @@ Synthetic transactions are not real money laundering: every planted scenario is 
 
 ## Quickstart
 
-Coming in Phase 1.
+With Docker, uv and Node.js 24 installed, `make setup` and then `make demo-mini` start the synthetic demo on your machine and print the addresses of the UI, the API and Neo4j Browser. Requirements, what you see and troubleshooting: [docs/quickstart.md](docs/quickstart.md).
 
 ## How we build
 

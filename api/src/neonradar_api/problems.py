@@ -15,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
+from neonradar_api.files import RepoRootNotFound
 from neonradar_api.graph import GraphUnavailable
 from neonradar_contracts.api import Problem
 
@@ -109,6 +110,13 @@ def install(app: FastAPI) -> None:
     async def on_unavailable(request: Request, error: GraphUnavailable) -> JSONResponse:
         logger.warning("Neo4j unavailable for %s %s: %s", request.method, request.url.path, error)
         return problem_response(request, 503, "The graph database is not available.")
+
+    @app.exception_handler(RepoRootNotFound)
+    async def on_no_repo(request: Request, error: RepoRootNotFound) -> JSONResponse:
+        logger.error("repository files not found for %s %s", request.method, request.url.path)
+        return problem_response(
+            request, 500, "The repository files were not found: set NR_REPO_ROOT."
+        )
 
     @app.exception_handler(Exception)
     async def on_error(request: Request, error: Exception) -> JSONResponse:

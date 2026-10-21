@@ -53,11 +53,13 @@ class Check:
 
 # Neo4j runs only in the Compose stack, so another program on its ports blocks `make up`. The API
 # and the UI dev server may also run as plain processes (`make demo-dev`), which doctor cannot tell
-# apart from other programs, so a busy port there is only a warning.
+# apart from other programs, and the demo UI (`make demo-mini`) can move to another port
+# (NR_UI_PORT), so a busy port there is only a warning.
 PORTS = {
     7474: ("Neo4j Browser", Status.FAIL),
     7687: ("Neo4j Bolt", Status.FAIL),
     8000: ("the API", Status.WARN),
+    8080: ("the demo UI", Status.WARN),
     5173: ("the UI dev server", Status.WARN),
 }
 

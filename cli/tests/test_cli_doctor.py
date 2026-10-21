@@ -80,6 +80,9 @@ def test_ports(monkeypatch: pytest.MonkeyPatch) -> None:
     assert doctor.check_port(5173, set()).detail == "free"
     assert doctor.check_port(7687, set()).status is Status.FAIL
     assert doctor.check_port(8000, set()).status is Status.WARN
+    assert doctor.check_port(8080, set()) == doctor.Check(
+        "port 8080", Status.WARN, "in use by another program; the demo UI needs it"
+    )
 
 
 def test_stack_ports_reads_docker_ps(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -127,7 +130,7 @@ def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
     checks = doctor.run_checks(tmp_path)
     names = [check.name for check in checks]
-    ports = ["port 7474", "port 7687", "port 8000", "port 5173"]
+    ports = ["port 7474", "port 7687", "port 8000", "port 8080", "port 5173"]
     phase_2 = ["disk space", "DuckDB", "real data", "DuckDB spill", "neo4j-real", "real profiles"]
     assert names == [
         "Python", "uv", "Docker", "Compose", ".env", *ports, "Docker memory", "ICU", *phase_2

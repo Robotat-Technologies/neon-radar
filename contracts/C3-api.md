@@ -3,7 +3,7 @@
 The HTTP interface through which the UI and, from Phase 4, the copilot read the NeonRadar graph. One FastAPI service serves it; it reads the graph (C2) and the alerts (C4) from Neo4j, and the dataset registry, disclaimers, typology catalog and bibliography from files in the repository.
 
 - Status: version 1.0.0, **not frozen yet**. The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0` (`docs/build/PHASE-1.md` sections 5.0 and 8). After that, changes need an approved contract-change issue.
-- Code: `neonradar_contracts.api` (every model), `neonradar_api.main.create_app` (the app and its routes), `neonradar_api.problems` (problem details), `neonradar_api.graph` (the read-only connection), `neonradar_api.health`.
+- Code: `neonradar_contracts.api` (every model), `neonradar_api.main.create_app` (the app and its routes), `neonradar_api.problems` (problem details), `neonradar_api.graph` (the read-only connection), `neonradar_api.health`, and since M1.9c `neonradar_api.entities` (search, entity, network), `neonradar_api.alerts` (queue and detail), `neonradar_api.reference` (meta, typologies), `neonradar_api.shapes` (C2 to C3 shapes), `neonradar_api.files` (the repository files under `NR_REPO_ROOT`) and `neonradar_api.docs_page` (`GET /docs`).
 - OpenAPI: `contracts/openapi/v1.json`, the running app's document, written by `neonradar contracts export` (`make contracts`). `neonradar contracts check` (part of `make contracts-check`) and `api/tests/test_openapi_contract.py` fail when the app and the file differ.
 - Command: `uv run neonradar api serve [--port 8000]` (always `127.0.0.1`).
 - Examples: `contracts/examples/c3/` (synthetic: `subgraph.json`, `entity-detail.json`, `problem-501.json`).
@@ -15,7 +15,8 @@ The HTTP interface through which the UI and, from Phase 4, the copilot read the 
 - Bound to `127.0.0.1` only (`neonradar api serve` has no host option). Inside the Compose container (M1.9e) it listens on all interfaces and Compose publishes it on `127.0.0.1`.
 - CORS allows exactly `http://localhost:5173` (the Vite dev server), for `GET` and `POST` with a `content-type` header, without credentials.
 - Read-only. Every query runs as a parameterised READ transaction (`routing_=RoutingControl.READ`); Neo4j refuses writes inside READ transactions.
-- Nothing phones home (guardrail G3). FastAPI 0.143's native OpenTelemetry is switched off, including its auto-configuration from `FASTAPI_OTEL_AUTO_CONFIGURE` and `OTEL_EXPORTER_OTLP_*`, and no OpenTelemetry SDK or exporter is installed. FastAPI's `/docs` and `/redoc` pages are not served, because they load Swagger UI and ReDoc from a CDN and a favicon from fastapi.tiangolo.com; M1.9c adds an offline documentation page.
+- Nothing phones home (guardrail G3). FastAPI 0.143's native OpenTelemetry is switched off, including its auto-configuration from `FASTAPI_OTEL_AUTO_CONFIGURE` and `OTEL_EXPORTER_OTLP_*`, and no OpenTelemetry SDK or exporter is installed. FastAPI's `/docs` and `/redoc` pages are not served, because they load Swagger UI and ReDoc from a CDN and a favicon from fastapi.tiangolo.com. Instead, `GET /docs` (outside `/api/v1`, and not in the OpenAPI document or its snapshot) serves an offline page (M1.9c): one HTML document with its own style and script, allowed by their SHA-256 in a Content-Security-Policy that lets it reach only this server.
+- Files: the typology routes read `detect/typologies/`, `docs/typologies/` and `docs/sources/bibliography.yaml` under `NR_REPO_ROOT` (an environment variable; default: the nearest directory above the working directory whose `pyproject.toml` has a `[tool.uv.workspace]` table; M1.9e's image sets `/app`). When it names no such checkout, they answer a `500` problem that says to set it. `GET /meta` reads the dataset registry and the disclaimers from the contracts package (`load_registry()`, `load_disclaimer()`), so it never depends on `NR_REPO_ROOT`.
 
 ## Endpoints
 
@@ -98,8 +99,8 @@ An "entity" in C3 is any node with a C2 record id: an `:Entity` node or a `:Sanc
 | Model | Fields | Source and rule |
 |---|---|---|
 | `EntitySummary` | `id`, `schema`, `caption`, `labels`, `flags`, `countries`, `datasets` | C2 common properties; `labels` as in `GraphNode`; `datasets` holds at least one slug |
-| `SearchHit` | `entity`, `score` (at least 0), `matched_name` | `score` is the full-text relevance and orders the hits of one response only; it is not comparable across queries and is never a risk measure. `matched_name` is the value from `names` that matched, or the account number for an `Account` match |
-| `SearchResponse` | `query`, `items`, `total_estimate` | `total_estimate` is at least `len(items)` |
+| `SearchHit` | `entity`, `score` (at least 0), `matched_name` | `score` is the full-text relevance and orders the hits of one response only; it is not comparable across queries and is never a risk measure. `matched_name` is the value from `names` that matched, or the account number for an `Account` match. An exact account-number hit is listed first and carries the response's top full-text score (1.0 when there is none) |
+| `SearchResponse` | `query`, `items`, `total_estimate` | `total_estimate` is at least `len(items)`: the hits that pass the label filter within the first 200 full-text hits, plus the exact account-number matches. It is a lower bound: 200 or more full-text hits may mean more matches |
 | `ProvenanceRecord` | `dataset`, `record_id`, `retrieved_at`, `source_url` | One per entry of the node's `referents` (Phase 1: the node's own id). `dataset` is the node's dataset (C1 R2: exactly one per record), `source_url` the C2 `source_url` or null, `retrieved_at` null in v1 |
 | `EntityDetail` | `entity`, `names`, `properties`, `identifiers`, `provenance`, `relationship_counts`, `alerts` | See below |
 | `PathRef` | `node_ids`, `edge_ids`, `effective_share_min`, `effective_share_max` | A path as C2 ids: `node_ids` start at `root_id` (ownership) or `from_id` (paths), and `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`, so there is one edge fewer than nodes. The effective share (0 to 100, min not above max) is the product of the `OWNS` share bands along an ownership path, null when a hop has no band (Phase 2) |
@@ -117,7 +118,7 @@ An "entity" in C3 is any node with a C2 record id: an `:Entity` node or a `:Sanc
 
 `GET /entities/{entity_id}` accepts a canonical id or any id in `referents` (Phase 2 finds record ids through `:SourceRecord` and `RESOLVED_TO`).
 
-`GET /entities/{entity_id}/network` returns the node and its neighbours up to `depth` hops over the requested relationship types, in either direction, keeping only `:Entity` and `:Sanction` nodes and the relationships between the nodes it keeps, with at most `max_nodes` nodes and `2 × max_nodes` edges (`truncated` says when a cap cut it).
+`GET /entities/{entity_id}/network` returns the node and its neighbours up to `depth` hops over the requested relationship types, in either direction, keeping only `:Entity` and `:Sanction` nodes and the relationships of the requested types between the nodes it keeps, with at most `max_nodes` nodes and `2 × max_nodes` edges (`truncated` says when a cap cut it).
 
 ### Alerts
 
@@ -127,7 +128,7 @@ An "entity" in C3 is any node with a C2 record id: an `:Entity` node or a `:Sanc
 | `AlertPage` | `items`, `next_cursor` | See pagination below |
 | `AlertDetail` | `alert`, `evidence` | `alert` is the complete C4 `Alert`, parsed and validated from the `payload` property. `evidence` is a `Subgraph` holding every node of `alert.evidence.node_ids` and `alert.subjects`, every relationship of `alert.evidence.edge_ids`, and the `HOLDS_ACCOUNT` relationships between those nodes, so a holder that is a subject but not an evidence node is still connected. `evidence` is never truncated (`truncated` false; its `limits` are at least its sizes). The model checks both, and that every evidence id and subject is present |
 
-A stored payload that no longer validates as C4 (for example an alert written under a newer C4 version, or edited by hand) is answered with a `500` problem whose detail says the stored alert does not validate and to re-run detection (`neonradar detect run`); the API never serves an alert it cannot validate.
+A stored payload that no longer validates as C4 (for example an alert written under a newer C4 version, or edited by hand), or whose evidence is no longer in the graph, is answered with a `500` problem whose detail says what is wrong and to wipe and reload the data, then re-run detection (`neonradar detect run`; a new run does not remove the alerts of earlier runs); the API never serves an alert it cannot validate.
 
 The API adds no wording to an alert: the UI shows the standing disclaimer from `MetaResponse.disclaimers` (the alert names `standing-v1`), and words the alert from `involves_real_entities` and `synthetic_activity` as C4 describes.
 
@@ -182,7 +183,7 @@ Every error is an RFC 9457 problem (`application/problem+json`), the `Problem` m
 | 404 | An unknown route, or an id that matches nothing |
 | 405 | A method the route does not have (with an `Allow` header) |
 | 422 | A parameter, path or body that breaks a rule above, or a bad cursor |
-| 500 | An unexpected error, or a stored alert that no longer validates as C4 (re-run detection); `detail` is generic or names the fix, and the API log has the details |
+| 500 | An unexpected error, a stored alert that no longer validates as C4 or whose evidence is no longer in the graph (wipe and reload, then re-run detection), or typology files that cannot be found (set `NR_REPO_ROOT`); `detail` is generic or names the fix, and the API log has the details |
 | 501 | A route not implemented yet |
 | 503 | Neo4j is not configured (no `NEO4J_PASSWORD`, or a `NEO4J_URI` the driver cannot use), not reachable, refuses the credentials, or has no database named `NEO4J_DATABASE`; `detail` never shows the driver's message |
 

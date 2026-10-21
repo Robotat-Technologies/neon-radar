@@ -12,7 +12,7 @@ import pytest
 
 from neonradar_detect import runner
 from neonradar_detect.alerts import Finding
-from neonradar_detect.catalog import TypologyFile
+from neonradar_detect.catalog import CatalogError, TypologyFile
 from neonradar_detect.detectors import circular_flow
 from neonradar_detect.detectors.circular_flow import finding, query, resolve_parameters
 
@@ -176,7 +176,13 @@ def test_selection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "run_id", ["run-1", "../run-20261021T101500-7f3a", "run-20261021T101500-7F3A"]
+    "run_id",
+    [
+        "run-1",
+        "../run-20261021T101500-7f3a",
+        "run-20261021T101500-7F3A",
+        "run-\u0662\u0660\u0662\u0666\u0661\u0660\u0662\u0661T101500-7f3a",  # Arabic-Indic
+    ],
 )
 def test_a_run_id_must_have_the_c4_form(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, run_id: str
@@ -190,3 +196,27 @@ def test_a_run_id_must_have_the_c4_form(
 def test_the_registry_holds_the_real_detector() -> None:
     assert runner.DETECTORS[circular_flow.NAME] is circular_flow
     assert CIRCULAR_FLOW.detector == circular_flow.NAME
+
+
+def test_an_unreadable_catalog_is_a_run_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def broken() -> dict[str, TypologyFile]:
+        raise CatalogError("circular_flow.yaml: not valid")
+
+    monkeypatch.setattr(runner, "load_catalog", broken)
+    with pytest.raises(runner.RunError, match="cannot read the typology catalog"):
+        runner.run(FakeDriver(), "neo4j", runs_dir=tmp_path)  # type: ignore[arg-type]
+
+
+def test_an_unwritable_runs_folder_fails_the_run_cleanly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    use_detector(monkeypatch, findings("A"))
+    blocked = tmp_path / "runs"
+    blocked.write_text("a file, not a folder", encoding="utf-8")
+    driver = FakeDriver()
+    with pytest.raises(runner.RunError, match="failed"):
+        run(blocked, driver, run_id="run-20261021T101500-0004")
+    [(cypher, params), *_] = driver.calls  # the failed run still reaches Neo4j
+    assert (cypher, params["run"]["status"]) == (runner.MERGE_RUN, "failed")

@@ -17,18 +17,23 @@ def run_command(
     ] = None,
     run_id: Annotated[
         str | None,
-        typer.Option("--run-id", help="Run id, run-<UTC yyyymmddThhmmss>-<4 hex> [default: new]."),
+        typer.Option(
+            "--run-id",
+            help="Run id, run-<UTC yyyymmddThhmmss>-<4 hex> [default: a new one]. Given again,"
+            " the run replaces that run's files and keeps in Neo4j only the alerts it finds now"
+            " (PRODUCED from earlier attempts and alerts no run produces any more are removed).",
+        ),
     ] = None,
     timeout: Timeout = 30,
 ) -> None:
     """Run the detectors, write data/runs/<run_id>/ and load the alerts into Neo4j."""
-    from neonradar_detect import runner
+    from neonradar_detect import catalog, runner
 
     settings = _settings()
     with _connected(settings, timeout) as driver:
         try:
             report = runner.run(driver, settings.database, typology=typology, run_id=run_id)
-        except runner.RunError as error:
+        except (runner.RunError, catalog.CatalogError, OSError) as error:
             typer.echo(f"FAIL  {error}")
             raise typer.Exit(code=1) from None
     typer.echo(f"{report.run_id}  {len(report.alerts)} alerts  ({', '.join(report.typologies)})")

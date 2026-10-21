@@ -6,7 +6,7 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 ## What it is
 
-A pass-through account receives money and sends it on almost at once. Little money stays in it, so it works like a pipe rather than a place to keep money [fatf_egmont_tbml_indicators_2021]. The sources describe several versions of this shape.
+A pass-through account receives money and sends it on almost at once, with "little time elapsing between the deposits and withdrawals" [fincen_fin_2014_a005]. When the account belongs to a company, its transactions "appear to flow through the company in a short period of time with little other perceived purpose" [fatf_egmont_concealment_2018]. In NeonRadar's words, the account works like a pipe rather than a place to keep money: little stays in it. The sources describe several versions of this shape.
 
 - **Funnel accounts.** FinCEN describes a funnel account as "An individual or business account in one geographic area that receives multiple cash deposits", "often in amounts below the cash reporting threshold"; the funds are then withdrawn in a different geographic area, with "little time elapsing between the deposits and withdrawals" [fincen_fin_2014_a005].
 - **Pay-through or transit accounts.** The trade-based money laundering indicators of the FATF and the Egmont Group list an account of a trade entity that "appears to be a 'pay-through' or 'transit' account", with funds moving through it quickly and little balance left at the end of the day [fatf_egmont_tbml_indicators_2021].
@@ -39,7 +39,7 @@ What the graph cannot show: a payment carries no place, so "deposited in one reg
 ## Red flags the sources list
 
 - "Almost immediately, all or most of the transfers or deposits are wired to another city or country" [ffiec_appendix_f].
-- "Multiple accounts are used to collect and funnel funds to a small number of foreign beneficiaries" [ffiec_appendix_f].
+- A related red flag: "Multiple accounts are used to collect and funnel funds to a small number of foreign beneficiaries" [ffiec_appendix_f].
 - Deposits made "in a different geographic region from where the business operates" [fincen_fin_2014_a005].
 - Debits that "do not appear to be related to the stated business activity of the account holder" [fincen_fin_2014_a005].
 - Cheques "pre-signed but the payee and amount lines have been left blank" [fincen_fin_2014_a005].

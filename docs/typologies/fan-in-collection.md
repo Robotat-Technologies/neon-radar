@@ -6,7 +6,7 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 ## What it is
 
-In a fan-in, many people who do not know each other send money to one account. That collection account gathers the money and then passes it on or withdraws it as cash. The FFIEC lists the shape as a red flag: "Multiple accounts are used to collect and funnel funds to a small number of foreign beneficiaries" [ffiec_appendix_f].
+In NeonRadar's catalog (project definition), a fan-in is many people who do not know each other sending money to one account, which then passes it on or withdraws it as cash. The FFIEC lists a related red flag: "Multiple accounts are used to collect and funnel funds to a small number of foreign beneficiaries" [ffiec_appendix_f].
 
 The FATF lists money mule networks among the services that professional money launderers offer [fatf_pml_2018]. Europol defines a mule: "A money mule is a person who receives money from a third party in their bank account and transfers it to another one" [europol_money_muling]. Not every mule knows what they are part of: the FATF says money mules "may be knowingly complicit in the laundering of funds or work unwittingly, or negligently" [fatf_pml_2018], and FinCEN describes them as people "used, wittingly or unwittingly, to transfer value" [fincen_fin_2025_a003]. The FATF also notes that mule accounts "serve as the initial layering stage in the laundering process" [fatf_pml_2018].
 
@@ -42,7 +42,7 @@ What the graph cannot show: occupations, devices and contact details. C2 stores 
 
 ## Red flags the sources list
 
-- A customer who gives their occupation at onboarding as student, retiree or housewife, yet "regularly deposits large volumes of cash or cashier's checks" or "receives numerous transfers or deposits, and has a significant number of withdrawals or transfers" [fincen_fin_2025_a003].
+- A customer who gives an occupation at onboarding such as student, retiree or housewife, yet "regularly deposits large volumes of cash or cashier's checks" or "receives numerous transfers or deposits, and has a significant number of withdrawals or transfers" [fincen_fin_2025_a003].
 - Accounts "opened by a single individual at three or more financial institutions within 20 days", a profile used by the Spanish financial intelligence unit [fatf_cyber_fraud_2023].
 - Account holders who "only allow their accounts to be used for a specific and limited period of time" [fatf_cyber_fraud_2023].
 - The same device identifiers and foreign contact details shared across accounts [fatf_cyber_fraud_2023].

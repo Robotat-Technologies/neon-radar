@@ -8,7 +8,7 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 Money laundering is often described in three stages: placement, layering and integration [fatf_faq] (see the [glossary](../glossary.md)). Layering is the middle stage, in which the funds go through "a series of conversions or movements of the funds to distance them from their source" [fatf_faq]. Europol uses the same three stages and calls them "a simplified representation of a more complex reality" [europol_efecta_2023].
 
-A layering chain is NeonRadar's simplest picture of that stage: money passes from account to account, each held by a different company or person, until the link to where it started is hard to follow. The FATF describes "proxy networks" run by professional money launderers that "consist of multiple layers of shell companies in different jurisdictions" [fatf_pml_2018]. In those networks, "The funds from different clients are mixed within the same accounts", and "Bank accounts are chosen to make the activity appear legitimate, and to avoid suspicious transactions reporting" [fatf_pml_2018].
+A layering chain is NeonRadar's simplest picture of that stage: money passes from account to account, each held by a different company or person, until the link to where it started is hard to follow. The FATF describes "proxy networks" run by professional money launderers that "consist of multiple layers of shell companies in different jurisdictions" [fatf_pml_2018]. In those networks, "The funds from different clients are mixed within the same accounts" [fatf_pml_2018]. The report also notes that "Bank accounts are chosen to make the activity appear legitimate, and to avoid suspicious transactions reporting" [fatf_pml_2018].
 
 Europol reports that "Multiple layers of shell companies set up in various jurisdictions, sometimes offshore" are "regularly used for money laundering" [europol_efecta_2023]. The FATF and Egmont Group found that more than half of the case studies they analysed "made use of complicated ownership structures", and that more companies and more countries make timely identification harder [fatf_egmont_concealment_2018].
 
@@ -34,9 +34,9 @@ flowchart LR
   E -- "48,200" --> F
 ```
 
-The last point is what makes a chain stand out from ordinary commerce. Other typologies in the catalog describe those shared links: `mass_registration_address`, `formation_agent_cluster`, `recycled_directors` and `shell_chain`.
+NeonRadar assumes that the last point is what sets a chain apart from ordinary commerce (project assumption). Typologies planned for the catalog (PHASE-1.md 7.2) describe those shared links: `mass_registration_address`, `formation_agent_cluster`, `recycled_directors` and `shell_chain`.
 
-What the graph cannot show: the information that travels with a real payment. The Wolfsberg Group's payment transparency standards expect originator and beneficiary information to travel with a payment along the chain, with the "entity initiating the payment flow" carrying "the primary obligation to ensure transparency" [wolfsberg_payment_transparency_2023]. NeonRadar's `PAID` relationship keeps only the two accounts, the amount, the currency, the time, the channel and an optional purpose.
+What the graph cannot show: the information that travels with a real payment. The Wolfsberg Group's payment transparency standards expect originator and beneficiary information to travel with a payment along the chain, with the "entity initiating the payment flow" carrying "the primary obligation to ensure transparency" [wolfsberg_payment_transparency_2023]. NeonRadar's `PAID` relationship keeps no originator or beneficiary details: only the two accounts, the amount, the currency, the time, the channel and an optional purpose.
 
 ## Red flags the sources list
 

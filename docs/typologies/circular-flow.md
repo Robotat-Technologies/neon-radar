@@ -6,11 +6,11 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 ## What it is
 
-Round-tripping means that money leaves an account, passes through one or more other accounts, and comes back to where it started, or to a party under the same control. The trade-based money laundering indicators of the FATF and the Egmont Group put it in one line: "Payments are routed in a circle" [fatf_egmont_tbml_indicators_2021]. In the trade setting they describe, the funds leave a country and come back to it after passing through other jurisdictions [fatf_egmont_tbml_indicators_2021].
+NeonRadar's `circular_flow` typology covers money that leaves an account, passes through one or more other accounts and comes back to where it started, or to a party under the same control (project definition; see Open questions). In the sources, round-tripping means that payments are routed in a circle so that funds return to their origin [fatf_egmont_tbml_indicators_2021]. The trade-based money laundering indicators of the FATF and the Egmont Group put it in one line: "Payments are routed in a circle" [fatf_egmont_tbml_indicators_2021]. In the trade setting they describe, the funds leave a country and come back to it after passing through other jurisdictions [fatf_egmont_tbml_indicators_2021].
 
 The FATF and Egmont Group report on concealed beneficial ownership lists cyclical "round-robin" transactions, in which "outgoing funds are being returned with little loss", among its indicators: the money that comes back is almost the same amount that went out [fatf_egmont_concealment_2018].
 
-Circles also appear in the services that professional money launderers offer. The FATF describes "proxy networks" of company accounts through which clients' funds are moved, mixed and then returned, and notes that "The funds from different clients are mixed within the same accounts" [fatf_pml_2018].
+Circles also appear in the services that professional money launderers offer: the FATF describes "proxy networks" of company accounts through which clients' funds are moved, mixed and then returned, and notes that "The funds from different clients are mixed within the same accounts" [fatf_pml_2018].
 
 ## How it looks in the graph
 
@@ -25,7 +25,7 @@ The pattern is a directed cycle of `PAID` relationships that starts and ends at 
 ```mermaid
 flowchart LR
   A["Account A (origin)"] -- "1: sends 120,000" --> B["Account B"]
-  B -- "2: sends 118,000" --> C["Account C"]
+  B -- "2: sends 118,800" --> C["Account C"]
   C -- "3: sends 117,000" --> D["Account D"]
   D -- "4: returns 115,200" --> A
 ```
@@ -40,7 +40,6 @@ What the graph cannot show: why each payment was made. A `PAID` relationship can
 - Cyclical "round-robin" transactions in which "outgoing funds are being returned with little loss" [fatf_egmont_concealment_2018].
 - Funds that move from one bank to another and are then moved back to the first bank [ffiec_appendix_f].
 - When the circle is presented as trade: "A trade entity consistently displays unreasonably low profit margins", or its prices do not seem to be in line with commercial considerations [fatf_egmont_tbml_indicators_2021]. NeonRadar's graph holds no prices or margins, so these two cannot be checked here.
-- Funds from different clients mixed in the same accounts before they are returned, in the proxy networks of professional money launderers [fatf_pml_2018].
 
 A red flag is a reason to look closer, not evidence. The FFIEC says its red flags "are not all-inclusive" and warns that a red flag alone does not prove criminal activity [ffiec_appendix_f].
 
@@ -75,8 +74,10 @@ These come from the definition file. They are starting points for the typology r
 ## Open questions
 
 - The research note describes round trips as often presented as investment, loan or trade payments, so that the returning money looks like revenue or foreign investment. The quoted source passages support only the trade presentation, so the investment and loan framing is left out until a source passage is found.
+- The definition at the top of this page (a return to the originating account or to a party under the same control) is NeonRadar's project definition from PHASE-1.md 5.4. The sources quoted here describe payments routed in a circle and funds returned with little loss; the typology researcher confirms that the definition matches them.
+- Confirm against the indicator list that the FATF and Egmont Group indicator itself describes funds leaving a country and returning to it (the sentence above follows the research note's reading of it).
 - The research note says that public transaction generators emit a "simple cycle" pattern. Those generators have no bibliography entry, so the claim is left out.
-- For the typology researcher: confirm the parameter defaults, and decide how "a party under the same control" should be modelled in Phase 3 (accounts held by the same `:LegalEntity`, or also by companies with the same owner).
+- For the typology researcher: confirm the parameter defaults, and decide how "a party under the same control" should be modelled in Phase 3 (accounts held by the same `:LegalEntity`, or also by companies with the same owner), and whether foreign exchange hedging legs (in the PHASE-1.md 7.2 look-alike list and on this page) should join the definition file's `false_positives`, which keep the 5.4 text for now.
 
 ## Sources
 

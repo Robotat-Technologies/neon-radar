@@ -6,9 +6,9 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 ## What it is
 
-Structuring means splitting cash transactions into amounts below a reporting threshold to evade reporting requirements [cfr_31_1010_314] [ffiec_appendix_g]. In United States law, nobody may structure a transaction with a financial institution "for the purpose of evading the transactions in currency reporting requirements"; the same rule also covers helping someone else to structure, or trying to [cfr_31_1010_314].
+Structuring means splitting cash transactions into amounts below a reporting threshold to evade reporting requirements [cfr_31_1010_314] [ffiec_appendix_g]. In United States law, nobody may structure a transaction with one or more domestic financial institutions "for the purpose of evading the transactions in currency reporting requirements"; the same rule also covers helping someone else to structure, or trying to [cfr_31_1010_314].
 
-A person can structure alone or together with, or on behalf of, other people, and structuring can happen before the cash ever reaches the bank [ffiec_appendix_g]. When teams do it, it is called smurfing: FinCEN describes "smurfs" as "teams of persons" who structure financial transactions, acting with or on behalf of other persons [fincen_fin_2025_a003]. Europol describes smurfing as splitting proceeds "into smaller sums" to avoid reporting [europol_efecta_2023].
+A person can structure alone or together with, or on behalf of, other people, and structuring can happen before the cash ever reaches the bank [ffiec_appendix_g]. FinCEN describes "smurfs" as "teams of persons" who structure financial transactions, acting with or on behalf of other persons [fincen_fin_2025_a003]; Europol describes smurfing as splitting proceeds "into smaller sums" to avoid reporting [europol_efecta_2023].
 
 The FATF's report on professional money laundering describes the same technique: deposits "in amounts under the reporting threshold to avoid detection", and cash controllers who deposit cash "in amounts below reporting thresholds" [fatf_pml_2018]. FinCEN's funnel account advisory describes cash deposits "often in amounts below the cash reporting threshold" and lists deposits "of less than $10,000" by unidentified persons as a red flag [fincen_fin_2014_a005].
 
@@ -63,14 +63,15 @@ The risk lies the other way. If every deposit just below the threshold in the sy
 
 ## Starting parameters
 
-None in the definition file yet. PHASE-1.md 7.2 suggests a starting point for the typology researcher, not a fact from the sources: a threshold of 10,000 with a 10 percent band, so deposits from 9,000 up to just under 10,000 count, after the US threshold that FinCEN's funnel account advisory refers to [fincen_fin_2014_a005]. A detector would also need a time window, a minimum number of deposits and a daily total.
+None in the definition file yet. PHASE-1.md 7.2 suggests a starting point for the typology researcher, not a fact from the sources: a threshold of 10,000 with a 10 percent band, so deposits from 9,000 up to just under 10,000 count, after the $10,000 figure in FinCEN's funnel account red flag [fincen_fin_2014_a005]. A detector would also need a time window, a minimum number of deposits and a daily total.
 
 ## Open questions
 
 - The research note gives the US currency reporting threshold as USD 10,000. The bibliography has no source for the reporting rule itself (only the structuring rule and FinCEN's advisory, which refers to deposits "of less than $10,000"), so this page does not state the threshold as law.
+- The first sentence of this page simplifies the US definition: under FFIEC Appendix G, structuring can involve any amount, done in any manner, not only amounts just below the threshold. Check the wording against Appendix G in a browser (bsaaml.ffiec.gov blocks automated access) before the definition is approved.
 - The research note adds that structuring can aim to stay below a bank's own monitoring thresholds. No quoted source passage supports this, so it is left out.
 - The research note says that public transaction generators model cash placement. Those generators have no bibliography entry, so the claim is left out.
-- For the typology researcher: which currency and which threshold the synthetic data should use (the examples use EUR; the threshold in the sources is in US dollars), and whether a daily total above the threshold is required or only strengthens a match.
+- For the typology researcher: which currency and which threshold the synthetic data should use (the C1 and C4 contract examples use EUR; the threshold in the sources is in US dollars), and whether a daily total above the threshold is required or only strengthens a match.
 
 ## Sources
 

@@ -4,4 +4,10 @@
 
 One definition file per typology in `detect/typologies/` (the shape is in `contracts/C4-alert.md`) and a plain-language explainer for each in this folder. Every definition starts as `draft`; only a typology researcher sets it to `approved`.
 
-No typology files yet.
+| Slug | Name | Tier | Status | Owner | Detector |
+|---|---|---|---|---|---|
+| [`dormant_reactivation`](dormant-reactivation.md) | Dormant account reactivation followed by high velocity | core | draft | @robotat-com | no |
+| [`fan_out_distribution`](fan-out-distribution.md) | Fan-out distribution from one account | core | draft | @robotat-com | no |
+| [`formation_agent_cluster`](formation-agent-cluster.md) | Companies clustered around one formation agent | extended | draft | @robotat-com | no |
+| [`mass_registration_address`](mass-registration-address.md) | Mass registration addresses | core | draft | @robotat-com | no |
+| [`shell_chain`](shell-chain.md) | Layered company ownership with nominee directors | core | draft | @robotat-com | no |

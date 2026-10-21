@@ -4,4 +4,10 @@
 
 One definition file per typology in `detect/typologies/` (the shape is in `contracts/C4-alert.md`) and a plain-language explainer for each in this folder. Every definition starts as `draft`; only a typology researcher sets it to `approved`.
 
-No typology files yet.
+| Slug | Name | Tier | Status | Owner | Detector |
+|---|---|---|---|---|---|
+| [`circular_flow`](circular-flow.md) | Round-tripping or circular flows | core | draft | @robotat-com | no |
+| [`fan_in_collection`](fan-in-collection.md) | Fan-in to a collection account | core | draft | @robotat-com | no |
+| [`layering_chain`](layering-chain.md) | Layering through chains of transfers | core | draft | @robotat-com | no |
+| [`rapid_pass_through`](rapid-pass-through.md) | Rapid pass-through (funnel or transit accounts) | core | draft | @robotat-com | no |
+| [`structuring`](structuring.md) | Structuring (smurfing) below reporting thresholds | core | draft | @robotat-com | no |

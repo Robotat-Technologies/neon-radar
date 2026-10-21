@@ -1,6 +1,8 @@
 # Mass registration addresses
 
-> **Draft.** An AI agent wrote this explainer from the sources listed at the end; a person has not yet checked it against them. Typology file: [`detect/typologies/mass_registration_address.yaml`](../../detect/typologies/mass_registration_address.yaml) (slug `mass_registration_address`, tier `core`, status `draft`). A pattern match is not evidence of money laundering or of any other wrongdoing; see [wording](../wording.md).
+> **Draft.** Slug `mass_registration_address`, version 0.1.0, tier `core`, synthetic support `high`. Definition file: [`detect/typologies/mass_registration_address.yaml`](../../detect/typologies/mass_registration_address.yaml). A typology researcher checks this page against its sources before the definition is approved.
+
+A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
 This explainer names no real address, agent or firm, and none should be added. Many lawful businesses exist to give companies a registered address. In entity-facing text, NeonRadar says only what the data shows, for example "shares a registered address with 14 other companies" ([wording](../wording.md)).
 
@@ -36,9 +38,7 @@ Two practical limits:
 - **Address matching.** A cluster is only as good as the address matching behind it. In Phase 1, NeonRadar does not yet compute the normalised `address_key` (Phase 2 adds it, C2 graph schema), so the same building written two ways counts as two addresses, and a normalisation mistake can merge different buildings.
 - **Type of premises.** The sources stress an address that does not fit the company, such as a residential building or a post box (see the red flags). C2 has no property for the type of premises, so a detector can count companies at an address but cannot yet compare that count with what the premises could plausibly hold.
 
-The threshold for "many" is a project choice that the typology researcher sets, not a figure from the sources.
-
-## Red flags from the sources
+## Red flags the sources list
 
 From the FATF and Egmont Group indicators [fatf_egmont_concealment_2018] (Annex E; the list "is not exhaustive"):
 
@@ -68,6 +68,10 @@ Most shell companies are formed for legitimate purposes [fincen_fin_2006_g014], 
 Yes, with a caveat. Synthetic support is `high`. Counting companies at an address is easy to generate and to detect. The caveat: the generator must include legitimate mass registration addresses, such as synthetic service providers with many ordinary client companies, at a realistic frequency. Otherwise a detector learns that "registered agent" means "finding", which is false and would be unfair to real firms if the project ever overlays registry data.
 
 Planted scenarios use only synthetic addresses and companies (ids that start with `syn-`). A real address from a registry never receives a scenario role (guardrail G1 in [PHASE-1.md](../build/PHASE-1.md) section 2.1); on real data, NeonRadar can only say how many companies list an address.
+
+## Starting parameters
+
+None in the definition file yet, and PHASE-1.md 7.2 gives no default value. A detector would need at least the smallest number of companies registered at one address and, for the stronger version, the smallest number of payments among them and a time window. The typology researcher sets the starting values; they are project choices, not facts from the sources.
 
 ## Open questions
 

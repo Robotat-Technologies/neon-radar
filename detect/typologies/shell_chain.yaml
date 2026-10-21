@@ -1,9 +1,9 @@
 slug: shell_chain
 name: Layered company ownership with nominee directors
 version: 0.1.0
-status: draft                 # only a typology researcher sets approved
-tier: core
-owner: "@robotat-com"
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
   Layers of companies with few or no operations own one another, often across jurisdictions,
@@ -35,6 +35,6 @@ false_positives:
   - Joint ventures
   - Start-ups that have not begun trading
   - Professional directors in fund jurisdictions
-synthetic_support: medium
+synthetic_support: medium     # high | medium | low | none
 generator_scenario: null
-detector: null
+detector: null                # null until implemented

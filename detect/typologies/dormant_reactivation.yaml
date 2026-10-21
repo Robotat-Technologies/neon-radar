@@ -1,9 +1,9 @@
 slug: dormant_reactivation
 name: Dormant account reactivation followed by high velocity
 version: 0.1.0
-status: draft                 # only a typology researcher sets approved
-tier: core
-owner: "@robotat-com"
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
   An account or company that was inactive for a long time suddenly receives and sends large
@@ -32,6 +32,6 @@ false_positives:
   - Inheritances and property sale proceeds
   - A dormant company restarted by new owners, and other genuine acquisitions
   - Student accounts reactivated at the start of term
-synthetic_support: high
+synthetic_support: high       # high | medium | low | none
 generator_scenario: null
-detector: null
+detector: null                # null until implemented

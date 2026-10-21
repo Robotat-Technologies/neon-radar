@@ -1,6 +1,8 @@
 # Fan-out distribution from one account
 
-> **Draft.** An AI agent wrote this explainer from the sources listed at the end; a person has not yet checked it against them. Typology file: [`detect/typologies/fan_out_distribution.yaml`](../../detect/typologies/fan_out_distribution.yaml) (slug `fan_out_distribution`, tier `core`, status `draft`). A pattern match is not evidence of money laundering or of any other wrongdoing; see [wording](../wording.md).
+> **Draft.** Slug `fan_out_distribution`, version 0.1.0, tier `core`, synthetic support `high`. Definition file: [`detect/typologies/fan_out_distribution.yaml`](../../detect/typologies/fan_out_distribution.yaml). A typology researcher checks this page against its sources before the definition is approved.
+
+A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
 ## What it is
 
@@ -27,14 +29,12 @@ flowchart LR
   S -->|PAID| R2["Recipient account 2"]
   S -->|PAID| R3["Recipient account 3"]
   S -->|PAID| RN["Recipient account n"]
-  R1 -->|PAID, cash_withdrawal| C["Branch cash ledger account"]
-  R2 -->|PAID, cash_withdrawal| C
+  R1 -->|"PAID, cash_withdrawal"| C["Branch cash ledger account"]
+  R2 -->|"PAID, cash_withdrawal"| C
   R3 -->|PAID| L2["Second-layer account"]
 ```
 
-A detector will need parameters that the typology researcher sets: the smallest number of distinct recipients, the length of the window, how similar the amounts must be, and how long to follow the recipients afterwards. These are project choices, not figures from the sources.
-
-## Red flags from the sources
+## Red flags the sources list
 
 - "An unusually large number and variety of beneficiaries receive wire transfers from one company" [fincen_fin_2006_g014]; the FFIEC list has the same flag [ffiec_appendix_f].
 - "Payments have no stated purpose, do not reference goods or services, or identify only a contract or invoice number" [fincen_fin_2006_g014].
@@ -63,6 +63,10 @@ The shape alone cannot tell these apart from the typology. NeonRadar's generator
 Yes. Synthetic support is `high`. The shape is easy to generate: one synthetic sender, many recipients, a time window and a rule for the amounts. The hard part is honesty: the generator must also produce the look-alikes above at a realistic volume, or a detector would learn that every batch payment is a finding.
 
 Planted fan-out scenarios run only among synthetic entities (ids that start with `syn-`). Real registry entities can receive synthetic background activity, never a scenario role (guardrail G1 in [PHASE-1.md](../build/PHASE-1.md) section 2.1).
+
+## Starting parameters
+
+None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A detector would need at least: the smallest number of distinct recipients, the length of the window, how similar the amounts must be, and how long to follow the recipients afterwards. The typology researcher sets the starting values; they are project choices, not facts from the sources.
 
 ## Open questions
 

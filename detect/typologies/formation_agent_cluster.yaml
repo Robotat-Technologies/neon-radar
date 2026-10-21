@@ -1,9 +1,9 @@
 slug: formation_agent_cluster
 name: Companies clustered around one formation agent
 version: 0.1.0
-status: draft                 # only a typology researcher sets approved
-tier: extended
-owner: "@robotat-com"
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: extended                # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
   Many companies formed through one formation agent, incorporated in bursts, sharing the
@@ -31,6 +31,6 @@ false_positives:
   - A corporate group setting up several subsidiaries at once through one agent
   - Ready-made companies formed in batches and kept in stock for later sale
   - Professional directors and company secretaries who hold many appointments
-synthetic_support: medium
+synthetic_support: medium     # high | medium | low | none
 generator_scenario: null
-detector: null
+detector: null                # null until implemented

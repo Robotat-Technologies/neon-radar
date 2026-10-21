@@ -1,8 +1,10 @@
 # Companies clustered around one formation agent
 
-> **Draft.** An AI agent wrote this explainer from the sources listed at the end; a person has not yet checked it against them. Typology file: [`detect/typologies/formation_agent_cluster.yaml`](../../detect/typologies/formation_agent_cluster.yaml) (slug `formation_agent_cluster`, tier `extended`, status `draft`). A pattern match is not evidence of money laundering or of any other wrongdoing; see [wording](../wording.md).
+> **Draft.** Slug `formation_agent_cluster`, version 0.1.0, tier `extended`, synthetic support `medium`. Definition file: [`detect/typologies/formation_agent_cluster.yaml`](../../detect/typologies/formation_agent_cluster.yaml). A typology researcher checks this page against its sources before the definition is approved.
 
-Company formation is a lawful business, and most companies an agent forms are ordinary. This explainer names no real formation agent, firm or address, and none should be added. A cluster around an agent describes the agent's client list, not the agent's conduct.
+A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
+
+NeonRadar starts from this position (PHASE-1.md 7.2): company formation is a lawful business, and most companies an agent forms are ordinary. This explainer names no real formation agent, firm or address, and none should be added. A cluster around an agent describes the agent's client list, not the agent's conduct.
 
 ## What it is
 
@@ -42,9 +44,9 @@ flowchart LR
   A1 -->|PAID| A2
 ```
 
-Without the payments, the graph shows only that one agent served many clients, which is what agents do. The parameters (how many companies, how tight a burst, how many shared directors) are project choices that the typology researcher sets, not figures from the sources.
+Without the payments, the graph shows only that one agent served many clients, which is what agents do.
 
-## Red flags from the sources
+## Red flags the sources list
 
 From the FATF and Egmont Group indicators of concealed beneficial ownership [fatf_egmont_concealment_2018] (Annex E; the list "is not exhaustive"):
 
@@ -75,6 +77,10 @@ The FATF and Egmont Group found TCSPs less likely to design schemes than to carr
 Partly. Synthetic support is `medium`. The generator can create synthetic agents, incorporation bursts, shared nominee directors and payments among client companies. What it cannot easily get right is the background: how many ordinary companies a real agent forms, how often its clients share directors, and how often they trade with each other. Without realistic base rates, a detector would flag every busy agent. The generator must therefore make most companies of every synthetic agent ordinary, and document its assumptions.
 
 Planted scenarios use only synthetic agents, companies and people (ids that start with `syn-`). Real agents and intermediaries, for example those in the ICIJ Offshore Leaks Database or in company registers, never receive a scenario role (guardrail G1 in [PHASE-1.md](../build/PHASE-1.md) section 2.1); on real data, NeonRadar can only show how many companies an agent is linked to.
+
+## Starting parameters
+
+None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A detector would need at least: the smallest number of companies linked to one agent, how close together incorporation dates must be to count as a burst, how many directors they must share, and the time window for payments among them. The typology researcher sets the starting values; they are project choices, not facts from the sources.
 
 ## Open questions
 

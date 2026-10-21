@@ -1,6 +1,8 @@
 # Layered company ownership with nominee directors
 
-> **Draft.** An AI agent wrote this explainer from the sources listed at the end; a person has not yet checked it against them. Typology file: [`detect/typologies/shell_chain.yaml`](../../detect/typologies/shell_chain.yaml) (slug `shell_chain`, tier `core`, status `draft`). A pattern match is not evidence of money laundering or of any other wrongdoing; see [wording](../wording.md).
+> **Draft.** Slug `shell_chain`, version 0.1.0, tier `core`, synthetic support `medium`. Definition file: [`detect/typologies/shell_chain.yaml`](../../detect/typologies/shell_chain.yaml). A typology researcher checks this page against its sources before the definition is approved.
+
+A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
 This explainer uses the terms "shell company" and "nominee" to describe structures. Never use them as a label for a real, named company or person: describe the structure instead (documentation rule 4 in [wording](../wording.md)).
 
@@ -43,9 +45,7 @@ flowchart BT
   S -->|HOLDS_ACCOUNT| A["Account"]
 ```
 
-A detector will need parameters that the typology researcher sets, such as the smallest number of layers and the longest chain to follow (NeonRadar's Cypher rules allow at most 8 hops). The Puppet Masters study reports an informal "three-layer complexity test" that one compliance officer used as "a quick-and-dirty rule of thumb": when more than three layers of legal entities or arrangements separate the natural persons from a bank account, the client carries "a particularly steep burden of proof" to show that the structure is legitimate and necessary [star_puppet_masters_2011] (p. 56). It is one practitioner's habit, not a standard.
-
-## Red flags from the sources
+## Red flags the sources list
 
 From the FATF and Egmont Group indicators of concealed beneficial ownership [fatf_egmont_concealment_2018] (Annex E; the list "is not exhaustive"):
 
@@ -81,6 +81,10 @@ Most shell companies are formed for legitimate purposes, such as holding the sto
 Partly. Synthetic support is `medium`. Ownership and directorship structures are easy to generate. Whether a structure is used to hide anyone depends on intent, which a generator can only assert by construction. The generator must therefore create a population of ordinary holding structures, groups and funds at a realistic rate, plant layered chains with nominee directors among them, and give the planted chains payments that match the indicators above.
 
 Planted chains run only among synthetic entities (ids that start with `syn-`). Real companies and people from registries can receive synthetic background activity, never a scenario role (guardrail G1 in [PHASE-1.md](../build/PHASE-1.md) section 2.1). On real registry data, NeonRadar can show that a structure is layered; it never says why.
+
+## Starting parameters
+
+None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A detector would need at least the smallest number of company layers and the longest chain to follow (NeonRadar's Cypher rules allow at most 8 hops). The Puppet Masters study reports an informal "three-layer complexity test" that one compliance officer used as "a quick-and-dirty rule of thumb": when more than three layers of legal entities or arrangements separate the natural persons from a bank account, the client carries "a particularly steep burden of proof" to show that the structure is legitimate and necessary [star_puppet_masters_2011] (p. 56). It is one practitioner's habit, not a standard. The typology researcher sets the starting values.
 
 ## Open questions
 

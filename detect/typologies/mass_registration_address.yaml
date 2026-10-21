@@ -1,9 +1,9 @@
 slug: mass_registration_address
 name: Mass registration addresses
 version: 0.1.0
-status: draft                 # only a typology researcher sets approved
-tier: core
-owner: "@robotat-com"
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
   Many companies list the same address as their registered address. Most such addresses
@@ -31,6 +31,6 @@ false_positives:
   - Law and accounting firms that act as registered office for clients
   - Clusters created by address normalisation errors, such as missing unit numbers or transliteration variants
   - Errors in the source register
-synthetic_support: high
+synthetic_support: high       # high | medium | low | none
 generator_scenario: null
-detector: null
+detector: null                # null until implemented

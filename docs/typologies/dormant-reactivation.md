@@ -1,6 +1,8 @@
 # Dormant account reactivation followed by high velocity
 
-> **Draft.** An AI agent wrote this explainer from the sources listed at the end; a person has not yet checked it against them. Typology file: [`detect/typologies/dormant_reactivation.yaml`](../../detect/typologies/dormant_reactivation.yaml) (slug `dormant_reactivation`, tier `core`, status `draft`). A pattern match is not evidence of money laundering or of any other wrongdoing; see [wording](../wording.md).
+> **Draft.** Slug `dormant_reactivation`, version 0.1.0, tier `core`, synthetic support `high`. Definition file: [`detect/typologies/dormant_reactivation.yaml`](../../detect/typologies/dormant_reactivation.yaml). A typology researcher checks this page against its sources before the definition is approved.
+
+A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
 ## What it is
 
@@ -33,9 +35,7 @@ flowchart LR
   A -->|"PAID, 2026-03-06"| Y2["Account Y2"]
 ```
 
-A detector will need parameters that the typology researcher sets: the length of the quiet gap, the length of the burst window, the size of the burst, and how close a change of director or owner must be to count. PHASE-1.md section 7.2 suggests a gap of 180 days as a starting point. These are project choices, not figures from the sources.
-
-## Red flags from the sources
+## Red flags the sources list
 
 - "an account with little activity may suddenly experience large deposit and withdrawal activity" [ffiec_appendix_f].
 - "The currency transaction patterns of a business show a sudden change inconsistent with normal activities" [ffiec_appendix_f].
@@ -64,6 +64,10 @@ A change of control followed by a burst of activity is more specific than a burs
 Yes. Synthetic support is `high`. The pattern is a timing pattern that the generator controls directly: a gap with no payments, then a burst. The generator can also produce the change of director, owner or account holder that comes before it. To measure precision honestly, it must also produce benign reactivations (the look-alikes above) and record their explanation as an attribute.
 
 Planted reactivation scenarios run only among synthetic entities (ids that start with `syn-`). Real registry entities can receive synthetic background activity, never a scenario role (guardrail G1 in [PHASE-1.md](../build/PHASE-1.md) section 2.1).
+
+## Starting parameters
+
+None in the definition file yet. PHASE-1.md 7.2 suggests a quiet gap of 180 days. A detector would also need: the length of the burst window, the size of the burst, and how close a change of director, owner or account holder must be to count. These are starting points for the typology researcher, not facts from the sources.
 
 ## Open questions
 

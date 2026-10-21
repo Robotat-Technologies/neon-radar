@@ -1,9 +1,9 @@
 slug: fan_out_distribution
 name: Fan-out distribution from one account
 version: 0.1.0
-status: draft                 # only a typology researcher sets approved
-tier: core
-owner: "@robotat-com"
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
   One account sends money to many other accounts within a short time, often in similar or
@@ -33,6 +33,6 @@ false_positives:
   - Insurance claim payouts
   - Marketplace and gig-platform payouts to sellers and workers
   - Refunds after a cancelled event
-synthetic_support: high
+synthetic_support: high       # high | medium | low | none
 generator_scenario: null
-detector: null
+detector: null                # null until implemented

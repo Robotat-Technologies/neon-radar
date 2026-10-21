@@ -11,6 +11,10 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
+from neonradar_graph.client import Neo4jSettings
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PROJECT = "neonradar"  # `name:` in compose.yaml (M1.4)
 GIB = 1024**3
@@ -114,9 +118,30 @@ def check_compose() -> Check:
     return Check("Compose", Status.OK, found)
 
 
-def check_env_file(root: Path) -> Check:
+def password_without_env_file() -> bool:
+    """True if the Neo4j password comes from the environment or a Compose secret, not `.env`."""
+    try:
+        Neo4jSettings(_env_file=None)
+    except ValidationError:
+        return False
+    return True
+
+
+def check_env_file(
+    root: Path, *, password_elsewhere: bool = False, devcontainer: bool = False
+) -> Check:
     if (root / ".env").is_file():
         return Check(".env", Status.OK, "present")
+    if password_elsewhere:
+        return Check(
+            ".env",
+            Status.OK,
+            "not needed; the Neo4j password comes from the environment or a secret",
+        )
+    if devcontainer:
+        return Check(
+            ".env", Status.WARN, "missing; on the host run bash scripts/ensure_env.sh, then rebuild"
+        )
     return Check(".env", Status.WARN, "missing; the Neo4j stack reads it (copy .env.example)")
 
 
@@ -195,7 +220,9 @@ def run_checks(root: Path = REPO_ROOT, *, devcontainer: bool = False) -> list[Ch
         check_uv(),
         docker,
         compose,
-        check_env_file(root),
+        check_env_file(
+            root, password_elsewhere=password_without_env_file(), devcontainer=devcontainer
+        ),
         *(check_port(port, stack) for port in PORTS),
         check_memory(info),
         check_icu(),

@@ -68,9 +68,24 @@ def test_compose(monkeypatch: pytest.MonkeyPatch, output: str | None, status: St
 
 
 def test_env_file(tmp_path: Path) -> None:
-    assert doctor.check_env_file(tmp_path).status is Status.WARN
+    assert doctor.check_env_file(tmp_path).detail.endswith("(copy .env.example)")
+    assert doctor.check_env_file(tmp_path, password_elsewhere=True).status is Status.OK
+    inside = doctor.check_env_file(tmp_path, devcontainer=True)
+    assert inside.status is Status.WARN
+    assert "copy .env.example" not in inside.detail
     (tmp_path / ".env").write_text("NEO4J_PASSWORD=x\n")
-    assert doctor.check_env_file(tmp_path).status is Status.OK
+    assert doctor.check_env_file(tmp_path) == doctor.Check(".env", Status.OK, "present")
+
+
+def test_password_without_env_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("NEO4J_PASSWORD", raising=False)
+    monkeypatch.setattr("neonradar_graph.client.SECRETS_DIR", tmp_path / "none")
+    assert not doctor.password_without_env_file()
+    secrets = tmp_path / "secrets"
+    secrets.mkdir()
+    (secrets / "neo4j_password").write_text("from-a-secret-file")
+    monkeypatch.setattr("neonradar_graph.client.SECRETS_DIR", secrets)
+    assert doctor.password_without_env_file()
 
 
 def test_ports(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -123,6 +138,7 @@ def test_icu(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fake(monkeypatch, {}, installed=())
+    monkeypatch.setattr(doctor, "password_without_env_file", lambda: False)
     monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
     names = [check.name for check in doctor.run_checks(tmp_path)]
     ports = ["port 7474", "port 7687", "port 8000", "port 5173"]
@@ -134,12 +150,14 @@ def test_devcontainer_turns_missing_docker_into_warnings(
 ) -> None:
     fake(monkeypatch, {}, installed=("uv", "pkg-config"))
     monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
+    monkeypatch.setattr(doctor, "password_without_env_file", lambda: True)
     on_host = {check.name: check for check in doctor.run_checks(tmp_path)}
     inside = {check.name: check for check in doctor.run_checks(tmp_path, devcontainer=True)}
     for name in ("Docker", "Compose"):
         assert on_host[name].status is Status.FAIL
         assert inside[name] == doctor.Check(name, Status.WARN, doctor.NO_DOCKER_IN_DEVCONTAINER)
     assert inside["Docker memory"].status is Status.WARN
+    assert inside[".env"].status is Status.OK  # the password comes from /run/secrets in there
     assert {name: check for name, check in inside.items() if name not in ("Docker", "Compose")} == {
         name: check for name, check in on_host.items() if name not in ("Docker", "Compose")
     }

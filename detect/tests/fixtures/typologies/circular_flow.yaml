@@ -1,0 +1,32 @@
+slug: circular_flow
+name: Round-tripping or circular flows
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@TODO"                # typology researcher
+approved_by: null
+summary: >
+  Funds leave an account, pass through other accounts and return to the originator
+  or to a party under the same control.
+doc: docs/typologies/circular-flow.md
+citations: [fatf_egmont_tbml_indicators_2021, fatf_egmont_concealment_2018, ffiec_appendix_f, fatf_pml_2018]
+graph_pattern: >
+  A directed cycle of PAID relationships starting and ending at the same Account
+  (or at two Accounts held by the same LegalEntity), with time-ordered hops,
+  near-equal amounts and a short total duration.
+parameters:
+  min_hops: { default: 2, min: 2, max: 8 }
+  max_hops: { default: 6, min: 2, max: 8 }
+  max_window_days: { default: 14, min: 1, max: 90 }
+  min_return_ratio: { default: 0.8, min: 0.0, max: 1.0 }
+metrics: [cycle_length, sent_amount, returned_amount, currency, duration_hours, duration_days, return_ratio]
+wording:
+  headline_structural: "Funds returned to the originating account through {cycle_length} transfers within {duration_days} days"
+  headline_synthetic: "Synthetic scenario: funds returned to the originating account through {cycle_length} transfers within {duration_days} days"
+false_positives:
+  - Refunds and payment reversals
+  - Loan drawdown followed by repayment
+  - Intra-group cash pooling and treasury sweeps
+synthetic_support: high       # high | medium | low | none
+generator_scenario: round_trip
+detector: neonradar_detect.detectors.circular_flow   # null until implemented

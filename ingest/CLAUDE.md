@@ -22,7 +22,9 @@
     `data/cache/spikes/<source>/`) and build records with `spikes.entity_record`
     (`ValueEntity`, NFC); `neonradar spike clean` deletes output older than
     `access.spike_cache_days`.
-  - OpenSanctions use follows `access.opensanctions` in `docs/build/project.yaml`.
+  - OpenSanctions use follows `access.opensanctions` in `docs/build/project.yaml` through the
+    gate in `sources/opensanctions/access.py`: `none` sends no request, and only `licensed`
+    writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
   - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
     username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids

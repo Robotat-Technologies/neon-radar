@@ -1,14 +1,16 @@
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
-from neo4j.exceptions import ServiceUnavailable
+from neo4j.exceptions import ClientError, ServiceUnavailable
 from typer.testing import CliRunner
 
 from neonradar_cli import graph
 from neonradar_cli.main import app
+from neonradar_graph.migrate import MIGRATIONS_DIR, Migration, MigrationError, MigrationReport
 from neonradar_graph.smoke import SmokeReport
 
 runner = CliRunner()
@@ -67,3 +69,46 @@ def test_smoke_when_neo4j_is_down_fails(monkeypatch: pytest.MonkeyPatch) -> None
     assert result.exit_code == 1
     assert result.output.startswith("FAIL  Neo4j  not reachable at bolt://localhost:7687")
     assert "test-password" not in result.output
+
+
+def use_migrate(monkeypatch: pytest.MonkeyPatch, outcome: MigrationReport | Exception) -> None:
+    monkeypatch.setenv("NEO4J_PASSWORD", "test-password")
+    monkeypatch.setattr(graph, "get_driver", fake_driver)
+    monkeypatch.setattr(graph, "wait_until_ready", lambda driver, timeout_s: None)
+
+    def fake_migrate(driver: object, database: str, directory: Path) -> MigrationReport:
+        assert (database, directory) == ("neo4j", MIGRATIONS_DIR)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(graph, "migrate", fake_migrate)
+
+
+def test_migrate_prints_each_applied_migration(monkeypatch: pytest.MonkeyPatch) -> None:
+    init = Migration("0001_init", MIGRATIONS_DIR / "0001_init.cypher", "abc", ("RETURN 1",) * 29)
+    use_migrate(monkeypatch, MigrationReport(applied=[init]))
+    result = runner.invoke(app, ["graph", "migrate"])
+    assert result.exit_code == 0
+    assert result.output == "applied 0001_init (29 statements)\n"
+
+
+def test_migrate_again_has_nothing_to_apply(monkeypatch: pytest.MonkeyPatch) -> None:
+    use_migrate(monkeypatch, MigrationReport(already_applied=["0001_init"]))
+    result = runner.invoke(app, ["graph", "migrate"])
+    assert result.exit_code == 0
+    assert result.output == "nothing to apply (1 migration already applied)\n"
+
+
+def test_migrate_refuses_an_edited_migration(monkeypatch: pytest.MonkeyPatch) -> None:
+    use_migrate(monkeypatch, MigrationError("add a new migration; never edit an applied one"))
+    result = runner.invoke(app, ["graph", "migrate"])
+    assert result.exit_code == 1
+    assert result.output == "FAIL  add a new migration; never edit an applied one\n"
+
+
+def test_migrate_reports_a_server_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    use_migrate(monkeypatch, ClientError("Invalid input"))
+    result = runner.invoke(app, ["graph", "migrate"])
+    assert result.exit_code == 1
+    assert result.output.startswith("FAIL  Neo4j  at bolt://localhost:7687 answered:")

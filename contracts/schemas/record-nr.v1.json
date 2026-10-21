@@ -1,0 +1,184 @@
+{
+  "additionalProperties": false,
+  "description": "The closed `nr` extension object (5.1). Unknown keys fail validation.\n\n`v` is the record contract's major.minor. It is \"1.0\" for every 1.0.x release; a minor\nrelease (for example 1.1.0, a new optional key) adds \"1.1\" here and keeps accepting \"1.0\".",
+  "properties": {
+    "account_kind": {
+      "anyOf": [
+        {
+          "enum": [
+            "customer",
+            "cash_ledger"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Account Kind"
+    },
+    "address_roles": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "enum": [
+              "registered",
+              "service",
+              "residential",
+              "business",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Address Roles"
+    },
+    "channel": {
+      "anyOf": [
+        {
+          "enum": [
+            "wire",
+            "card",
+            "cash_deposit",
+            "cash_withdrawal",
+            "internal"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Channel"
+    },
+    "consolidation": {
+      "anyOf": [
+        {
+          "enum": [
+            "direct",
+            "ultimate"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Consolidation"
+    },
+    "is_nominee": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Is Nominee"
+    },
+    "natures_of_control": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Natures Of Control"
+    },
+    "share_pct_max": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Share Pct Max"
+    },
+    "share_pct_min": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Share Pct Min"
+    },
+    "source_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Ref"
+    },
+    "synthetic": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Synthetic"
+    },
+    "synthetic_kind": {
+      "anyOf": [
+        {
+          "enum": [
+            "registry",
+            "activity"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Synthetic Kind"
+    },
+    "v": {
+      "const": "1.0",
+      "title": "V",
+      "type": "string"
+    }
+  },
+  "required": [
+    "v"
+  ],
+  "title": "NrExtension",
+  "type": "object"
+}

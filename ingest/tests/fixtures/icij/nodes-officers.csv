@@ -1,0 +1,6 @@
+# synthetic: true
+node_id,name,countries,country_codes,sourceID,valid_until,note
+9900000101,Synthetic Officer Alpha,Jordan,JOR,Panama Papers,The Panama Papers data is current through 2015,
+9900000102,Synthetic Nominee Officer Ltd,Seychelles,SYC,Panama Papers,The Panama Papers data is current through 2015,
+9900000103,????,,,Panama Papers,The Panama Papers data is current through 2015,
+9900000104,Synthetic Officer Beta,,,Bahamas Leaks,The Bahamas Leaks data is current through early 2016,

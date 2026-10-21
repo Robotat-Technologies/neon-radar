@@ -4,7 +4,8 @@
   `neonradar graph load`. It depends on every other package and wires them together.
   Phase 1 starts with `neonradar --version`, `neonradar doctor`, `neonradar graph smoke`,
   `neonradar graph migrate`, `neonradar contracts validate-records`, `neonradar contracts export`
-  and `check`, `neonradar docs typology-index` and `neonradar spike clean`.
+  and `check` (JSON Schemas and the OpenAPI snapshot), `neonradar api serve` (127.0.0.1 only),
+  `neonradar docs typology-index` and `neonradar spike clean`.
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.
@@ -20,3 +21,5 @@
     `PROJECT_FILE` to tmp paths.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
+  - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;
+    `api serve` imports uvicorn inside the command, so `neonradar --help` stays fast.

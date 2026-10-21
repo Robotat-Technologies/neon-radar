@@ -1,8 +1,9 @@
 """C1 NeonRadar Record v1.0.0: the `nr` extension, the validator and the manifest (5.1).
 
 `validate_record` checks one record; `validate_batch` checks the rules that need the whole
-load (R4 dangling references, R8 account holders). Issue codes are R1 to R10, plus FORMAT for
-the record envelope and NR for the shape of the `nr` object. See contracts/C1-record.md.
+load (R4 references and duplicate ids, R8 account holders). Issue codes are R1 to R10, plus
+FORMAT for the record envelope and NR for the `nr` object. Each problem is reported once: a
+check whose input already failed another rule is skipped. See contracts/C1-record.md.
 """
 
 import hashlib
@@ -14,14 +15,15 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import cache
 from importlib.metadata import version
 from itertools import chain
 from pathlib import Path
-from typing import Any, Literal, TypeGuard
+from typing import Any, Literal, Self, TypeGuard
 
 from followthemoney import Schema, model, registry
 from followthemoney.exc import InvalidData
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, ValidationError, model_validator
 
 from neonradar_contracts import versions
 from neonradar_contracts.datasets import Dataset, load_registry
@@ -38,15 +40,23 @@ SYNTHETIC_DATASET = "nr_synthetic"
 SYNTHETIC_PREFIX = "syn"
 # R1. `rest` is narrowed to FollowTheMoney's entity reference format (letters, digits, dots and
 # hyphens, ending in a letter or digit), so every valid id can be referenced (CHANGELOG 1.0.0).
-ID_RE = re.compile(r"^(?P<prefix>[a-z][a-z0-9]{1,15})-(?P<rest>[A-Za-z0-9.-]{0,99}[A-Za-z0-9])$")
-PAYMENT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
-AMOUNT_RE = re.compile(r"^\d+(\.\d{1,2})?$")
-CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
-SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN\d{10}$")
+# Patterns end in \Z, not $: `$` also matches before a final newline.
+ID_RE = re.compile(r"^(?P<prefix>[a-z][a-z0-9]{1,15})-(?P<rest>[A-Za-z0-9.-]{0,99}[A-Za-z0-9])\Z")
+ID_KIND_RE = re.compile(r"^[a-z0-9]{1,20}\Z")
+PAYMENT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\Z")
+AMOUNT_RE = re.compile(r"^\d+(\.\d{1,2})?\Z")
+CURRENCY_RE = re.compile(r"^[A-Z]{3}\Z")
+SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN\d{10}\Z")
+UTC_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z"  # pydantic (Rust) regex
+# Topics that set the C2 flag labels :Sanctioned, :PEP and :RCA; the only ones synthetic
+# records may carry (R9), so that no other topic can hint at a scenario.
+SYNTHETIC_TOPICS = frozenset({"sanction", "role.pep", "role.rca"})
 LABEL_KEY_RE = re.compile(r"typolog|scenario|illicit|lookalike|ground.?truth|label", re.IGNORECASE)
 ENVELOPE_KEYS = ("id", "schema", "properties", "datasets")
 OPTIONAL_KEYS = ("referents", "caption", "first_seen", "last_seen", "last_change", "nr")
-PAYMENT_PROPS = ("payer", "beneficiary", "payerAccount", "beneficiaryAccount", "amount", "currency")
+PAYMENT_PROPS = (
+    "payer", "beneficiary", "payerAccount", "beneficiaryAccount", "amount", "currency", "date",
+)  # fmt: skip
 NR_USED_ON: dict[str, tuple[str, ...]] = {
     "channel": ("Payment",),
     "account_kind": ("BankAccount",),
@@ -57,12 +67,25 @@ NR_USED_ON: dict[str, tuple[str, ...]] = {
     "is_nominee": ("Directorship",),
     "consolidation": ("Ownership",),
 }
+# R4 in strict mode: a reference points to a record of its property's FtM range, except that
+# an Ownership asset may also be any LegalEntity (C2 builds OWNS between legal entities).
+REFERENCE_RANGES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("Ownership", "asset"): ("Asset", "LegalEntity"),
+}
+ID_ALPHABET_HINT = (
+    "record ids use letters, digits, dots and hyphens and end in a letter or digit;"
+    " map source ids with neonradar_contracts.records.make_id"
+)
 
 AddressRole = Literal["registered", "service", "residential", "business", "unknown"]
 
 
 class NrExtension(BaseModel):
-    """The closed `nr` extension object (5.1). Unknown keys fail validation."""
+    """The closed `nr` extension object (5.1). Unknown keys fail validation.
+
+    `v` is the record contract's major.minor. It is "1.0" for every 1.0.x release; a minor
+    release (for example 1.1.0, a new optional key) adds "1.1" here and keeps accepting "1.0".
+    """
 
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
@@ -96,11 +119,32 @@ class RecordFileError(ValueError):
     """A line of a `.ftm.jsonl` file is not one JSON object; the message names path and line."""
 
 
+def make_id(prefix: str, kind: str, native: str) -> str:
+    """The one rule for turning a source identifier into a record id (C1-record.md).
+
+    Returns `<prefix>-<kind>-<native>` with each `_` in `native` replaced by `.`. If that still
+    breaks R1 (another character outside `[A-Za-z0-9.-]`, a last character that is not a letter
+    or digit, or too long), returns `<prefix>-<kind>-<first 20 hex of SHA-1(native)>` instead.
+    Deterministic; loaders keep the native identifier in `nr.source_ref`.
+    """
+    if not ID_RE.fullmatch(f"{prefix}-x") or not ID_KIND_RE.fullmatch(kind) or not native:
+        raise ValueError(f"make_id needs a dataset prefix, a short kind and a native id: {kind!r}")
+    candidate = f"{prefix}-{kind}-{native.replace('_', '.')}"
+    if ID_RE.fullmatch(candidate):
+        return candidate
+    digest = hashlib.sha1(native.encode("utf-8"), usedforsecurity=False).hexdigest()[:20]
+    return f"{prefix}-{kind}-{digest}"
+
+
 def iter_records(path: Path | str) -> Iterator[dict[str, Any]]:
     """Stream the records of a `.ftm.jsonl` file. Blank lines are skipped."""
     path = Path(path)
-    with path.open(encoding="utf-8") as handle:
-        for number, line in enumerate(handle, start=1):
+    with path.open("rb") as handle:
+        for number, raw in enumerate(handle, start=1):
+            try:
+                line = raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise RecordFileError(f"{path}:{number}: not UTF-8 ({exc.reason})") from exc
             if not line.strip():
                 continue
             try:
@@ -126,6 +170,13 @@ def _strings(value: Any) -> Iterator[str]:
     elif isinstance(value, list):
         for item in value:
             yield from _strings(item)
+
+
+@cache
+def _iso_currencies() -> frozenset[str]:
+    from babel.numbers import list_currencies  # loaded on first use: CLDR data is large
+
+    return frozenset(list_currencies())
 
 
 def _label_issue(where: str, key: str) -> str:
@@ -170,7 +221,8 @@ def _check_dataset(data: dict[str, Any], add: Add) -> Dataset | None:
 
 
 def _check_id(rid: str | None, dataset: Dataset | None, add: Add) -> re.Match[str] | None:
-    match = ID_RE.match(rid) if rid is not None else None
+    """R1. Returns the match only when the prefix fits the dataset (or the dataset is unknown)."""
+    match = ID_RE.fullmatch(rid) if rid is not None else None
     if match is None:
         add(
             "R1",
@@ -178,12 +230,14 @@ def _check_id(rid: str | None, dataset: Dataset | None, add: Add) -> re.Match[st
             " a hyphen, then up to 100 letters, digits, dots or hyphens ending in a letter or"
             " digit (for example syn-co-0001)",
         )
-    elif dataset is not None and match["prefix"] != dataset.id_prefix:
+        return None
+    if dataset is not None and match["prefix"] != dataset.id_prefix:
         add(
             "R1",
             f"id prefix {match['prefix']!r} does not match dataset {dataset.slug},"
             f" whose id_prefix is {dataset.id_prefix!r}",
         )
+        return None
     return match
 
 
@@ -196,22 +250,27 @@ def _check_properties(schema: Schema, props: dict[str, list[str]], add: Add) -> 
             add("R9", _label_issue("property", name))
         else:
             add("R3", f"{schema.name} has no property {name!r} (FollowTheMoney would drop it)")
+    flagged: set[str] = set()
     try:
         schema.validate({"properties": known})
     except InvalidData as exc:
         for name, error in sorted(exc.errors.get("properties", {}).items()):
-            if schema.properties[name].type == registry.date:
+            flagged.add(name)
+            kind = schema.properties[name].type
+            if kind == registry.date:
                 add("R5", f"{name}: {error}; dates are ISO 8601 and may be partial (1979-08)")
+            elif kind == registry.entity:
+                add("R4", f"{name}: {error}; {ID_ALPHABET_HINT}")
             else:
                 add("R3", f"{name}: {error} (FollowTheMoney {schema.name} validation)")
     for name in schema.required:
-        if not props.get(name):
+        if name not in flagged and not props.get(name):
             add("R3", f"{schema.name} needs a non-empty {name!r} (required by FollowTheMoney)")
     for name, values in known.items():
-        if schema.properties[name].type == registry.entity:
+        if name not in flagged and schema.properties[name].type == registry.entity:
             for value in values:
-                if registry.entity.validate(value) and not ID_RE.match(value):
-                    add("R4", f"{name} value {value!r} is not a record id (<prefix>-<rest>)")
+                if not ID_RE.fullmatch(value):
+                    add("R4", f"{name} value {value!r} is not a record id; {ID_ALPHABET_HINT}")
 
 
 def _check_nr(raw: Any, schema: Schema | None, props: dict[str, Any], add: Add) -> None:
@@ -247,8 +306,12 @@ def _check_synthetic(
 ) -> bool:
     raw = data.get("nr")
     flags = raw if isinstance(raw, dict) else {}
-    legs = {"nr.synthetic": flags.get("synthetic") is True}
-    if dataset is not None:  # legs that already failed R1 or R2 are left out
+    flag = flags.get("synthetic")
+    legs: dict[str, bool] = {}
+    # Legs that already failed R1, R2 or NR are left out, so each problem is reported once.
+    if raw is None or (isinstance(raw, dict) and (flag is None or isinstance(flag, bool))):
+        legs["nr.synthetic"] = flag is True
+    if dataset is not None:
         legs["dataset"] = dataset.slug == SYNTHETIC_DATASET
     if match is not None:
         legs["prefix"] = match["prefix"] == SYNTHETIC_PREFIX
@@ -264,6 +327,8 @@ def _check_synthetic(
         )
     elif not synthetic and "synthetic" in flags:
         add("R6", "only synthetic records may set nr.synthetic; leave it out")
+    if not synthetic and "synthetic_kind" in flags:  # a placement rule, like NR_USED_ON
+        add("NR", "nr.synthetic_kind is only used on synthetic records")
     return synthetic
 
 
@@ -275,23 +340,25 @@ def _check_payment(props: dict[str, list[str]], raw_nr: Any, synthetic: bool, ad
         if count != 1:
             add("R7", f"Payment needs exactly one {name} value (has {count})")
     for value in props.get("amount", []):
-        if not AMOUNT_RE.match(value) or Decimal(value) <= 0:
+        if not AMOUNT_RE.fullmatch(value) or Decimal(value) <= 0:
             add(
                 "R7",
                 f"amount {value!r} must be a decimal number greater than zero with at most two"
                 " decimals, for example 9500.00",
             )
     for value in props.get("currency", []):
-        if not CURRENCY_RE.match(value):
+        if not CURRENCY_RE.fullmatch(value):
             add("R7", f"currency {value!r} must be a three-letter upper-case ISO 4217 code (EUR)")
+        elif value not in _iso_currencies():
+            add("R7", f"currency {value!r} is not an ISO 4217 code")
     if not isinstance(raw_nr, dict) or raw_nr.get("channel") is None:  # a bad value is NR
         add("R7", "Payment needs nr.channel (wire, card, cash_deposit, cash_withdrawal, internal)")
-    for value in props.get("date", []):
-        if not PAYMENT_DATE_RE.match(value) or not registry.date.validate(value):
+    for value in props.get("date", []):  # dates FtM rejects are already R5
+        if registry.date.validate(value) and not PAYMENT_DATE_RE.fullmatch(value):
             add(
                 "R5",
                 f"Payment date {value!r} must be a full UTC timestamp YYYY-MM-DDTHH:MM:SS without"
-                " an offset, for example 2026-03-14T10:22:05",
+                " an offset or Z, for example 2026-03-14T10:22:05",
             )
 
 
@@ -325,60 +392,96 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
     synthetic = _check_synthetic(data, dataset, match, add)
     if schema is not None and schema.is_a("Payment"):
         _check_payment(props, data.get("nr"), synthetic, add)
+    if synthetic:  # R9: only the topics that set C2 flags; others could carry labels
+        for topic in props.get("topics", []):
+            if topic not in SYNTHETIC_TOPICS:
+                add(
+                    "R9",
+                    f"topic {topic!r} on a synthetic record could carry a ground-truth label;"
+                    f" synthetic records use only {', '.join(sorted(SYNTHETIC_TOPICS))}",
+                )
     if synthetic:  # R8: no synthetic account can collide with a real one
         for prop in ("iban", "bic"):
             if props.get(prop):
                 add("R8", f"synthetic records never set {prop}")
         if schema is not None and schema.is_a("BankAccount"):
             for value in props.get("accountNumber", []):
-                if not SYNTHETIC_ACCOUNT_RE.match(value):
+                if not SYNTHETIC_ACCOUNT_RE.fullmatch(value):
                     add("R8", f"synthetic accountNumber {value!r} must be NRSYN plus 10 digits")
     for text in _strings(data):
         if not unicodedata.is_normalized("NFC", text):
-            add("R10", f"{text!r} is not Unicode NFC; write unicodedata.normalize('NFC', value)")
+            add(
+                "R10",
+                f"{text!a} is not Unicode NFC; write unicodedata.normalize('NFC', value)",
+            )
             break
     return issues
 
 
 def validate_batch(records: Iterable[dict[str, Any]], strict: bool) -> list[RecordIssue]:
-    """Rules that need the whole load: R4 dangling references (strict only) and R8 holders."""
+    """Rules that need the whole load.
+
+    R4: duplicate ids (always); in strict mode also dangling references and references to a
+    record of the wrong schema. R8: every BankAccount has a LegalEntity holder (always).
+    """
+    issues: list[RecordIssue] = []
     schemata: dict[str, Schema] = {}
-    references: list[tuple[str, str, str]] = []
+    references: list[tuple[str, Schema, str, str]] = []
     holdings: list[tuple[str, str]] = []
+    accounts: set[str] = set()  # R8 counts every record, duplicates included
+    legal_entities: set[str] = set()
     for data in records:
         rid, name, props = data.get("id"), data.get("schema"), data.get("properties")
         schema = model.get(name) if isinstance(name, str) else None
         if not isinstance(rid, str) or schema is None or not isinstance(props, dict):
             continue  # validate_record reports these
+        if schema.is_a("BankAccount"):
+            accounts.add(rid)
+        if schema.is_a("LegalEntity"):
+            legal_entities.add(rid)
+        owners, assets = props.get("owner"), props.get("asset")
+        if schema.is_a("Ownership") and _is_str_list(owners) and _is_str_list(assets):
+            holdings.extend((owner, asset) for owner in owners for asset in assets)
+        if rid in schemata:  # the first record with this id stays
+            issues.append(
+                RecordIssue("R4", rid, "duplicate id: another record in this load has it")
+            )
+            continue
         schemata[rid] = schema
         for prop_name, values in props.items():
             prop = schema.properties.get(prop_name)
             if prop is not None and prop.type == registry.entity and _is_str_list(values):
-                references.extend((rid, prop_name, value) for value in values)
-        owners, assets = props.get("owner"), props.get("asset")
-        if schema.is_a("Ownership") and _is_str_list(owners) and _is_str_list(assets):
-            holdings.extend((owner, asset) for owner in owners for asset in assets)
-    issues: list[RecordIssue] = []
+                # Malformed references are reported by validate_record.
+                references.extend(
+                    (rid, schema, prop_name, value) for value in values if ID_RE.fullmatch(value)
+                )
     if strict:
-        for rid, prop_name, value in references:
-            if value not in schemata:
+        for rid, schema, prop_name, value in references:
+            target = schemata.get(value)
+            if target is None:
                 message = (
                     f"{prop_name} points to {value!r}, which is not in this load; add that record"
                     " or validate its file together with this one"
                 )
                 issues.append(RecordIssue("R4", rid, message))
-    held = {
-        asset
-        for owner, asset in holdings
-        if owner in schemata and schemata[owner].is_a("LegalEntity")
-    }
-    for rid, schema in schemata.items():
-        if schema.is_a("BankAccount") and rid not in held:
-            message = (
-                f"BankAccount has no holder in this load: add an Ownership with asset {rid} and"
-                " a Person, Company or other LegalEntity as owner"
+                continue
+            prop_range = schema.properties[prop_name].range
+            allowed = REFERENCE_RANGES.get((schema.name, prop_name)) or (
+                (prop_range.name,) if prop_range is not None else ()
             )
-            issues.append(RecordIssue("R8", rid, message))
+            if allowed and not any(target.is_a(s) for s in allowed):
+                message = (
+                    f"{prop_name} points to {value!r}, a {target.name};"
+                    f" it must point to a {' or '.join(allowed)}"
+                )
+                issues.append(RecordIssue("R4", rid, message))
+    held = {asset for owner, asset in holdings if owner in legal_entities}
+    for rid in sorted(accounts - held):
+        message = (
+            f"BankAccount has no holder in this load: add an Ownership with asset {rid} and"
+            " a Person, Company or other LegalEntity as owner"
+        )
+        issues.append(RecordIssue("R8", rid, message))
     return issues
 
 
@@ -417,7 +520,7 @@ class Producer(_Strict):
 
 class Source(_Strict):
     urls: list[str] = Field(default_factory=list)
-    retrieved_at: str | None = None
+    retrieved_at: str | None = Field(default=None, pattern=UTC_TIMESTAMP)
     source_version: str | None = None
 
 
@@ -432,13 +535,16 @@ class Counts(_Strict):
 
 
 class Manifest(_Strict):
-    """The `*.manifest.json` that sits next to every `.ftm.jsonl` file (5.1)."""
+    """The `*.manifest.json` that sits next to every `.ftm.jsonl` file (5.1).
+
+    `dataset`, `licence.id` and `synthetic` must agree with contracts/datasets.yaml.
+    """
 
     manifest_version: Literal["1.0"]
     record_contract: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     dataset: str = Field(min_length=1)
     files: list[ManifestFile] = Field(min_length=1)
-    created_at: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+    created_at: str = Field(pattern=UTC_TIMESTAMP)
     producer: Producer
     source: Source
     licence: ManifestLicence
@@ -447,6 +553,17 @@ class Manifest(_Strict):
     synthetic: bool
     seed: int | None = None
     notes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _agrees_with_registry(self) -> Self:
+        entry = load_registry().get(self.dataset)
+        if entry is None:
+            raise ValueError(f"dataset {self.dataset!r} is not in contracts/datasets.yaml")
+        if self.licence.id != entry.licence.id:
+            raise ValueError(f"licence.id must be {entry.licence.id!r} for {self.dataset}")
+        if self.synthetic != entry.synthetic:
+            raise ValueError(f"synthetic must be {str(entry.synthetic).lower()} for {self.dataset}")
+        return self
 
 
 def manifest_path(record_file: Path) -> Path:

@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from neonradar_contracts.records import (
     Producer,
     RecordFileError,
     iter_records,
+    make_id,
     manifest_path,
     validate_batch,
     validate_files,
@@ -35,6 +37,7 @@ EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "c1"
 DEMO = EXAMPLES / "demo.ftm.jsonl"
 INVALID = sorted((EXAMPLES / "invalid").glob("*.ftm.jsonl"))
 NR = {"v": "1.0", "synthetic": True, "synthetic_kind": "registry"}
+COMBINING_DIAERESIS = unicodedata.lookup("COMBINING DIAERESIS")
 
 
 def _rule_number(path: Path) -> int:
@@ -55,8 +58,19 @@ def _company(**changes: Any) -> dict[str, Any]:
     return record
 
 
+def _demo(record_id: str) -> dict[str, Any]:
+    return copy.deepcopy(next(r for r in iter_records(DEMO) if r["id"] == record_id))
+
+
 def _rules(record: dict[str, Any]) -> list[str]:
     return [issue.rule for issue in validate_record(record)]
+
+
+def _batch_rules(records: list[dict[str, Any]], strict: bool = True) -> list[str]:
+    return sorted(issue.rule for issue in validate_batch(records, strict))
+
+
+# Golden examples
 
 
 def test_demo_file_is_valid_in_strict_mode() -> None:
@@ -73,13 +87,68 @@ def test_every_rule_has_exactly_one_invalid_example() -> None:
 @pytest.mark.parametrize("path", INVALID, ids=lambda path: path.name)
 def test_invalid_example_fails_with_exactly_its_rule(path: Path) -> None:
     _, issues = validate_files([path], strict=True)
-    assert issues, path.name
-    assert {issue.rule for issue in issues} == {f"R{_rule_number(path)}"}, [str(i) for i in issues]
+    assert len(issues) == 1, [str(i) for i in issues]
+    assert issues[0].rule == f"R{_rule_number(path)}"
 
 
 def test_r10_example_really_holds_a_decomposed_string() -> None:
     [record] = iter_records(EXAMPLES / "invalid" / "r10-not-nfc.ftm.jsonl")
-    assert "̈" in record["properties"]["name"][0]
+    assert COMBINING_DIAERESIS in record["properties"]["name"][0]
+    [issue] = validate_record(record)
+    assert "\\u0308" in issue.message  # printed with ascii() so the character is visible
+
+
+def test_an_empty_file_is_an_empty_load(tmp_path: Path) -> None:
+    path = tmp_path / "empty.ftm.jsonl"
+    path.write_bytes(b"")
+    counts, issues = validate_files([path], strict=True)
+    assert (counts.total(), issues) == (0, [])
+
+
+# R1 ids and make_id
+
+
+def test_every_valid_id_can_be_referenced() -> None:
+    good = ["syn-co-0001", "gbch-co-01800000", "gleif-549300OWFMSO9NYV4H90", "icij-10000001"]
+    for rid in good:
+        assert ID_RE.match(rid), rid
+        assert registry.entity.validate(rid), rid
+    bad = ["gbch-officer_abc", "gbch-x:1", "syn-co-0001-", "syn-co-0001.", "SYN-co-1", "s-1"]
+    for rid in [*bad, "syn-co-0001\n"]:
+        assert not ID_RE.match(rid), rid
+    assert _rules(_company(id="syn-co-0099\n")) == ["R1"]
+
+
+@pytest.mark.parametrize(
+    ("native", "expected"),
+    [
+        ("2Ys_V8dLkPq3Hn-T0bWuXz9aRfE", "gbch-off-2Ys.V8dLkPq3Hn-T0bWuXz9aRfE"),  # CH officer id
+        ("01800000", "gbch-off-01800000"),
+        ("ab:cd", None),  # another character: hashed
+        ("abc_", None),  # would end in a dot: hashed
+        ("abc-", None),
+        ("x" * 120, None),  # too long: hashed
+        ("abc\n", None),
+    ],
+)
+def test_make_id_maps_or_hashes_source_ids(native: str, expected: str | None) -> None:
+    rid = make_id("gbch", "off", native)
+    digest = hashlib.sha1(native.encode(), usedforsecurity=False).hexdigest()[:20]
+    assert rid == (expected or f"gbch-off-{digest}")
+    assert rid == make_id("gbch", "off", native)  # deterministic
+    assert ID_RE.match(rid), rid
+    assert registry.entity.validate(rid), rid
+
+
+@pytest.mark.parametrize(
+    ("prefix", "kind", "native"), [("GB", "off", "1"), ("gbch", "Off", "1"), ("gbch", "off", "")]
+)
+def test_make_id_refuses_bad_parts(prefix: str, kind: str, native: str) -> None:
+    with pytest.raises(ValueError, match="make_id"):
+        make_id(prefix, kind, native)
+
+
+# R3, R9, FORMAT and NR
 
 
 def test_nr_rejects_unknown_keys() -> None:
@@ -107,6 +176,17 @@ def test_allowed_schema_property_names_never_look_like_labels() -> None:
         assert not [p for p in model[name].properties if LABEL_KEY_RE.search(p)], name
 
 
+def test_synthetic_records_carry_only_flag_topics() -> None:
+    record = _company()
+    record["properties"]["topics"] = ["sanction", "role.pep"]
+    assert _rules(record) == []
+    record["properties"]["topics"] = ["crime.fin"]
+    assert _rules(record) == ["R9"]
+    real = _company(id="gbch-co-01800000", datasets=["gb_companies_house"], nr={"v": "1.0"})
+    real["properties"]["topics"] = ["crime.fin"]
+    assert _rules(real) == []
+
+
 @pytest.mark.parametrize(
     ("nr", "message"),
     [
@@ -116,25 +196,14 @@ def test_allowed_schema_property_names_never_look_like_labels() -> None:
         ({"synthetic": True}, "nr.v"),
     ],
 )
-def test_nr_shape_and_placement_fail_nr(nr: dict[str, Any], message: str) -> None:
+def test_nr_shape_and_placement_fail_nr_only(nr: dict[str, Any], message: str) -> None:
     issues = validate_record(_company(nr=nr))
-    assert "NR" in {issue.rule for issue in issues}
-    assert any(message in issue.message for issue in issues), [str(i) for i in issues]
-
-
-def test_one_problem_is_reported_once() -> None:
-    payment = copy.deepcopy(next(r for r in iter_records(DEMO) if r["schema"] == "Payment"))
-    payment["nr"]["scenario"] = "round_trip"  # the channel is still there: no R7
-    assert _rules(payment) == ["R9"]
-    company = next(r for r in iter_records(DEMO) if r["id"] == "syn-co-0001")
-    company = copy.deepcopy(company)
-    company["properties"]["name"] = "Falcon Ridge Trading Ltd"  # not a list
-    assert _rules(company) == ["R3"]  # address_roles is not checked against broken properties
+    assert [issue.rule for issue in issues] == ["NR"], [str(i) for i in issues]
+    assert message in issues[0].message
 
 
 def test_share_bounds_must_be_ordered() -> None:
-    record = next(r for r in iter_records(DEMO) if r["id"] == "syn-ownership-0001")
-    record = copy.deepcopy(record)
+    record = _demo("syn-ownership-0001")
     record["nr"]["share_pct_min"] = 60.0
     assert _rules(record) == ["NR"]
 
@@ -143,19 +212,169 @@ def test_unknown_property_and_unknown_top_level_key() -> None:
     record = _company()
     record["properties"]["birthDate"] = ["1979"]
     assert _rules(record) == ["R3"]
-    assert _rules({**_company(), "target": True}) == ["FORMAT"]
+    assert _rules({**_company(), "target": True}) == ["FORMAT"]  # OpenSanctions' legacy flag
 
 
 def test_schema_outside_the_v1_list_fails_r3() -> None:
     assert _rules(_company(schema="Vessel")) == ["R3"]
 
 
-def test_non_synthetic_records_must_not_set_nr_synthetic() -> None:
+# R6 synthetic consistency
+
+
+def test_only_synthetic_records_set_the_synthetic_keys() -> None:
     record = _company(id="gbch-co-01800000", datasets=["gb_companies_house"])
     record["nr"] = {"v": "1.0", "synthetic": False}
     assert _rules(record) == ["R6"]
+    record["nr"] = {"v": "1.0", "synthetic_kind": "registry"}
+    assert _rules(record) == ["NR"]
     record["nr"] = {"v": "1.0", "source_ref": "01800000"}
     assert _rules(record) == []
+
+
+# Each problem is reported once
+
+
+def test_each_problem_is_reported_once() -> None:
+    payment = _demo("syn-payment-000001")
+    payment["nr"]["scenario"] = "round_trip"  # the channel is still there: no R7
+    assert _rules(payment) == ["R9"]
+    company = _demo("syn-co-0001")
+    company["properties"]["name"] = "Quillon Marsh Trading Ltd"  # not a list
+    assert _rules(company) == ["R3"]  # address_roles is not checked against broken properties
+    empty_name = _company()
+    empty_name["properties"]["name"] = []
+    assert _rules(empty_name) == ["R3"]
+    impossible = _demo("syn-payment-000001")
+    impossible["properties"]["date"] = ["2026-13-45T10:22:05"]
+    assert _rules(impossible) == ["R5"]
+    wrong_prefix = _company(id="gbch-co-0099")
+    assert _rules(wrong_prefix) == ["R1"]
+
+
+# R3 to R5 property values and references
+
+
+def test_references_must_be_record_ids() -> None:
+    record = _company()
+    record["properties"]["addressEntity"] = ["NK-abc"]
+    assert _rules(record) == ["R4"]
+    record["properties"]["addressEntity"] = ["gbch-x_y"]  # FollowTheMoney cannot store it
+    [issue] = validate_record(record)
+    assert issue.rule == "R4"
+    assert "make_id" in issue.message
+
+
+def test_dangling_references_fail_only_in_strict_mode() -> None:
+    records = list(iter_records(EXAMPLES / "invalid" / "r4-dangling-reference.ftm.jsonl"))
+    assert _batch_rules(records) == ["R4"]
+    assert validate_batch(records, strict=False) == []
+
+
+def test_duplicate_ids_fail_r4_in_both_modes() -> None:
+    records = [*iter_records(DEMO), _demo("syn-co-0002")]
+    for strict in (True, False):
+        [issue] = validate_batch(records, strict)
+        assert (issue.rule, issue.record_id) == ("R4", "syn-co-0002")
+        assert "duplicate id" in issue.message
+
+
+def test_an_account_reused_as_an_id_still_needs_a_holder() -> None:
+    records = [r for r in iter_records(DEMO) if r["id"] != "syn-ownership-0003"]
+    records.append(_company(id="syn-acct-0002"))
+    assert _batch_rules(records, strict=False) == ["R4", "R8"]
+
+
+@pytest.mark.parametrize(
+    ("record_id", "prop", "target"),
+    [
+        ("syn-payment-000001", "payerAccount", "syn-co-0001"),  # must be a BankAccount
+        ("syn-payment-000001", "payer", "syn-acct-0001"),  # must be a LegalEntity
+        ("syn-ownership-0001", "owner", "syn-addr-0001"),  # must be a LegalEntity
+        ("syn-ownership-0001", "asset", "syn-addr-0001"),  # must be an Asset or a LegalEntity
+        ("syn-co-0001", "addressEntity", "syn-p-0001"),  # must be an Address
+    ],
+)
+def test_strict_mode_checks_what_a_reference_points_to(
+    record_id: str, prop: str, target: str
+) -> None:
+    records = list(iter_records(DEMO))
+    record = next(r for r in records if r["id"] == record_id)
+    record["properties"][prop] = [target]
+    record.get("nr", {}).pop("address_roles", None)
+    issues = [i for i in validate_batch(records, strict=True) if i.record_id == record_id]
+    assert [issue.rule for issue in issues] == ["R4"], [str(i) for i in issues]
+    assert "it must point to a" in issues[0].message
+    assert all(i.rule != "R4" for i in validate_batch(records, strict=False))
+
+
+def test_an_ownership_asset_may_be_a_company() -> None:
+    assert validate_files([DEMO], strict=True)[1] == []  # syn-ownership-0001: asset is a Company
+
+
+# R5, R7 and R8: payments and accounts
+
+
+@pytest.mark.parametrize(
+    ("prop", "values"),
+    [
+        ("amount", ["0.00"]),
+        ("amount", ["-5.00"]),
+        ("amount", ["9500.005"]),
+        ("amount", ["abc"]),
+        ("amount", ["9500.00\n"]),
+        ("currency", ["EURO"]),
+        ("currency", ["EUR\n"]),
+        ("currency", ["XXQ"]),  # three upper-case letters, but not ISO 4217
+        ("payerAccount", None),
+        ("date", None),
+        ("date", ["2026-03-14T10:22:05", "2026-03-15T10:22:05"]),
+    ],
+)
+def test_payment_fields_fail_r7(prop: str, values: list[str] | None) -> None:
+    payment = _demo("syn-payment-000001")
+    if values is None:
+        del payment["properties"][prop]
+    else:
+        payment["properties"][prop] = values
+    assert _rules(payment) == ["R7"]
+
+
+@pytest.mark.parametrize("currency", ["EUR", "GBP", "USD", "AED"])
+def test_iso_currencies_pass(currency: str) -> None:
+    payment = _demo("syn-payment-000001")
+    payment["properties"]["currency"] = [currency]
+    assert _rules(payment) == []
+
+
+@pytest.mark.parametrize(
+    "date", ["2026-03-14", "2026-03-14T10:22:05Z", "2026-03-14T10:22", "2026-03-14T10:22:05\n"]
+)
+def test_payment_dates_are_full_utc_timestamps(date: str) -> None:
+    payment = _demo("syn-payment-000001")
+    payment["properties"]["date"] = [date]
+    assert _rules(payment) == ["R5"]
+
+
+def test_followthemoney_date_cleaning_as_documented_in_c1_record_md() -> None:
+    # An offset is converted to UTC; a trailing Z is cut to minutes, which then fails R5.
+    assert registry.date.clean("2026-03-14T10:22:05+02:00") == "2026-03-14T08:22:05"
+    assert registry.date.clean("2026-03-14T10:22:05+00:00") == "2026-03-14T10:22:05"
+    assert registry.date.clean("2026-03-14T10:22:05Z") == "2026-03-14T10:22"
+
+
+def test_synthetic_accounts_cannot_look_real() -> None:
+    account = _demo("syn-acct-0001")
+    account["properties"]["accountNumber"] = ["12345678"]
+    assert _rules(account) == ["R8"]
+    account["properties"]["accountNumber"] = ["NRSYN0000000001\n"]
+    assert _rules(account) == ["R8"]
+    account["properties"]["accountNumber"] = ["NRSYN0000000001"]
+    account["properties"]["iban"] = ["GB00SYNT00000000000000"]
+    assert "R8" in _rules(account)
+
+
+# The loader recipe and the traps
 
 
 def test_make_entity_output_fails_r2() -> None:
@@ -179,8 +398,7 @@ def test_value_entity_recipe_from_c1_record_md_is_valid() -> None:
     payment.add("beneficiaryAccount", "syn-acct-0001")
     payment.add("amount", "120.50")
     payment.add("currency", "EUR")
-    payment.add("date", "2026-03-14T10:22:05+00:00")  # FollowTheMoney drops the offset
-    assert payment.get("date") == ["2026-03-14T10:22:05"]
+    payment.add("date", "2026-03-14T10:22:05")  # UTC, no offset, no Z
     lines = [
         json.dumps({**company.to_dict(), "nr": dict(NR)}, ensure_ascii=False),
         json.dumps(
@@ -192,56 +410,7 @@ def test_value_entity_recipe_from_c1_record_md_is_valid() -> None:
         assert validate_record(json.loads(line)) == []
 
 
-def test_every_valid_id_can_be_referenced() -> None:
-    good = ["syn-co-0001", "gbch-co-01800000", "gleif-549300OWFMSO9NYV4H90", "icij-10000001"]
-    for rid in good:
-        assert ID_RE.match(rid), rid
-        assert registry.entity.validate(rid), rid
-    for bad in ["gbch-officer_abc", "gbch-x:1", "syn-co-0001-", "syn-co-0001.", "SYN-co-1", "s-1"]:
-        assert not ID_RE.match(bad), bad
-
-
-def test_references_must_be_record_ids() -> None:
-    record = _company()
-    record["properties"]["addressEntity"] = ["NK-abc"]
-    assert _rules(record) == ["R4"]
-    record["properties"]["addressEntity"] = ["gbch-x_y"]
-    assert _rules(record) == ["R3"]  # FollowTheMoney cannot store this reference
-
-
-def test_dangling_references_fail_only_in_strict_mode() -> None:
-    records = list(iter_records(EXAMPLES / "invalid" / "r4-dangling-reference.ftm.jsonl"))
-    assert {issue.rule for issue in validate_batch(records, strict=True)} == {"R4"}
-    assert validate_batch(records, strict=False) == []
-
-
-@pytest.mark.parametrize(
-    ("prop", "value"),
-    [
-        ("amount", "0.00"),
-        ("amount", "-5.00"),
-        ("amount", "9500.005"),
-        ("amount", "abc"),
-        ("currency", "EURO"),
-        ("payerAccount", None),
-    ],
-)
-def test_payment_fields_fail_r7(prop: str, value: str | None) -> None:
-    payment = copy.deepcopy(next(r for r in iter_records(DEMO) if r["schema"] == "Payment"))
-    if value is None:
-        del payment["properties"][prop]
-    else:
-        payment["properties"][prop] = [value]
-    assert set(_rules(payment)) == {"R7"}
-
-
-def test_synthetic_accounts_cannot_look_real() -> None:
-    account = copy.deepcopy(next(r for r in iter_records(DEMO) if r["id"] == "syn-acct-0001"))
-    account["properties"]["accountNumber"] = ["12345678"]
-    assert _rules(account) == ["R8"]
-    account["properties"]["accountNumber"] = ["NRSYN0000000001"]
-    account["properties"]["iban"] = ["GB00SYNT00000000000000"]
-    assert "R8" in _rules(account)
+# Files
 
 
 def test_iter_records_names_the_bad_line(tmp_path: Path) -> None:
@@ -250,6 +419,17 @@ def test_iter_records_names_the_bad_line(tmp_path: Path) -> None:
     with pytest.raises(RecordFileError, match=r"broken\.ftm\.jsonl:3: invalid JSON"):
         list(iter_records(path))
 
+
+def test_iter_records_refuses_other_encodings(tmp_path: Path) -> None:
+    path = tmp_path / "latin1.ftm.jsonl"
+    record = _company()
+    record["properties"]["name"] = ["Caf\xe9 Example Ltd"]
+    path.write_bytes((json.dumps(record, ensure_ascii=False) + "\n").encode("latin-1"))
+    with pytest.raises(RecordFileError, match=r"latin1\.ftm\.jsonl:1: not UTF-8"):
+        list(iter_records(path))
+
+
+# Manifest
 
 MANIFEST_EXAMPLE: dict[str, Any] = {
     "manifest_version": "1.0",
@@ -276,13 +456,25 @@ def test_manifest_round_trips() -> None:
 
 
 @pytest.mark.parametrize(
-    ("key", "value"),
-    [("sha256", "<hex>"), ("records", -1), ("rows", 3)],
+    ("path", "value", "error"),
+    [
+        (("files", 0, "sha256"), "<hex>", "sha256"),
+        (("files", 0, "records"), -1, "records"),
+        (("files", 0, "rows"), 3, "rows"),
+        (("created_at",), "2026-10-23T09:00:00Z\n", "created_at"),
+        (("source", "retrieved_at"), "2026-10-23", "retrieved_at"),
+        (("dataset",), "nope", "not in contracts/datasets"),
+        (("licence", "id"), "CC0-1.0", "licence.id must be 'Apache-2.0'"),
+        (("synthetic",), False, "synthetic must be true"),
+    ],
 )
-def test_manifest_rejects_bad_file_entries(key: str, value: Any) -> None:
+def test_manifest_rejects_bad_values(path: tuple[Any, ...], value: Any, error: str) -> None:
     data = copy.deepcopy(MANIFEST_EXAMPLE)
-    data["files"][0][key] = value
-    with pytest.raises(ValidationError):
+    target = data
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValidationError, match=error):
         Manifest.model_validate(data)
 
 
@@ -297,11 +489,6 @@ def test_demo_manifest_matches_its_records() -> None:
     assert entry.records == counts.total()
     assert manifest.counts.by_schema == dict(counts)
     assert manifest.record_contract == versions.RECORD
-    assert (manifest.dataset, manifest.synthetic, manifest.licence.id) == (
-        "nr_synthetic",
-        True,
-        "Apache-2.0",
-    )
 
 
 def test_write_manifest(tmp_path: Path) -> None:
@@ -320,6 +507,7 @@ def test_write_manifest(tmp_path: Path) -> None:
     assert manifest.files[0].records == 10
     assert manifest.counts.skipped == {"Vessel": 2}
     assert manifest.seed == 7
+    assert (manifest.licence.id, manifest.synthetic) == ("Apache-2.0", True)
     assert "followthemoney" in manifest.dependencies
     with pytest.raises(ValueError, match=r"not in contracts/datasets\.yaml"):
         write_manifest(records, dataset="nope", producer=Producer(name="t", version="0"))

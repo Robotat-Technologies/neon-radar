@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Create .env from .env.example with a generated NEO4J_PASSWORD (PHASE-1.md M1.4).
-# Does nothing when .env already exists. Never prints the password (guardrail G6).
+# Does nothing when .env already exists, or when NEO4J_PASSWORD is already set in the
+# environment (Codespaces secrets, CI, the devcontainer). Never prints the password (guardrail G6).
 set -euo pipefail
+
+if [ -n "${NEO4J_PASSWORD:-}" ]; then
+  echo "NEO4J_PASSWORD is set in the environment; .env not needed."
+  exit 0
+fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="$root/.env"

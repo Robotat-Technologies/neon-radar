@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from neo4j import Driver
 from neo4j.exceptions import ClientError
+from nr_test_neo4j import Neo4jTarget
 
 from neonradar_api.files import RepoFiles
 from neonradar_api.graph import GraphConnection
@@ -34,7 +35,7 @@ from neonradar_graph.loader import collect_files, load_files, read_records, wipe
 from neonradar_graph.mapping import NodeRow, RelationshipRow, to_node_rows, to_relationship_rows
 from neonradar_graph.migrate import migrate
 
-from .conftest import REPO_ROOT, Neo4jTarget
+from .conftest import REPO_ROOT
 
 pytestmark = pytest.mark.integration
 

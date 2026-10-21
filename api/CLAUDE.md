@@ -48,5 +48,7 @@
   - Unit tests never touch Neo4j: pass a `GraphConnection` subclass to `create_app`
     (`tests/conftest.py`: `OfflineGraph`, `ScriptedGraph`), and build the settings error
     yourself instead of reading the environment or `.env`. The integration tests
-    (`test_api_neo4j.py`) put the API on the shared Testcontainers driver and derive expected
-    values from the fixture through the C2 mapping, never from hard-coded demo-mini names.
+    (`test_api_neo4j.py`) put the API on the driver of the shared `neo4j` fixture
+    (graph/tests/support/nr_test_neo4j.py; import `Neo4jTarget`, never the fixtures) and
+    derive expected values from the fixture through the C2 mapping, never from hard-coded
+    demo-mini names.

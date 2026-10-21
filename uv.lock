@@ -640,8 +640,10 @@ source = { editable = "api" }
 dependencies = [
     { name = "fastapi" },
     { name = "neonradar-contracts" },
+    { name = "neonradar-detect" },
     { name = "neonradar-graph" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "uvicorn" },
 ]
 
@@ -649,8 +651,10 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143,<0.144" },
     { name = "neonradar-contracts", editable = "contracts" },
+    { name = "neonradar-detect", editable = "detect" },
     { name = "neonradar-graph", editable = "graph" },
     { name = "pydantic-settings", specifier = ">=2.16,<3" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "uvicorn", specifier = ">=0.54,<0.55" },
 ]
 

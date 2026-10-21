@@ -8,12 +8,15 @@ dependencies = [
     "fastapi>=0.143,<0.144",
     "uvicorn>=0.54,<0.55",
     "neonradar-contracts",
+    "neonradar-detect",
     "neonradar-graph",
     "pydantic-settings>=2.16,<3",
+    "pyyaml>=6,<7",
 ]
 
 [tool.uv.sources]
 neonradar-contracts = { workspace = true }
+neonradar-detect = { workspace = true }
 neonradar-graph = { workspace = true }
 
 [build-system]

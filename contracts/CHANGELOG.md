@@ -68,7 +68,7 @@ The spec's tables are kept; these say how the mapping reads them.
 
 ### C3: API 1.0.0
 
-- The API contract: every model of `docs/build/PHASE-1.md` 5.3 in `neonradar_contracts.api` ([C3-api.md](C3-api.md)), the app `neonradar_api.main.create_app` with every v1 route declared (only `GET /api/v1/health` implemented; the others answer 501 naming M1.9c, Phase 2 or Phase 4), and `neonradar api serve` on `127.0.0.1`.
+- The API contract: every model of `docs/build/PHASE-1.md` 5.3 in `neonradar_contracts.api` ([C3-api.md](C3-api.md)), the app `neonradar_api.main.create_app` with every v1 route declared (M1.7d implemented `GET /api/v1/health` only; M1.9c implements the other Phase 1 routes, and ownership, paths and the copilot answer 501 naming Phase 2 or Phase 4), and `neonradar api serve` on `127.0.0.1`.
 - The OpenAPI snapshot `openapi/v1.json`: `neonradar contracts export` writes it from the running app and `neonradar contracts check` fails on drift (the command line adds it to the generated files, because this package cannot import the API); `api/tests/test_openapi_contract.py` compares the app with it.
 - Synthetic examples in `examples/c3/` (`subgraph.json`, `entity-detail.json`, `problem-501.json`); they reuse names already checked under OD-12 (the C4 example's holder, the C1 example's bank), so no new name was checked.
 
@@ -80,7 +80,7 @@ The spec's tables are kept; these say how the mapping reads them.
 - **`GET /entities/{entity_id}/ownership`:** `direction` is required (5.3 gives no default); `min_share` is optional.
 - **Limits 5.3 does not give:** `cursor` 1 to 512 characters, `context_entity_ids` at most 20, `EntityDetail.alerts` at most 50 (the rest through `GET /alerts?entity_id=`).
 - **Sub-model names** for the inline objects of 5.3: `SubgraphLimits` (`Subgraph.limits`), `GraphCounts` (`MetaResponse.counts`) and `Neo4jStatus` (`HealthResponse.neo4j`).
-- **OpenAPI at `/api/v1/openapi.json`**, and FastAPI's `/docs` and `/redoc` pages are not served: they load Swagger UI and ReDoc from cdn.jsdelivr.net and a favicon from fastapi.tiangolo.com, which guardrail G3 forbids. M1.9c adds an offline documentation page; until then M1.9c's review step ("try a few searches at /docs") and M1.9e's printed docs URL need that page.
+- **OpenAPI at `/api/v1/openapi.json`**, and FastAPI's `/docs` and `/redoc` pages are not served: they load Swagger UI and ReDoc from cdn.jsdelivr.net and a favicon from fastapi.tiangolo.com, which guardrail G3 forbids. M1.9c added the offline documentation page at `GET /docs`, outside `/api/v1` and not in the snapshot.
 - **FastAPI telemetry off:** FastAPI 0.143 (not in PHASE-1.md 3.1 or 3.2) ships native OpenTelemetry that can add OTLP exporters from `FASTAPI_OTEL_AUTO_CONFIGURE` and `OTEL_EXPORTER_OTLP_*`; the app switches every part off and a test checks that the environment cannot switch it on and that no OpenTelemetry SDK or exporter is installed (G3).
 - **Dependencies:** `uvicorn>=0.54,<0.55` (5.3 names it without a version); `httpx>=0.28,<0.29` in the dev group for FastAPI's TestClient. Starlette 1.9 suggests `httpx2` instead, but `httpx2` is published from github.com/pydantic/httpx2, not by encode (checked on pypi.org on 21 October 2026), so the tests keep httpx with one targeted warning filter.
 - **Typology `tier` and `status`** Literals live in `neonradar_contracts.api` (the API serves them), and `neonradar_detect.catalog` imports them.
@@ -112,6 +112,14 @@ The spec's shapes are kept; these say how the models and routes read them.
 - **OperationIds** are the Python function names (`get_entity`, `list_alerts`, ...).
 - **Clients are tolerant readers:** `additionalProperties: false` and the enums describe what this version's server emits; clients must not reject unknown fields, dictionary keys or enum values.
 - **ASCII digits** (pre-freeze patch clarification, orchestrator decision under OD-10, listed for Gate 1): `PackageVersion` and the shared `Version` pattern use `[0-9]` instead of `\d`, so the server accepts exactly what ECMAScript clients validate; the OpenAPI snapshot and the UI's generated `ui/src/api/schema.d.ts` change only in pattern strings.
+
+#### Clarified in M1.9c (pre-freeze patch wording; the snapshot is unchanged; Gate 1 sign-off)
+
+- **Stale alerts:** the `500` problem also covers an alert whose evidence is no longer in the graph, and its detail says to wipe and reload the data, then re-run detection (a new run does not remove earlier runs' alerts). Whether `GET /alerts/{alert_id}` should declare `500` in the OpenAPI document is on the Gate 1 list.
+- **Search:** `total_estimate` counts the label-filtered hits within the first 200 full-text hits plus exact account-number matches, a lower bound; an exact account-number hit comes first with the response's top score (1.0 when there is none).
+- **Network:** the relationships returned are those of the requested types between the kept nodes.
+- **Host check:** only the `Host` values in `NR_ALLOWED_HOSTS` (default `localhost`, `127.0.0.1`, `api`) are answered; any other gets Starlette's `400 text/plain` (DNS rebinding guard, review of #43).
+- **Files:** `NR_REPO_ROOT` locates `detect/typologies/`, `docs/typologies/` and the bibliography for the typology routes; `GET /meta` reads the registry and disclaimers from the contracts package. `GET /docs` is the offline page, outside `/api/v1` and the snapshot.
 
 ### C4: Alert 1.0.0
 

@@ -29,6 +29,7 @@ from followthemoney.exc import InvalidData
 from neonradar_contracts import versions
 from neonradar_contracts.datasets import load_registry
 from neonradar_contracts.records import ALLOWED_SCHEMATA, OPTIONAL_KEYS, make_id
+from neonradar_ingest.spikes import entity_record
 
 DATASET = "opensanctions_default"
 ID_KIND = "ent"
@@ -83,7 +84,7 @@ def _nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
 
-def utc_timestamp(value: object) -> str | None:
+def seen_timestamp(value: object) -> str | None:
     """An ISO timestamp in UTC without an offset; a date-only value is kept; else None."""
     if not isinstance(value, str) or not registry.date.validate(value):
         return None
@@ -131,30 +132,31 @@ def map_entity(data: Mapping[str, Any], stats: MappingStats) -> dict[str, Any] |
     stats.dropped_properties.update(f"{schema.name}:{prop}" for prop in unknown)
     stats.source_datasets.update(parsed.datasets)
 
-    entity = ValueEntity(schema, {"id": record_id(data["id"]), "datasets": [DATASET]})
+    offered: dict[str, list[str]] = {}
     for prop_name, values in parsed.properties.items():
         if schema.properties[prop_name].type == registry.entity:
             values = [record_id(value) for value in values]
-        offered = list(dict.fromkeys(_nfc(value) for value in values))  # keeps the order
-        entity.add(prop_name, offered)
-        rejected = len(offered) - len(entity.get(prop_name))  # dropped or merged by cleaning
-        if rejected > 0:
-            stats.dropped_values[f"{schema.name}:{prop_name}"] += rejected
-
+        offered[prop_name] = list(dict.fromkeys(values))  # keeps the order
+    rid = record_id(data["id"])
+    cleaned = entity_record(schema.name, rid, DATASET, offered)  # FtM cleaning, NFC
     record: dict[str, Any] = {
-        "id": entity.id,
+        "id": rid,
         "schema": schema.name,
-        "properties": entity.to_dict()["properties"],
+        "properties": cleaned["properties"],
         "datasets": [DATASET],
     }
-    referents = sorted({record_id(ref) for ref in parsed.referents if ref} - {entity.id})
+    for prop_name, values in offered.items():
+        rejected = len(values) - len(record["properties"].get(prop_name, []))
+        if rejected > 0:  # dropped or merged by FollowTheMoney's cleaning
+            stats.dropped_values[f"{schema.name}:{prop_name}"] += rejected
+    referents = sorted({record_id(ref) for ref in parsed.referents if ref} - {rid})
     if referents:
         record["referents"] = referents
     caption = data.get("caption")
     if isinstance(caption, str) and caption.strip():
         record["caption"] = _nfc(caption)
     for key in TIMESTAMP_KEYS:
-        stamp = utc_timestamp(data.get(key))
+        stamp = seen_timestamp(data.get(key))
         if stamp is not None:
             record[key] = stamp
     record["nr"] = {"v": NR_VERSION, "source_ref": _nfc(data["id"])}

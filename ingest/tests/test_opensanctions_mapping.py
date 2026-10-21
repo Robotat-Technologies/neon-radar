@@ -24,7 +24,7 @@ from neonradar_ingest.sources.opensanctions.mapping import (
     map_entity,
     map_lines,
     record_id,
-    utc_timestamp,
+    seen_timestamp,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opensanctions"
@@ -131,8 +131,8 @@ def test_strings_become_nfc_and_timestamps_utc() -> None:
         (None, None),
     ],
 )
-def test_utc_timestamp(value: object, expected: str | None) -> None:
-    assert utc_timestamp(value) == expected
+def test_seen_timestamp(value: object, expected: str | None) -> None:
+    assert seen_timestamp(value) == expected
 
 
 def test_odd_source_ids_are_hashed_consistently() -> None:

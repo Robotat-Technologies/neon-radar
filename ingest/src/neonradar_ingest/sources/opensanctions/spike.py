@@ -7,39 +7,33 @@ streams the first `rows` lines, maps them to C1 in memory and counts schemata, t
 flags. Only `licensed` access writes the records and their manifest, to the spike cache.
 """
 
-import json
 import logging
 import time
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
 import httpx
 
-from neonradar_contracts.records import Producer, Source, validate_record, write_manifest
-from neonradar_ingest import __version__
-from neonradar_ingest.sources.opensanctions.access import (
-    REPO_ROOT,
-    Access,
-    may_write,
-    require_access,
-)
+from neonradar_contracts.records import Source, validate_record
+from neonradar_ingest.http import HttpClient, HttpError, RateLimiter, redact
+from neonradar_ingest.sources.opensanctions.access import Access, may_write, require_access
 from neonradar_ingest.sources.opensanctions.mapping import DATASET, MappingStats, map_lines
+from neonradar_ingest.spikes import utc_timestamp, write_output
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://data.opensanctions.org/datasets/latest"
+HOST = "https://data.opensanctions.org"
+BASE_URL = f"{HOST}/datasets/latest"
 ENTITIES_FILE = "entities.ftm.json"
 # Collections on the OpenSanctions datasets index (research note A.1). `all` is left out on
 # purpose: OpenSanctions calls it "a strictly inferior data product" and says to use `default`.
 COLLECTIONS = (
     "default", "sanctions", "peps", "crime", "debarment", "regulatory", "maritime", "securities",
 )  # fmt: skip
-CACHE_DIR = REPO_ROOT / "data" / "cache" / "spikes" / "opensanctions"
-PRODUCER = "neonradar_ingest.sources.opensanctions"
+SPIKE = "opensanctions"  # output in data/cache/spikes/opensanctions/
 INVALID = "<C1 issues>"  # manifest counts.skipped key for mapped records that fail validation
 
 
@@ -96,6 +90,21 @@ class SpikeResult:
     seconds: float = 0.0
 
 
+def make_client(**options: Any) -> HttpClient:
+    """The shared client for data.opensanctions.org, following redirects (307 since August 2026).
+
+    OpenSanctions publishes no rate limit for bulk files; one request per second is polite.
+    """
+    return HttpClient(HOST, follow_redirects=True, limiter=RateLimiter(1.0), **options)
+
+
+def _check(response: httpx.Response) -> None:
+    """HttpError with a redacted URL for any status of 400 or more (never raise_for_status)."""
+    if response.is_error:
+        where = f"{response.request.method} {redact(response.request.url)}"
+        raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
+
+
 def index_url(collection: str) -> str:
     """`https://data.opensanctions.org/datasets/latest/<collection>/index.json`."""
     if collection not in COLLECTIONS:
@@ -103,13 +112,14 @@ def index_url(collection: str) -> str:
     return f"{BASE_URL}/{collection}/index.json"
 
 
-def read_index(client: httpx.Client, collection: str) -> IndexInfo:
+def read_index(client: HttpClient, collection: str) -> IndexInfo:
     """GET the collection's `index.json` and log its version and the entities checksum."""
-    response = client.get(index_url(collection))
-    response.raise_for_status()
+    url = index_url(collection)  # refuses an unknown collection before any request
+    response = client.get(url)
+    _check(response)
     body = response.json()
     if not isinstance(body, dict):
-        raise ValueError(f"{response.url}: index.json is not a JSON object")
+        raise HttpError(f"GET {redact(response.url)}: index.json is not a JSON object")
     redirects = tuple(step.status_code for step in response.history)
     info = IndexInfo.from_body(body, collection, str(response.url), redirects)
     logger.info(
@@ -120,12 +130,12 @@ def read_index(client: httpx.Client, collection: str) -> IndexInfo:
 
 
 def run_spike(
-    client: httpx.Client,
+    client: HttpClient,
     *,
     access: Access,
     collection: str = "sanctions",
     rows: int = 1000,
-    out_dir: Path = CACHE_DIR,
+    root: Path | None = None,  # default data/cache/spikes; the output goes to <root>/opensanctions/
     licence_file: Path | None = None,
 ) -> SpikeResult:
     """Run the spike if `access` allows it; raise LicenceRequired before any request if not."""
@@ -136,7 +146,7 @@ def run_spike(
     result = SpikeResult(access=access, collection=collection, index=read_index(client, collection))
     kept: list[dict[str, Any]] = []
     with client.stream("GET", result.index.entities_url) as response:
-        response.raise_for_status()
+        _check(response)
         result.entities_url = str(response.url)
         for record in map_lines(response.iter_lines(), result.stats, limit=rows):
             issues = validate_record(record)
@@ -145,35 +155,25 @@ def run_spike(
             if not issues and may_write(access):
                 kept.append(record)
     if may_write(access):
-        result.records_file = _write(kept, result, out_dir)
+        result.records_file = write_output(
+            kept,
+            SPIKE,
+            dataset=DATASET,
+            part=collection,
+            source=Source(
+                urls=[result.index.url, result.entities_url],
+                retrieved_at=utc_timestamp(),
+                source_version=result.index.version,
+            ),
+            skipped=result.stats.skipped + Counter({INVALID: result.invalid}),
+            notes=[
+                f"collection {collection}; the first {result.stats.lines} lines only",
+                "a slice: references to entities outside it dangle, so validate without --strict",
+            ],
+            root=root,
+        )
     result.seconds = time.monotonic() - started
     return result
-
-
-def _write(records: list[dict[str, Any]], result: SpikeResult, out_dir: Path) -> Path:
-    """Licensed access only: write the records and their manifest into the spike cache."""
-    now = datetime.now(UTC)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{DATASET}-{now:%Y%m%d}-{result.collection}.ftm.jsonl"
-    with path.open("w", encoding="utf-8") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    write_manifest(
-        path,
-        dataset=DATASET,
-        producer=Producer(name=PRODUCER, version=__version__),
-        source=Source(
-            urls=[result.index.url, result.entities_url],
-            retrieved_at=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            source_version=result.index.version,
-        ),
-        skipped=result.stats.skipped + Counter({INVALID: result.invalid}),
-        notes=[
-            f"collection {result.collection}; the first {result.stats.lines} lines only",
-            "a slice: references to entities outside it dangle, so validate without --strict",
-        ],
-    )
-    return path
 
 
 def _counts(counter: Counter[str], top: int | None = None) -> str:

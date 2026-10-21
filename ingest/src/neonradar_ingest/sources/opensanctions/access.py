@@ -12,11 +12,10 @@ from pathlib import Path
 
 import yaml
 
+from neonradar_ingest.spikes import PROJECT_FILE, REPO_ROOT
+
 logger = logging.getLogger(__name__)
 
-# The workspace installs members editable: ingest/src/neonradar_ingest/sources/opensanctions/.
-REPO_ROOT = Path(__file__).resolve().parents[5]
-PROJECT_FILE = REPO_ROOT / "docs" / "build" / "project.yaml"
 LICENCE_FILE = REPO_ROOT / "docs" / "data" / "licences" / "opensanctions.md"
 REFUSAL = "OpenSanctions use inside a company needs a data licence; see DATA_SOURCES.md"
 

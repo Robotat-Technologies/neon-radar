@@ -1,0 +1,5 @@
+# synthetic: true
+scenario_id,typology,variant,is_lookalike,start_ts,end_ts,participants
+scn-0001,circular_flow,round_trip,false,2026-02-16T17:31:41,2026-02-20T09:13:50,origin:syn-acct-0013;origin_holder:syn-co-0013;intermediary:syn-acct-0004;intermediary_holder:syn-co-0004;intermediary:syn-acct-0017;intermediary_holder:syn-co-0016;intermediary:syn-acct-0022;intermediary_holder:syn-co-0020
+scn-0002,circular_flow,loan_drawdown_repayment,true,2026-01-16T11:16:28,2026-01-27T13:38:54,lender:syn-acct-0016;lender_holder:syn-co-0015;borrower:syn-acct-0018;borrower_holder:syn-co-0017
+scn-0003,circular_flow,refund,true,2026-04-01T14:15:46,2026-04-02T17:31:41,customer:syn-acct-0032;customer_holder:syn-p-0004;merchant:syn-acct-0024;merchant_holder:syn-co-0021

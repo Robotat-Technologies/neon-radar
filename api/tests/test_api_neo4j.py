@@ -37,7 +37,7 @@ from neonradar_graph.loader import collect_files, load_records, read_records, wi
 from neonradar_graph.mapping import NodeRow, RelationshipRow, to_node_rows, to_relationship_rows
 from neonradar_graph.migrate import migrate
 
-from .conftest import REPO_ROOT
+from .conftest import REPO_ROOT, TEST_HOSTS
 
 pytestmark = pytest.mark.integration
 
@@ -124,7 +124,8 @@ def stack(neo4j: Neo4jTarget, tmp_path_factory: pytest.TempPathFactory) -> Itera
     )
     assert run.alerts, "demo-mini's round_trip scenario gives at least one alert"
     graph = SessionGraph(neo4j)
-    with TestClient(create_app(graph, RepoFiles(REPO_ROOT))) as client:
+    app = create_app(graph, RepoFiles(REPO_ROOT), allowed_hosts=TEST_HOSTS)
+    with TestClient(app) as client:
         yield Stack(
             client, graph, run, to_node_rows(records).rows, to_relationship_rows(records).rows
         )

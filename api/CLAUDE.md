@@ -17,7 +17,8 @@
   the working directory; `get_files` dependency), `shapes` (C2 rows to C3 models, property
   allow-lists from `neonradar_contracts.graph`), `entities` (search, entity detail, network),
   `alerts` (queue with its cursor, detail), `reference` (meta, typologies), `docs_page` (the
-  `/docs` page).
+  `/docs` page), `settings` (`ApiSettings`: `NR_REPO_ROOT`, `NR_ALLOWED_HOSTS`; environment
+  only, read when the app starts).
 - Traps:
   - The running app's OpenAPI must equal `contracts/openapi/v1.json` (contract test). Routes
     are declared with their final responses, so implementing one must not change the snapshot.
@@ -29,6 +30,9 @@
   - Never re-enable FastAPI's `/docs` or `/redoc`: they load assets from a CDN and
     fastapi.tiangolo.com (G3). `/docs` is `docs_page`: inline style and script only, allowed by
     their SHA-256 in the Content-Security-Policy (edit the text and the hashes follow).
+  - `TrustedHostMiddleware` answers only `NR_ALLOWED_HOSTS` (`neonradar_api.settings`; default
+    `localhost`, `127.0.0.1`, `api`): a proxy must pass one of them as `Host`. Tests add
+    `testserver` (`tests/conftest.py`, `TEST_HOSTS`).
   - FastAPI 0.143 mounts included routers lazily: `app.routes` does not list the API
     routes; read `main.router.routes`.
   - Every query goes through `GraphConnection.read` (parameters only, READ routing).

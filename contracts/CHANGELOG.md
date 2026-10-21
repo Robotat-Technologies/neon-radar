@@ -118,6 +118,7 @@ The spec's shapes are kept; these say how the models and routes read them.
 - **Stale alerts:** the `500` problem also covers an alert whose evidence is no longer in the graph, and its detail says to wipe and reload the data, then re-run detection (a new run does not remove earlier runs' alerts). Whether `GET /alerts/{alert_id}` should declare `500` in the OpenAPI document is on the Gate 1 list.
 - **Search:** `total_estimate` counts the label-filtered hits within the first 200 full-text hits plus exact account-number matches, a lower bound; an exact account-number hit comes first with the response's top score (1.0 when there is none).
 - **Network:** the relationships returned are those of the requested types between the kept nodes.
+- **Host check:** only the `Host` values in `NR_ALLOWED_HOSTS` (default `localhost`, `127.0.0.1`, `api`) are answered; any other gets Starlette's `400 text/plain` (DNS rebinding guard, review of #43).
 - **Files:** `NR_REPO_ROOT` locates `detect/typologies/`, `docs/typologies/` and the bibliography for the typology routes; `GET /meta` reads the registry and disclaimers from the contracts package. `GET /docs` is the offline page, outside `/api/v1` and the snapshot.
 
 ### C4: Alert 1.0.0

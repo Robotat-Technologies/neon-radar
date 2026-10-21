@@ -2,10 +2,9 @@
 
 `detect/typologies/` (`load_catalog()`), `docs/typologies/` (the explainers) and
 `docs/sources/bibliography.yaml` (`Citation` titles and links) are found from one setting,
-`NR_REPO_ROOT`. Its default is the nearest directory, from the working directory up, whose
-`pyproject.toml` has a `[tool.uv.workspace]` table; M1.9e's image sets it to `/app`. The
-setting comes from the environment only: it locates the repository, so it cannot come from the
-repository's `.env`. Nothing is read until a route needs it, so `create_app()` (and the OpenAPI
+`NR_REPO_ROOT` (`neonradar_api.settings`). Its default is the nearest directory, from the
+working directory up, whose `pyproject.toml` has a `[tool.uv.workspace]` table; M1.9e's image
+sets it to `/app`. Nothing is read until a route needs it, so `create_app()` (and the OpenAPI
 export) works anywhere. The contract files `GET /meta` serves (the dataset registry and the
 disclaimers) come from the contracts package itself (`load_registry()`, `load_disclaimer()`),
 so `/meta` never depends on this setting.
@@ -18,8 +17,8 @@ from typing import Any, Final
 
 import yaml
 from fastapi import Request
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from neonradar_api.settings import ApiSettings
 from neonradar_contracts.api import Citation
 from neonradar_detect.catalog import TypologyFile, load_catalog
 
@@ -27,14 +26,6 @@ from neonradar_detect.catalog import TypologyFile, load_catalog
 class RepoRootNotFound(RuntimeError):
     """No usable repository: `NR_REPO_ROOT` names no NeonRadar checkout, or it is unset and no
     uv workspace lies above the working directory (HTTP 500 on the typology routes)."""
-
-
-class ApiSettings(BaseSettings):
-    """`NR_REPO_ROOT`, from the environment only."""
-
-    model_config = SettingsConfigDict(env_prefix="NR_", extra="ignore")
-
-    repo_root: Path | None = None
 
 
 def find_workspace_root(start: Path) -> Path | None:

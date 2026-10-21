@@ -15,6 +15,7 @@ from typing import Annotated, Any, Final
 
 from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from fastapi.telemetry import TelemetryConfig
@@ -24,6 +25,7 @@ from neonradar_api.files import RepoFiles, get_files
 from neonradar_api.graph import GraphConnection, get_graph
 from neonradar_api.health import check_health
 from neonradar_api.problems import not_implemented, responses
+from neonradar_api.settings import ApiSettings
 from neonradar_contracts import versions
 from neonradar_contracts.alert import (
     ALERT_ID_LENGTH,
@@ -231,10 +233,15 @@ def _docs_page() -> HTMLResponse:
     return HTMLResponse(docs_page.PAGE, headers=headers)
 
 
-def create_app(graph: GraphConnection | None = None, files: RepoFiles | None = None) -> FastAPI:
+def create_app(
+    graph: GraphConnection | None = None,
+    files: RepoFiles | None = None,
+    allowed_hosts: list[str] | None = None,
+) -> FastAPI:
     """The app; nothing connects to Neo4j or reads the repository files until a route needs
-    them (`uvicorn --factory`)."""
+    them (`uvicorn --factory`). `allowed_hosts` defaults to `NR_ALLOWED_HOSTS`."""
     connection = graph if graph is not None else GraphConnection()
+    hosts = allowed_hosts if allowed_hosts is not None else ApiSettings().allowed_hosts
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -266,6 +273,8 @@ def create_app(graph: GraphConnection | None = None, files: RepoFiles | None = N
         allow_methods=["GET", "POST"],
         allow_headers=["content-type"],
     )
+    # Added last, so it runs first: any other Host header is a 400 (DNS rebinding guard).
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts, www_redirect=False)
     app.include_router(router)
     app.add_api_route("/docs", _docs_page, methods=["GET"], include_in_schema=False)
     app.openapi = _with_problem_schema(app)  # type: ignore[method-assign]

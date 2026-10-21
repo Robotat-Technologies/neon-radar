@@ -780,6 +780,7 @@ dependencies = [
     { name = "anyascii" },
     { name = "normality" },
     { name = "rigour" },
+    { name = "typing-extensions" },
 ]
 
 [package.metadata]
@@ -787,6 +788,7 @@ requires-dist = [
     { name = "anyascii", specifier = "==0.3.*" },
     { name = "normality", specifier = "==3.1.*" },
     { name = "rigour", specifier = "==2.5.*" },
+    { name = "typing-extensions", specifier = ">=4.12" },
 ]
 
 [[package]]

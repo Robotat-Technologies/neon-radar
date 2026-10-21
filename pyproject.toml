@@ -52,6 +52,9 @@ known-first-party = ["neonradar_*"]
 "**/tests/**" = ["S101"]
 "scripts/*" = ["S603", "S607"]
 ".claude/hooks/*" = ["S603", "S607"]
+# Synthetic names in Cyrillic and Arabic script on purpose (PHASE-1.md M1.8e).
+"ingest/src/neonradar_ingest/synth/*" = ["RUF001", "RUF003"]
+"ingest/tests/test_synth_*" = ["RUF001"]
 
 [tool.mypy]
 strict = true

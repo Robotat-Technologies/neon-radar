@@ -15,7 +15,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0002](0002-neo4j-5-26-lts.md) | Neo4j 5.26 LTS | M1.4 | proposed | tech lead |
 | [0003](0003-followthemoney-record-format.md) | FollowTheMoney as the record format | M1.7a | proposed | tech lead |
 | [0004](0004-graph-schema-v1.md) | Graph schema v1 | M1.7b | proposed | tech lead |
-| 0005 | Synthetic data policy | M1.8e | not written yet | tech lead, data steward |
+| [0005](0005-synthetic-data-policy.md) | Synthetic data policy | M1.8e | proposed | tech lead, data steward |
 | [0006](0006-data-licensing.md) | Data licensing | M1.10a | proposed | data steward, project lead |
 | [0007](0007-toolchain.md) | Toolchain | M1.3 | proposed | tech lead |
 | [0008](0008-api-gateway.md) | API gateway and OpenAPI snapshot | M1.7d | proposed | tech lead |

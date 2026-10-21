@@ -41,6 +41,8 @@ Andrew Higgins
 Russell Armstrong
 Andrey Golubev
 Андрей Голубев
+Tatiana Lebedeva
+Татьяна Лебедева
 # Added in M1.8e (review): the example person of PHASE-1.md 5.1, whose name matches a real
 # Companies House officer (OD-12).
 Omar Haddad

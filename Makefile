@@ -44,9 +44,10 @@ check: lint typecheck test contracts-check ## everything a pull request needs
 	fi
 
 # Labels come from LABELS=a,b, else from the branch's pull request, else none; the title comes
-# from TITLE=, else from the pull request, else the title check is skipped.
+# from TITLE=, else from the pull request, else the title check is skipped. check_citations needs
+# PyYAML, so it runs in the uv workspace rather than with --no-project.
 HYGIENE_PY := uv run --no-project python
-hygiene: ## the pull request checks CI runs (title, size, contract paths, fixtures, wording)
+hygiene: ## the pull request checks CI runs (title, size, contract paths, fixtures, wording, citations)
 	@git fetch --quiet origin main || echo "hygiene: could not fetch origin/main; using the local copy"
 	@labels='$(LABELS)'; title='$(TITLE)'; status=0; \
 	if [ -z "$$labels" ]; then \
@@ -60,6 +61,7 @@ hygiene: ## the pull request checks CI runs (title, size, contract paths, fixtur
 	$(HYGIENE_PY) scripts/check_contract_paths.py --base origin/main --labels "$$labels" || status=1; \
 	$(HYGIENE_PY) scripts/check_fixtures.py || status=1; \
 	$(HYGIENE_PY) scripts/check_wording.py || status=1; \
+	uv run python scripts/check_citations.py docs/ detect/typologies/ README.md || status=1; \
 	exit $$status
 
 plugins: ## once, with network: pull the Neo4j image and fetch the pinned GDS jar

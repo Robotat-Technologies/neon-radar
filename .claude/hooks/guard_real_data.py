@@ -28,6 +28,9 @@ protected like data/cache/real, and more strictly: a command line that names it 
 it, or it as the current folder) may only run the read-only git subcommands, which see
 tracked files only; listing programs and the project's own commands are blocked too.
 neonradar eval run --split test (in any position, with = or a space) is human-only.
+Case: macOS and Windows file systems ignore case, so data/cache/REAL is data/cache/real.
+Every path and mark is compared casefolded, and the human-only commands are matched
+without regard to case (the program name too: NeonRadar runs neonradar there).
 Exit 2 blocks the call and shows the reason. Standard library only; Python 3.9 or later.
 It stops accidents, not a determined person: the permission rules, CLAUDE.md and the people
 who run the project remain responsible.
@@ -85,7 +88,8 @@ REAL_INSTANCE = re.compile(
 HUMAN_ONLY = re.compile(
     r"\bneonradar(?:_cli)?\b(?:\s+-\S+)*\s+(?:er\s+(?:-\S+\s+)*(?:label|review)\b"
     r"|api\s+serve\b[^;&|]*?\s--real\b"
-    r"|eval\s+(?:-\S+\s+)*run\b[^;&|]*?\s--split(?:=|\s+)test\b)"
+    r"|eval\s+(?:-\S+\s+)*run\b[^;&|]*?\s--split(?:=|\s+)test\b)",
+    re.IGNORECASE,
 )
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 WEB_DATA = (
@@ -112,6 +116,12 @@ WEB_DATA = (
     ("members-api.parliament.uk", "/api/", "all"),
 )
 DATA_FILE = re.compile(r"\.(?:zip|gz|bz2|csv|tsv|txt|xml|json|jsonl|xlsx?|ods|odt|parquet)$", re.I)
+
+
+def marked(text):
+    """True when `text` names a protected folder by its mark, in any letter case."""
+    folded = text.casefold()
+    return any(m in folded for m in MARKS)
 
 
 def block(reason):
@@ -145,9 +155,7 @@ def strip_heredocs(command):
         tokens = re.findall(r"[A-Za-z0-9_.\-/]+", before.split("|")[-1])
         names = {os.path.basename(w) for w in tokens} & INTERPRETERS
         text = "\n".join(body)
-        if names and (
-            any(m in text for m in MARKS) or REAL_INSTANCE.search(text) or HUMAN_ONLY.search(text)
-        ):
+        if names and (marked(text) or REAL_INSTANCE.search(text) or HUMAN_ONLY.search(text)):
             block(
                 "a script fed to " + ", ".join(sorted(names)) + " names real data, the real "
                 "Neo4j instance or a human-only command"
@@ -197,12 +205,14 @@ def absolute(value, cwd):
 
 
 def relative(token, cwd):
-    """The token as a path relative to the project directory, or None."""
+    """The token as a path relative to the project directory, casefolded, or None. File
+    systems that ignore case (macOS, Windows) open data/cache/REAL as data/cache/real, so
+    every comparison with a protected folder works on the casefolded path."""
     value = token.split("=", 1)[1] if token.startswith("-") and "=" in token else token
     if not value or value.startswith("-") or "\n" in value:
         return None
-    root = project_dir()
-    value = absolute(value, cwd)
+    root = project_dir().casefold()
+    value = absolute(value, cwd).casefold()
     if value == root:
         return "."
     if value.startswith(root + "/"):
@@ -216,7 +226,7 @@ def inside(rel, folders=PROTECTED):
 
 def names_holdout(token, cwd):
     """True when a token names data/cache/holdout or something inside it (PHASE-3.md G11)."""
-    return HOLDOUT_MARK in token or inside(relative(token, cwd), (HOLDOUT,))
+    return HOLDOUT_MARK in token.casefold() or inside(relative(token, cwd), (HOLDOUT,))
 
 
 def glob_reaches(pattern, protected, double_star=True):
@@ -234,7 +244,7 @@ def glob_reaches(pattern, protected, double_star=True):
 
 def touches(token, cwd):
     """True when a token names a protected folder, something inside one, or a glob that can."""
-    if any(m in token for m in MARKS):
+    if marked(token):
         return True
     rel = relative(token, cwd)
     if rel is None:
@@ -387,7 +397,7 @@ def check_bash(command, cwd):
     command = strip_heredocs(command)
     commands = parse(command)
     if commands is None:
-        if any(m in command for m in MARKS) or REAL_INSTANCE.search(command):
+        if marked(command) or REAL_INSTANCE.search(command):
             block(
                 "could not parse a command that names real data or the real Neo4j instance; "
                 "use a simple ls, du or neonradar command"
@@ -499,7 +509,7 @@ def check_paths(tool, tool_input, cwd):
         if not isinstance(value, str) or not value:
             continue
         value = value.replace("\\", "/")
-        if any(m in value for m in MARKS):
+        if marked(value):
             block(
                 tool + " may not name data/cache/real, data/cache/spikes or data/cache/holdout "
                 "(PHASE-2.md G9, PHASE-3.md G11)"
@@ -508,7 +518,7 @@ def check_paths(tool, tool_input, cwd):
             continue
         full = absolute(value, search_root if key == "pattern" else here)
         rel = relative(full, None)
-        if any(m in full for m in MARKS) or inside(rel):
+        if marked(full) or inside(rel):
             block(
                 tool + " may not read data/cache/real, data/cache/spikes or data/cache/holdout "
                 "(PHASE-2.md G9, PHASE-3.md G11)"

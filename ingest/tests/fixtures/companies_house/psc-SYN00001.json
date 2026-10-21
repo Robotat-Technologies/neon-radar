@@ -1,0 +1,70 @@
+{
+  "items_per_page": "25",
+  "start_index": 0,
+  "total_results": 4,
+  "active_count": 3,
+  "ceased_count": 1,
+  "links": {"self": "/company/SYN00001/persons-with-significant-control"},
+  "items": [
+    {
+      "kind": "individual-person-with-significant-control",
+      "name": "Mr Zafir Qandelouni",
+      "name_elements": {"title": "Mr", "forename": "Zafir", "surname": "Qandelouni"},
+      "date_of_birth": {"month": 8, "year": 1979},
+      "nationality": "Jordanian",
+      "country_of_residence": "England",
+      "notified_on": "2019-04-02",
+      "natures_of_control": [
+        "ownership-of-shares-25-to-50-percent",
+        "voting-rights-25-to-50-percent",
+        "significant-influence-or-control"
+      ],
+      "address": {"premises": "1", "address_line_1": "Example Lane", "locality": "London", "postal_code": "ZZ1 1ZZ"},
+      "identity_verification_details": {
+        "appointment_verification_start_on": "2025-12-01",
+        "appointment_verification_statement_date": "2025-11-18",
+        "appointment_verification_statement_due_on": "2025-12-02"
+      },
+      "etag": "syn0000000000000000000000000000000000004",
+      "links": {"self": "/company/SYN00001/persons-with-significant-control/individual/SYNpsc_0001qandelouni"}
+    },
+    {
+      "kind": "corporate-entity-person-with-significant-control",
+      "name": "EXAMPLE HOLDINGS LTD",
+      "identification": {
+        "legal_authority": "Companies Act 2006",
+        "legal_form": "Private Limited Company",
+        "place_registered": "Register Of Companies For England And Wales",
+        "registration_number": "SYN00003",
+        "country_registered": "England"
+      },
+      "notified_on": "2021-07-01",
+      "ceased_on": "2024-03-31",
+      "ceased": true,
+      "natures_of_control": [
+        "ownership-of-shares-50-to-75-percent-as-trust",
+        "right-to-appoint-and-remove-directors"
+      ],
+      "address": {"premises": "2", "address_line_1": "Example Road", "locality": "London", "postal_code": "ZZ1 1ZZ"},
+      "etag": "syn0000000000000000000000000000000000005",
+      "links": {"self": "/company/SYN00001/persons-with-significant-control/corporate-entity/SYNpsc-0002example"}
+    },
+    {
+      "kind": "legal-person-with-significant-control",
+      "name": "SYNTHETIC REGULATORY AUTHORITY",
+      "identification": {"legal_authority": "Synthetic Act 2001", "legal_form": "Statutory Body"},
+      "notified_on": "2024-04-01",
+      "natures_of_control": ["significant-influence-or-control-as-firm"],
+      "address": {"premises": "3", "address_line_1": "Example Square", "locality": "London", "postal_code": "ZZ1 1ZZ"},
+      "etag": "syn0000000000000000000000000000000000006",
+      "links": {"self": "/company/SYN00001/persons-with-significant-control/legal-person/SYNpsc-0003authority"}
+    },
+    {
+      "kind": "super-secure-person-with-significant-control",
+      "description": "super-secure-persons-with-significant-control",
+      "identity_verification_details": {"appointment_verification_start_on": "2025-12-05"},
+      "etag": "syn0000000000000000000000000000000000007",
+      "links": {"self": "/company/SYN00001/persons-with-significant-control/super-secure/SYNpsc-0004secure"}
+    }
+  ]
+}

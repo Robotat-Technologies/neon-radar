@@ -1,0 +1,33 @@
+{
+  "company_name": "QUILLON MARSH TRADING LTD",
+  "company_number": "SYN00001",
+  "type": "ltd",
+  "company_status": "active",
+  "jurisdiction": "england-wales",
+  "date_of_creation": "2019-04-02",
+  "can_file": true,
+  "has_charges": false,
+  "registered_office_is_in_dispute": false,
+  "undeliverable_registered_office_address": false,
+  "registered_office_address": {
+    "care_of": "SYN CARE OF NAME",
+    "premises": "Unit 4",
+    "address_line_1": "12 Example Street",
+    "locality": "London",
+    "postal_code": "EX1 2MP",
+    "country": "England"
+  },
+  "sic_codes": ["46900"],
+  "previous_company_names": [
+    {"name": "QUILLON MARSH SUPPLIES LTD", "effective_from": "2019-04-02", "ceased_on": "2021-06-30"}
+  ],
+  "accounts": {"accounting_reference_date": {"day": "30", "month": "04"}},
+  "confirmation_statement": {"next_due": "2027-04-16", "last_made_up_to": "2026-04-02"},
+  "links": {
+    "self": "/company/SYN00001",
+    "officers": "/company/SYN00001/officers",
+    "persons_with_significant_control": "/company/SYN00001/persons-with-significant-control",
+    "filing_history": "/company/SYN00001/filing-history"
+  },
+  "etag": "syn0000000000000000000000000000000000001"
+}

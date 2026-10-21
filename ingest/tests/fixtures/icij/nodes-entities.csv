@@ -1,0 +1,6 @@
+# synthetic: true
+node_id,name,original_name,former_name,jurisdiction,jurisdiction_description,company_type,address,internal_id,incorporation_date,inactivation_date,struck_off_date,dorm_date,status,service_provider,ibcRUC,country_codes,countries,sourceID,valid_until,note
+9900000001,Synthetic Entity One Ltd,Synthetic Entity One Ltd,Synthetic Entity One Former Ltd,ANG,Anguilla,,,1001,23-MAR-2006,15-JAN-2010,,,Defaulted,Synthetic Provider,SYN555001,VGB,British Virgin Islands,Panama Papers,The Panama Papers data is current through 2015,
+9900000002,Synthetic Entity Two S.A.,,,PMA,,,"Unit 2, 7 Sample Road, Testville",1002,2006-07-01,,31-FEB-2011,,Active,Synthetic Provider,,PAN;HKG,Panama;Hong Kong,Panama Papers,The Panama Papers data is current through 2015,
+9900000003,???,,,XXX,Undetermined,,,1003,,,,,,,,,,Panama Papers,The Panama Papers data is current through 2015,
+9900000004,Synthetic Entity Four Corp,,,SAM,Samoa,,,1004,01-FEB-2001,,,,Active,,,WSM,Samoa,Panama Papers,The Panama Papers data is current through 2015,

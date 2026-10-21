@@ -10,6 +10,7 @@ The four NeonRadar contracts and their versions (`neonradar_contracts.versions`)
 - The dataset registry `contracts/datasets.yaml` (five datasets; prefix `nr` reserved). The data steward has not yet approved its licence fields (GC-17).
 - Validator `neonradar_contracts.records`, the id helper `make_id`, and the command `neonradar contracts validate-records`; golden examples in `examples/c1/`.
 - Issue codes `FORMAT` (record envelope) and `NR` (the `nr` object) next to R1 to R10.
+- JSON Schemas `schemas/record-manifest.v1.json` and `schemas/record-nr.v1.json`, generated from `Manifest` and `NrExtension` (added in M1.7c), so `neonradar contracts check` catches drift in C1 as well. For that, the manifest's timestamp pattern ends in `$` instead of `\z`: the same behaviour in pydantic's Rust regex engine, where `$` matches only at the very end (a trailing newline still fails), and a valid ECMA-262 pattern in the JSON Schema.
 
 #### Changed from `docs/build/PHASE-1.md` 5.1 (tech lead sign-off at Gate 1)
 
@@ -28,7 +29,7 @@ The spec's rules are kept; these say how the validator reads them.
 - **R9:** a name heuristic: a top-level key, `nr` key or property name containing `typolog`, `scenario`, `illicit`, `lookalike`, `ground truth` or `label` fails. Synthetic records may carry only the topics that set C2 flags (`sanction`, `role.pep`, `role.rca`), so no other topic can hint at a scenario.
 - **NR:** the "Used on" column of the `nr` table is enforced (and `nr.synthetic_kind` only on synthetic records); `nr.address_roles` keys must be among the record's `addressEntity` values; `nr.share_pct_min` must not exceed `nr.share_pct_max`.
 - **FORMAT:** the top-level keys are a closed set, so OpenSanctions' legacy `target` key is rejected; files must be UTF-8.
-- **Patterns** end with `\Z`, so a value with a trailing newline fails.
+- **Patterns:** Python `re` patterns end with `\Z`; pydantic field patterns end with `$`, which pydantic's engine matches only at the very end. Either way, a value with a trailing newline fails.
 - **Manifest:** `source.retrieved_at` is a UTC timestamp like `created_at`, and `dataset`, `licence.id` and `synthetic` must agree with `contracts/datasets.yaml`.
 - **`nr.v`** is the contract's major and minor version: `"1.0"` for every 1.0.x release; a minor release adds its value and keeps accepting the older ones.
 
@@ -62,3 +63,35 @@ The spec's tables are kept; these say how the mapping reads them.
 - **Single-valued identifiers.** `registration_number`, `lei` and `account_number` hold one value (the first, in FtM's stored order), so the range indexes can serve equality lookups; C3 `EntityDetail.identifiers` is `dict[str, list[str]]`. Either keep the graph single-valued and let the API list one value (Phase 2's `:SourceRecord` keeps all), or make them lists in C2 before the freeze.
 - **`PAID.amount` is a FLOAT.** A double is exact to the cent only up to about 10^13 major units; detectors compare amounts after rounding to cents. A Phase 1 alternative would be an INTEGER in minor units.
 - **`MIGRATIONS_DIR` lives in the source tree** (`graph/schema/migrations`, found relative to the package source). That works for the uv workspace's editable install; packaging the migrations as package data is open for M1.9e or later.
+
+### C4: Alert 1.0.0
+
+- The alert object: `neonradar_contracts.alert.Alert` with `compute_alert_id`, `query_sha256` and `default_priority` ([C4-alert.md](C4-alert.md)); JSON Schema `schemas/alert.v1.json`; the golden example `examples/c4/circular_flow.json`.
+- `neonradar contracts export` (`make contracts`) writes the JSON Schemas; `neonradar contracts check`, part of `make contracts-check`, exports to a temporary folder and fails on any difference, including a stray file in `schemas/`.
+- Canonical wording in `wording/`: `standing-v1.txt`, `synthetic-demo-v1.txt` and `real-data-v1.txt` (verbatim from `docs/build/PHASE-1.md` 7.1) and `forbidden-terms.txt` (the 7.1 patterns), read by `neonradar_contracts.wording` and by `scripts/check_wording.py`.
+- The typology catalog shape (not frozen, but alerts refer to it): `neonradar_detect.catalog.TypologyFile`.
+
+#### Changed from `docs/build/PHASE-1.md` 5.4 (tech lead sign-off at Gate 1)
+
+- The example's origin holder is "Fenwhistle Holdings Ltd": the spec's example name matches a live UK company (OD-12). The new name had no result on the Companies House company or officer search on 21 October 2026.
+- The golden example carries all four explanation steps (the spec shows one), a computed `alert_id`, and a `query_sha256` computed over the example's query text, which stays abbreviated with `...` as in the spec.
+
+#### Clarifications of 5.4 (tech lead sign-off at Gate 1)
+
+The spec's rules are kept; these say how the model reads them.
+
+- **`alert_id`:** the hashed text is the compact JSON array `[typology, detector.version, sorted(edge_ids), sorted(node_ids)]` (`json.dumps(..., ensure_ascii=False, separators=(",", ":"))`, UTF-8), sorted by Unicode code point, rather than text joined with `|`: composite C2 edge ids contain `|`, and a joined text leaves the boundary between the edge and node lists unmarked. The model recomputes the id and rejects a mismatch.
+- **`detector.query_sha256`:** the SHA-256 (64 lower-case hex) of `evidence.query.cypher` in UTF-8; the model recomputes it and rejects a mismatch.
+- **`contract_version`:** the C4 version the alert was written under, `1.<minor>.<patch>`. A later 1.x model accepts every earlier 1.x value; a model rejects a version newer than itself; a major version needs detection to be re-run (the rule of the record contract's `nr.v`).
+- **Ids:** `evidence.node_ids` and `subjects[].entity_id` have the C1 id form (R1 as changed by OD-11); `evidence.edge_ids` and step `edge_ids` are C2 relationship ids (the FtM interval id, `<entity id>|addr|<address id>` or `<entity id>|sanction|<sanction id>`), so a Neo4j `elementId()` fails. `node_ids` holds at least one id, neither list repeats an id, and `subjects` holds at least one subject.
+- **Evidence edges:** both endpoints of every evidence edge are in `evidence.node_ids`. The model checks composite ids (`a|addr|b`, `a|sanction|b`); for plain interval ids the detector checks it (M1.9b). C2 builds composite ids from record ids, which equal node ids in Phase 1; when Phase 2 entity resolution gives nodes canonical ids, this check needs revisiting (open question for Gate 1).
+- **Explanation:** steps are numbered 1, 2, 3, ... in order; each step's `edge_ids` are evidence edges; `typology_reference.slug` equals `typology`, `doc_path` lies under `docs/typologies/`, and `citations` holds at least one bibliography key (lowercase snake case with at least one underscore, 7.3).
+- **Wording lint in the model:** the headline (1 to 140 characters; templates hold only metric placeholders, so it never contains source names), every `false_positive_notes` entry, the `typology` slug and every subject `role`, the last two with `_` read as a space (so `mule_account` fails). Summary and step texts hold source names, so the detection runner lints them with captions and account numbers masked (M1.9b); masking blanks a value only as a whole token, never inside a longer word.
+- **`data_flags.datasets`:** the distinct dataset slugs of the evidence nodes and relationships, the subjects and the evidence-account holders; at least one, each in `datasets.yaml`.
+- **Guardrail G1 consistency:** beyond "`synthetic_scenario` exactly when `involves_real_entities` is false", the model rejects `involves_real_entities: false` when `datasets` lists a non-synthetic dataset or a subject or evidence node id has the id prefix of a non-synthetic dataset (an id with no dataset prefix, such as a Phase 2 `nr-` id, proves nothing either way), and an alert in which every entity is synthetic must have `synthetic_activity: true`. Only a `synthetic_scenario` alert may say "synthetic scenario": in a `structural_pattern` alert the model rejects the phrase (`SYNTHETIC_PHRASE`, `\bsynthetic[\s_-]+scenario`, case-insensitive) in the headline, the summary and every step text, and `render_headline` refuses it too.
+- **Formats:** `created_at` and `window` times are UTC `YYYY-MM-DDTHH:MM:SSZ` (real dates), `window.start` is not after `window.end`; `run_id` is `run-<yyyymmddThhmmss>-<4 hex>`; versions are `MAJOR.MINOR.PATCH`; `detector.name` is a dotted module path; `typology` and roles are lowercase snake case.
+- **Metrics** are scalar: numbers, or strings that are codes such as a currency (no booleans, lists or objects). Detectors never put names in metrics. A typology with several findings per subject emits one alert per finding, so metrics stay scalar (for example `sanctions_exposure`, Phase 3: one alert per sanctioned owner).
+- **Priority:** `default_priority()` implements the default rule; the model does not enforce it, because a typology may document its own.
+- **Strictness:** every object is closed (unknown keys fail) and values are not coerced (`"0.79"` is not a number). The JSON Schema checks shapes and formats only; the rules above that compare fields need the model.
+- **Runs and storage:** a re-run merges onto the same `:Alert` (the id does not depend on the run), which keeps the latest run's payload and `run_id`; the API (M1.9c) lists one run's alerts through `PRODUCED` from its `:DetectionRun`.
+- **Typology files:** the file name is `<slug>.yaml`; `doc` is `docs/typologies/<slug with hyphens>.md`; placeholders are `{metric}` or `{metric:<format spec>}` (no positional, attribute, index or conversion fields); `headline_synthetic` starts with "Synthetic scenario" and `headline_structural` never says it (7.1); the templates, every `false_positives` entry, the slug and, once a detector exists, the name pass the wording lint; an `explainer_only` typology has `detector: null`; `metrics` does not repeat a name; a numeric parameter's `default` lies within `min` and `max`; `owner` and `approved_by` are GitHub handles, and `approved_by` is never `@TODO`.

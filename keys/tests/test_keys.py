@@ -59,7 +59,7 @@ def test_ar_normalize(raw, expected):
         ("Abu Bakr Haddad", "abubakr haddad"),
         ("Khalil bin Samer", "khalil samer"),
         ("Александр Сергеевич Иванов", "aleksandr ivanov sergeevich"),
-        ("Пётр Щеглов", "petr shcheglov"),  # spec name replaced: shared with a public figure
+        ("Пётр Щербаков", "petr shcherbakov"),
         ("Jürgen Müller", "jurgen muller"),
         ("Łukasz Wiśniewski", "lukasz wisniewski"),
         ("إلهام حداد", "الهام حداد"),
@@ -237,10 +237,13 @@ def test_lei():
 
 
 def test_similarity_and_latin_forms():
-    assert name_similarity("falcon ridge trading", "falcon ridge trade") > 0.95
+    # The spec's company words were retired under OD-12 (contracts/CHANGELOG.md); the C1 example's
+    # replacement name is used instead.
+    assert name_similarity("quillon marsh trading", "quillon marsh trade") > 0.95
     assert name_similarity("rana", "nora") == 0.0
-    # The spec's example name is on the synthetic-name denylist (OD-12); words.py names instead.
-    assert latin_forms(["Samir Hallaq", "Самир Халлак"]) == ["Samir Khallak"]
+    # The spec's example person name is on the synthetic-name denylist (OD-12): a surname from
+    # the synthetic word list (words.py) instead.
+    assert latin_forms(["Haddad", "Хаддад"]) == ["Khaddad"]
 
 
 def test_companies_house_prefixes() -> None:

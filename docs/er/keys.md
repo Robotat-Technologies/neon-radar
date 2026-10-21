@@ -2,9 +2,9 @@
 
 `keys/` is the one place where NeonRadar turns a name, an address, a country, a nationality or an identifier into the form that matching compares. The loaders use it for address record ids, the resolver for its features and deterministic rules, and the graph loader for `Address.address_key` and the Latin search names (`names_latin`). Because every package calls the same functions, a key means the same thing everywhere (`docs/build/PHASE-2.md` 4.1 and M2.8).
 
-Every function is pure: no network, no database, no files except the two data files packaged with the library (`data/ar_symbols.json.gz` and `data/nationalities.csv`). Keys are computed from a record's original values at matching or loading time and are never written back into records (C1 rule R10).
+Every function is pure: no network, no database, no files except the two data files packaged with the library (`data/ar_symbols.json.gz` and `data/nationalities.csv`). Matching keys and Latin renderings are computed from a record's original values at matching or loading time and are never written into records (C1 rule R10).
 
-The code and its oracle tests were given verbatim in the build spec. The expected values were produced by running the code on 18 October 2026 with rigour 2.5.0, normality 3.1.0, PyICU 2.16.2 and anyascii 0.3.3; the research behind each rule is in [names-addresses.md](../research/2026-10-18/names-addresses.md). Every example below is a case in `keys/tests/test_keys.py`.
+The code and its oracle tests were given verbatim in the build spec; two cases use other example strings, because the spec's were a person name on the synthetic-name denylist and company words retired under operator decision OD-12. The expected values were produced by running the code on 18 October 2026 with rigour 2.5.0, normality 3.1.0, PyICU 2.16.2 and anyascii 0.3.3; the research behind each rule is in [names-addresses.md](../research/2026-10-18/names-addresses.md). Every example below is a case in `keys/tests/test_keys.py`.
 
 ## Versioning
 
@@ -21,7 +21,7 @@ Returns a `PersonKey`:
 | `tokens` | normalised tokens in name order | the resolver's `name_tokens` |
 | `key` | the unique tokens, sorted, joined by spaces | `name_key`: equality, the strict name check of rules D1 to D4 and the term-frequency level |
 | `given`, `family` | tokens of the given and family names, when the source says which is which | `forename`, `surname`, `initial` |
-| `skeletons` | consonant skeletons of the tokens | blocking across scripts (`mhmd` for both Mohammed and محمد) |
+| `skeletons` | consonant skeletons of the tokens | the resolver's "two skeletons shared" comparison level, which compares spellings across scripts (`mhmd` for both Mohammed and محمد) |
 | `phonetic` | Metaphone codes of the ASCII tokens | a phonetic aid |
 | `symbols` | Wikidata ids of the name groups the name's parts belong to | the "two name symbols shared" level and a blocking rule |
 
@@ -29,13 +29,13 @@ The steps: Unicode NFKC, rigour's person prefixes (Mr, Mrs, Dr and others) remov
 
 - **Companies House order.** A name written `SURNAME, Forenames` with the surname in capitals is split, so `SMITH, John Michael` gives family `smith` and given `john michael`; `Smith, John` is not split.
 - **Latin script.** Tokens are folded to ASCII (`Jürgen Müller` gives `jurgen muller`, `Łukasz Wiśniewski` gives `lukasz wisniewski`). For names of Arabic origin, Abd and Abu compounds are joined, articles (al, el, ar, as and the like) are dropped, and nasab particles (bin, ibn, bint, ben, ould) are dropped unless they come first: `Abdul Rahman Al Ali`, `Abdulrahman Al-Ali`, `Abd al-Rahman al-Ali`, `Abdel Rahman El Ali` and `AL-ALI, Abdul Rahman` all give `abdrahman ali`; `Abdullah Haddad` and `Abd Allah Haddad` give `abdallah haddad`; `Abu Bakr Haddad` gives `abubakr haddad`; `Khalil bin Samer` gives `khalil samer`. Leading honorifics such as Sheikh and Haji are dropped while at least two tokens remain (`Sheikh Hamad Saleh` gives `hamad saleh`).
-- **Cyrillic script.** Tokens are folded with anyascii, which keeps digraphs: `Александр Сергеевич Иванов` gives `aleksandr ivanov sergeevich`, `Пётр Щеглов` gives `petr shcheglov`.
+- **Cyrillic script.** Tokens are folded with anyascii, which keeps digraphs: `Александр Сергеевич Иванов` gives `aleksandr ivanov sergeevich`, `Пётр Щербаков` gives `petr shcherbakov`.
 - **Arabic script.** `arabic.ar_normalize` removes tashkeel, Quranic marks and tatweel and unifies the letter forms that spellings of one name vary in: alef forms to ا, alef maqsura and yeh forms to ي, ta marbuta to ه, waw with hamza to و, hamza dropped, Arabic-Indic digits to ASCII (`أحمد` and `إحمد` give `احمد`, `فاطمة` gives `فاطمه`, `مصطفى` gives `مصطفي`, `عائشة` gives `عايشه`, `٢٠٢٦` gives `2026`). The token rules then strip the article ال when at least three letters remain (never from الله, الهام, الياس, اليسع, so `إلهام حداد` keeps `الهام`), join عبد and ابو with the next word (`عبد الرحمن العلي` and `عبدالرحمن العلي` both give `عبدالرحمن علي`), drop بن, ابن and بنت after the first token (`سامر بن خليل العطار` gives `خليل سامر عطار`), and drop leading honorifics such as الشيخ and الدكتور.
-- **Name symbols.** rigour's tagger supplies Wikidata name groups for Latin and Cyrillic spellings (`Mohammed`, `Мухаммед` and `محمد` all carry `Q5837762`; `Alexander` and `Александр` share `Q17501806`). rigour's lookups need the exact spelling, so Arabic tokens and adjacent pairs of tokens are also looked up, after `ar_normalize`, in NeonRadar's own index of rigour's Arabic forms (`symbols.arabic_symbols`, 17,798 keys); that is how `إحمد خليل` gets symbols the tagger alone does not give.
+- **Name symbols.** rigour's tagger supplies Wikidata name groups for the spellings it knows exactly (`Mohammed`, `Мухаммед` and `محمد` all carry `Q5837762`; `Alexander` and `Александр` share `Q17501806`). Its lookups need the exact spelling, so Arabic tokens and adjacent pairs of tokens are also looked up, after `ar_normalize`, in NeonRadar's own index of rigour's Arabic forms (`symbols.arabic_symbols`, 17,798 keys): the tagger gives `إحمد` no group, while the index finds the groups of `احمد`.
 
 `names.name_similarity(left, right)` is the Jaro-Winkler similarity of two keys, from rigour, which returns 0.0 for scores at or below 0.6 (`rana` and `nora` give 0.0). The name check of rules D1 to D4 uses it with the threshold 0.85 (`docs/build/PHASE-2.md` 7.1.2).
 
-`names.latin_forms(names)` gives anyascii renderings of the names that contain a script other than Latin, for the graph's full-text search aid (`names_latin`): `["Samir Hallaq", "Самир Халлак"]` gives `["Samir Khallak"]`. A Latin form is a search aid only and is never shown as a name.
+`names.latin_forms(names)` gives anyascii renderings of the names that contain a script other than Latin, for the graph's full-text search aid (`names_latin`): `["Haddad", "Хаддад"]` gives `["Khaddad"]`. A Latin form is a search aid only and is never shown as a name.
 
 ## Organisation names: `names.org_key(name)` and `companies_house.ch_same_as_key(name)`
 
@@ -62,7 +62,7 @@ Arabic legal forms that rigour does not know (ذ.م.م, ش.م.م, ش.م.ع and o
 
 ## Addresses: `addresses.address_key(text)` and `address_key_from_parts(parts)`
 
-The key is `POSTCODE|TOKENS`, or `NOPC|TOKENS` for an address with a street line but no UK postcode, or None when the text has neither. Text is folded to ASCII capitals; the postcode is taken out; segments that start with c/o or "care of" are dropped; trailing country words (UNITED KINGDOM, ENGLAND, UK, GB and others) are removed; common abbreviations are expanded (RD to ROAD, SQ to SQUARE, HSE to HOUSE, STE to SUITE, APT to FLAT, FIRST to 1ST and so on); ST becomes STREET at the end of a segment and SAINT elsewhere.
+The key is `POSTCODE|TOKENS`, or `NOPC|TOKENS` for an address with a street line but no UK postcode, or None when the text has neither. Text is folded to ASCII capitals; the postcode is taken out; segments that start with c/o or "care of" are dropped; trailing country words (UNITED KINGDOM, ENGLAND, UK, GB and others) are removed; common abbreviations are expanded (RD to ROAD, SQ to SQUARE, HSE to HOUSE, STE to SUITE, APT to FLAT, FIRST to 1ST and so on); ST becomes STREET when it ends a segment or comes just before the last word (the post town), unless it is the first word or follows a number, and SAINT otherwise.
 
 | Address | `address_key` |
 |---|---|
@@ -101,7 +101,7 @@ Returns a lower-case ISO 3166-1 alpha-2 code for a country name, a demonym or a 
 
 ## Known limits
 
-- **Arabic is matched through normalisation, consonant skeletons and Wikidata name groups, not by transliteration.** No permissive, maintained Arabic-to-Latin name transliterator was found, and generic transliteration garbles unvocalised Arabic. An Arabic spelling and a Latin spelling of one name meet only through a shared skeleton (a blocking aid) or a shared name group, and the name groups cover the names Wikidata records, not every name.
+- **Arabic is matched through normalisation, consonant skeletons and Wikidata name groups, not by transliteration.** No permissive, maintained Arabic-to-Latin name transliterator was found, and generic transliteration garbles unvocalised Arabic. An Arabic spelling and a Latin spelling of one name meet only through a shared name group (which also feeds a blocking rule) or a shared skeleton (a comparison level), and the name groups cover the names Wikidata records, not every name.
 - **Scripts other than Latin, Arabic and Cyrillic get only anyascii folding.** Greek, Hebrew, Chinese and other scripts are folded character by character, with no name-specific rules.
 - **A company number with a prefix outside the list of 36 is not a UK company number.** The list (`CH_PREFIXES`) is the official Companies House list of May 2012 plus the newer prefixes named by the community (`bulk-sources-loading.md` 2.6). If Companies House introduces a new prefix, those numbers give None until the list and `RULES_VERSION` change.
 - **Address keys are for UK addresses.** A foreign address without a UK postcode still gets a `NOPC|` key when it has a street line, but its abbreviations and country words are not handled.

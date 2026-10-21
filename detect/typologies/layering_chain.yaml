@@ -1,0 +1,28 @@
+slug: layering_chain
+name: Layering through chains of transfers
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Funds move quickly through a sequence of accounts held by different companies or people,
+  often across jurisdictions, which puts distance between the money and where it came from.
+doc: docs/typologies/layering-chain.md
+citations: [fatf_faq, fatf_pml_2018, fatf_egmont_concealment_2018, fincen_fin_2006_g014, europol_efecta_2023, wolfsberg_payment_transparency_2023, ffiec_appendix_f]
+graph_pattern: >
+  A time-ordered path of three or more PAID hops through Accounts held by different
+  LegalEntity nodes, with short dwell times, amounts shrinking slightly at each hop or split
+  and merged again, and intermediate holders with little other activity, often sharing a
+  registered address, an agent or a director.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Intra-group treasury flows
+  - Multi-tier supply chains in which each tier adds a margin
+  - Correspondent banking hops
+  - Fund-of-funds and securitisation structures
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null

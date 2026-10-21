@@ -326,3 +326,27 @@ def test_app_version_is_a_pep_440_version_and_contract_versions_are_semver() -> 
         api.MetaResponse.model_validate(
             {**meta, "app_version": "0.1.0", "contracts_version": "1.0"}
         )
+
+
+def test_numbers_are_finite_in_fields_and_property_maps() -> None:
+    edge = _load("subgraph.json")["edges"][0]
+    nan_amount = '{"amount": NaN}'
+    with pytest.raises(ValidationError, match="finite"):  # JSON text: NaN through JsonValue
+        api.GraphEdge.model_validate_json(
+            json.dumps({**edge, "properties": {}}).replace(
+                '"properties": {}', f'"properties": {nan_amount}'
+            )
+        )
+    with pytest.raises(ValidationError):
+        api.GraphEdge.model_validate({**edge, "properties": {"amount": float("inf")}})
+    hit = {"entity": _load("entity-detail.json")["entity"], "matched_name": "x"}
+    with pytest.raises(ValidationError):
+        api.SearchHit.model_validate({**hit, "score": float("nan")})
+
+
+def test_alert_summary_subject_ids_are_distinct() -> None:
+    summary = _load("entity-detail.json")["alerts"][0]
+    with pytest.raises(ValidationError, match="must not repeat"):
+        api.AlertSummary.model_validate({**summary, "subject_ids": ["syn-co-0003", "syn-co-0003"]})
+    schema = api.AlertSummary.model_json_schema()["properties"]["subject_ids"]
+    assert schema["uniqueItems"] is True

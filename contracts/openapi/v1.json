@@ -6,6 +6,8 @@
         "description": "C4 Alert v1.0.0 (5.4). `pattern_strength` orders the queue; it is never a risk score.",
         "properties": {
           "alert_id": {
+            "maxLength": 24,
+            "minLength": 24,
             "pattern": "^alr-[0-9a-f]{20}$",
             "title": "Alert Id",
             "type": "string"
@@ -16,6 +18,8 @@
             "type": "string"
           },
           "created_at": {
+            "maxLength": 20,
+            "minLength": 20,
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
             "title": "Created At",
             "type": "string"
@@ -76,6 +80,8 @@
             "type": "string"
           },
           "run_id": {
+            "maxLength": 24,
+            "minLength": 24,
             "pattern": "^run-\\d{8}T\\d{6}-[0-9a-f]{4}$",
             "title": "Run Id",
             "type": "string"
@@ -184,11 +190,15 @@
         "description": "One row of the alert queue, from the `:Alert` scalar properties (C2) and its subjects.",
         "properties": {
           "alert_id": {
+            "maxLength": 24,
+            "minLength": 24,
             "pattern": "^alr-[0-9a-f]{20}$",
             "title": "Alert Id",
             "type": "string"
           },
           "created_at": {
+            "maxLength": 20,
+            "minLength": 20,
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
             "title": "Created At",
             "type": "string"
@@ -225,7 +235,8 @@
             },
             "minItems": 1,
             "title": "Subject Ids",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "synthetic_activity": {
             "title": "Synthetic Activity",
@@ -475,6 +486,8 @@
           "loaded_at": {
             "anyOf": [
               {
+                "maxLength": 20,
+                "minLength": 20,
                 "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
                 "type": "string"
               },
@@ -539,6 +552,8 @@
             "type": "string"
           },
           "query_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
             "pattern": "^[0-9a-f]{64}$",
             "title": "Query Sha256",
             "type": "string"
@@ -794,7 +809,8 @@
         "required": [
           "node_ids",
           "edge_ids",
-          "query"
+          "query",
+          "window"
         ],
         "title": "Evidence",
         "type": "object"
@@ -1391,6 +1407,8 @@
           "retrieved_at": {
             "anyOf": [
               {
+                "maxLength": 20,
+                "minLength": 20,
                 "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
                 "type": "string"
               },
@@ -1745,11 +1763,15 @@
         "description": "The time span of the evidence (UTC).",
         "properties": {
           "end": {
+            "maxLength": 20,
+            "minLength": 20,
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
             "title": "End",
             "type": "string"
           },
           "start": {
+            "maxLength": 20,
+            "minLength": 20,
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
             "title": "Start",
             "type": "string"
@@ -1839,6 +1861,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 24,
+                  "minLength": 24,
                   "pattern": "^run-\\d{8}T\\d{6}-[0-9a-f]{4}$",
                   "type": "string"
                 },
@@ -1928,6 +1952,8 @@
             "name": "alert_id",
             "required": true,
             "schema": {
+              "maxLength": 24,
+              "minLength": 24,
               "pattern": "^alr-[0-9a-f]{20}$",
               "title": "Alert Id",
               "type": "string"

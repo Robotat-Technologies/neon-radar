@@ -14,7 +14,7 @@ import string
 from collections.abc import Mapping
 
 from neonradar_contracts.alert import HEADLINE_MAX, WordingClass
-from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden
+from neonradar_contracts.wording import find_forbidden, says_synthetic_scenario
 from neonradar_detect.catalog import TypologyFile
 
 MetricValue = int | float | str
@@ -65,6 +65,6 @@ def render_headline(
     terms = find_forbidden(headline)
     if terms:
         raise WordingError(f"headline refused by the wording lint (7.1): {'; '.join(terms)}")
-    if wording_class != "synthetic_scenario" and SYNTHETIC_PHRASE.search(headline):
+    if wording_class != "synthetic_scenario" and says_synthetic_scenario(headline):
         raise WordingError(f"only a synthetic_scenario headline may say so (7.1): {headline!r}")
     return headline

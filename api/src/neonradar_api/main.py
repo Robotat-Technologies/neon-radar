@@ -23,8 +23,10 @@ from neonradar_api.health import check_health
 from neonradar_api.problems import not_implemented, responses
 from neonradar_contracts import versions
 from neonradar_contracts.alert import (
+    ALERT_ID_LENGTH,
     ALERT_ID_PATTERN,
     ENTITY_ID_PATTERN,
+    RUN_ID_LENGTH,
     RUN_ID_PATTERN,
     SLUG_PATTERN,
     Priority,
@@ -149,7 +151,10 @@ def list_alerts(
     typology: Annotated[str | None, Query(pattern=SLUG_PATTERN)] = None,
     priority: Annotated[Priority | None, Query()] = None,
     entity_id: Annotated[str | None, Query(pattern=ENTITY_ID_PATTERN)] = None,
-    run_id: Annotated[str | None, Query(pattern=RUN_ID_PATTERN)] = None,
+    run_id: Annotated[
+        str | None,
+        Query(pattern=RUN_ID_PATTERN, min_length=RUN_ID_LENGTH, max_length=RUN_ID_LENGTH),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     cursor: Annotated[str | None, Query(min_length=1, max_length=MAX_CURSOR_LENGTH)] = None,
 ) -> AlertPage:
@@ -159,7 +164,11 @@ def list_alerts(
 
 @router.get("/alerts/{alert_id}", tags=["alerts"], responses=responses(404, 422, 503))
 def get_alert(
-    request: Request, alert_id: Annotated[str, Path(pattern=ALERT_ID_PATTERN)]
+    request: Request,
+    alert_id: Annotated[
+        str,
+        Path(pattern=ALERT_ID_PATTERN, min_length=ALERT_ID_LENGTH, max_length=ALERT_ID_LENGTH),
+    ],
 ) -> AlertDetail:
     """The complete C4 alert and its evidence subgraph."""
     not_implemented(request, M19C)

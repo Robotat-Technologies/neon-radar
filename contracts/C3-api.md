@@ -57,10 +57,10 @@ OperationIds are the Python function names (`get_health`, `search`, `get_entity`
 | alerts | `typology` | optional slug |
 | alerts | `priority` | optional `high`, `medium` or `low` |
 | alerts | `entity_id` | optional node id: alerts that flag it (its subjects) |
-| alerts | `run_id` | optional, `run-<yyyymmddThhmmss>-<4 hex>`: alerts the run produced (through `PRODUCED`, C4-alert.md "Runs and storage") |
+| alerts | `run_id` | optional, `run-<yyyymmddThhmmss>-<4 hex>` (24 characters): alerts the run produced (through `PRODUCED`, C4-alert.md "Runs and storage") |
 | alerts | `limit` | 1 to 200, default 50 |
 | alerts | `cursor` | optional, 1 to 512 characters, opaque |
-| alert | `alert_id` (path) | `alr-` plus 20 hex characters |
+| alert | `alert_id` (path) | `alr-` plus 20 hex characters (24 characters) |
 | typology | `slug` (path) | lowercase snake case |
 | copilot | body `CopilotRequest` | `question` 1 to 500 characters; `context_entity_ids` at most 20 node ids, default `[]`; no other key |
 
@@ -75,7 +75,7 @@ A request that breaks a rule gets a `422` problem.
 
 ## Models
 
-`neonradar_contracts.api`. Every object is closed (`additionalProperties: false`) and strict: `"1"` is not a number and `1` is not `true`.
+`neonradar_contracts.api`. Every object is closed (`additionalProperties: false`) and strict: `"1"` is not a number and `1` is not `true`. Numbers are finite everywhere, in number fields and inside property and parameter maps (C4's `FiniteJsonValue`): JSON has no NaN or infinity. Alert ids, run ids and timestamps reuse C4's fixed-length types (`AlertId`, `UtcTime`), so the schema gives their exact length as well as their pattern.
 
 ### Graph shapes
 
@@ -123,7 +123,7 @@ An "entity" in C3 is any node with a C2 record id: an `:Entity` node or a `:Sanc
 
 | Model | Fields | Source and rule |
 |---|---|---|
-| `AlertSummary` | `alert_id`, `typology`, `priority`, `pattern_strength`, `headline`, `created_at`, `subject_ids`, `involves_real_entities`, `synthetic_activity` | The `:Alert` scalar properties (C2), with `subject_ids` from the alert's subjects (the `FLAGS` targets), in the order of the C4 `subjects`. Types as in C4 |
+| `AlertSummary` | `alert_id`, `typology`, `priority`, `pattern_strength`, `headline`, `created_at`, `subject_ids`, `involves_real_entities`, `synthetic_activity` | The `:Alert` scalar properties (C2), with `subject_ids` from the alert's subjects (the `FLAGS` targets), in the order of the C4 `subjects`, each once (`uniqueItems`). Types as in C4 |
 | `AlertPage` | `items`, `next_cursor` | See pagination below |
 | `AlertDetail` | `alert`, `evidence` | `alert` is the complete C4 `Alert`, parsed and validated from the `payload` property. `evidence` is a `Subgraph` holding every node of `alert.evidence.node_ids` and `alert.subjects`, every relationship of `alert.evidence.edge_ids`, and the `HOLDS_ACCOUNT` relationships between those nodes, so a holder that is a subject but not an evidence node is still connected. `evidence` is never truncated (`truncated` false; its `limits` are at least its sizes). The model checks both, and that every evidence id and subject is present |
 

@@ -18,6 +18,7 @@ import io
 import re
 import sys
 import tokenize
+import unicodedata
 from pathlib import Path
 
 from hygiene_common import ROOT, annotate
@@ -83,6 +84,10 @@ def find_terms(
     findings = []
     for number, piece in pieces:
         text = ESCAPES.sub(lambda escape: " " * len(escape.group(0)), piece)
+        # As neonradar_contracts.wording.normalize: NFKC, then no format characters (Cf), so
+        # neither a fullwidth "m" nor a soft hyphen or zero-width space can hide a term.
+        text = unicodedata.normalize("NFKC", text)
+        text = "".join(char for char in text if unicodedata.category(char) != "Cf")
         for pattern in patterns:
             for match in pattern.finditer(text):
                 line = number + text.count("\n", 0, match.start())

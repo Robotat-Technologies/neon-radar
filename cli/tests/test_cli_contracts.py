@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from neonradar_cli.main import app
@@ -59,3 +60,32 @@ def test_validate_records_accepts_an_empty_file(tmp_path: Path) -> None:
     result = runner.invoke(app, ["contracts", "validate-records", str(path), "--strict"])
     assert result.exit_code == 0
     assert result.output.splitlines() == ["0 records in 1 file(s)", "OK, 0 issues"]
+
+
+def test_export_prints_each_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    from neonradar_contracts import schemas
+
+    written = [schemas.CONTRACTS_DIR / "schemas" / "alert.v1.json"]
+    monkeypatch.setattr(schemas, "export", lambda: written)
+    result = runner.invoke(app, ["contracts", "export"])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == ["wrote contracts/schemas/alert.v1.json"]
+
+
+def test_check_passes_on_the_committed_files() -> None:
+    result = runner.invoke(app, ["contracts", "check"])
+    assert result.exit_code == 0, result.output
+    assert result.output.startswith("OK, 3 generated files match the models")
+
+
+def test_check_reports_drift(monkeypatch: pytest.MonkeyPatch) -> None:
+    from neonradar_contracts import schemas
+
+    drift = ["schemas/alert.v1.json: differs from the models; run `make contracts`"]
+    monkeypatch.setattr(schemas, "check", lambda: drift)
+    result = runner.invoke(app, ["contracts", "check"])
+    assert result.exit_code == 1
+    assert result.output.splitlines() == [
+        "DRIFT contracts/schemas/alert.v1.json: differs from the models; run `make contracts`",
+        "FAILED, 1 difference(s)",
+    ]

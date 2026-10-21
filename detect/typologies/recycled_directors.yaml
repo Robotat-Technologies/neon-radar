@@ -10,13 +10,13 @@ summary: >
   and end in bursts, sometimes alongside relatives of the people who own or control those
   companies, and the companies that share the director pay each other.
 doc: docs/typologies/recycled-directors.md
-citations: [fatf_egmont_concealment_2018, fincen_fin_2006_g014, europol_shadow_money_2021, fatf_glossary, fatf_tcsp_2010]
+citations: [fatf_egmont_concealment_2018, fincen_fin_2006_g014, europol_shadow_money_2021, fatf_glossary, fatf_tcsp_2010, ffiec_appendix_f, icij_faq]
 graph_pattern: >
   A LegalEntity with many DIRECTOR_OF relationships (a threshold parameter), whose
   start_date and end_date values cluster in bursts; directors linked by FAMILY_OF to a
   person who OWNS or CONTROLS the same company; and PAID relationships between Accounts
-  held (HOLDS_ACCOUNT) by companies that share the director. DIRECTOR_OF.is_nominee, where
-  the source sets it, may be shown as the source published it (open question).
+  held (HOLDS_ACCOUNT) by companies that share the director. DIRECTOR_OF.is_nominee is read
+  only where the source sets it and is never inferred.
 parameters: {}
 metrics: []
 wording: null

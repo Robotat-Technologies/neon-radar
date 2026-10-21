@@ -16,7 +16,7 @@ Why the sources look at this:
 - Nominees can be informal too: the FATF and Egmont indicators name "informal nominees, such as children, spouses, relatives or associates" [fatf_egmont_concealment_2018].
 - Acting as a director or secretary of a company, or arranging for someone else to act as one, is one of the services in FATF's definition of a trust and company service provider (TCSP) [fatf_glossary]. FATF found that "TCSPs have often been used, wittingly or unwittingly, in the conduct of money laundering activities" [fatf_tcsp_2010]. FATF also lists TCSPs among the designated non-financial businesses and professions [fatf_glossary]: providing directors is a recognised business service, so this pattern also matches appointments made in the ordinary course of that business (see Typical false positives).
 
-The research note treats shared registered addresses and recycled directors as one entry; NeonRadar splits them into this typology and `mass_registration_address` (PHASE-1.md 7.2). Related typologies: `shell_chain` (layered ownership with nominee directors) and `formation_agent_cluster` (companies clustered around one formation agent).
+The research note treats shared registered addresses and recycled directors as one entry; NeonRadar splits them into this typology and [`mass_registration_address`](mass-registration-address.md) (PHASE-1.md 7.2). Related typologies: [`shell_chain`](shell-chain.md) (layered ownership with nominee directors) and [`formation_agent_cluster`](formation-agent-cluster.md) (companies clustered around one formation agent).
 
 ## How it looks in the graph
 
@@ -44,6 +44,8 @@ flowchart LR
 
 **Real registry data.** Companies House officers who are natural persons are real people, and their records are personal data ([ADR-0006](../decisions/0006-data-licensing.md)). On real registry data only the directorship part of the pattern comes from the source; any payment next to a real company is synthetic background activity (the real data notice in [docs/wording.md](../wording.md#disclaimers)), so the payment part says nothing about real companies. Count appointments by the source's officer identifier, not by name: "Many people and entities have the same or similar names" [icij_faq].
 
+What the graph cannot show: nominee agreements or on whose instructions a director acts (`is_nominee` only where the source sets it), whether a relative who is a director has any role in running the business, and the business purpose of payments between the companies. Appointment bursts are only as precise as the dates the source publishes.
+
 ## Red flags the sources list
 
 | Red flag | Source | Visible in the C2 graph? |
@@ -51,7 +53,7 @@ flowchart LR
 | Directors or owners who "are listed against the accounts of other legal persons or arrangements", "indicating the use of professional nominees" | [fatf_egmont_concealment_2018] | Partly: many `DIRECTOR_OF` or `OWNS` relationships from one node are visible; the bank account records the indicator refers to are not |
 | "employees of professional intermediary firms acting as nominee directors and shareholders" | [fatf_egmont_concealment_2018] | Partly: `EMPLOYED_BY` to the firm, where a source records it |
 | "agreements for nominee directors and shareholders" | [fatf_egmont_concealment_2018] | No: agreements are not in the graph; `is_nominee` only where the source sets it |
-| "informal nominees, such as children, spouses, relatives or associates" | [fatf_egmont_concealment_2018] | Partly: the `FAMILY_OF` or `ASSOCIATE_OF` link is visible; whether the relative or associate acts for someone else is not |
+| "informal nominees, such as children, spouses, relatives or associates" | [fatf_egmont_concealment_2018] | Partly: the `FAMILY_OF` or `ASSOCIATE_OF` link between an owner and a director (either direction) is visible; whether the relative or associate acts for someone else is not |
 | "family members with no role or involvement in the running of the business" as directors | [fatf_egmont_concealment_2018] | Partly: the family link is visible, the lack of a role is not |
 | "Multiple high-value payments or transfers between shell companies with no apparent legitimate business purpose" | [fincen_fin_2006_g014] | Partly: payments are visible, their business purpose is not |
 

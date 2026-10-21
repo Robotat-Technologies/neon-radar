@@ -15,7 +15,7 @@ Why the sources look at this:
 - The Egmont Group's collection of 100 cases from financial intelligence units groups them under headings that include "Concealment within Business Structures" and "Misuse of Legitimate Businesses" [egmont_100_cases].
 - FATF's report on professional money laundering describes cash controller networks, including cash controllers who deposit cash "in amounts below reporting thresholds" [fatf_pml_2018]. For the supply side of the cash, see the FATF and MENAFATF report on money laundering through the physical transportation of cash [fatf_cash_transport_2015].
 
-Related typology: `structuring`, which looks at deposits split below a reporting threshold rather than at the total volume.
+Related typology: [`structuring`](structuring.md), which looks at deposits split below a reporting threshold rather than at the total volume.
 
 ## How it looks in the graph
 
@@ -38,6 +38,8 @@ flowchart LR
 ```
 
 **Real data.** Real registry companies receive only synthetic background activity (guardrail G1), so a match next to a real company lies entirely in generated payments and says nothing about that company (the real data notice in [docs/wording.md](../wording.md#disclaimers)). The generator never plants this scenario on a real company.
+
+What the graph cannot show: a business's true takings, its opening hours and trading days, sector benchmarks for cash deposits, the purpose of the account, and who brought the cash to the branch (a cash deposit comes from the branch's `cash_ledger` account, not from the person who paid it in).
 
 ## Red flags the sources list
 
@@ -82,7 +84,7 @@ For the typology researcher:
 2. The comparison window, the peer group and the threshold for "far above".
 3. How the generator defines trading days, so that "deposits on days unrelated to trading" can be tested.
 4. Whether the cash-to-card comparison is part of the pattern or only an explanation.
-5. Whether a detector should combine this pattern with `structuring` when deposits are both high and split below a threshold.
+5. Whether a detector should combine this pattern with [`structuring`](structuring.md) when deposits are both high and split below a threshold.
 6. The cash-preferring communities, price changes and franchise-group banking look-alikes come from the research note without a source in the bibliography. Find sources, or keep them as project look-alikes.
 
 ## Sources

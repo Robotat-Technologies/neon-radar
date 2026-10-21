@@ -41,6 +41,8 @@ flowchart LR
 
 **What an alert would show (Phase 3).** One alert per listed owner, so that every metric is a single value (C4: [contracts/C4-alert.md](../../contracts/C4-alert.md)). Candidate metrics for the typology researcher: the number of `OWNS` hops on the shortest path, the number of paths, the effective share range (`effective_share_min`, `effective_share_max`) and the number of control links. Metrics are numbers or codes; they never contain names. Entity-facing text uses the [7.1 vocabulary](../wording.md#vocabulary-for-entity-facing-text): "listed in <dataset> as sanctioned", never "sanctioned criminal".
 
+What the graph cannot show: whether a list record and a registry record are the same party (C2 stores what each source published; joining them is entity resolution, Phase 2), ownership or control that no source records, and control arrangements other than the `CONTROLS` and `DIRECTOR_OF` relationships a source published. An `OWNS` hop without a recorded share leaves the effective share unknown.
+
 ## Red flags the sources list
 
 The sources give rules, typologies and indicators; the first column says which each item is.
@@ -69,12 +71,14 @@ On real data, once a licence allows it: OpenSanctions also includes people and c
 
 ## Can synthetic data show it?
 
-Yes (synthetic support: high), and in Phase 1 only synthetic data shows it.
+Yes (synthetic support: high), and while `access.opensanctions` is `none`, only synthetic data can show it.
 
 - **No real list data.** NeonRadar's planned source of sanctions lists is OpenSanctions, whose data is licence-gated: `docs/build/project.yaml` records `access.opensanctions: none`, the OpenSanctions spike refuses to run before making any request (M1.8d), and no row derived from OpenSanctions is ever committed (guardrail G2; [ADR-0006](../decisions/0006-data-licensing.md)).
 - **Synthetic flags instead.** The Phase 3 generator would write synthetic `Person` and `Company` records in the `nr_synthetic` dataset with the topic `sanction`, which sets the `:Sanctioned` flag (C1 rule R9 allows synthetic records only the topics `sanction`, `role.pep` and `role.rca`), plus synthetic `Sanction` records linked with `SUBJECT_OF`. Synthetic `Sanction` records use invented authority and programme names, never a real authority's; Open question 5 settles the naming scheme.
 - **Known answers.** Ownership chains with share bands are arithmetic that the generator would control, so every fixture would have a known effective share range and a known OFAC-style result. The generator could also add identity noise: name variants and missing dates of birth.
 - **Synthetic only.** Planted structures use synthetic entities only (guardrail G1): a synthetic listed party never owns, controls or directs a real registry company, and no real sanctions-list name is attached to synthetic payments. The research note recommends that, if real list structure is ever needed to test name matching, it stays in a separate screening component that touches no synthetic activity.
+
+What synthetic data cannot show is how name matching behaves on real list data. Detection rates measured on synthetic data say nothing about how NeonRadar would perform on real data ([README, Limitations](../../README.md#limitations)).
 
 ## Starting parameters
 

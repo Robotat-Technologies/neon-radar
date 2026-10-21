@@ -21,7 +21,7 @@ Other sources describe the same techniques in use. FATF's report on professional
 
 ## How it looks in the graph
 
-It does not. This section explains why.
+It does not. What the graph cannot show: invoices, shipments, customs declarations and market prices, so it cannot compare a payment with the goods it pays for, and it cannot see who the consignee is. This section explains why.
 
 - **The trade and the money are separate.** In open account trade there is "a disconnect between the movement of the underlying trade and the money used to finance it" [fatf_egmont_tbml_2020].
 - **Banks do not see the goods.** Financial institutions "do not necessarily verify the documents", which are "not always standardised", and trade data is spread across several parties, so no single one sees the whole picture [fatf_egmont_tbml_2020].
@@ -36,10 +36,10 @@ The graph can show a few shapes that the sources list as indicators. None of the
 | Signal in the payment graph | Indicator in the sources | Where NeonRadar looks at the shape |
 |---|---|---|
 | A payment from someone with no other link to the buyer or the seller | "Payment for imported commodities is made by an entity other than the consignee" [fatf_egmont_tbml_indicators_2021] | Not a typology; C2 has no consignee |
-| Payments that come back to where they started | "Payments are routed in a circle" [fatf_egmont_tbml_indicators_2021] | `circular_flow` |
-| An account that passes money straight on | "An account of a trade entity appears to be a 'pay-through' or 'transit' account" [fatf_egmont_tbml_indicators_2021] | `rapid_pass_through` |
+| Payments that come back to where they started | "Payments are routed in a circle" [fatf_egmont_tbml_indicators_2021] | [`circular_flow`](circular-flow.md) |
+| An account that passes money straight on | "An account of a trade entity appears to be a 'pay-through' or 'transit' account" [fatf_egmont_tbml_indicators_2021] | [`rapid_pass_through`](rapid-pass-through.md) |
 | Round amounts | "Payments are sent or received in large round amounts for trade in sectors where this is deemed as unusual" [fatf_egmont_tbml_indicators_2021] | Not a typology |
-| Trading companies at one address | "A trade entity is registered at an address that is likely to be a mass registration address" [fatf_egmont_tbml_indicators_2021] | `mass_registration_address` |
+| Trading companies at one address | "A trade entity is registered at an address that is likely to be a mass registration address" [fatf_egmont_tbml_indicators_2021] | [`mass_registration_address`](mass-registration-address.md) |
 
 ```mermaid
 flowchart LR

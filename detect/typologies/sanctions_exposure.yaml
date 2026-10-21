@@ -11,13 +11,15 @@ summary: >
   controlled or directed by a party that a source lists as sanctioned, or being linked to one,
   is not in itself wrongdoing; the pattern describes the structure only.
 doc: docs/typologies/sanctions-exposure.md
-citations: [ofac_50_percent_2014, fatf_glossary, fatf_bo_legal_persons_2023, fatf_pf_sanctions_evasion_2025, fatf_egmont_concealment_2018]
+citations: [ofac_50_percent_2014, fatf_glossary, fatf_bo_legal_persons_2023, fatf_pf_sanctions_evasion_2025, fatf_egmont_concealment_2018, ffiec_appendix_f, icij_faq, opensanctions_glossary]
 graph_pattern: >
   OWNS paths of at most 6 hops from an Entity with the :Sanctioned flag to the subject. For
   each sanctioned owner, the effective share is the sum over its paths of the product of the
   shares along each path, computed once with share_pct_min and once with share_pct_max to give
   a range; it is a teaching metric, not the OFAC test. CONTROLS and DIRECTOR_OF relationships
-  on the way are treated as control links (a modelling choice). One finding, and so one alert,
+  on the way are treated as control links (a modelling choice). An OFAC-style flag would
+  aggregate blocked owners and pass blocked status down the chain from owner to owned entity
+  (an unconfirmed reading, Open question 1 of the explainer). One finding, and so one alert,
   per sanctioned owner.
 parameters: {}
 metrics: []

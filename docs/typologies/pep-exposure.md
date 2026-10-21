@@ -35,6 +35,8 @@ flowchart LR
 
 **What an alert would show (Phase 3, if built).** One alert per listed person and subject, so that every metric is a single value (C4: [contracts/C4-alert.md](../../contracts/C4-alert.md)). Candidate metrics for the typology researcher: the number of hops on the shortest path, the number of paths, and counts of family, ownership, control and directorship links on the path. Metrics are numbers or codes; they never contain names. Entity-facing text uses the [7.1 vocabulary](../wording.md#vocabulary-for-entity-facing-text): "listed in <dataset> as a politically exposed person" or "as a relative or close associate of a politically exposed person", never "corrupt official".
 
+What the graph cannot show: asset declarations and salaries, risk ratings of countries and sectors, and family or business ties that no source records. Whether a person still holds an office depends on the `HOLDS_POSITION` dates the source published; where it gives none, the graph cannot say.
+
 ## Red flags the sources list
 
 | Red flag | Source | Visible in the C2 graph? |
@@ -59,12 +61,14 @@ On real data, once a licence allows it: OpenSanctions includes politically expos
 
 ## Can synthetic data show it?
 
-Yes (synthetic support: high), and in Phase 1 only synthetic data shows it.
+Yes (synthetic support: high), and while `access.opensanctions` is `none`, only synthetic data can show it.
 
 - **No real PEP data.** NeonRadar's planned source of PEP and RCA data is OpenSanctions, whose data is licence-gated: `docs/build/project.yaml` records `access.opensanctions: none`, the OpenSanctions spike refuses to run before making any request (M1.8d), and no row derived from OpenSanctions is ever committed (guardrail G2; [ADR-0006](../decisions/0006-data-licensing.md)).
 - **Synthetic flags instead.** The Phase 3 generator would write synthetic `Person` records in the `nr_synthetic` dataset with the topic `role.pep` or `role.rca`, which set the `:PEP` and `:RCA` flags (C1 rule R9 allows synthetic records only the topics `sanction`, `role.pep` and `role.rca`), plus synthetic `Position` and `Occupancy` records, family and associate links, and ownership. Path counts and hop lengths would be known by construction, so every fixture would have a known right answer. The generator could also add identity noise: name variants and missing dates of birth.
 - **Synthetic only.** Planted structures use synthetic entities only (guardrail G1): a synthetic listed person never owns, controls or directs a real registry company, and no real PEP name is attached to synthetic activity. Synthetic person names follow the name denylist in PHASE-1.md 7.1, and fixture names are checked before they are committed (operator decision OD-12).
 - **No real offices.** A synthetic position must not identify a real person: an office that only one real person holds (the minister of a named ministry, for example) would point at that person whatever name the synthetic record carries. Synthetic positions use invented offices, and never pair a title that only one person holds with a real `Position.country` (see Open questions).
+
+What synthetic data cannot show is how name matching behaves on real PEP data. Detection rates measured on synthetic data say nothing about how NeonRadar would perform on real data ([README, Limitations](../../README.md#limitations)).
 
 ## Starting parameters
 

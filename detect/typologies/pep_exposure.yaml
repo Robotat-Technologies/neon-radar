@@ -11,7 +11,7 @@ summary: >
   relative or close associate of one. Being a PEP, a relative or close associate of one, or
   being linked to one, is not wrongdoing; the pattern describes the structure only.
 doc: docs/typologies/pep-exposure.md
-citations: [fatf_peps_2013, fatf_glossary, fatf_recommendations_2026, fatf_egmont_concealment_2018]
+citations: [fatf_peps_2013, fatf_glossary, fatf_recommendations_2026, fatf_egmont_concealment_2018, ffiec_appendix_f, icij_faq, opensanctions_glossary]
 graph_pattern: >
   Paths of at most 4 hops from a Person with the :PEP or :RCA flag through FAMILY_OF,
   ASSOCIATE_OF, OWNS, CONTROLS or DIRECTOR_OF relationships to the subject.

@@ -8,7 +8,9 @@ An index of the `docs/` tree. Folders marked "later" are created by a later Phas
 | [research/2026-10-16/](research/2026-10-16/) | Verified research notes behind the build spec: stack, Neo4j, data sources, synthetic data and AML domain sources | present |
 | [plan/](plan/) | The project plan (an export) | present |
 | [decisions/](decisions/README.md) | Architecture decision records (ADRs), their index and template | present |
-| `sources/bibliography.yaml` | Citation keys for every factual AML statement | later |
+| [sources/](sources/README.md) | The [bibliography](sources/bibliography.yaml): citation keys for every factual AML statement, and how to cite | present |
+| [glossary.md](glossary.md) | The terms the documentation and the interface use, with their sources | present |
+| [wording.md](wording.md) | The disclaimers, the vocabulary for text about entities, the forbidden patterns and the documentation rules | present |
 | `typologies/` | Plain-language typology explainers | later |
 | `learning/` | Learning logs (written by people, never by agents), templates, reading list and case notes | later |
 | `team/` | Assignments, roles and `first-queries.md` | later |

@@ -4,16 +4,16 @@
 
 NeonRadar ships loaders, never data. The repository holds code and synthetic fixtures only; every public source below is fetched by a command you run yourself, into a local cache (`data/cache/`) that is never committed. The decision and its reasons are in [ADR-0006](docs/decisions/0006-data-licensing.md).
 
-- **Licence fields are machine-readable.** Each dataset's licence, attribution text, commercial use, redistribution policy, personal data flag and access rule live in [contracts/datasets.yaml](contracts/datasets.yaml), part of the frozen record contract. Loaders follow them.
-- **Never publish a merged database.** A database that combines sources is never published or committed. In particular, ICIJ data (ODbL, share-alike) and OpenSanctions data (CC BY-NC) cannot both be honoured by one published database.
-- **Personal data is your responsibility.** Company officers, persons with significant control, ICIJ officers and OpenSanctions persons are real people. Whoever loads them is a controller under UK or EU data protection law and needs their own lawful basis. Spike output is deleted after `access.spike_cache_days` days (currently 7).
+- **Licence fields are machine-readable.** Each dataset's licence, attribution text, commercial use, redistribution policy, personal data flag and access rule live in [contracts/datasets.yaml](contracts/datasets.yaml), part of the C1 record contract, which freezes at Gate 1. Loaders follow them.
+- **Never publish a merged database.** A database that combines sources is never published or committed. In particular, in the project's reading, ICIJ data (ODbL, share-alike) and OpenSanctions data (CC BY-NC) cannot both be honoured by one published database.
+- **Personal data is your responsibility.** Many company officers, persons with significant control and ICIJ officers, and all OpenSanctions persons, are real people. NeonRadar's position is that whoever loads them for their own purposes is normally a controller under UK or EU data protection law and needs their own lawful basis; whether that holds in a given setting is for that user to establish. Spike output is deleted after `access.spike_cache_days` days (currently 7).
 - **Attribution travels with the data.** Wherever data from a source appears (the interface, exports, screenshots, reports), show that source's attribution text below.
 
 ## Summary
 
 | Dataset slug | Source | Licence | Commercial use | Attribution | Phase 1 use |
 |---|---|---|---|---|---|
-| `gb_companies_house` | UK Companies House REST API | Register data is made available under the Companies Act 2006 and approvals under section 47 of the Copyright, Designs and Patents Act 1988, with no Companies House rules on reuse; Companies House's own material is under the Open Government Licence v3.0, which does not cover personal data, so whoever loads officers and PSCs becomes a UK GDPR controller | Yes | "Contains public sector information licensed under the Open Government Licence v3.0." plus "Source: Companies House" | Spike with one company number, output in cache only |
+| `gb_companies_house` | UK Companies House REST API | Register data is made available under the Companies Act 2006 and approvals under section 47 of the Copyright, Designs and Patents Act 1988, with no Companies House rules on reuse; Companies House's own material is under the Open Government Licence v3.0, which does not cover personal data, so, in the project's reading, whoever loads officers and PSCs for their own purposes is normally a UK GDPR controller | Yes | "Contains public sector information licensed under the Open Government Licence v3.0." plus "Source: Companies House" | Spike with one company number, output in cache only |
 | `gleif_lei` | GLEIF API and Golden Copy | CC0 1.0; GLEIF's terms forbid using its logo or implying endorsement, with liquidated damages of CHF 100,000 per breach | Yes | Not required; courtesy line below | Spike with one LEI and its parents |
 | `icij_offshore_leaks` | ICIJ Offshore Leaks Database (`full-oldb.LATEST.zip`) | ODbL 1.0 (database), CC BY-SA 3.0 (contents) | Yes, with citation. A publicly used derived database must be ODbL and offered in machine-readable form (clause 4.6); produced works such as screenshots and reports need a notice that the content came from the database under ODbL (clause 4.3); internal use is not public use | "Always cite the International Consortium of Investigative Journalists when using this data." plus the ODbL notices | Spike reading a slice, cache outside the repository |
 | `opensanctions_default` | OpenSanctions bulk data | CC BY-NC 4.0; "Any use inside a for-profit business requires a data license." | Licence required | No official text; NeonRadar's proposed wording below, following CC BY-NC 4.0 section 3(a)(1) | Only if `access.opensanctions` in `docs/build/project.yaml` is `evaluation`, `licensed` or `exempt` (currently `none`, so not used; spike [blocked on licence decision](docs/data/spikes/opensanctions.md)) |
@@ -22,12 +22,12 @@ NeonRadar ships loaders, never data. The repository holds code and synthetic fix
 ## UK Companies House (`gb_companies_house`)
 
 - **Publisher:** Companies House, through the Public Data REST API (<https://developer.company-information.service.gov.uk/>). Each user needs their own API key, kept in `.env` as `CH_API_KEY` and never committed.
-- **Licence:** register data is made available under the Companies Act 2006 and approvals under section 47 of the Copyright, Designs and Patents Act 1988; Companies House "imposes no rules or requirements on how the information on the public register is used". Its own material is Crown copyright under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+- **Licence:** register data is made available under the Companies Act 2006 and approvals under section 47 of the Copyright, Designs and Patents Act 1988; Companies House "imposes no rules or requirements on how the information on the public register is used" (its GOV.UK page [Public task, copyright and Crown copyright](https://www.gov.uk/government/publications/companies-house-accreditation-to-information-fair-traders-scheme/public-task-copyright-and-crown-copyright), read on 21 October 2026; a Companies House developer-forum post of 4 November 2021 says the same). Its own material is Crown copyright under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
 - **Attribution text:**
 
   > Contains public sector information licensed under the Open Government Licence v3.0. Source: Companies House.
 
-- **Personal data:** officers and persons with significant control are real people. The Open Government Licence "does not cover: personal data in the Information", and Companies House says that organisations which reuse register data "become controllers of your personal data". The API shows only the month and year of birth and a correspondence address. Never try to reconstruct residential addresses or full dates of birth, and prefer re-fetching to long-term caching, so that removals made at Companies House flow through.
+- **Personal data:** most officers and persons with significant control are real people (some are companies). The Open Government Licence "does not cover: personal data in the Information", and Companies House says that organisations which reuse register data "become controllers of your personal data". The API shows only the month and year of birth and a correspondence address. Never try to reconstruct residential addresses or full dates of birth, and prefer re-fetching to long-term caching, so that removals made at Companies House flow through.
 
 ## GLEIF Global LEI Index (`gleif_lei`)
 
@@ -51,23 +51,24 @@ NeonRadar ships loaders, never data. The repository holds code and synthetic fix
 - **ODbL obligations:**
   - A produced work (a screenshot, chart or report) that shows ICIJ content carries a notice that the content came from the ICIJ Offshore Leaks Database and is available under ODbL 1.0 (clause 4.3).
   - A derivative database (for example a Neo4j graph built from ICIJ data) that you use publicly must be offered under ODbL (clause 4.4), together with a machine-readable copy of the database or of your changes (clause 4.6).
+  - Clause 4.6 also covers a produced work from a derivative database that you use publicly: if you publish, for example, a screenshot of a graph built with ICIJ data, offer its recipients that machine-readable copy too. How far this reaches is a question for the data steward.
   - "Publicly" means to people other than you or those under your control, so internal use is not public use. The repository ships loaders only, so it creates no ODbL obligation itself.
 - **Disclaimer:** show ICIJ's disclaimer with the data. ICIJ's FAQ says: "We do not intend to suggest or imply that any individuals, companies or other entities included in the ICIJ Offshore Leaks Database have broken the law or otherwise acted improperly."
-- **Personal data:** officers and intermediaries include real people; whoever loads them is a controller.
+- **Personal data:** officers and intermediaries include real people; in NeonRadar's position, whoever loads them for their own purposes is normally a controller.
 - **Never** publish a database that merges ICIJ data with OpenSanctions data.
 
 ## OpenSanctions (`opensanctions_default`)
 
 - **Publisher:** OpenSanctions Datenbanken GmbH (<https://www.opensanctions.org/>).
 - **Licence:** [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). OpenSanctions states: "Any use inside a for-profit business requires a data license." Compliance screening counts as commercial use.
-- **NeonRadar's decision:** `access.opensanctions` is `none`, so the project uses synthetic fixtures only and the loader stays gated. Another route (`evaluation`, `licensed` or `exempt`) needs a decision by the data steward, with the request and OpenSanctions' written answer filed in `docs/data/licences/opensanctions.md`.
-- **Free access:** OpenSanctions gives free API keys to journalists (staff or freelance, including at commercial media organisations) publishing findings in the public interest; advocacy groups and nonprofits working to improve democratic governance or to expose corruption and financial crime; academic researchers with an institutional affiliation; and public institutions of Ukraine, Georgia and Moldova. Every commercial user of NeonRadar needs their own data licence.
+- **NeonRadar's decision:** `access.opensanctions` is `none`, so the project uses synthetic fixtures only and the loader stays gated (see the access decision below).
+- **Free access:** OpenSanctions gives free API keys to "Journalists (staff or freelance) publishing findings in the public interest", which "includes journalists at commercial media organizations"; to advocacy groups and nonprofits working to improve democratic governance or to expose corruption and financial crime; to academic researchers with an institutional affiliation; and to public institutions of Ukraine, Georgia and Moldova. For genuinely non-commercial use it says: "If your use is genuinely non-commercial, the bulk data above is yours to work with." Every other commercial user needs their own data licence.
 - **Attribution text** (NeonRadar's proposal: OpenSanctions publishes no official wording, so this follows CC BY-NC 4.0 section 3(a)(1)):
 
   > Contains data from OpenSanctions (https://www.opensanctions.org), (c) OpenSanctions Datenbanken GmbH, licensed under CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/), provided without warranty. Converted and filtered by NeonRadar.
 
 - **Redistribution:** never. No OpenSanctions row, and nothing derived from one, is ever committed.
-- **Personal data:** the data includes people tagged with crime-related topics. Handle it with particular care; whether the rules for personal data relating to criminal convictions and offences apply is for the data steward to decide ([ADR-0006](docs/decisions/0006-data-licensing.md)).
+- **Personal data:** the data includes people tagged with crime-related topics. Handle it with particular care. NeonRadar's data steward decides how the project's loader treats these topics; if you load them, you, as controller, decide whether Article 10 of the UK or EU GDPR (personal data relating to criminal convictions and offences) applies to your processing ([ADR-0006](docs/decisions/0006-data-licensing.md)).
 
 ### Access decision and the spike command
 
@@ -87,9 +88,9 @@ A missing file, a missing key or any other value counts as `none`. Under every r
 ## NeonRadar synthetic data (`nr_synthetic`)
 
 - **Publisher:** NeonRadar's own generator. Licence: Apache-2.0. No attribution needed.
-- **No personal data:** every company, person, address, account and payment is generated. Synthetic names are checked against a denylist of real prominent family names, and company names committed to the repository are checked against the Companies House public search first.
+- **No personal data:** every company, person, address, account and payment is generated. Synthetic names are checked against a denylist of real prominent family names. Company names committed to the repository are checked against the Companies House search API when a key is available; without a key, they are checked against the public Companies House search or listed in the pull request for the data steward to check.
 - **Synthetic laundering scenarios** run only among synthetic entities (ids starting `syn-`); real entities may receive synthetic background activity only.
 
 ## Sources
 
-Sources and reasoning for each section are in [docs/research/2026-10-16/sources-ch-gleif.md](docs/research/2026-10-16/sources-ch-gleif.md) and [docs/research/2026-10-16/sources-opensanctions-ftm-icij.md](docs/research/2026-10-16/sources-opensanctions-ftm-icij.md), summarised in [docs/build/PHASE-1.md](docs/build/PHASE-1.md) section 3.3. The licence terms of Companies House, the Open Government Licence, GLEIF, ICIJ and OpenSanctions quoted above were re-checked on 21 October 2026; the links are in [ADR-0006](docs/decisions/0006-data-licensing.md).
+Sources and reasoning for each section are in [docs/research/2026-10-16/sources-ch-gleif.md](docs/research/2026-10-16/sources-ch-gleif.md) and [docs/research/2026-10-16/sources-opensanctions-ftm-icij.md](docs/research/2026-10-16/sources-opensanctions-ftm-icij.md), summarised in [docs/build/PHASE-1.md](docs/build/PHASE-1.md) section 3.3. The licence terms of Companies House, the Open Government Licence, GLEIF, ICIJ and OpenSanctions quoted above were re-checked on 21 October 2026 (the ODbL and CC BY-NC clause readings come from the research note); the links are in [ADR-0006](docs/decisions/0006-data-licensing.md).

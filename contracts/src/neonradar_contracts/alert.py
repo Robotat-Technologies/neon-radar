@@ -269,7 +269,8 @@ class Alert(_Strict):
     wording_class: WordingClass
     subjects: Annotated[list[Subject], Field(min_length=1)]
     evidence: Evidence
-    metrics: dict[str, int | float | str]
+    # `bool` first: in strict mode a JSON boolean stays a boolean and an integer stays an integer.
+    metrics: dict[str, bool | int | float | str]
     explanation: Explanation
     data_flags: DataFlags
     disclaimer_id: Literal["standing-v1"]

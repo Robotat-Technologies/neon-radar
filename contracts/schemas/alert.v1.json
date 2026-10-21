@@ -334,6 +334,9 @@
       "additionalProperties": {
         "anyOf": [
           {
+            "type": "boolean"
+          },
+          {
             "type": "integer"
           },
           {

@@ -581,12 +581,33 @@ def test_subjects_do_not_repeat_an_entity() -> None:
     rejects(data, "subjects must not repeat an entity_id")
 
 
-def test_metrics_are_numbers_or_strings() -> None:
+def test_metrics_are_scalars() -> None:
     data = example()
-    data["metrics"]["closed"] = True
-    rejects(data, "metrics")
     data["metrics"]["closed"] = [1, 2]
     rejects(data, "metrics")
+    data["metrics"]["closed"] = {"a": 1}
+    rejects(data, "metrics")
+    data["metrics"]["closed"] = None
+    rejects(data, "metrics")
+
+
+def test_boolean_metrics_stay_booleans_and_integers_stay_integers() -> None:
+    """Phase 3 detectors put flags such as `unbounded` or `po_box` in metrics (pre-freeze)."""
+    data = example()
+    data["metrics"] |= {"unbounded": True, "po_box": False, "one": 1, "zero": 0}
+    alert = Alert.model_validate(data)
+    assert [type(alert.metrics[key]) for key in ("unbounded", "po_box", "one", "zero")] == [
+        bool,
+        bool,
+        int,
+        int,
+    ]
+    text = alert.model_dump_json()
+    assert '"unbounded":true' in text and '"po_box":false' in text and '"one":1' in text
+    again = Alert.model_validate_json(text)
+    assert again.metrics["unbounded"] is True and again.metrics["one"] == 1
+    assert type(again.metrics["one"]) is int
+    assert again.model_dump(mode="json") == alert.model_dump(mode="json")
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])

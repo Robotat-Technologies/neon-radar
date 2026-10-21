@@ -49,11 +49,24 @@ AMOUNT_RE = re.compile(r"^\d+(\.\d{1,2})?\Z")
 CURRENCY_RE = re.compile(r"^[A-Z]{3}\Z")
 SYNTHETIC_ACCOUNT_RE = re.compile(r"^NRSYN\d{10}\Z")
 # A pydantic field pattern: `$` matches only at the very end there, so a trailing newline fails,
-# and unlike `\z` it is valid ECMA-262 in the exported JSON Schema.
+# and unlike `\z` it is valid ECMA-262 in the exported JSON Schema. Python's `re` (used by the
+# jsonschema package) lets `$` match before a final newline, so fixed-length fields also carry
+# their length, which rejects it there.
 UTC_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+UTC_TIMESTAMP_LENGTH = 20
 # Topics that set the C2 flag labels :Sanctioned, :PEP and :RCA; the only ones synthetic
 # records may carry (R9), so that no other topic can hint at a scenario.
 SYNTHETIC_TOPICS = frozenset({"sanction", "role.pep", "role.rca"})
+# R6, guardrail G1: what C2 would say about a real record named by a synthetic one of these
+# schemata, so they reference only synthetic records (Sanction: M1.7c follow-up; the others:
+# orchestrator decision under OD-10, listed for Gate 1). Ownership, Representation, Membership
+# and the other links may name real records: that is synthetic background activity.
+SYNTHETIC_ONLY_LINKS = {
+    "Sanction": "SUBJECT_OF would mark a real entity as sanctioned",
+    "Family": "FAMILY_OF would make a real person a relative of someone",
+    "Associate": "ASSOCIATE_OF would make a real person a close associate of someone",
+    "Occupancy": "HOLDS_POSITION would give a real person a post",
+}
 LABEL_KEY_RE = re.compile(r"typolog|scenario|illicit|lookalike|ground.?truth|label", re.IGNORECASE)
 ENVELOPE_KEYS = ("id", "schema", "properties", "datasets")
 OPTIONAL_KEYS = ("referents", "caption", "first_seen", "last_seen", "last_change", "nr")
@@ -395,6 +408,21 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
     synthetic = _check_synthetic(data, dataset, match, add)
     if schema is not None and schema.is_a("Payment"):
         _check_payment(props, data.get("nr"), synthetic, add)
+    reason = SYNTHETIC_ONLY_LINKS.get(schema.name) if synthetic and schema is not None else None
+    if schema is not None and reason is not None:
+        # The prefix decides (R1, R6), so this needs no other record and holds in strict and
+        # non-strict mode. Malformed references are R4's.
+        for reference in schema.properties.values():
+            if reference.type != registry.entity:
+                continue
+            for value in props.get(reference.name, []):
+                ref = ID_RE.fullmatch(value)
+                if ref and ref["prefix"] != SYNTHETIC_PREFIX:
+                    add(
+                        "R6",
+                        f"a synthetic {schema.name} references only synthetic records (prefix"
+                        f" syn) in {reference.name}, not {value!r}: {reason} (G1)",
+                    )
     if synthetic:  # R9: only the topics that set C2 flags; others could carry labels
         for topic in props.get("topics", []):
             if topic not in SYNTHETIC_TOPICS:
@@ -511,7 +539,7 @@ class _Strict(BaseModel):
 
 class ManifestFile(_Strict):
     path: str = Field(min_length=1)
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64)
     records: NonNegativeInt
 
 
@@ -523,7 +551,12 @@ class Producer(_Strict):
 
 class Source(_Strict):
     urls: list[str] = Field(default_factory=list)
-    retrieved_at: str | None = Field(default=None, pattern=UTC_TIMESTAMP)
+    retrieved_at: str | None = Field(
+        default=None,
+        pattern=UTC_TIMESTAMP,
+        min_length=UTC_TIMESTAMP_LENGTH,
+        max_length=UTC_TIMESTAMP_LENGTH,
+    )
     source_version: str | None = None
 
 
@@ -547,7 +580,9 @@ class Manifest(_Strict):
     record_contract: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     dataset: str = Field(min_length=1)
     files: list[ManifestFile] = Field(min_length=1)
-    created_at: str = Field(pattern=UTC_TIMESTAMP)
+    created_at: str = Field(
+        pattern=UTC_TIMESTAMP, min_length=UTC_TIMESTAMP_LENGTH, max_length=UTC_TIMESTAMP_LENGTH
+    )
     producer: Producer
     source: Source
     licence: ManifestLicence

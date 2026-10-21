@@ -66,6 +66,14 @@ def test_structural_headline_never_says_synthetic_scenario() -> None:
         render_headline(typology, "structural_pattern", metrics)
 
 
+def test_structural_headline_phrase_check_reads_normalised_text() -> None:
+    """A fullwidth "s" does not hide the phrase (NFKC before SYNTHETIC_PHRASE)."""
+    typology = with_template("Funds returned in {currency}")
+    metrics = {"currency": "a \uff53ynthetic scenario", "count": 1}
+    with pytest.raises(WordingError, match="only a synthetic_scenario headline"):
+        render_headline(typology, "structural_pattern", metrics)
+
+
 def test_a_metric_value_cannot_smuggle_in_forbidden_wording() -> None:
     typology = with_template("Funds returned in {currency}")
     with pytest.raises(WordingError, match="refused by the wording lint"):

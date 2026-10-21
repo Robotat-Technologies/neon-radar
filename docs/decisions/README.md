@@ -18,10 +18,10 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0005](0005-synthetic-data-policy.md) | Synthetic data policy | M1.8e | proposed | tech lead, data steward |
 | [0006](0006-data-licensing.md) | Data licensing | M1.10a | proposed | data steward, project lead |
 | [0007](0007-toolchain.md) | Toolchain | M1.3 | proposed | tech lead |
-| 0008 | API gateway and OpenAPI snapshot | M1.7d | not written yet | tech lead |
+| [0008](0008-api-gateway.md) | API gateway and OpenAPI snapshot | M1.7d | proposed | tech lead |
 | [0009](0009-alert-object-and-wording.md) | Alert object and wording | M1.7c | proposed | tech lead, typology researchers |
-| 0010 | Copilot: local and template first | M1.10c | not written yet (decided in Phase 4) | tech lead, copilot mentor |
+| [0010](0010-copilot-local-template-first.md) | Copilot: local and template first | M1.10c | proposed (decided in Phase 4) | tech lead, copilot mentor |
 | [0011](0011-ai-built-workflow.md) | AI-built workflow | M1.2 | proposed | project lead, tech lead |
-| 0012 | Documentation site | M1.10c | not written yet (decided in Phase 6) | technical writer, tech lead |
+| [0012](0012-docs-site.md) | Documentation site | M1.10c | proposed (decided in Phase 6) | technical writer, tech lead |
 
 The roles resolve to people in `docs/build/project.yaml` (`people`); until the team joins, @robotat-com holds every role.

@@ -66,23 +66,30 @@ def test_export_prints_each_file(monkeypatch: pytest.MonkeyPatch) -> None:
     from neonradar_contracts import schemas
 
     written = [schemas.CONTRACTS_DIR / "schemas" / "alert.v1.json"]
-    monkeypatch.setattr(schemas, "export", lambda: written)
+    seen: list[set[str]] = []
+
+    def export(docs: dict[str, str]) -> list[Path]:
+        seen.append(set(docs))
+        return written
+
+    monkeypatch.setattr(schemas, "export", export)
     result = runner.invoke(app, ["contracts", "export"])
     assert result.exit_code == 0, result.output
     assert result.output.splitlines() == ["wrote contracts/schemas/alert.v1.json"]
+    assert seen == [{*schemas.documents(), "openapi/v1.json"}]  # the C3 snapshot joins
 
 
 def test_check_passes_on_the_committed_files() -> None:
     result = runner.invoke(app, ["contracts", "check"])
     assert result.exit_code == 0, result.output
-    assert result.output.startswith("OK, 3 generated files match the models")
+    assert result.output.startswith("OK, 4 generated files match the models")
 
 
 def test_check_reports_drift(monkeypatch: pytest.MonkeyPatch) -> None:
     from neonradar_contracts import schemas
 
     drift = ["schemas/alert.v1.json: differs from the models; run `make contracts`"]
-    monkeypatch.setattr(schemas, "check", lambda: drift)
+    monkeypatch.setattr(schemas, "check", lambda docs: drift)
     result = runner.invoke(app, ["contracts", "check"])
     assert result.exit_code == 1
     assert result.output.splitlines() == [

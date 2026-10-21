@@ -1,0 +1,7 @@
+{
+  "type": "about:blank",
+  "title": "Not Implemented",
+  "status": 501,
+  "detail": "POST /api/v1/copilot/ask is not implemented yet: it arrives in Phase 4.",
+  "instance": "/api/v1/copilot/ask"
+}

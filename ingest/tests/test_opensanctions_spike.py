@@ -43,7 +43,6 @@ INDEX = {
             "url": f"{ARTIFACTS}/entities.ftm.json",
             "checksum": "0" * 40,
             "mime_type": "application/json+ftm",
-            "size": ENTITIES.stat().st_size,
         },
         {"name": "targets.simple.csv", "url": f"{ARTIFACTS}/targets.simple.csv"},
     ],
@@ -153,24 +152,20 @@ def test_unknown_collections_are_refused() -> None:
 
 
 @pytest.mark.parametrize(
-    "body",
+    ("body", "version", "entities_url"),
     [
-        {"version": "v1", "last_export": "2026-10-15T00:00:00", "resources": INDEX["resources"]},
-        {"dataset": {"version": "v1", "last_export": "2026-10-15T00:00:00"}, **INDEX},
+        (
+            {"version": "v1", "resources": INDEX["resources"]},
+            "v1",
+            f"{ARTIFACTS}/entities.ftm.json",
+        ),
+        ({"dataset": {"version": "v1"}, **INDEX}, "v1", f"{ARTIFACTS}/entities.ftm.json"),
+        ({"version": 7}, None, f"{BASE_URL}/sanctions/entities.ftm.json"),  # latest path
     ],
 )
-def test_index_json_with_or_without_a_dataset_key(body: dict[str, Any]) -> None:
+def test_index_json_shapes(body: dict[str, Any], version: str | None, entities_url: str) -> None:
     info = IndexInfo.from_body(body, "sanctions", "u", ())
-    assert info.version == "v1"
-    assert info.entities_url == f"{ARTIFACTS}/entities.ftm.json"
-    assert info.size == ENTITIES.stat().st_size
-
-
-def test_index_without_resources_falls_back_to_the_latest_path() -> None:
-    info = IndexInfo.from_body({"version": 7}, "peps", "u", ())
-    assert info.version is None
-    assert info.checksum is None
-    assert info.entities_url == f"{BASE_URL}/peps/entities.ftm.json"
+    assert (info.version, info.entities_url) == (version, entities_url)
 
 
 @pytest.mark.network

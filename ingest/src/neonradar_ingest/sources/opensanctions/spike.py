@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,10 +55,8 @@ class IndexInfo:
     url: str  # the URL that answered, after redirects
     redirects: tuple[int, ...]
     version: str | None
-    last_export: str | None
     entities_url: str
     checksum: str | None  # SHA-1 of entities.ftm.json
-    size: int | None
 
     @classmethod
     def from_body(
@@ -66,23 +64,20 @@ class IndexInfo:
     ) -> Self:
         """Parse an `index.json` body.
 
-        The metadata documentation groups `version`, `last_export` and `resources` under a
-        `dataset` section without saying whether that is a JSON key, so both shapes work.
+        The metadata documentation groups `version` and `resources` under a `dataset`
+        section without saying whether that is a JSON key, so both shapes work.
         """
         meta = body["dataset"] if isinstance(body.get("dataset"), dict) else body
         resources = meta.get("resources") or body.get("resources") or []
         entry: Mapping[str, Any] = next(
             (r for r in resources if isinstance(r, dict) and r.get("name") == ENTITIES_FILE), {}
         )
-        size = entry.get("size")
         return cls(
             url=url,
             redirects=redirects,
             version=_text(meta, "version"),
-            last_export=_text(meta, "last_export"),
             entities_url=_text(entry, "url") or f"{BASE_URL}/{collection}/{ENTITIES_FILE}",
             checksum=_text(entry, "checksum"),
-            size=size if isinstance(size, int) else None,
         )
 
 
@@ -94,7 +89,6 @@ class SpikeResult:
     collection: str
     index: IndexInfo
     entities_url: str = ""  # the URL that answered, after redirects
-    entities_redirects: tuple[int, ...] = ()
     stats: MappingStats = field(default_factory=MappingStats)
     issues: Counter[str] = field(default_factory=Counter)  # C1 rule -> issues
     invalid: int = 0  # mapped records with at least one C1 issue; never written
@@ -109,10 +103,6 @@ def index_url(collection: str) -> str:
     return f"{BASE_URL}/{collection}/index.json"
 
 
-def _history(response: httpx.Response) -> tuple[int, ...]:
-    return tuple(step.status_code for step in response.history)
-
-
 def read_index(client: httpx.Client, collection: str) -> IndexInfo:
     """GET the collection's `index.json` and log its version and the entities checksum."""
     response = client.get(index_url(collection))
@@ -120,7 +110,8 @@ def read_index(client: httpx.Client, collection: str) -> IndexInfo:
     body = response.json()
     if not isinstance(body, dict):
         raise ValueError(f"{response.url}: index.json is not a JSON object")
-    info = IndexInfo.from_body(body, collection, str(response.url), _history(response))
+    redirects = tuple(step.status_code for step in response.history)
+    info = IndexInfo.from_body(body, collection, str(response.url), redirects)
     logger.info(
         "OpenSanctions %s version %s, %s sha1 %s", collection, info.version, ENTITIES_FILE,
         info.checksum,
@@ -136,19 +127,17 @@ def run_spike(
     rows: int = 1000,
     out_dir: Path = CACHE_DIR,
     licence_file: Path | None = None,
-    clock: Callable[[], float] = time.monotonic,
 ) -> SpikeResult:
     """Run the spike if `access` allows it; raise LicenceRequired before any request if not."""
     require_access(access, licence_file)
     if rows < 1:
         raise ValueError("rows must be at least 1")
-    started = clock()
+    started = time.monotonic()
     result = SpikeResult(access=access, collection=collection, index=read_index(client, collection))
     kept: list[dict[str, Any]] = []
     with client.stream("GET", result.index.entities_url) as response:
         response.raise_for_status()
         result.entities_url = str(response.url)
-        result.entities_redirects = _history(response)
         for record in map_lines(response.iter_lines(), result.stats, limit=rows):
             issues = validate_record(record)
             result.issues.update(issue.rule for issue in issues)
@@ -157,7 +146,7 @@ def run_spike(
                 kept.append(record)
     if may_write(access):
         result.records_file = _write(kept, result, out_dir)
-    result.seconds = clock() - started
+    result.seconds = time.monotonic() - started
     return result
 
 
@@ -178,7 +167,7 @@ def _write(records: list[dict[str, Any]], result: SpikeResult, out_dir: Path) ->
             retrieved_at=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             source_version=result.index.version,
         ),
-        skipped={**result.stats.skipped, **({INVALID: result.invalid} if result.invalid else {})},
+        skipped=result.stats.skipped + Counter({INVALID: result.invalid}),
         notes=[
             f"collection {result.collection}; the first {result.stats.lines} lines only",
             "a slice: references to entities outside it dangle, so validate without --strict",
@@ -188,35 +177,37 @@ def _write(records: list[dict[str, Any]], result: SpikeResult, out_dir: Path) ->
 
 
 def _counts(counter: Counter[str], top: int | None = None) -> str:
-    items = counter.most_common(top)
-    return ", ".join(f"{key} {count}" for key, count in items) if items else "none"
+    return ", ".join(f"{key} {count}" for key, count in counter.most_common(top)) or "none"
 
 
 def summary_lines(result: SpikeResult) -> list[str]:
     """What the command prints: counts and field names only, never names or values."""
     stats, index = result.stats, result.index
     redirects = ", ".join(str(code) for code in index.redirects) or "none"
-    if result.records_file is None:
-        written = f"wrote nothing (access {result.access} writes nothing)"
-    else:
-        written = f"wrote {result.records_file} and its manifest"
+    written = (
+        f"wrote {result.records_file} and its manifest"
+        if result.records_file
+        else (f"wrote nothing (access {result.access} writes nothing)")
+    )
     return [
         f"OpenSanctions spike: collection {result.collection}, access {result.access}",
-        f"index.json: {index.url} (redirects: {redirects})",
-        f"version {index.version or 'unknown'}, last export {index.last_export or 'unknown'}",
-        f"{ENTITIES_FILE}: {result.entities_url}, sha1 {index.checksum or 'unknown'},"
-        f" {index.size if index.size is not None else 'unknown'} bytes",
+        f"index.json: {index.url} (redirects: {redirects}), version {index.version}",
+        f"{ENTITIES_FILE}: {result.entities_url}, sha1 {index.checksum}",
         f"read {stats.lines} lines in {result.seconds:.1f} s: {stats.mapped.total()} C1 records,"
         f" {stats.skipped.total()} skipped",
-        f"  by schema: {_counts(stats.mapped)}",
-        f"  skipped: {_counts(stats.skipped)}",
-        f"  unknown to FollowTheMoney: {_counts(stats.unknown_schemata)}",
-        f"  topics (top 15): {_counts(stats.topics, 15)}",
-        f"  C2 flags: {_counts(stats.flags)}",
-        f"  dropped keys: {_counts(stats.dropped_keys)}",
-        f"  dropped properties: {_counts(stats.dropped_properties)}",
-        f"  dropped values: {_counts(stats.dropped_values)}",
-        f"  source datasets: {len(stats.source_datasets)}",
-        f"C1 issues: {_counts(result.issues)} ({result.invalid} records)",
+        *(
+            f"  {label}: {_counts(counter, 15)}"
+            for label, counter in (
+                ("by schema", stats.mapped),
+                ("skipped", stats.skipped),
+                ("unknown to FollowTheMoney", stats.unknown_schemata),
+                ("topics (top 15)", stats.topics),
+                ("C2 flags", stats.flags),
+                ("dropped keys", stats.dropped_keys),
+                ("dropped properties", stats.dropped_properties),
+                ("dropped values", stats.dropped_values),
+                ("C1 issues", result.issues),
+            )
+        ),
         written,
     ]

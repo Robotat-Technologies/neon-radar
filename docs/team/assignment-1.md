@@ -129,6 +129,9 @@ Things that catch people out:
 - A symmetric pattern such as `(a)<-[:DIRECTS]-(p)-[:DIRECTS]->(b)` returns every pair twice, as `(a, b)` and `(b, a)`. `WHERE a.id < b.id` keeps one.
 - `DISTINCT` removes repeated rows when two paths lead to the same answer.
 - `ORDER BY` makes the output the same every time, which makes it easier to review.
+- Bound it: fixed hops or `{1,3}`, never `[*]`, and end with `LIMIT`. Every query in the project is bounded ([.claude/rules/cypher.md](../../.claude/rules/cypher.md)).
+- Use literal values such as `'onb-co-04'`; the check passes no parameters. (In project code it is the other way round: always parameters.)
+- No `LOAD CSV`, `apoc.` or `CALL` in your first query. Every first query runs on everyone's machine, so the check refuses these without running them: a `LOAD CSV FROM 'https://...'` would make an outbound request from each of them.
 
 ## 7. Add your query and run the check
 
@@ -168,6 +171,8 @@ A reviewer from another squad reads your pull request ([CONTRIBUTING.md](../../C
 
 "The AI wrote it" is not an answer. If you cannot explain a line yet, that is fine: find out, and write down what confused you in your learning log.
 
+**For reviewers.** Besides "can the author explain every line", check that the query only reads, is bounded (fixed hops or a bounded range, and a `LIMIT`), uses literal values, and uses no `LOAD CSV`, `apoc.*` (for example `apoc.load.*`) or `CALL`. `make onboarding-check` refuses the last three, but read the query anyway: it runs on every teammate's machine once it is merged. The text under the query describes a structure, not a judgement about the companies or people.
+
 ## Afterwards
 
 - Start your learning log: [docs/learning/README.md](../learning/README.md) explains how. This assignment is a good first entry. You write it yourself; no agent writes it for you.
@@ -184,4 +189,5 @@ A reviewer from another squad reads your pull request ([CONTRIBUTING.md](../../C
 | `FAIL  @you  Neo.ClientError.Statement.ParameterMissing: ...` | Replace each `$parameter` with a literal value |
 | `FAIL  @you  Neo.ClientError.Transaction.TransactionTimedOut...` | The query ran for more than 10 seconds: bound it with fewer hops or a `LIMIT` |
 | `FAIL  @you  format: ...` | Your section does not follow the format in [first-queries.md](first-queries.md) |
+| `FAIL  @you  not allowed: first queries may not use LOAD CSV, apoc. or CALL` | Remove the `LOAD CSV`, `apoc.` or `CALL` (also `CALL { }` subqueries, and the word "call" in a comment or string); answer the question with plain `MATCH` patterns |
 | Your counts in step 5 are higher than expected, or the check prints `WARN` | `uv run neonradar onboarding reset`, then load again |

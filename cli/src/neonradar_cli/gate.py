@@ -10,13 +10,15 @@ report not met (OD-6).
 
 import json
 import logging
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -56,23 +58,36 @@ class Result:
 
 
 class Runner(Protocol):
-    def __call__(self, *args: str, timeout: float = ...) -> Result: ...
+    def __call__(
+        self, *args: str, timeout: float = ..., env: Mapping[str, str] | None = ...
+    ) -> Result: ...
 
 
 def run_in(root: Path) -> Runner:
-    """A runner for commands in `root`; a missing program gives exit 127, a timeout 124."""
+    """A runner for commands in `root`; a missing program gives exit 127, a timeout 124.
 
-    def run(*args: str, timeout: float = 120) -> Result:
+    Each command starts its own process group, and a timeout kills the whole group, so no
+    `make`, `uv` or `pytest` child keeps running after the gate has moved on.
+    """
+
+    def run(*args: str, timeout: float = 120, env: Mapping[str, str] | None = None) -> Result:
         if shutil.which(args[0]) is None:
             return Result(127, err=f"{args[0]}: not found")
         try:
             # Fixed argument lists from this module, never shell strings or user input.
-            done = subprocess.run(  # noqa: S603
-                args, cwd=root, capture_output=True, text=True, timeout=timeout, check=False
+            pipe = subprocess.PIPE
+            process = subprocess.Popen(  # noqa: S603
+                args, cwd=root, env=env, stdout=pipe, stderr=pipe, text=True, start_new_session=True
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return Result(124, err=f"{args[0]}: {exc}")
-        return Result(done.returncode, done.stdout, done.stderr)
+        except OSError as exc:
+            return Result(127, err=f"{args[0]}: {exc}")
+        try:
+            out, err = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            out, err = process.communicate()
+            return Result(124, out, f"{err}{args[0]}: timed out after {timeout:g} s")
+        return Result(process.returncode, out, err)
 
     return run
 
@@ -83,6 +98,7 @@ class Context:
     run: Runner
     no_gh: str | None = None  # why `gh` cannot be used; None when it can
     no_docker: str | None = None  # why Docker cannot be used; None when it can
+    offline: bool = False  # --offline: uv must not download either (UV_OFFLINE=1)
 
     def read(self, path: str) -> str | None:
         file = self.root / path
@@ -104,7 +120,7 @@ class Context:
 def make_context(root: Path = REPO_ROOT, offline: bool = False) -> Context:
     run = run_in(root)
     if offline:
-        return Context(root, run, "gh not used (--offline)", "Docker not used (--offline)")
+        return Context(root, run, "gh not used (--offline)", "Docker not used (--offline)", True)
     gh = run("gh", "auth", "status", timeout=30).code
     no_gh = None if gh == 0 else "gh is not installed" if gh == 127 else "gh is not signed in"
     return Context(root, run, no_gh, None if doctor.docker_info() else "Docker is not reachable")
@@ -162,17 +178,32 @@ def changelog_gaps(text: str) -> list[str]:
     return [name for name in CONTRACTS if name not in done]
 
 
+def on_main(ctx: Context) -> tuple[bool, str]:
+    """Whether the checkout is a clean `origin/main` (the local ref; nothing is fetched)."""
+    head = ctx.run("git", "rev-parse", "HEAD").out.strip()
+    main = ctx.run("git", "rev-parse", "--verify", "-q", "origin/main").out.strip()
+    dirty = bool(ctx.run("git", "status", "--porcelain").out.strip())
+    if head and head == main and not dirty:
+        return True, f"ran on main ({head[:7]})"
+    where = f"ran on {head[:7] or 'an unknown commit'}{' with local changes' if dirty else ''}"
+    return False, f"{where}, not a clean main (origin/main is {main[:7] or 'unknown'})"
+
+
 @gate_check("GC-01", "Contract suite green on main", blocks=True)
 def contract_suite(ctx: Context) -> Outcome:
     gaps = changelog_gaps(ctx.read("contracts/CHANGELOG.md") or "")
     problems = [f"contracts/CHANGELOG.md 1.0.0 lacks {c} (pending {CONTRACTS[c]})" for c in gaps]
     facts = [] if gaps else ["contracts/CHANGELOG.md 1.0.0 has C1 to C4"]
-    suite = ctx.run("make", "contracts-check", timeout=900)
+    env = {**os.environ, "UV_OFFLINE": "1"} if ctx.offline else None
+    suite = ctx.run("make", "contracts-check", timeout=900, env=env)
     (problems if suite.code else facts).append(f"make contracts-check: {suite.tail}")
-    return outcome(problems, facts)
+    main, where = on_main(ctx)
+    facts.append(where)
+    return outcome(problems, facts, None if main else "run the gate again on a clean main")
 
 
 MIGRATION = "graph/schema/migrations/0001_init.cypher"
+THROWAWAY_ONLY = ("NR_TEST_NEO4J_URI", "NR_TEST_ALLOW_WIPE")
 CONSTRAINT = re.compile(r"^CREATE CONSTRAINT\b", re.MULTILINE)
 INDEX = re.compile(r"^CREATE (?:[A-Z]+ )?INDEX\b", re.MULTILINE)
 
@@ -188,19 +219,29 @@ def graph_schema(ctx: Context) -> Outcome:
         return outcome([], declared, f"not applied: {ctx.no_docker}; make test-int applies it")
     if ctx.run("bash", "scripts/fetch_gds.sh", "--check").code:
         return outcome([], declared, "not applied: no pinned GDS jar (run make plugins once)")
+    # Always a throwaway Testcontainers Neo4j: never a database named in the environment.
+    env = {k: v for k, v in os.environ.items() if k not in THROWAWAY_ONLY}
     test = "graph/tests/test_migrations.py"
-    result = ctx.run(sys.executable, "-m", "pytest", "-m", "integration", "-q", test, timeout=900)
+    pytest = (sys.executable, "-m", "pytest", "-m", "integration", "-q", test)
+    result = ctx.run(*pytest, timeout=900, env=env)
     applied = f"pytest -m integration {test}: {result.tail}"
     return outcome([applied], declared) if result.code else outcome([], [*declared, applied])
+
+
+LOCAL_E2E = "a local make demo-mini && make e2e run also counts (record it in the Phase 1 report)"
+DEMO_STUB = re.compile(r"^demo-mini\b[^\n]*:[^\n]*\n\t@echo \"available after", re.MULTILINE)
 
 
 @gate_check("GC-03", "Walking skeleton runs end to end", blocks=True)
 def walking_skeleton(ctx: Context) -> Outcome:
     if not (ctx.root / ".github/workflows/e2e.yml").is_file():
-        return Status.FAIL, "no .github/workflows/e2e.yml and no make demo-mini (pending M1.9e)"
+        stub = DEMO_STUB.search(ctx.read("Makefile") or "")
+        local = "make demo-mini is still a placeholder" if stub else LOCAL_E2E
+        return Status.FAIL, f"no .github/workflows/e2e.yml (pending M1.9e); {local}"
     if ctx.no_gh:
-        return Status.MANUAL, f"{ctx.no_gh}; check e2e on main, or make demo-mini && make e2e"
-    return latest_run(ctx, "e2e.yml")
+        return Status.MANUAL, f"{ctx.no_gh}; check the latest e2e run on main; {LOCAL_E2E}"
+    status, evidence = latest_run(ctx, "e2e.yml")
+    return status, evidence if status is Status.PASS else f"{evidence}; {LOCAL_E2E}"
 
 
 @gate_check("GC-04", "CI green on main", blocks=True)
@@ -259,7 +300,8 @@ def protection(ctx: Context) -> Outcome:
             return Status.PASS, "gh api repos/<repo>/branches/main/protection answers"
         answer = f"protection API: {Result(result.code, result.err).tail}"
     if LIMITATION.search(ctx.read("docs/build/ci.md") or ""):
-        return Status.PASS, f"{answer}; docs/build/ci.md records the limitation and controls"
+        recorded = [answer, "docs/build/ci.md records the plan limitation and interim controls"]
+        return outcome([], recorded, "a person confirms the OD-16 interim controls are in use")
     return Status.FAIL, f"{answer}; docs/build/ci.md has no 'Plan limitation and interim controls'"
 
 
@@ -301,10 +343,37 @@ DEMO_MINI = "data/fixtures/demo-mini"
 DEMO_SEED = "20261023"  # PHASE-1.md M1.8e
 
 
-def tree(folder: Path) -> dict[str, bytes]:
-    """Every file under `folder` except Markdown, by relative path."""
-    files = (path for path in folder.rglob("*") if path.is_file() and path.suffix != ".md")
-    return {path.relative_to(folder).as_posix(): path.read_bytes() for path in files}
+JOIN_BRANCHES = {"p1/m1-8e-synthetic-join": "M1.8e-1", "p1/m1-8e-2-join-spike": "M1.8e-2"}
+
+
+def fixture_files(folder: Path) -> dict[str, Any]:
+    """What `synth demo-mini` writes: records and labels as bytes, manifests as parsed JSON
+    without `created_at` (the time of the run), by path relative to `folder`."""
+    found: dict[str, Any] = {}
+    for path in [*folder.glob("*.ftm.jsonl"), *folder.glob("labels/*.csv")]:
+        found[path.relative_to(folder).as_posix()] = path.read_bytes()
+    for path in folder.glob("*.manifest.json"):
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest.pop("created_at", None)
+        found[path.relative_to(folder).as_posix()] = manifest
+    return found
+
+
+def join_prs(ctx: Context) -> list[dict[str, Any]] | None:
+    """The M1.8e pull requests, by branch and by title, or None when gh fails."""
+    fields = ("--state", "all", "--json", "number,title,headRefName,state")
+    queries = [("--head", branch) for branch in JOIN_BRANCHES] + [("--search", "M1.8e in:title")]
+    found: dict[int, dict[str, Any]] = {}
+    for query in queries:
+        prs = ctx.gh_json("pr", "list", *query, *fields)
+        if prs is None:
+            return None
+        found.update({pr["number"]: pr for pr in prs})
+    return [found[number] for number in sorted(found)]
+
+
+def is_join_spike(pr: dict[str, Any]) -> bool:
+    return JOIN_BRANCHES.get(pr["headRefName"]) == "M1.8e-2" or "M1.8e-2" in pr["title"]
 
 
 @gate_check("GC-09", "Synthetic join proven")
@@ -320,19 +389,24 @@ def synthetic_join(ctx: Context) -> Outcome:
     with tempfile.TemporaryDirectory() as out:
         neonradar = str(Path(sys.executable).with_name("neonradar"))
         made = ctx.run(neonradar, "synth", "demo-mini", "--seed", DEMO_SEED, "--out", out)
-        new, old = tree(Path(out)), tree(ctx.root / DEMO_MINI)
+        new, old = fixture_files(Path(out)), fixture_files(ctx.root / DEMO_MINI)
     if made.code or new != old:
         differ = sorted(name for name in new.keys() | old.keys() if new.get(name) != old.get(name))
         why = f"exit {made.code} ({made.tail})" if made.code else ", ".join(differ) + " differ"
         return Status.FAIL, f"synth demo-mini --seed {DEMO_SEED}: {why}"
-    facts = [f"demo-mini: {counts.total()} records, strict OK, regenerates byte-identically"]
+    facts = [f"demo-mini: {counts.total()} records, strict OK, regenerates identically"]
     if ctx.no_gh:
-        return outcome([], facts, f"M1.8e pull request not checked: {ctx.no_gh}")
-    query = ("--state", "merged", "--head", "p1/m1-8e-synthetic-join", "--json", "number,body")
-    shown = [pr for pr in ctx.gh_json("pr", "list", *query) or [] if "synthetic-join" in pr["body"]]
-    if shown:
-        return outcome([], [*facts, f"PR #{shown[0]['number']} shows the synthetic-join output"])
-    return outcome([], facts, "confirm the synthetic-join output in the M1.8e pull request")
+        return outcome([], facts, f"M1.8e pull requests not checked: {ctx.no_gh}")
+    prs = join_prs(ctx)
+    if prs is None:
+        return outcome([], facts, "M1.8e pull requests not checked: gh pr list failed")
+    listed = ", ".join(f"#{pr['number']} {pr['state'].lower()}" for pr in prs) or "none"
+    facts.append(f"M1.8e pull requests: {listed}")
+    joins = [pr for pr in prs if pr["state"] == "MERGED" and is_join_spike(pr)]
+    if not joins:
+        return outcome(["no merged M1.8e-2 pull request (the synthetic-join spike)"], facts)
+    numbers = ", ".join(f"#{pr['number']}" for pr in joins)
+    return outcome([], facts, f"a person confirms the synthetic-join output in PR {numbers}")
 
 
 @gate_check("GC-10", "Knowledge base seeded")
@@ -420,13 +494,13 @@ ADRS = {
     "0011": ("accepted", "M1.2"),
     "0012": ("proposed", "M1.10c"),
 }
-ADR_STATUS = re.compile(r"^- \*\*Status:\*\*\s*([a-z]+)", re.MULTILINE)
+ADR_STATUS = re.compile(r"^- \*\*Status:\*\*\s*([a-z]+)", re.MULTILINE | re.IGNORECASE)
 
 
 @gate_check("GC-14", "ADRs as in 7.6")
 def adrs(ctx: Context) -> Outcome:
     missing: list[str] = []
-    accepted: list[str] = []
+    accepted: list[tuple[str, str, str]] = []  # number, path, the status line as written
     differ: dict[str, list[str]] = {}  # "<found>, 7.6 says <expected>" -> ADR numbers
     for number, (expected, milestone) in ADRS.items():
         files = sorted((ctx.root / "docs/decisions").glob(f"{number}-*.md"))
@@ -434,30 +508,38 @@ def adrs(ctx: Context) -> Outcome:
             missing.append(f"{number} (pending {milestone})")
             continue
         found = ADR_STATUS.search(files[0].read_text(encoding="utf-8"))
-        status = found[1] if found else "no status"
+        status = found[1].lower() if found else "no status"
         if status != expected:
             how = f"{status}, 7.6 says {expected}"
             how += " (the deciders accept ADRs, OD-5)" if expected == "accepted" else ""
             differ.setdefault(how, []).append(number)
-        elif status == "accepted":
-            accepted.append(files[0].relative_to(ctx.root).as_posix())
+        elif status == "accepted" and found:
+            accepted.append((number, files[0].relative_to(ctx.root).as_posix(), found[0]))
     problems = [f"missing {', '.join(missing)}"] if missing else []
     problems += [f"{how}: {', '.join(numbers)}" for how, numbers in differ.items()]
     if problems:
         return outcome(problems, [])
-    log = ("git", "log", "-1", "--format=%an", "-S", "**Status:** accepted", "--")
-    authors = ", ".join(sorted({ctx.run(*log, path).tail for path in accepted})) or "nobody"
-    facts = [f"status lines match 7.6; accepting commits by {authors}"]
-    return outcome([], facts, "confirm each accepting commit is by the ADR's deciders")
+    commits = []
+    for number, path, line in accepted:  # the commit that wrote the status line as it is now
+        commit = ctx.run("git", "log", "-1", "--format=%h", "-S", line, "--", path).out.strip()
+        commits.append(f"{number} {commit or 'no commit found'}")
+    facts = ["status lines match 7.6", f"accepting commits: {', '.join(commits) or 'none'}"]
+    return outcome([], facts, "a person confirms each accepting commit is by the ADR's deciders")
 
 
 @gate_check("GC-15", "Legal and communications conversation started")
 def legal_note(ctx: Context) -> Outcome:
-    for number, line in enumerate((ctx.read("docs/build/PROGRESS.md") or "").splitlines(), 1):
-        if not line.startswith("|") and re.search(r"\blegal\b.*\bcommunications\b", line, re.I):
-            note = f"note at docs/build/PROGRESS.md:{number}"
-            return outcome([], [note], "the project lead confirms the conversation started")
-    return Status.FAIL, "no legal and communications note in docs/build/PROGRESS.md (1.2)"
+    text = ctx.read("docs/build/PROGRESS.md") or ""
+    # Notes only: a milestone row in the table may name this check without being the note.
+    notes = [(n, line) for n, line in enumerate(text.splitlines(), 1) if not line.startswith("|")]
+    words = {"legal": r"\blegal\b", "communications": r"\bcommunication"}  # each on its own
+    lines = {w: [n for n, line in notes if re.search(rx, line, re.I)] for w, rx in words.items()}
+    if missing := [word for word, found in lines.items() if not found]:
+        absent = " or ".join(missing)
+        return Status.FAIL, f"no note in docs/build/PROGRESS.md mentions {absent} (PHASE-1.md 1.2)"
+    where = ", ".join(f"{word} at line {found[0]}" for word, found in lines.items())
+    note = f"docs/build/PROGRESS.md mentions {where}"
+    return outcome([], [note], "the project lead confirms the conversation started")
 
 
 REPORT = "docs/build/reports/phase-1.md"

@@ -4,7 +4,7 @@ NeonRadar is licensed under the Apache License 2.0 (`LICENSE`, `NOTICE`). It dep
 
 The tech lead owns this file (`.github/CODEOWNERS`). Decisions about licences are recorded in `docs/build/operator-decisions.md` and made by people, never by the build agent.
 
-Later milestones add sections: M2.6 for code ported from MIT-licensed sanctions-list crawlers, and M2.8 for `ar_symbols.json.gz` (built from rigour's MIT-licensed data, whose names come from Wikidata) and `nationalities.csv` (built from Open Government Licence inputs).
+M2.8 added the sections for `ar_symbols.json.gz` (built from rigour's MIT-licensed data, whose names come from Wikidata) and `nationalities.csv` (built from Open Government Licence inputs). M2.6 adds a section for code ported from MIT-licensed sanctions-list crawlers.
 
 ## python-stdnum
 
@@ -35,3 +35,54 @@ The repository ships no copy of python-stdnum. If NeonRadar ever publishes an im
 | Decision | Treated as GPLv3; never committed to the repository and never redistributed by the project (operator decision OD-20, 22 October 2026; operator decision OD-13 for the pinned download) |
 
 The repository holds no copy of the jar. If NeonRadar ever publishes an image or bundle that contains GDS, the GPLv3 terms apply to that distribution, and the decision must be revisited first.
+
+## Arabic name index (`keys/src/neonradar_keys/data/ar_symbols.json.gz`)
+
+| | |
+|---|---|
+| What | An index from Arabic-script name forms, normalised with `neonradar_keys.arabic.ar_normalize`, to the Wikidata ids (QIDs) of the name groups they belong to; `neonradar_keys.symbols.arabic_symbols` reads it |
+| Built from | `rust/data/names/person_names.txt` in rigour at tag `v2.5.0` (SHA-256 `be47a435969da3fa7311d8c682e462d6d20e6cf27cf90ad1473ce213c9a91c79`), the tag that matches the `rigour==2.5.*` pin |
+| Licence | MIT License (rigour); the name data in rigour's file comes from Wikidata (CC0 1.0) |
+| Copyright | Copyright (c) 2023-2025: OpenSanctions Datenbanken GmbH |
+| Source | https://github.com/opensanctions/rigour |
+| How it is made | `uv run python keys/scripts/build_ar_symbol_index.py --tag v2.5.0 --sha256 be47a435969da3fa7311d8c682e462d6d20e6cf27cf90ad1473ce213c9a91c79` downloads the file from `raw.githubusercontent.com/opensanctions/rigour`, checks its SHA-256 and writes 17,798 keys. The gzip header carries no timestamp, so a rebuild gives the same file (SHA-256 `7712414a8eb9b07cf7e2814ffd8d1460ae1c35a834a17a5ce39099f41f56f7e8`). It is rebuilt whenever the locked rigour version changes (`docs/build/PHASE-2.md` M2.8) |
+| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel. The project publishes no wheel yet; a published wheel or image that contains the file must also carry this notice |
+
+The file holds name forms and Wikidata ids of name groups (for example محمد maps to `Q5837762`, the name group that rigour also gives Mohammed and Мухаммед), not records about people. rigour's licence:
+
+```text
+MIT License
+
+Copyright (c) 2023-2025: OpenSanctions Datenbanken GmbH
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Nationalities table (`keys/src/neonradar_keys/data/nationalities.csv`)
+
+| | |
+|---|---|
+| What | 236 nationality values (Companies House nationality values and FCDO citizen names) mapped to lower-case ISO 3166-1 alpha-2 codes; `neonradar_keys.countries.country_code` reads it |
+| Derived from | The Companies House list of nationalities ("Nationalities and countries for company filings") and the citizen names of the FCDO Geographical Names Index |
+| Licence | Open Government Licence v3.0 (both sources): https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/ |
+| Attribution | "Contains public sector information licensed under the Open Government Licence v3.0." |
+| How it is made | `keys/scripts/build_nationalities.py` maps the two lists to codes with rigour (no fuzzy matching) and its own overrides (UK nations to `gb`, and values rigour maps wrongly or not at all). The two inputs are not in the repository; the committed file is the one in `docs/build/PHASE-2.md` M2.8, and the script is run again only when either list changes |
+| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel |
+
+Contains public sector information licensed under the Open Government Licence v3.0.

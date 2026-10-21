@@ -2,31 +2,25 @@
 
 M1.12 deliverable 2 ([PHASE-1.md](../PHASE-1.md), M1.12 and section 8). It covers what Phase 1 built, the metrics, the deviations from the spec, the risks that are still open, the decisions Phase 2 needs, the inputs the Phase 2 spec expects, and the Gate 1 sign-offs that only people can give.
 
-**State: draft, as of `main` at `f3b55c9` on 22 October 2026.** Four pull requests are still open and are marked "open (#n)" below:
-
-- #43 (M1.9e, demo and end-to-end test)
-- #44 (M1.9c, API endpoints)
-- #19 (M1.5, devcontainer; paused by the operator)
-- #45 (M2.0, Phase 2 handover)
-
-This report is refreshed when they merge. Times are UTC. Pull request numbers refer to `robotat-com/neon-radar`.
+**State: as of `main` at `bbed6e5` on 22 October 2026.** Every Phase 1 milestone has merged except M1.5 (devcontainer), which the operator paused (#19). Times are UTC. Pull request numbers refer to `robotat-com/neon-radar`.
 
 This report records facts and decisions. It states no AML facts; those live in the typology explainers and case notes, with their citations.
 
 ## 1. Summary
 
-- 41 pull requests merged between 20 October 21:16 and 21 October 22:08: 38 for Phase 1 and the three spec seeds for Phases 2 to 4.
+- 44 pull requests merged between 20 October 21:16 and 21 October 23:12. 40 are for Phase 1; the other four are the spec seeds for Phases 2 to 4 and the Phase 2 handover (M2.0, #45).
 - All four contracts (C1 to C4) are in `contracts/`, and the contract suite is green on `main`. The tag `contracts-v1.0.0` does not exist yet; the tech lead creates it (OD-5).
 - What is built on `main`:
-  - the loader, the migration runner, the detection runner with the `circular_flow` detector, and the UI shell;
+  - the loader, the migration runner, the detection runner with the `circular_flow` detector, the Phase 1 API endpoints and the UI shell;
+  - `make demo-mini` and the end-to-end test (#43);
   - the synthetic generator, the demo-mini fixture and the synthetic join;
   - four data source spikes;
   - 15 typology drafts with explainers;
   - the knowledge base and the onboarding kits.
-- The API endpoints (#44) and the one-command demo with its end-to-end test (#43) are still open.
-- `make gate-1` on `main`: 4 PASS, 10 FAIL, 3 MANUAL (section 4).
-  - Of the five freeze checks, GC-01, GC-02 and GC-04 pass. GC-03 waits for #43, and GC-17 needs the data steward.
-  - Every other FAIL is one of three kinds: a milestone that is still open, a human sign-off (OD-5), or the empty intern list (OD-6).
+- Not merged: the devcontainer (M1.5), which the operator paused (#19).
+- `make gate-1` on a clean checkout of `main`: 5 PASS, 9 FAIL, 3 MANUAL (section 4).
+  - Of the five freeze checks, GC-01 to GC-04 pass. GC-17 needs the data steward.
+  - Every FAIL is one of four kinds: the paused devcontainer (#19), the Companies House key, a human sign-off (OD-5), or the empty intern list (OD-6). GC-16 fails only until this report merges.
 
 ## 2. What was built
 
@@ -37,7 +31,7 @@ This report records facts and decisions. It states no AML facts; those live in t
 | M1.2 | Agent kit: `CLAUDE.md`, guard hooks, subagents, skills | #3 | merged |
 | M1.3 | uv workspace, tooling, `neonradar --version` and `doctor` (ADR-0007) | #4, #5 | merged |
 | M1.4 | Local Neo4j 5.26 stack with a pinned GDS jar, `make plugins`, `up`, `smoke` (ADR-0002) | #6, #7 | merged |
-| M1.5 | Devcontainer and Codespaces | #19 | open (#19), paused by the operator |
+| M1.5 | Devcontainer and Codespaces | #19 | paused by the operator (#19) |
 | M1.6 | CI workflows, pull request hygiene checks, protection script, `docs/build/ci.md` | #10 | merged |
 | M1.7a | C1 record contract, dataset registry, validator (ADR-0003); fixes | #8, #17, #33 | merged |
 | M1.7b | C2 graph schema, mapping, migration `0001_init` and runner (ADR-0004) | #15 | merged |
@@ -51,41 +45,41 @@ This report records facts and decisions. It states no AML facts; those live in t
 | M1.8e | Synthetic generator v0, demo-mini fixture (ADR-0005); synthetic join | #27, #41 | merged |
 | M1.9a | Graph loader | #31 | merged |
 | M1.9b | Detection runner and the `circular_flow` detector | #38 | merged |
-| M1.9c | API: Phase 1 endpoints | #44 | open (#44) |
+| M1.9c | API: Phase 1 endpoints | #44 | merged |
 | M1.9d | UI shell | #35 | merged |
-| M1.9e | `make demo-mini`, the e2e workflow and test, quickstart | #43 | open (#43, draft) |
+| M1.9e | `make demo-mini`, the e2e workflow and test, quickstart | #43 | merged |
 | M1.10a | Bibliography, glossary, wording guide (ADR-0006) | #14 | merged |
 | M1.10b | 15 typology definitions and explainers, all `draft` | #25, #26, #30 | merged |
 | M1.10c | Case notes, reading list, architecture overview (ADR-0010, ADR-0012) | #29 | merged |
 | M1.11a | Onboarding and learning kit (Assignment 1) | #22 | merged |
 | M1.11b | Assignment 2 kit | #34 | merged |
-| M1.12 | Gate 1 check command (`make gate-1`); this report | #32, #46 | #32 merged; #46 draft |
-| Later phases | Spec seeds for Phases 2, 3 and 4; Phase 2 handover (M2.0) | #36, #39, #40; #45 | seeds merged (OD-18, OD-23); open (#45) |
+| M1.12 | Gate 1 check command (`make gate-1`); this report | #32, #46 | #32 merged; #46 open |
+| Later phases | Spec seeds for Phases 2, 3 and 4; Phase 2 handover (M2.0) | #36, #39, #40, #45 | merged, before Gate 1 (OD-18, OD-23) |
 
 ## 3. Metrics
 
 | Metric | Value | Source |
 |---|---|---|
-| Merged pull requests | 41 (38 for Phase 1, plus the three later-phase spec seeds #36, #39, #40) | `gh pr list --state merged --limit 200 --json number,title,labels,mergedAt` |
-| Share labelled `agent` | 40 of 41 (97.6%); Phase 1 only: 37 of 38 (97.4%). #1 (operator decisions, M1.0) has no labels | same |
-| Pull requests with `size-exception` | 18 of 41 (OD-15) | same |
-| First and last merge | 20 October 21:16, 21 October 22:08 | same |
-| Median CI duration (`ci.yml`) | **92 s** over the 108 successful runs (68 s to 350 s). All 139 runs from 21 October 10:05 to 22:14: 108 succeeded, 1 failed, 30 were cancelled when a newer push superseded them | `gh run list --workflow ci.yml --limit 200 --json status,conclusion,createdAt,startedAt,updatedAt`; duration is `updatedAt - createdAt` of completed runs (no run waited in a queue: `startedAt` equals `createdAt`) |
-| `make demo-mini` time | **226 s** on the first CI run (run 39684896625; 245 s on an earlier commit); **112 s** locally with a warm build cache. Taken from the open #43 until it merges; the target is under 5 minutes | #43 |
-| Tests on `main` (`f3b55c9`) | `make check`: 1,149 Python unit tests, 381 contract tests and 52 UI unit tests pass; ruff and mypy strict are clean; 4 generated contract files match the models | `make check` |
+| Merged pull requests | 44: 40 for Phase 1, plus the later-phase spec seeds #36, #39 and #40 and the Phase 2 handover #45 | `gh pr list --state merged --limit 200 --json number,title,labels,mergedAt` |
+| Share labelled `agent` | 43 of 44 (97.7%); Phase 1 only: 39 of 40 (97.5%). #1 (operator decisions, M1.0) has no labels | same |
+| Pull requests with `size-exception` | 21 of 44 (OD-15) | same |
+| First and last merge | 20 October 21:16, 21 October 23:12 | same |
+| Median CI duration (`ci.yml`) | **103 s** over the 118 successful runs (68 s to 350 s). All 150 runs from 21 October 10:05 to 23:12: 118 succeeded, 1 failed, 31 were cancelled when a newer push superseded them | `gh run list --workflow ci.yml --limit 400 --json status,conclusion,createdAt,startedAt,updatedAt`; duration is `updatedAt - createdAt` of completed runs (no run waited in a queue: `startedAt` equals `createdAt`) |
+| `make demo-mini` time | **216 s to 226 s** on a first (cold) CI run; **57 s to 112 s** locally. The target is under 5 minutes | M1.9e evidence in #43 |
+| Tests on `main` (`bbed6e5`, with this report) | `make check`: 1,399 Python unit tests, 381 contract tests and 56 UI unit tests pass; ruff and mypy strict are clean; 4 generated contract files match the models | `make check` |
 | Knowledge base | 54 bibliography entries; 15 typology files and 15 explainers, all `draft`; 12 ADRs, all `proposed` | GC-10, GC-14 |
 
 ## 4. Gate 1 check
 
-`make gate-1` on `main` at `f3b55c9` (22 October 2026, gh signed in, Docker running, 74 s):
+`make gate-1` on a clean, detached checkout of `main` at `bbed6e5` (22 October 2026, after the ci and e2e runs of that commit finished; gh signed in, Docker running, 58 s):
 
 ```
-Gate 1 checks (PHASE-1.md section 8) at f3b55c9
-GC-01 PASS   Contract suite green on main: contracts/CHANGELOG.md 1.0.0 has C1 to C4; make contracts-check: OK, 4 generated files match the models; ran on main (f3b55c9)
-GC-02 PASS   Graph schema applies cleanly: graph/schema/migrations/0001_init.cypher declares 22 constraints and 7 indexes; pytest -m integration graph/tests/test_migrations.py: 3 passed in 36.79s
-GC-03 FAIL   Walking skeleton runs end to end: no .github/workflows/e2e.yml (pending M1.9e); make demo-mini is still a placeholder
-GC-04 PASS   CI green on main: latest ci.yml run on main (f3b55c9, https://github.com/robotat-com/neon-radar/actions/runs/39684248267) succeeded
-GC-05 PASS   Repository basics: 32 of 32 M1.1 governance files; generate_codeowners.py --check passes; the 25 labels of .github/labels.yml exist on GitHub
+Gate 1 checks (PHASE-1.md section 8) at bbed6e5
+GC-01 PASS   Contract suite green on main: contracts/CHANGELOG.md 1.0.0 has C1 to C4; make contracts-check: OK, 4 generated files match the models; ran on main (bbed6e5)
+GC-02 PASS   Graph schema applies cleanly: graph/schema/migrations/0001_init.cypher declares 22 constraints and 7 indexes; pytest -m integration graph/tests/test_migrations.py: 3 passed in 36.81s
+GC-03 PASS   Walking skeleton runs end to end: latest e2e.yml run on main (bbed6e5, https://github.com/robotat-com/neon-radar/actions/runs/39691928071) succeeded
+GC-04 PASS   CI green on main: latest ci.yml run on main (bbed6e5, https://github.com/robotat-com/neon-radar/actions/runs/39691927972) succeeded
+GC-05 PASS   Repository basics: 32 of 32 M1.1 governance files; generate_codeowners.py --check passes; the 27 labels of .github/labels.yml exist on GitHub
 GC-06 MANUAL Protection in place, or the plan limitation recorded: protection API: gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403); docs/build/ci.md records the plan limitation and interim controls; a person confirms the OD-16 interim controls are in use
 GC-07 FAIL   Devcontainer works: no .devcontainer/devcontainer.json (pending M1.5)
 GC-08 FAIL   Every source fetched end to end in a spike: companies-house: verdict 'Pending network run (API key not yet available)' (pending M1.8a); gleif: Go; icij: Go with changes; opensanctions: Blocked on licence decision
@@ -98,7 +92,7 @@ GC-14 FAIL   ADRs as in 7.6: proposed, 7.6 says accepted (the deciders accept AD
 GC-15 FAIL   Legal and communications conversation started: no note in docs/build/PROGRESS.md mentions legal or communications (PHASE-1.md 1.2)
 GC-16 FAIL   Phase 1 report written: no docs/build/reports/phase-1.md (pending M1.12-2)
 GC-17 MANUAL Data steward approved the licence fields: contracts/datasets.yaml last changed in 5fa31d6; DATA_SOURCES.md last changed in 574864d; link the data steward's approving review in the Phase 1 report
-Gate 1: 4 PASS, 10 FAIL, 3 MANUAL. Freeze checks: GC-01 PASS, GC-02 PASS, GC-03 FAIL, GC-04 PASS, GC-17 MANUAL
+Gate 1: 5 PASS, 9 FAIL, 3 MANUAL. Freeze checks: GC-01 PASS, GC-02 PASS, GC-03 PASS, GC-04 PASS, GC-17 MANUAL
 ```
 
 GC-16 fails on `main` only because this report has not merged yet. On this branch, the same command reports GC-16 as PASS (see the pull request).
@@ -107,9 +101,8 @@ Section 8 says a named human confirms each MANUAL check in this report, and that
 
 | Check | Result | Why | What clears it | Owner | Confirmed by (name, date) |
 |---|---|---|---|---|---|
-| GC-03 (freeze) | FAIL | the e2e workflow and `make demo-mini` are in the open #43; the API endpoints the test needs are in #44 | #43 and #44 merge and the e2e workflow passes on `main`, or a local `make demo-mini && make e2e` run is recorded here | tech lead | |
 | GC-06 | MANUAL | the protection API answers 403 on a private GitHub Free repository; `docs/build/ci.md` records the limitation and the interim controls (OD-16) | a person confirms the interim controls are in use; `scripts/setup_repo_protection.sh` runs after the organisation move or at launch | project lead | |
-| GC-07 | FAIL | there is no devcontainer on `main`; #19 is paused by the operator | #19 merges, and one Windows or Codespaces user confirms it works | docs mentor | |
+| GC-07 | FAIL | there is no devcontainer on `main`: M1.5 is paused by the operator (#19) | the operator resumes #19, it merges, and one Windows or Codespaces user confirms it works | docs mentor | |
 | GC-08 | FAIL | the Companies House spike was built with mocks; its live run waits for `CH_API_KEY` (OD-14). The GLEIF, ICIJ and OpenSanctions verdicts are accepted | the operator adds the key, runs the commands in `docs/data/spikes/companies-house.md` section 1, and sets the verdict | ingest mentor | |
 | GC-09 | MANUAL | the demo-mini checks pass; the synthetic-join output is in #41 | a person reads the synthetic-join output in #41 and confirms it | data steward | |
 | GC-10 | FAIL | `circular_flow` is `draft`; the bibliography, the citation check and the 15 typologies with explainers pass | a typology researcher approves `circular_flow` in their own pull request (OD-5) | typology researcher | |
@@ -134,10 +127,10 @@ Each pull request lists its own deviations under "Deviations from spec", and `do
 | D-07 | Synthetic names are checked on the Companies House company and officer searches. The spec's example company and example person were replaced (#16, #17) | both matched live records | OD-12 |
 | D-08 | GDS is a pinned jar that `make plugins` downloads once, not part of the image (#6, #7, #15) | the Neo4j Community image has no GDS jar (PHASE-1.md 3.1 was wrong); nothing is downloaded at start (G3) | OD-13 |
 | D-09 | Agents never create, read or edit `.env`. Acceptance runs use throwaway containers | secrets stay with people | OD-14 |
-| D-10 | 18 pull requests carry `size-exception` instead of being split into serial pull requests | critical path; each review still covered the whole diff | OD-15 |
+| D-10 | 21 pull requests carry `size-exception` instead of being split into serial pull requests | critical path; each review still covered the whole diff | OD-15 |
 | D-11 | No branch protection; the interim controls are documented in `docs/build/ci.md` (#10) | GitHub answers 403 for a private repository on the Free plan | OD-16 |
 | D-12 | `contracts/C1-record.md` (and each later contract document) is the authority over the spec text | the merged contract was reviewed against measured behaviour | OD-17 |
-| D-13 | The Phases 2 to 4 specs were seeded before Gate 1 (#36, #39, #40). Milestones that do not need frozen contracts may start | operator decision | OD-18, OD-23 |
+| D-13 | The Phases 2 to 4 specs were seeded before Gate 1 (#36, #39, #40), and the Phase 2 handover M2.0 merged before Gate 1 (#45). Milestones that do not need frozen contracts may start | operator decision | OD-18, OD-23 |
 | D-14 | C2 flags: `:PEP` and `:RCA` also come from sub-topics, `:Sanctioned` only from the exact topic, and `:Synthetic` is also set on `:Sanction` (#15) | precision of the flags; invariant I2 | orchestrator; tech lead sign-off at Gate 1 (`contracts/CHANGELOG.md`) |
 | D-15 | C2, C3 and C4 clarifications and tightenings before the freeze (#24, #28, #33, #42) | review findings | orchestrator; tech lead sign-off at Gate 1 (`contracts/CHANGELOG.md`) |
 | D-16 | Some milestones were split into two pull requests each: M1.3, M1.4, M1.8-0, M1.8e, M1.12. The shared HTTP client got its own pull request (#12) | the 400-line rule (2.3) | orchestrator (2.3) |
@@ -167,11 +160,11 @@ The risks of PHASE-1.md section 9, as they stand on 22 October.
 | R2 GLEIF interruptions until 4 November | The live spike ran on 21 October (#20). Phase 2 uses the Golden Copy files (PHASE-2.md 0.5 item 8) | yes, until 4 November |
 | R3 Companies House key not ready | It happened: `access.companies_house_key: pending`, so the live spike has not run (#23, GC-08) | yes |
 | R4 PyICU builds | ICU 78.3 is installed on the build machine (#5). The devcontainer (#19) is paused. The demo's API image compiles PyICU from source (#43) | yes |
-| R5 Review capacity | 41 pull requests merged in about 25 hours. The orchestrator reviews and merges (OD-2, OD-4); people review after the merge | yes |
+| R5 Review capacity | 44 pull requests merged in about 26 hours. The orchestrator reviews and merges (OD-2, OD-4); people review after the merge | yes |
 | R6 Contracts change after the freeze | The tag does not exist yet. The contracts were tightened four times before the freeze (#28, #33, #42 and the #31 clarification) | yes, until the tag exists |
 | R7 Plausible but wrong AI output | No typology is approved yet. The `circular_flow` return ratio has no upper bound (#38). The case notes need browser checks (#29) | yes |
 | R8 No branch protection | It happened: GitHub answers 403 (#10). The interim controls are in `docs/build/ci.md` (OD-16) | yes |
-| R9 Memory on 8 GB laptops | The small memory profile exists (M1.4); the devcontainer is paused | yes |
+| R9 Memory on 8 GB laptops | The small memory profile exists (M1.4); the devcontainer is paused by the operator (#19) | yes |
 | R10 Synthetic names collide with real ones | OD-12 checks; two spec example names were replaced. Arabic-script and Cyrillic names cannot be checked on Companies House (#27) | yes |
 | R11 Personal data reaches the repository | Spike output stays in `data/cache/`, plus the fixture check and gitleaks. A first-draft fixture name that matched a live officer record is still in the git history of #23; the current tree does not contain it | yes |
 | R12 Interns learn little | There are no interns yet (OD-6) | yes |
@@ -194,10 +187,10 @@ PHASE-2.md 0.6 lists what Phase 2 expects from Phase 1. M2.0 (#45) reconciles th
 
 | Input | State |
 |---|---|
-| Tag `contracts-v1.0.0` on `main` and `make contracts-check` green | the contract suite is green (GC-01); the tag waits for the tech lead (OD-5), after GC-03 and GC-17 |
+| Tag `contracts-v1.0.0` on `main` and `make contracts-check` green | the contract suite is green (GC-01); GC-02 to GC-04 pass too; the tag waits for the tech lead (OD-5) after GC-17 |
 | `docs/build/reports/phase-1.md` with the deviations and the Phase 2 decisions | this report (sections 5 and 7) |
 | Spike reports for Companies House, GLEIF, ICIJ and OpenSanctions, with measured headers, field names and verdicts | GLEIF: go (live run, #20). ICIJ: go with changes (live run, #21). OpenSanctions: blocked on the licence decision, no data (#18). Companies House: mocks only, verdict pending the live run (#23) |
-| Walking skeleton: `make demo-mini` and `make e2e` passing, plus the loader, migration runner, API and detection runner | the loader (#31), migration runner (#15) and detection runner (#38) are merged; the API endpoints are open (#44); the demo and e2e are open (#43) |
+| Walking skeleton: `make demo-mini` and `make e2e` passing, plus the loader, migration runner, API and detection runner | merged: the loader (#31), the migration runner (#15), the detection runner (#38), the API endpoints (#44), and `make demo-mini` and `make e2e` with the e2e workflow (#43); the latest e2e run on `main` succeeded (GC-03) |
 | The C1 validator, the dataset registry and the fixture check | merged (#8, #10) |
 
 ## 9. Gate 1 sign-offs for people
@@ -214,6 +207,14 @@ These items need a person (OD-5). The orchestrator listed them and does none of 
 - [ ] Sign off the C1 id alphabet (OD-11, #8) and the C2 flag rules (#15).
 - [ ] Sign off the C3 decisions D1 to D15 (#24).
 - [ ] Reconcile "a detector waits for its typology's approval" (`detect/CLAUDE.md`) with the runner, which runs a draft typology (#38).
+- [ ] API (#44):
+  - decide whether to declare the 500 problem on `GET /alerts/{alert_id}` in the OpenAPI document (C3 describes the case; the snapshot does not list it);
+  - decide the alert pruning policy across runs: a new detection run keeps earlier runs' alerts, so an alert whose evidence changed stays until the graph is wiped;
+  - note that a stored alert whose evidence left the graph answers a 500 problem; serving it with partial evidence would need a C3 change.
+- [ ] With the data steward: confirm that in the synthetic join only registry records (`gb_companies_house`, `gleif_lei`; `Company` or `Organization`) hold synthetic accounts, and that ICIJ and `PublicBody` records never do (#41; ADR-0005 rule 2).
+- [ ] With the project lead: confirm two MPL-2.0 dependencies (licence decisions stay human, OD-5):
+  - `lightningcss`, a build-time CSS tool that Vite brings in; nothing of it reaches `ui/dist/` (#35);
+  - `orjson` (MPL-2.0 AND (Apache-2.0 OR MIT)), which FollowTheMoney brings in (#8).
 - [ ] Decide the Gate 1 outcome (pass, pass with exceptions, or fail). Give each failed check an owner and a date in section 4.
 - [ ] Create and push the tag `contracts-v1.0.0` once GC-01 to GC-04 and GC-17 pass (PHASE-1.md 5.5).
 
@@ -235,11 +236,12 @@ These items need a person (OD-5). The orchestrator listed them and does none of 
 - [ ] Add `CH_API_KEY` to `.env`, run the Companies House spike live and set its verdict (#23, OD-14; GC-08).
 - [ ] Before Phase 2 uses Companies House data: decide whether Companies House's `is_sanctioned` field ever becomes a flag on a real person (a G1 decision, #23).
 - [ ] File OpenSanctions' written answer and the confirmed line in `docs/data/licences/opensanctions.md` when it arrives (OD-19). This does not block Phase 2.
+- [ ] Before the first real-data run: test `.claude/hooks/guard_real_data.py` with your own bypass attempts, and record the results in the pull request that enables the first real profile (#45).
 
 **Typology researcher**
 
 - [ ] Approve `circular_flow` (`status` and `approved_by`, in your own pull request; GC-10).
-- [ ] Decide whether the `circular_flow` return ratio needs an upper bound (#38).
+- [ ] Decide the open question on `circular_flow`: the return ratio has a lower bound (`min_return_ratio`) and no upper bound, and only the first and last payment are compared (#38).
 
 **Project lead**
 
@@ -250,5 +252,5 @@ These items need a person (OD-5). The orchestrator listed them and does none of 
 - [ ] Fill in `project.security_contact` and `project.conduct_contact` in `project.yaml`; both are `TODO` (#2).
 - [ ] Do the browser checks of the justice.gov and OCCRP statements in the case notes (#29; OD-21 keeps them on the Gate 1 list).
 - [ ] Decide whether `docs/research/` is published on the Phase 6 documentation site (#29).
-- [ ] Resume or close the devcontainer (#19). One Windows or Codespaces user confirms it (GC-07).
-- [ ] After #43 merges: two people who did not build it run `make demo-mini` from a clean clone (M1.9e review focus).
+- [ ] Resume or close the devcontainer, which the operator paused (#19). One Windows or Codespaces user confirms it (GC-07).
+- [ ] Two people who did not build it run `make demo-mini` from a clean clone (M1.9e review focus, #43).

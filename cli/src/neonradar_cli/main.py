@@ -4,7 +4,7 @@ from typing import Annotated
 
 import typer
 
-from neonradar_cli import __version__, api, contracts, docs, doctor, graph, spike
+from neonradar_cli import __version__, api, contracts, docs, doctor, graph, onboarding, spike
 
 app = typer.Typer(
     name="neonradar",
@@ -16,6 +16,7 @@ app.add_typer(api.app, name="api")
 app.add_typer(contracts.app, name="contracts")
 app.add_typer(docs.app, name="docs")
 app.add_typer(graph.app, name="graph")
+app.add_typer(onboarding.app, name="onboarding")
 app.add_typer(spike.app, name="spike")
 
 

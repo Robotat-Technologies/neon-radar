@@ -7,7 +7,8 @@
 - Commands: `uv run pytest graph/tests`, `make test-int`, `make up`, `make smoke` and
   `uv run neonradar graph migrate`.
 - Modules: `mapping` (C1 records to C2 loader rows, pure; the mapping data lives in
-  `neonradar_contracts.graph`), `migrate` (the migration runner), `client`, `smoke`.
+  `neonradar_contracts.graph`), `migrate` (the migration runner), `client`, `smoke`,
+  `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of C2).
 - Integration tests share one Neo4j (`tests/conftest.py`): a Testcontainers container with the
   GDS jar from `make plugins` copied in, or `NR_TEST_NEO4J_URI` (wiped; refused if it holds
   any node but `:SchemaMigration` unless `NR_TEST_ALLOW_WIPE=1`).

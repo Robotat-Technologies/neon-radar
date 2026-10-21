@@ -1,0 +1,4 @@
+# synthetic: true
+node_id,address,name,countries,country_codes,sourceID,valid_until,note
+9900000401,"12 Example Street, Sampletown, Testland",,Panama,PAN,Panama Papers,The Panama Papers data is current through 2015,
+9900000402,"4 Placeholder Road, Sample City",,Bahamas,BHS,Bahamas Leaks,The Bahamas Leaks data is current through early 2016,

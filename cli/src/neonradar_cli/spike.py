@@ -57,6 +57,34 @@ def clean(
     typer.echo(f"{len(deleted)} file(s) older than {keep} day(s) deleted from {root}")
 
 
+@app.command(name="icij")
+def icij(
+    rows: Annotated[int, typer.Option(min=1, help="Entities that seed the slice.")] = 1000,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option(
+            help="Archive copy, only if byte ranges are refused. Default: inside the output"
+        ),
+    ] = None,
+) -> None:
+    """ICIJ Offshore Leaks: a closed slice of the bulk archive as C1 records."""
+    import csv
+    import zipfile
+    import zlib
+
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.sources.icij import spike as icij_spike
+
+    try:
+        result = icij_spike.run(rows=rows, cache_dir=cache_dir)
+    except (HttpError, OSError, ValueError, zipfile.BadZipFile, zlib.error, csv.Error) as exc:
+        typer.echo(f"FAIL  {exc}")
+        raise typer.Exit(code=1) from None
+    for line in icij_spike.summary_lines(result):
+        typer.echo(line)
+    report_output(result.output)
+
+
 @app.command(name="opensanctions")
 def opensanctions(
     collection: Annotated[str, typer.Option(help="sanctions, peps, default, crime, ...")] = (
@@ -144,3 +172,39 @@ def gleif(
         records, "gleif", dataset=source.DATASET, part=result.record["id"], source=info, notes=notes
     )
     report_output(path)
+
+
+@app.command(name="companies-house")
+def companies_house(
+    company: Annotated[str, typer.Option("--company", help="Companies House company number.")],
+    max_pages: Annotated[
+        int, typer.Option("--max-pages", min=1, help="At most this many pages per list.")
+    ] = 5,
+) -> None:
+    """One company, its officers and its PSCs from the Companies House API (needs CH_API_KEY).
+
+    Prints counts and field names only; the records hold personal data and stay in
+    data/cache/spikes/companies_house/ until `neonradar spike clean`.
+    """
+    import httpx
+
+    from neonradar_ingest.http import HttpError
+    from neonradar_ingest.settings import IngestSettings
+    from neonradar_ingest.sources.companies_house.client import CompaniesHouseClient
+    from neonradar_ingest.sources.companies_house.spike import CompanyNotFound, run_spike
+
+    key = IngestSettings().companies_house_key()
+    if key is None:
+        typer.echo("FAIL  CH_API_KEY is not set: the operator adds it to .env (OD-14)")
+        raise typer.Exit(code=1)
+    try:
+        with CompaniesHouseClient(key) as client:
+            result = run_spike(client, company, max_pages=max_pages)
+    except (CompanyNotFound, HttpError, httpx.HTTPError, ValueError) as exc:
+        # httpx.HTTPError: errors the shared client does not retry (DecodingError,
+        # TooManyRedirects); ValueError: a bad number or a body that is not JSON.
+        typer.echo(f"FAIL  {exc}")
+        raise typer.Exit(code=1) from None
+    for line in result.summary():
+        typer.echo(line)
+    report_output(result.records_path)

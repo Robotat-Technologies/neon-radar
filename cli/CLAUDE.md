@@ -2,11 +2,11 @@
 
 - Purpose: the `neonradar` command (typer): `neonradar <group> <command>`, for example
   `neonradar graph load`. It depends on every other package and wires them together.
-  Phase 1 starts with `neonradar --version`, `neonradar doctor`, `neonradar graph smoke`,
-  `neonradar graph migrate`, `neonradar contracts validate-records`, `neonradar contracts export`
-  and `check` (JSON Schemas and the OpenAPI snapshot), `neonradar api serve` (127.0.0.1 only),
-  `neonradar docs typology-index`, `neonradar spike clean` and the spikes
-  (`neonradar spike gleif`, M1.8b; `neonradar spike opensanctions`, M1.8d).
+  Phase 1 starts with `neonradar --version`, `doctor`, `graph smoke`, `graph migrate`,
+  `contracts validate-records`, `contracts export` and `check` (JSON Schemas and the OpenAPI
+  snapshot), `api serve` (127.0.0.1 only), `docs typology-index`, `spike clean`, the spikes
+  (`spike companies-house`, M1.8a; `spike gleif`, M1.8b; `spike icij`, M1.8c;
+  `spike opensanctions`, M1.8d) and `onboarding check|reset` (Assignment 1).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.

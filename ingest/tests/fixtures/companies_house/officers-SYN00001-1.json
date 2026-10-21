@@ -1,0 +1,61 @@
+{
+  "kind": "officer-list",
+  "items_per_page": 3,
+  "start_index": 0,
+  "total_results": 5,
+  "active_count": 3,
+  "resigned_count": 1,
+  "etag": "syn0000000000000000000000000000000000002",
+  "links": {"self": "/company/SYN00001/officers"},
+  "items": [
+    {
+      "name": "QANDELOUNI, Zafir",
+      "officer_role": "director",
+      "appointed_on": "2019-04-02",
+      "date_of_birth": {"month": 8, "year": 1979},
+      "nationality": "Jordanian",
+      "country_of_residence": "England",
+      "occupation": "Company Director",
+      "person_number": "SYN000010001",
+      "address": {"premises": "1", "address_line_1": "Example Lane", "locality": "London", "postal_code": "ZZ1 1ZZ", "country": "England"},
+      "identity_verification_details": {
+        "appointment_verification_start_on": "2025-11-20",
+        "appointment_verification_statement_due_on": "2026-04-16"
+      },
+      "links": {
+        "self": "/company/SYN00001/appointments/SYNapp0001",
+        "officer": {"appointments": "/officers/SYNoff_0001qandelouni/appointments"}
+      }
+    },
+    {
+      "name": "ULVARAZI, Nadim",
+      "officer_role": "secretary",
+      "appointed_on": "2019-04-02",
+      "resigned_on": "2023-01-31",
+      "nationality": "British,Irish",
+      "country_of_residence": "Scotland",
+      "address": {"premises": "1", "address_line_1": "Example Lane", "locality": "London", "postal_code": "ZZ1 1ZZ", "country": "England"},
+      "links": {
+        "self": "/company/SYN00001/appointments/SYNapp0002",
+        "officer": {"appointments": "/officers/SYNoff-0002ulvarazi/appointments"}
+      }
+    },
+    {
+      "name": "JUNIPER QUAY LOGISTICS LTD",
+      "officer_role": "corporate-secretary",
+      "appointed_on": "2023-02-01",
+      "identification": {
+        "identification_type": "uk-limited-company",
+        "registration_number": "SYN00002",
+        "legal_form": "Private Limited Company",
+        "legal_authority": "Companies Act 2006",
+        "place_registered": "Companies House"
+      },
+      "address": {"premises": "Unit 9", "address_line_1": "Example Quay", "locality": "London", "postal_code": "ZZ1 1ZZ"},
+      "links": {
+        "self": "/company/SYN00001/appointments/SYNapp0003",
+        "officer": {"appointments": "/officers/SYNoff-0003juniper/appointments"}
+      }
+    }
+  ]
+}

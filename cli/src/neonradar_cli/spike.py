@@ -69,7 +69,7 @@ def opensanctions(
     Only `licensed` access writes output; a slice has dangling references, so it is validated
     without --strict.
     """
-    from neonradar_contracts.records import validate_files
+    from neonradar_contracts.records import RecordFileError, validate_files
     from neonradar_ingest.http import HttpError
     from neonradar_ingest.sources.opensanctions import access
     from neonradar_ingest.sources.opensanctions import spike as source
@@ -89,7 +89,11 @@ def opensanctions(
     for line in source.summary_lines(result):
         typer.echo(line)
     if result.records_file is not None:
-        _, issues = validate_files([result.records_file], strict=False)
+        try:
+            _, issues = validate_files([result.records_file], strict=False)
+        except RecordFileError as exc:
+            typer.echo(f"FORMAT {exc}")
+            raise typer.Exit(code=1) from None
         for issue in issues:
             typer.echo(str(issue))
         typer.echo(f"validate-records (a slice, not strict): {len(issues)} issue(s)")

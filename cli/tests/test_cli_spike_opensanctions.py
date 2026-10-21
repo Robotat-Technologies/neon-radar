@@ -29,7 +29,9 @@ def test_refuses_with_exit_3_before_any_client(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, value: str
 ) -> None:
     _route(monkeypatch, tmp_path, value)
-    monkeypatch.setattr(access, "LICENCE_FILE", tmp_path / "missing.md")
+    unconfirmed = tmp_path / "opensanctions.md"  # filed, but without the confirmed line
+    unconfirmed.write_text("OpenSanctions' answer, pasted\n", encoding="utf-8")
+    monkeypatch.setattr(access, "LICENCE_FILE", unconfirmed)
     monkeypatch.setattr(spike, "make_client", _no_client)
     result = runner.invoke(app, ["spike", "opensanctions", "--collection", "peps"])
     assert result.exit_code == 3
@@ -60,3 +62,21 @@ def test_unknown_collection_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     result = runner.invoke(app, ["spike", "opensanctions", "--collection", "all"])
     assert result.exit_code == 1
     assert "unknown collection 'all'" in result.output
+
+
+def test_a_broken_output_file_ends_with_format(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _route(monkeypatch, tmp_path, "licensed")
+    broken = tmp_path / "opensanctions_default-20261021-peps.ftm.jsonl"
+    broken.write_text("{not json\n", encoding="utf-8")
+
+    def run_spike(client: object, **options: Any) -> spike.SpikeResult:
+        index = spike.IndexInfo("u", (), "v1", "e", None)
+        return spike.SpikeResult(options["access"], "peps", index, records_file=broken)
+
+    monkeypatch.setattr(spike, "make_client", nullcontext)
+    monkeypatch.setattr(spike, "run_spike", run_spike)
+    result = runner.invoke(app, ["spike", "opensanctions", "--collection", "peps"])
+    assert result.exit_code == 1
+    assert result.output.splitlines()[-1].startswith(f"FORMAT {broken}:1: invalid JSON")

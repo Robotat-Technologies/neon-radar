@@ -12,8 +12,8 @@ An index of the `docs/` tree. Folders marked "later" are created by a later Phas
 | [glossary.md](glossary.md) | The terms the documentation and the interface use, with their sources | present |
 | [wording.md](wording.md) | The disclaimers, the vocabulary for text about entities, the forbidden patterns and the documentation rules | present |
 | `typologies/` | Plain-language typology explainers | later |
-| `learning/` | Learning logs (written by people, never by agents), templates, reading list and case notes | later |
-| `team/` | Assignments, roles and `first-queries.md` | later |
+| [learning/](learning/README.md) | Learning logs (written by people, never by agents), the log [template](learning/_template.md), the [skills self-assessment](learning/skills-self-assessment.md) and the [teach-back](learning/teach-back.md) rota; the reading list and case notes come later | present |
+| [team/](team/) | [Assignment 1](team/assignment-1.md), [first queries](team/first-queries.md) and [squads and roles](team/roles.md); Assignment 2 comes later | present |
 | `data/` | Data source spike reports and licence notes | later |
 | [architecture/](architecture/) | The [local Neo4j stack](architecture/local-stack.md); the architecture overview comes later | present |
 

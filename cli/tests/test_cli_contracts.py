@@ -43,3 +43,19 @@ def test_validate_records_reports_a_bad_line(tmp_path: Path) -> None:
     result = runner.invoke(app, ["contracts", "validate-records", str(path)])
     assert result.exit_code == 1
     assert result.output.startswith(f"FORMAT {path}:2: invalid JSON")
+
+
+def test_validate_records_reports_a_file_that_is_not_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "latin1.ftm.jsonl"
+    path.write_bytes(_company().replace("Example", "Caf\xe9").encode("latin-1"))
+    result = runner.invoke(app, ["contracts", "validate-records", str(path)])
+    assert result.exit_code == 1
+    assert result.output.startswith(f"FORMAT {path}:1: not UTF-8")
+
+
+def test_validate_records_accepts_an_empty_file(tmp_path: Path) -> None:
+    path = tmp_path / "empty.ftm.jsonl"
+    path.write_bytes(b"")
+    result = runner.invoke(app, ["contracts", "validate-records", str(path), "--strict"])
+    assert result.exit_code == 0
+    assert result.output.splitlines() == ["0 records in 1 file(s)", "OK, 0 issues"]

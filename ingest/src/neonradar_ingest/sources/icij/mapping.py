@@ -36,8 +36,7 @@ NODE_COLUMNS = {
     "name": "name",
     "original_name": "alias",
     "former_name": "previousName",
-    "jurisdiction_description": "jurisdiction",
-    "jurisdiction": "jurisdiction",
+    "jurisdiction_description": "jurisdiction",  # the code is only a fallback, see add_node
     "company_type": "legalForm",
     "type": "legalForm",
     "address": "address",
@@ -149,6 +148,9 @@ class Mapper:
             if values and prop in entity.schema.properties:
                 split = column in ("country_codes", "countries")
                 entity.add(prop, [clean(v) for v in values.split(";")] if split else values)
+        code = clean(row.get("jurisdiction"))
+        if code and "jurisdiction" in entity.schema.properties and not entity.get("jurisdiction"):
+            entity.add("jurisdiction", code)  # ICIJ codes are not ISO: "ANG" is Anguilla
         for column, prop in DATE_COLUMNS.items():
             self._add_date(entity, prop, row.get(column))
         if entity.schema.required and not entity.get("name"):

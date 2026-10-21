@@ -74,7 +74,7 @@
         "Synthetic Entity One Former Ltd"
       ],
       "jurisdiction": [
-        "vg"
+        "ai"
       ],
       "status": [
         "Defaulted"
@@ -123,9 +123,6 @@
       "name": [
         "Synthetic Entity Two S.A."
       ],
-      "jurisdiction": [
-        "pa"
-      ],
       "address": [
         "Unit 2, 7 Sample Road, Testville"
       ],
@@ -141,6 +138,9 @@
       ],
       "publisher": [
         "Panama Papers"
+      ],
+      "jurisdiction": [
+        "pa"
       ],
       "incorporationDate": [
         "2006-07-01"

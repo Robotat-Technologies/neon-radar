@@ -68,12 +68,16 @@ def icij(
     ] = None,
 ) -> None:
     """ICIJ Offshore Leaks: a closed slice of the bulk archive as C1 records."""
+    import csv
+    import zipfile
+    import zlib
+
     from neonradar_ingest.http import HttpError
     from neonradar_ingest.sources.icij import spike as icij_spike
 
     try:
         result = icij_spike.run(rows=rows, cache_dir=cache_dir)
-    except (HttpError, OSError, ValueError) as exc:
+    except (HttpError, OSError, ValueError, zipfile.BadZipFile, zlib.error, csv.Error) as exc:
         typer.echo(f"FAIL  {exc}")
         raise typer.Exit(code=1) from None
     for line in icij_spike.summary_lines(result):

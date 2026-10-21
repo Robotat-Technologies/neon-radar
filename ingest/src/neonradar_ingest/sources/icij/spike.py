@@ -25,6 +25,7 @@ from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.icij.archive import ARCHIVE_URL, ArchiveInfo, Mode, open_archive
 from neonradar_ingest.sources.icij.mapping import (
     DATASET,
+    REL_COLUMNS,
     SKIP_HINT,
     Mapper,
     classify_link,
@@ -62,6 +63,10 @@ def _csv(zf: zipfile.ZipFile, name: str) -> Iterator[tuple[FileFacts, Iterator[d
     with zf.open(name) as raw:
         reader = csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8", newline=""))
         facts = FileFacts(header=list(reader.fieldnames or []))
+        needed = REL_COLUMNS if name == RELATIONSHIPS else ("node_id", "name")
+        missing = [column for column in needed if column not in facts.header]
+        if missing:
+            raise ValueError(f"{name} lacks the column(s) {', '.join(missing)}")
 
         def rows() -> Iterator[dict[str, str]]:
             for row in reader:
@@ -140,10 +145,12 @@ def run_spike(
     started, retrieved_at = time.monotonic(), spikes.utc_timestamp()
     cache_dir = cache_dir or (out_root or spikes.SPIKE_ROOT) / SPIKE / "download"
     zf, info, mode, reader = open_archive(client, url, cache_dir)
-    with zf:
-        piece = read_slice(zf, rows)
-    if reader is not None:
-        reader.close()
+    try:
+        with zf:
+            piece = read_slice(zf, rows)
+    finally:
+        if reader is not None:
+            reader.close()
     source = Source(urls=[info.url], retrieved_at=retrieved_at,
                     source_version=piece.generated_on or info.last_modified)  # fmt: skip
     notes = [

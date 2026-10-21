@@ -1,5 +1,6 @@
 import json
 import os
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -96,3 +97,10 @@ def test_spike_icij_prints_the_summary_then_validates(
         1,
         "FAIL  HEAD https://archive.test/x.zip: HTTP 503\n",
     )
+
+    def bad_zip(**options: Any) -> Any:
+        raise zipfile.BadZipFile("File is not a zip file")
+
+    monkeypatch.setattr(icij_spike, "run", bad_zip)
+    result = runner.invoke(app, ["spike", "icij"])
+    assert (result.exit_code, result.output) == (1, "FAIL  File is not a zip file\n")

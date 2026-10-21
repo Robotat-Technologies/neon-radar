@@ -33,7 +33,8 @@ Medvedev
 Горбачёв
 Gorbachev
 # Added in M1.8e (review): full names of public figures that the generator produced for
-# demo-mini (Faker en_GB first name plus surname); the generator then draws another name.
+# demo-mini (Faker en_GB names and curated names in words.py); the generator then draws another
+# name.
 Mark Jackson
 Duncan Robinson
 Philip Johnson
@@ -43,8 +44,55 @@ Andrey Golubev
 Андрей Голубев
 Tatiana Lebedeva
 Татьяна Лебедева
-# Added in M1.8e (review): the example person of PHASE-1.md 5.1, whose name matches a real
-# Companies House officer (OD-12).
+# Added in M1.8e (review): the example person of PHASE-1.md 5.1, replaced under OD-12.
 Omar Haddad
 عمر حداد
 Омар Хаддад
+# Added in M1.8e (review): well-known real people the curated or Faker lists could produce.
+Rana Sabbagh
+رنا صباغ
+Karim Sabbagh
+كريم صباغ
+Bassam Haddad
+بسام حداد
+Karim Bitar
+كريم بيطار
+Oleg Sokolov
+Олег Соколов
+Sergey Sokolov
+Сергей Соколов
+Sergey Lebedev
+Сергей Лебедев
+Natalia Komarova
+Наталья Комарова
+Olga Zaitseva
+Ольга Зайцева
+Elena Belova
+Елена Белова
+Elena Sokolova
+Елена Соколова
+Sergey Volkov
+Сергей Волков
+Sergey Belov
+Сергей Белов
+Sergey Novikov
+Сергей Новиков
+Ivan Zaitsev
+Иван Зайцев
+Ivan Sokolov
+Иван Соколов
+Andrey Sokolov
+Андрей Соколов
+Nikolay Sokolov
+Николай Соколов
+Theresa May
+Boris Johnson
+Gordon Brown
+David Cameron
+Сергей Иванов
+Сергей Миронов
+Андрей Белоусов
+Анатолий Карпов
+Михаил Прохоров
+Андрей Костин
+Вячеслав Лебедев

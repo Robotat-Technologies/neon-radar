@@ -78,11 +78,16 @@ def test_registry_has_the_planned_structures(demo_mini: Load) -> None:
         ["vg", "cy", "gb"]
     ]  # the PEP -> vg -> cy -> gb
     assert all("share_pct_min" in r["nr"] and "share_pct_max" in r["nr"] for r in shares)
+    for r in shares:  # a company's stake never starts before the company exists
+        owner = r["properties"]["owner"][0]
+        if demo_mini.by_id[owner]["schema"] == "Company":
+            assert r["properties"]["startDate"][0] >= demo_mini.prop(owner, "incorporationDate")
     sanctioned = next(r["id"] for r in companies if r["properties"].get("topics"))
     participants = {
         p.split(":")[1] for row in demo_mini.scenarios for p in row["participants"].split(";")
     }
     assert pep not in participants and sanctioned not in participants
+    assert pep not in _holders(demo_mini).values()
     ledgers = [r["id"] for r in demo_mini.schema("BankAccount")
                if r["nr"]["account_kind"] == "cash_ledger"]  # fmt: skip
     holders = _holders(demo_mini)
@@ -177,3 +182,16 @@ def test_scenario_purposes_also_appear_in_the_background(demo_mini: Load) -> Non
     scenario = next(r for r in demo_mini.scenarios if r["variant"] == "round_trip")
     for props in _steps(demo_mini, scenario["scenario_id"]):
         assert background[props["purpose"][0].split(" INV-")[0]] >= 3
+
+
+def test_scenario_amounts_sit_inside_the_background_range(demo_mini: Load) -> None:
+    planted = {row["tx_id"] for row in demo_mini.transactions}
+    scenario = next(r for r in demo_mini.scenarios if r["variant"] == "round_trip")
+    hops = _steps(demo_mini, scenario["scenario_id"])
+    currency = hops[0]["currency"][0]
+    background = [
+        float(demo_mini.prop(p["id"], "amount"))
+        for p in demo_mini.schema("Payment")
+        if p["id"] not in planted and demo_mini.prop(p["id"], "currency") == currency
+    ]
+    assert max(background) > max(float(h["amount"][0]) for h in hops)

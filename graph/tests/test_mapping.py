@@ -315,6 +315,9 @@ def test_duplicate_ids_keep_the_first_record() -> None:
     result = to_node_rows([first, second])
     assert [row.schema for row in result.rows] == ["Company"]
     assert [issue.record_id for issue in result.skipped] == ["syn-co-1"]
+    edges = relationships([first, second])  # reports its own record-level issues too
+    assert edges.skipped == result.skipped
+    assert len(dict.fromkeys([*result.skipped, *edges.skipped])) == 1  # hashable, merged once
 
 
 def test_an_endpoint_outside_the_load_is_left_to_the_loader() -> None:
@@ -322,6 +325,33 @@ def test_an_endpoint_outside_the_load_is_left_to_the_loader() -> None:
         [record("syn-ownership-1", "Ownership", owner="syn-p-9", asset="syn-co-9")]
     ).rows
     assert (row.type, row.endpoint_labels) == ("OWNS", ("LegalEntity", "LegalEntity"))
+
+
+def test_endpoint_keys_use_the_uniqueness_constraints() -> None:
+    rows = by_id(relationships())
+    assert rows["syn-co-0001|sanction|syn-sanction-0001"].endpoint_keys == ("Entity", "Sanction")
+    assert rows["syn-payment-000001"].endpoint_keys == ("Entity", "Entity")
+    assert rows["syn-payment-000001"].endpoint_labels == ("Account", "Account")
+
+
+def test_country_codes_are_lower_case_and_unique() -> None:
+    records = [
+        record("gbch-co-1", "Company", name="Example Holdings Ltd", jurisdiction="GB"),
+        record("gbch-p-1", "Person", name="Zoe Example", nationality=["GB", "gb"]),
+    ]
+    rows = {row.id: row for row in to_node_rows(records).rows}
+    company, person = rows["gbch-co-1"].props, rows["gbch-p-1"].props
+    assert (company["countries"], company["jurisdiction"]) == (["gb"], "gb")
+    assert (person["countries"], person["nationalities"]) == (["gb"], ["gb"])
+
+
+def test_booleans_are_never_read_from_a_string() -> None:
+    director = record(
+        "syn-directorship-1", "Directorship", {"is_nominee": "false"}, director="syn-p-1",
+        organization="syn-co-1",
+    )  # fmt: skip
+    (row,) = relationships([director]).rows
+    assert row.props["is_nominee"] is False
 
 
 def test_mapping_is_deterministic() -> None:

@@ -34,7 +34,7 @@ def test_neo4j_answers_with_apoc_and_gds(neo4j: Neo4jTarget) -> None:
 
 def test_paid_ts_is_read_as_a_utc_datetime(neo4j: Neo4jTarget) -> None:
     (paid,) = [
-        row for row in to_relationship_rows(iter_records(FIXTURE)).rows if row.type == "PAID"
+        row for row in to_relationship_rows(list(iter_records(FIXTURE))).rows if row.type == "PAID"
     ]
     records, _, _ = neo4j.driver.execute_query(
         "WITH datetime($ts) AS ts RETURN ts.timezone AS zone, ts.epochSeconds AS seconds",

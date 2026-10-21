@@ -2,9 +2,14 @@
 
 Pure functions without database access. Labels and relationship types come only from
 `neonradar_contracts.graph`: the loader writes them into its query text per schema or type and
-sends these rows as parameters. Records are expected to be C1-valid (the loader validates them
-first); what C1 accepts but C2 cannot represent is skipped and reported as a `MappingIssue`, and
-a strict load fails on any of them. See contracts/C2-graph-schema.md.
+sends these rows as parameters. Records must be C1-valid (the loader validates them first and
+never maps a record that failed); what C1 accepts but C2 cannot represent is skipped and
+reported as a `MappingIssue`, and a strict load fails on any of them.
+
+Both functions take the whole load as a sequence (a list), never a one-shot iterator: each
+reads it in full, and `to_relationship_rows` reads it twice. Record-level issues (not a C1
+record, duplicate id) appear in both results; `MappingIssue` is hashable, so the loader merges
+the two `skipped` lists with `dict.fromkeys`. See contracts/C2-graph-schema.md.
 """
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -31,6 +36,8 @@ from neonradar_contracts.graph import (
 )
 
 Record = Mapping[str, Any]
+# The labels a node is MERGEd and MATCHed on with `{id: ...}`: each has a uniqueness constraint.
+KEY_LABELS = frozenset(mapping.labels[0] for mapping in NODE_MAPPINGS.values())
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +86,17 @@ class RelationshipRow:
 
     @property
     def endpoint_labels(self) -> tuple[str, str]:
+        """The label each end must carry (the From and To columns of C2)."""
         return RELATIONSHIP_ENDPOINTS[self.type]
+
+    @property
+    def endpoint_keys(self) -> tuple[str, str]:
+        """The label to MATCH each end on with `{id: ...}`, so the uniqueness index is used:
+        `(s:<key> {id: row.source}) WHERE s:<label>`."""
+        source, target = (
+            label if label in KEY_LABELS else "Entity" for label in self.endpoint_labels
+        )
+        return source, target
 
     def as_param(self) -> dict[str, Any]:
         row: dict[str, Any] = {
@@ -128,12 +145,17 @@ def _convert(values: Sequence[Any], kind: str) -> Any:
             return float(values[0])
         case "integer":
             return int(values[0])
-        case "boolean":
-            return bool(values[0])
+        case "boolean":  # never bool("false")
+            return values[0] is True or str(values[0]).lower() == "true"
         case "datetime":
             return f"{values[0]}Z"
         case _:
             return str(values[0])
+
+
+def _countries(values: Iterable[str]) -> list[str]:
+    """Lower-case ISO codes, first-seen order; values FtM cannot read as a country are dropped."""
+    return _unique(code for value in values if (code := registry.country.clean(value)))
 
 
 def _mapped(
@@ -141,10 +163,12 @@ def _mapped(
 ) -> dict[str, Any]:
     """C2 properties from FtM properties and `nr` keys; absent values are left out.
 
-    `key` selects the entry of an object-valued `nr` key (the referenced id).
+    Country-typed values become lower-case codes. `key` selects the entry of an object-valued
+    `nr` key (the referenced id).
     """
     out: dict[str, Any] = {}
     nr = _nr(record)
+    schema = _schema(record)
     for source, target in properties.items():
         kind = PROPERTY_KINDS.get(target, "string")
         if source.startswith("nr."):
@@ -153,8 +177,13 @@ def _mapped(
                 value = value.get(key) if key is not None else None
             if value is not None:
                 out[target] = _convert(value if kind == "list" else [value], kind)
-        elif values := _values(record, source):
-            out[target] = _convert(values, kind)
+        else:
+            values = _values(record, source)
+            prop = schema.properties.get(source) if schema is not None else None
+            if prop is not None and prop.type == registry.country:
+                values = _countries(values)
+            if values:
+                out[target] = _convert(values, kind)
     return out
 
 
@@ -192,12 +221,12 @@ def _node_row(record: Record, schema: Schema, mapping: NodeMapping, synthetic: b
         for value in _values(record, prop)
     )
     countries = sorted(
-        {
+        _countries(
             value
             for name, prop in schema.properties.items()
             if prop.type == registry.country
             for value in _values(record, name)
-        }
+        )
     )
     topics = _values(record, "topics")
     props: dict[str, Any] = {
@@ -235,7 +264,7 @@ def _first_records(
             yield record, schema, synthetic
 
 
-def to_node_rows(records: Iterable[Record]) -> MappingResult[NodeRow]:
+def to_node_rows(records: Sequence[Record]) -> MappingResult[NodeRow]:
     """One node row per record of a node schema (5.2 node table); edge schemata give none."""
     result: MappingResult[NodeRow] = MappingResult()
     for record, schema, synthetic in _first_records(records, result.skipped):
@@ -339,7 +368,7 @@ def _reference_rows(
         yield RelationshipRow(ref.type, rel_id, source, target, props)
 
 
-def to_relationship_rows(records: Iterable[Record]) -> MappingResult[RelationshipRow]:
+def to_relationship_rows(records: Sequence[Record]) -> MappingResult[RelationshipRow]:
     """Relationship rows from edge schemata, `addressEntity` and `Sanction.entity` (5.2).
 
     Reads the whole load first: the Ownership case and the endpoint checks need the schema of
@@ -347,7 +376,7 @@ def to_relationship_rows(records: Iterable[Record]) -> MappingResult[Relationshi
     it as dangling when the graph does not have it either.
     """
     result: MappingResult[RelationshipRow] = MappingResult()
-    usable = list(_first_records(records, []))  # to_node_rows reports these issues
+    usable = list(_first_records(records, result.skipped))
     index = {str(record["id"]): schema for record, schema, _ in usable}
     for record, schema, synthetic in usable:
         mappings = RELATIONSHIP_MAPPINGS.get(schema.name)

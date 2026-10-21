@@ -1,32 +1,32 @@
-"""The repository files the API reads (PHASE-1.md M1.9c; contracts/C3-api.md).
+"""The repository files the typology routes read (PHASE-1.md M1.9c; contracts/C3-api.md).
 
-`contracts/datasets.yaml` (`MetaResponse.datasets`), `contracts/wording/` (the disclaimers),
 `detect/typologies/` (`load_catalog()`), `docs/typologies/` (the explainers) and
-`docs/sources/bibliography.yaml` (`Citation` titles and links) are all found from one setting,
+`docs/sources/bibliography.yaml` (`Citation` titles and links) are found from one setting,
 `NR_REPO_ROOT`. Its default is the nearest directory, from the working directory up, whose
 `pyproject.toml` has a `[tool.uv.workspace]` table; M1.9e's image sets it to `/app`. The
 setting comes from the environment only: it locates the repository, so it cannot come from the
 repository's `.env`. Nothing is read until a route needs it, so `create_app()` (and the OpenAPI
-export) works anywhere.
+export) works anywhere. The contract files `GET /meta` serves (the dataset registry and the
+disclaimers) come from the contracts package itself (`load_registry()`, `load_disclaimer()`),
+so `/meta` never depends on this setting.
 """
 
 import tomllib
 from functools import cached_property
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
 from fastapi import Request
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from neonradar_contracts.api import Citation, Disclaimers
-from neonradar_contracts.datasets import Registry, load_registry
-from neonradar_contracts.wording import DisclaimerId
+from neonradar_contracts.api import Citation
 from neonradar_detect.catalog import TypologyFile, load_catalog
 
 
 class RepoRootNotFound(RuntimeError):
-    """No `NR_REPO_ROOT` and no uv workspace above the working directory (HTTP 500)."""
+    """No usable repository: `NR_REPO_ROOT` names no NeonRadar checkout, or it is unset and no
+    uv workspace lies above the working directory (HTTP 500 on the typology routes)."""
 
 
 class ApiSettings(BaseSettings):
@@ -52,6 +52,10 @@ def find_workspace_root(start: Path) -> Path | None:
     return None
 
 
+# What NR_REPO_ROOT must hold.
+EXPECTED: Final = ("detect/typologies", "docs/typologies", "docs/sources/bibliography.yaml")
+
+
 class RepoFiles:
     """Reads the files on each call, so an edited typology file shows without a restart."""
 
@@ -60,33 +64,24 @@ class RepoFiles:
 
     @cached_property
     def root(self) -> Path:
+        """The repository; it must hold the typology catalog, the explainers and the
+        bibliography, so a wrong or missing directory gives the same hint as no setting."""
         root = self._root or ApiSettings().repo_root or find_workspace_root(Path.cwd())
-        if root is None:
+        if root is None or not all((root / part).exists() for part in EXPECTED):
             raise RepoRootNotFound("set NR_REPO_ROOT to the NeonRadar repository")
         return root
-
-    def registry(self) -> Registry:
-        return load_registry(self.root / "contracts" / "datasets.yaml")
-
-    def _disclaimer(self, disclaimer_id: DisclaimerId) -> str:
-        # The rule of neonradar_contracts.wording.load_disclaimer, under NR_REPO_ROOT.
-        path = self.root / "contracts" / "wording" / f"{disclaimer_id}.txt"
-        return path.read_text(encoding="utf-8").rstrip("\n")
-
-    def disclaimers(self) -> Disclaimers:
-        return Disclaimers(
-            standing=self._disclaimer("standing-v1"),
-            synthetic_demo=self._disclaimer("synthetic-demo-v1"),
-            real_data=self._disclaimer("real-data-v1"),
-        )
 
     def catalog(self) -> dict[str, TypologyFile]:
         return load_catalog(self.root / "detect" / "typologies")
 
     def explainer(self, typology: TypologyFile) -> str | None:
-        """The typology's explainer Markdown (`doc`), or None when the file does not exist."""
-        path = self.root / typology.doc
-        return path.read_text(encoding="utf-8") if path.is_file() else None
+        """The typology's explainer Markdown (`doc`), or None when the file does not exist or
+        resolves outside `docs/typologies/` (through a symbolic link, for example)."""
+        folder = (self.root / "docs" / "typologies").resolve()
+        path = (self.root / typology.doc).resolve()
+        if not path.is_relative_to(folder) or not path.is_file():
+            return None
+        return path.read_text(encoding="utf-8")
 
     def citations(self, keys: list[str]) -> list[Citation]:
         """The bibliography entries of `keys`, in that order; unknown keys are left out."""

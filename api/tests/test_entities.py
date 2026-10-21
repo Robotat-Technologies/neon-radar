@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from neo4j.time import DateTime
 
@@ -61,6 +62,19 @@ def test_lucene_special_characters_are_escaped_and_operators_become_words() -> N
     )
 
 
+@pytest.mark.parametrize(
+    ("text", "query"),
+    [
+        ("Lea AND Ltd OR NOT", "Lea and Ltd or not"),  # operators become words
+        ("ANDY ORBIT NOTE", "ANDY ORBIT NOTE"),  # words that start like operators stay
+        ("İstanbul", "İstanbul"),  # Python lowercases İ to i + U+0307; Lucene to i
+        ("ΟΔΥΣΣΕΑΣ", "ΟΔΥΣΣΕΑΣ"),  # Python writes a final sigma; Lucene a medial one
+    ],
+)
+def test_the_analyzer_lowercases_everything_but_the_operator_words(text: str, query: str) -> None:
+    assert entities.lucene_query(text) == query
+
+
 def test_the_matched_name_shares_most_words_with_the_query() -> None:
     names = ["Marram Lea Formations Ltd", "Lea Holdings"]
     assert entities.matched_name(names, "caption", "lea formations") == names[0]
@@ -83,7 +97,7 @@ def test_search_lists_an_exact_account_number_first_with_the_top_score() -> None
     assert [hit["score"] for hit in body["items"]] == [2.5, 2.5]
     assert body["items"][0]["matched_name"] == "NRSYN0000000001"
     assert body["total_estimate"] == 4
-    assert graph.calls[1][1]["query"] == "nrsyn0000000001"
+    assert graph.calls[1][1]["query"] == "NRSYN0000000001"
 
 
 def test_search_filters_labels_and_skips_the_index_when_it_cannot_match() -> None:
@@ -125,3 +139,33 @@ def test_nodes_keep_only_their_c2_properties_and_times_become_utc_text() -> None
         }
     )
     assert edge.properties == {"amount": 10.0, "ts": "2026-03-02T09:00:00Z"}
+
+
+def test_the_network_cuts_extra_edges_and_says_so() -> None:
+    nodes = [ACCOUNT, {**ACCOUNT, "props": {**ACCOUNT["props"], "id": "syn-acct-0002"}}]
+    edges = [
+        {
+            "props": {"id": f"syn-pay-{n}", "amount": 1.0},
+            "type": "PAID",
+            "source": "syn-acct-0001",
+            "target": "syn-acct-0002",
+        }
+        for n in range(5)
+    ]
+    graph = ScriptedGraph(lambda query, params: [{"nodes": nodes, "edges": edges, "cut": False}])
+    with TestClient(create_app(graph)) as client:
+        body = client.get("/api/v1/entities/syn-acct-0001/network?max_nodes=2").json()
+    assert (len(body["nodes"]), len(body["edges"]), body["truncated"]) == (2, 4, True)
+    assert body["limits"] == {"max_nodes": 2, "max_edges": 4}
+    assert graph.calls[0][0] == entities.NETWORK[1]
+    assert graph.calls[0][1]["edge_probe"] == 5
+
+
+def test_search_passes_supertype_labels_to_the_index() -> None:
+    graph = ScriptedGraph(answers)
+    with TestClient(create_app(graph)) as client:
+        client.get("/api/v1/search?q=lea&labels=Organization&labels=LegalEntity&labels=Account")
+    assert [(query, params.get("labels")) for query, params in graph.calls] == [
+        (entities.ACCOUNT, None),
+        (entities.FULLTEXT, ["Organization", "LegalEntity"]),
+    ]

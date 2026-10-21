@@ -13,10 +13,11 @@
 - Modules: `main` (`create_app` and every route), `problems` (RFC 9457 errors, `ProblemError`,
   `not_implemented`, `responses`), `graph` (`GraphConnection`: one lazy sync driver; `read()`
   runs READ transactions only; `get_graph` dependency), `health`, `files` (`RepoFiles`: the
-  repository files from `NR_REPO_ROOT`, default the nearest uv workspace above the working
-  directory; `get_files` dependency), `shapes` (C2 rows to C3 models, property allow-lists from
-  `neonradar_contracts.graph`), `entities` (search, entity detail, network), `alerts` (queue
-  with its cursor, detail), `reference` (meta, typologies), `docs_page` (the `/docs` page).
+  typology files and bibliography from `NR_REPO_ROOT`, default the nearest uv workspace above
+  the working directory; `get_files` dependency), `shapes` (C2 rows to C3 models, property
+  allow-lists from `neonradar_contracts.graph`), `entities` (search, entity detail, network),
+  `alerts` (queue with its cursor, detail), `reference` (meta, typologies), `docs_page` (the
+  `/docs` page).
 - Traps:
   - The running app's OpenAPI must equal `contracts/openapi/v1.json` (contract test). Routes
     are declared with their final responses, so implementing one must not change the snapshot.
@@ -39,11 +40,17 @@
   - Alerts come only from Neo4j, not from the files in `data/runs/`. `subject_ids` follow
     `payload.subjects` (FLAGS has no order). The evidence relationships are found from the
     evidence nodes (C4 puts both ends among them), so no relationship scan by id is needed.
-    C3's `AlertDetail` cannot hold partial evidence: an alert whose payload no longer validates,
-    or whose evidence left the graph, is a 500 problem that says to re-run detection.
+    C3's `AlertDetail` cannot hold partial evidence: an alert whose payload no longer validates
+    (or names another alert id), or whose evidence left the graph, is a 500 problem that says
+    to wipe and reload, then re-run detection; the queue leaves such an alert out with a
+    warning instead of failing the page.
   - Queries return nodes as `{props: properties(n), labels: labels(n)}` and relationships with
     their C2 end ids: `elementId()` values never leave the database. Search escapes Lucene
-    syntax (`entities.lucene_query`) and lowercases, so AND, OR and NOT are words.
+    syntax (`entities.lucene_query`) and lowercases only the operator words AND, OR and NOT;
+    never lowercase the whole text in Python (it differs from Lucene for `İ` and final `Σ`).
+  - `/meta` reads the registry and disclaimers from the contracts package (`load_registry()`,
+    `load_disclaimer()`), never from `NR_REPO_ROOT`, so it never fails on that setting; the
+    typology routes answer a 500 problem naming `NR_REPO_ROOT` when it holds no checkout.
   - The network query is chosen from `entities.NETWORK` by depth (one fixed text per depth).
   - Unit tests never touch Neo4j: pass a `GraphConnection` subclass to `create_app`
     (`tests/conftest.py`: `OfflineGraph`, `ScriptedGraph`), and build the settings error

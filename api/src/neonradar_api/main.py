@@ -88,9 +88,9 @@ def get_health(graph: Graph) -> HealthResponse:
 
 
 @router.get("/meta", tags=["meta"])
-def get_meta(graph: Graph, files: Files) -> MetaResponse:
+def get_meta(graph: Graph) -> MetaResponse:
     """Versions, datasets with licences and counts, disclaimers and graph counts."""
-    return reference.meta(graph, files)
+    return reference.meta(graph)
 
 
 @router.get("/search", tags=["entities"], responses=responses(422, 503))

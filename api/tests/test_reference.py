@@ -84,10 +84,37 @@ def test_the_repository_root_comes_from_nr_repo_root_or_the_uv_workspace(
     assert RepoFiles().root == REPO_ROOT
     monkeypatch.delenv("NR_REPO_ROOT")
     monkeypatch.chdir(tmp_path)
-    with TestClient(create_app(OfflineGraph()), raise_server_exceptions=False) as client:
-        response = client.get(f"{P}/typologies")
-    assert response.status_code == 500
-    assert "NR_REPO_ROOT" in Problem.model_validate_json(response.text).detail
+    for setting in (None, str(tmp_path / "missing"), str(tmp_path)):  # unset, absent, wrong
+        if setting is not None:
+            monkeypatch.setenv("NR_REPO_ROOT", setting)
+        with TestClient(create_app(OfflineGraph()), raise_server_exceptions=False) as client:
+            typologies = client.get(f"{P}/typologies")
+            meta = client.get(f"{P}/meta")
+        assert typologies.status_code == 500
+        detail = Problem.model_validate_json(typologies.text).detail
+        assert detail == "The repository files were not found: set NR_REPO_ROOT."
+        # /meta reads the contract files from the contracts package, never from NR_REPO_ROOT.
+        assert meta.status_code == 200
+        assert MetaResponse.model_validate_json(meta.text).disclaimers.standing == (
+            load_disclaimer("standing-v1")
+        )
+
+
+def test_an_explainer_outside_docs_typologies_is_not_served(tmp_path: Path) -> None:
+    for part in ("detect/typologies", "docs/typologies", "docs/sources"):
+        (tmp_path / part).mkdir(parents=True)
+    for part in ("detect/typologies/circular_flow.yaml", "docs/sources/bibliography.yaml"):
+        (tmp_path / part).write_bytes((REPO_ROOT / part).read_bytes())
+    outside = tmp_path / "outside.md"
+    outside.write_text("not an explainer", encoding="utf-8")
+    (tmp_path / "docs" / "typologies" / "circular-flow.md").symlink_to(outside)
+    app = create_app(OfflineGraph(), RepoFiles(tmp_path))
+    with TestClient(app) as client:
+        detail = TypologyDetail.model_validate_json(
+            client.get(f"{P}/typologies/circular_flow").text
+        )
+    assert detail.definition_markdown is None
+    assert detail.citations  # the bibliography still resolves
 
 
 def _hash(text: str) -> str:

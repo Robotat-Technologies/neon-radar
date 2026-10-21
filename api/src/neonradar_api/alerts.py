@@ -28,11 +28,14 @@ logger = logging.getLogger(__name__)
 
 BAD_CURSOR: Final = "query.cursor: the cursor is malformed or belongs to other filters"
 NOT_FOUND: Final = "No alert has this id."
+# A new run does not prune alerts of earlier runs, so the fix is a clean graph and a new run.
 STALE: Final = (
-    "The stored alert does not validate as a C4 alert; re-run detection (`neonradar detect run`)."
+    "The stored alert does not validate as a C4 alert; wipe and reload the data, then re-run"
+    " detection (`neonradar detect run`)."
 )
 MISSING_EVIDENCE: Final = (
-    "The alert's evidence is no longer in the graph; re-run detection (`neonradar detect run`)."
+    "The alert's evidence is no longer in the graph; wipe and reload the data, then re-run"
+    " detection (`neonradar detect run`)."
 )
 QUEUE: Final = """
 MATCH (a:Alert)
@@ -64,9 +67,18 @@ WITH entities + sanctions AS nodes
 CALL (nodes) {
   UNWIND nodes AS x
   MATCH (x)-[r]->(y)
-  WHERE y IN nodes AND (r.id IN $edge_ids OR type(r) = 'HOLDS_ACCOUNT')
-  RETURN collect(r) AS rels
+  WHERE y IN nodes AND r.id IN $edge_ids
+  WITH r LIMIT $evidence_limit
+  RETURN collect(r) AS evidence
 }
+CALL (nodes) {
+  UNWIND nodes AS x
+  MATCH (x)-[r:HOLDS_ACCOUNT]->(y)
+  WHERE y IN nodes
+  WITH r LIMIT $holds_limit
+  RETURN collect(r) AS holds
+}
+WITH nodes, evidence + [r IN holds WHERE NOT r IN evidence] AS rels
 RETURN [n IN nodes | {props: properties(n), labels: labels(n)}] AS nodes,
        [r IN rels | {props: properties(r), type: type(r), source: startNode(r).id,
                      target: endNode(r).id}] AS edges
@@ -98,6 +110,19 @@ def _summary(row: Mapping[str, Any]) -> AlertSummary:
     )
 
 
+def _summaries(rows: list[Any]) -> list[AlertSummary]:
+    """The page's summaries; an alert that cannot be summarised (no readable payload and no
+    FLAGS, for example) is left out with a warning instead of failing the whole page. Its
+    detail answers the 500 problem that says to re-run detection."""
+    summaries = []
+    for row in rows:
+        try:
+            summaries.append(_summary(row))
+        except ValueError, KeyError, TypeError:  # ValidationError is a ValueError
+            logger.warning("alert %s left out of the queue: stored alert unreadable", row["alert"])
+    return summaries
+
+
 def _digest(filters: Mapping[str, str | None]) -> str:
     text = json.dumps(filters, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
@@ -119,15 +144,15 @@ def decode_cursor(cursor: str, digest: str) -> dict[str, Any]:
             given == digest
             and type(rank) is int
             and rank in (0, 1, 2)
-            and type(strength) in (int, float)
-            and math.isfinite(strength)
+            and type(strength) is float  # encode_cursor always writes a float
+            and 0.0 <= strength <= 1.0
             and re.fullmatch(ALERT_ID_PATTERN, alert_id) is not None
         )
-    except (binascii.Error, ValueError, TypeError) as error:
+    except (binascii.Error, ValueError, TypeError, OverflowError) as error:
         raise ProblemError(422, BAD_CURSOR) from error
     if not valid:
         raise ProblemError(422, BAD_CURSOR)
-    return {"rank": rank, "strength": float(strength), "alert_id": alert_id}
+    return {"rank": rank, "strength": strength, "alert_id": alert_id}
 
 
 def queue(
@@ -145,7 +170,7 @@ def queue(
     digest = _digest(filters)
     after = decode_cursor(cursor, digest) if cursor is not None else None
     rows = graph.read(QUEUE, {**filters, "after": after, "limit": limit + 1})
-    items = [_summary(row) for row in rows[:limit]]
+    items = _summaries(rows[:limit])
     next_cursor = None
     if len(rows) > limit:
         last = rows[limit - 1]
@@ -166,10 +191,19 @@ def detail(graph: GraphConnection, alert_id: str) -> AlertDetail:
     except ValidationError as error:
         logger.error("alert %s does not validate as C4: %s", alert_id, error)
         raise ProblemError(500, STALE) from error
+    if alert.alert_id != alert_id:  # a payload copied or edited onto another :Alert
+        logger.error("alert %s holds the payload of %s", alert_id, alert.alert_id)
+        raise ProblemError(500, STALE)
     node_ids = list(
         dict.fromkeys([*alert.evidence.node_ids, *(s.entity_id for s in alert.subjects)])
     )
-    row = graph.read(EVIDENCE, {"node_ids": node_ids, "edge_ids": alert.evidence.edge_ids})[0]
+    parameters = {
+        "node_ids": node_ids,
+        "edge_ids": alert.evidence.edge_ids,
+        "evidence_limit": len(alert.evidence.edge_ids),
+        "holds_limit": len(node_ids) ** 2,  # at most one per ordered pair of evidence nodes
+    }
+    row = graph.read(EVIDENCE, parameters)[0]
     order = {node_id: index for index, node_id in enumerate(node_ids)}
     nodes = sorted(map(shapes.graph_node, row["nodes"]), key=lambda node: order[node.id])
     hops = {edge_id: index for index, edge_id in enumerate(alert.evidence.edge_ids)}

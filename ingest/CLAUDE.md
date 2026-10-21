@@ -27,5 +27,7 @@
   - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
     username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids
     with `make_id` and keep raw ids in `nr.source_ref`; count `identity_verification_details`,
-    never map it. Tests use synthetic bodies in `tests/fixtures/companies_house/` and compare
-    with `*.expected.json`, never a committed `.ftm.jsonl` with `gbch-` ids.
+    never map it. Its `Mapper` builds `ValueEntity` records itself (it merges an officer's
+    appointments into one record) and writes through `spikes.write_output`. Tests use
+    synthetic bodies in `tests/fixtures/companies_house/` and compare with
+    `*.expected.json`, never a committed `.ftm.jsonl` with `gbch-` ids.

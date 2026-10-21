@@ -1,6 +1,7 @@
 """The Companies House spike end to end over httpx.MockTransport (M1.8a); no network."""
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -8,10 +9,10 @@ from typing import Any
 import httpx
 import pytest
 
-from neonradar_contracts.records import Manifest, validate_files
+from neonradar_contracts.records import Manifest, manifest_path, validate_files
 from neonradar_ingest.http import RateLimiter
 from neonradar_ingest.sources.companies_house.client import BASE_URL, CompaniesHouseClient
-from neonradar_ingest.sources.companies_house.spike import CompanyNotFound, run_spike
+from neonradar_ingest.sources.companies_house.spike import CompanyNotFound, SpikeResult, run_spike
 
 FIXTURES = Path(__file__).parent / "fixtures" / "companies_house"
 OFFICER_PAGES = {0: "officers-SYN00001-1.json", 3: "officers-SYN00001-2.json"}
@@ -37,22 +38,31 @@ def client() -> CompaniesHouseClient:
     return CompaniesHouseClient("SYN-KEY", transport=httpx.MockTransport(serve), limiter=limiter)
 
 
-def spike(out: Path, company: str = "syn00001", **kwargs: int) -> Any:
+def spike(root: Path, company: str = "syn00001", **kwargs: int) -> SpikeResult:
     when = datetime(2026, 10, 21, 9, 30, tzinfo=UTC)
-    return run_spike(client(), company, out, now=lambda: when, **kwargs)
+    return run_spike(client(), company, root=root, now=lambda: when, **kwargs)
 
 
 def test_the_spike_writes_valid_records_and_a_manifest(tmp_path: Path) -> None:
     result = spike(tmp_path)
-    assert result.records_path == tmp_path / "gb_companies_house-20261021-SYN00001.ftm.jsonl"
+    assert result.records_path.parent == tmp_path / "companies_house"
+    assert re.fullmatch(r"gb_companies_house-\d{8}-SYN00001\.ftm\.jsonl", result.records_path.name)
     counts, issues = validate_files([result.records_path], strict=True)
     assert issues == []
-    assert counts == {"Address": 1, "Company": 3, "Control": 4, "Directorship": 5,
-                      "LegalEntity": 1, "Ownership": 2, "Person": 4}  # fmt: skip
-    manifest = Manifest.model_validate_json(result.manifest_path.read_text(encoding="utf-8"))
-    assert manifest.dataset == "gb_companies_house"
-    assert manifest.licence.id == "OGL-UK-3.0"
-    assert manifest.files[0].records == 20
+    assert counts == {
+        "Address": 1,
+        "Company": 3,
+        "Control": 4,
+        "Directorship": 5,
+        "LegalEntity": 1,
+        "Ownership": 2,
+        "Person": 4,
+    }
+    text = manifest_path(result.records_path).read_text(encoding="utf-8")
+    manifest = Manifest.model_validate_json(text)
+    assert (manifest.dataset, manifest.licence.id) == ("gb_companies_house", "OGL-UK-3.0")
+    assert manifest.producer.name == "neonradar_ingest.sources.companies_house"
+    assert manifest.files[0].records == result.records == 20
     assert manifest.counts.skipped == {"psc:super-secure-person-with-significant-control": 1}
     assert manifest.source.retrieved_at == "2026-10-21T09:30:00Z"
     assert manifest.source.urls[0] == f"{BASE_URL}/company/SYN00001"
@@ -73,26 +83,35 @@ def test_the_summary_has_counts_and_field_names_but_no_register_values(tmp_path:
 
 def test_max_pages_truncates_and_says_so(tmp_path: Path) -> None:
     result = spike(tmp_path, max_pages=1)
-    assert "officers: stopped after 1 page(s), 3 of 5 items" in result.notes
-    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-    assert "officers: stopped after 1 page(s), 3 of 5 items" in manifest["notes"]
+    note = "officers: stopped after 1 page(s), 3 of 5 items"
+    assert note in result.notes
+    assert note in json.loads(manifest_path(result.records_path).read_text("utf-8"))["notes"]
 
 
 def test_a_new_run_replaces_earlier_output_for_the_same_company(tmp_path: Path) -> None:
-    old = tmp_path / "gb_companies_house-20261001-SYN00001.ftm.jsonl"
-    old.write_text("{}\n", encoding="utf-8")
-    old.with_name("gb_companies_house-20261001-SYN00001.manifest.json").write_text("{}")
-    other = tmp_path / "gb_companies_house-20261001-SYN00002.ftm.jsonl"
-    other.write_text("", encoding="utf-8")
-    spike(tmp_path)
-    assert sorted(path.name for path in tmp_path.iterdir()) == [
+    folder = tmp_path / "companies_house"
+    folder.mkdir()
+    (folder / "gb_companies_house-20261001-SYN00001.ftm.jsonl").write_text("{}\n")
+    (folder / "gb_companies_house-20261001-SYN00001.manifest.json").write_text("{}")
+    (folder / "gb_companies_house-20261001-SYN00002.ftm.jsonl").write_text("")
+    result = spike(tmp_path)
+    names = sorted(path.name for path in folder.iterdir())
+    assert names == [
         "gb_companies_house-20261001-SYN00002.ftm.jsonl",
-        "gb_companies_house-20261021-SYN00001.ftm.jsonl",
-        "gb_companies_house-20261021-SYN00001.manifest.json",
+        result.records_path.name,
+        manifest_path(result.records_path).name,
     ]
 
 
 def test_an_unknown_company_raises_and_writes_nothing(tmp_path: Path) -> None:
     with pytest.raises(CompanyNotFound, match="SYN00404"):
-        spike(tmp_path / "out", company="SYN00404")
-    assert not (tmp_path / "out").exists()
+        spike(tmp_path, company="SYN00404")
+    assert not (tmp_path / "companies_house").exists()
+
+
+@pytest.mark.parametrize("number", ["../SYN00001", "SYN0000/1", "", "SYN00001-X"])
+def test_a_company_number_that_is_not_letters_and_digits_is_refused(
+    tmp_path: Path, number: str
+) -> None:
+    with pytest.raises(ValueError, match="letters and digits"):
+        spike(tmp_path, company=number)

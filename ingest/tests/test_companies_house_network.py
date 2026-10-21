@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from neonradar_contracts.records import validate_files
+from neonradar_contracts.records import manifest_path, validate_files
 from neonradar_ingest.settings import IngestSettings
 from neonradar_ingest.sources.companies_house.client import CompaniesHouseClient
 from neonradar_ingest.sources.companies_house.spike import run_spike
@@ -29,14 +29,13 @@ def test_the_live_spike_writes_valid_records(tmp_path: Path) -> None:
     company = os.environ.get("CH_SPIKE_COMPANY", "").strip()
     if not company:
         pytest.skip("set CH_SPIKE_COMPANY to the company number to fetch")
-    out = tmp_path / "companies_house"
     try:
         with CompaniesHouseClient(key) as client:
-            result = run_spike(client, company, out)
+            result = run_spike(client, company, root=tmp_path)
         print("\n".join(result.summary()))
         counts, issues = validate_files([result.records_path], strict=True)
         assert [str(issue) for issue in issues] == []
         assert counts["Company"] >= 1
-        assert result.manifest_path.is_file()
+        assert manifest_path(result.records_path).is_file()
     finally:
-        shutil.rmtree(out, ignore_errors=True)
+        shutil.rmtree(tmp_path / "companies_house", ignore_errors=True)

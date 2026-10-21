@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "NeonRadar ingestion: source loaders, spikes and the synthetic generator."
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
-dependencies = ["neonradar-contracts"]
+dependencies = [
+    "neonradar-contracts",
+    "followthemoney>=4.11,<5",
+    "pyyaml>=6,<7",
+]
 
 [tool.uv.sources]
 neonradar-contracts = { workspace = true }

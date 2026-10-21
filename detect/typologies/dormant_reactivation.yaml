@@ -7,7 +7,7 @@ owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
   An account or company that was inactive for a long time suddenly receives and sends large
-  volumes within days, often soon after a change of director, owner or account holder. The
+  volumes within days, sometimes soon after a change of director, owner or account holder. The
   company version is a company left dormant after incorporation that later starts moving large
   sums.
 doc: docs/typologies/dormant-reactivation.md

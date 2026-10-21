@@ -17,11 +17,12 @@ citations:
   - star_puppet_masters_2011
   - fatf_glossary
   - fincen_fin_2006_g014
+  - ffiec_appendix_f
 graph_pattern: >
   One agent LegalEntity with outgoing REPRESENTS relationships to many Companies, or many
   Companies with HAS_ADDRESS (role registered) to the agent's Address; incorporation_date
   values that fall in bursts; the same Persons as directors or secretaries (DIRECTOR_OF, often
-  with is_nominee true, sometimes EMPLOYED_BY the agent); and PAID between Accounts held by
+  with is_nominee true, sometimes EMPLOYED_BY the agent when the agent is an Organization); and PAID between Accounts held by
   those Companies.
 parameters: {}
 metrics: []

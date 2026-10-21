@@ -4,9 +4,11 @@
 
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
+NeonRadar starts from this position (PHASE-1.md 7.2 look-alikes): dormant accounts, dormant companies and ready-made shelf companies are common and lawful; a quiet period followed by activity describes timing, not conduct.
+
 ## What it is
 
-An account or a company that has been quiet for a long time suddenly starts to receive and send large amounts, often soon after a new director, owner or account holder appears.
+An account or a company that has been quiet for a long time suddenly starts to receive and send large amounts. NeonRadar's pattern also looks for a change of director, owner or account holder just before the burst: the sources describe directors or key shareholders replaced shortly after incorporation [fatf_egmont_concealment_2018] (Annex E, indicator 7), and a shelf company's directors resign when it is sold [star_puppet_masters_2011] (p. 37).
 
 The FFIEC red flags for US bank examiners describe the account version: "an account with little activity may suddenly experience large deposit and withdrawal activity" [ffiec_appendix_f]. The FATF and Egmont Group indicators of concealed beneficial ownership describe the company version: legal persons that "have demonstrated a long period of inactivity following incorporation, followed by a sudden and unexplained increase in financial activities" [fatf_egmont_concealment_2018] (Annex E, indicator 4).
 
@@ -16,14 +18,16 @@ The same signature can appear at the start of an account's life. FATF, INTERPOL 
 
 ## How it looks in the graph
 
-In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)) the pattern is:
+In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)), every bank account is an `:Account` node and every payment is a `PAID` relationship between two accounts, with an `amount`, a `currency`, a timestamp `ts` and a `channel`. People (`:Person` nodes) and companies hold accounts through `HOLDS_ACCOUNT`. Directors and owners link to companies through `DIRECTOR_OF` and `OWNS`, each with a `start_date` and an `end_date`, and a company has an `incorporation_date`.
+
+The pattern:
 
 - an `:Account` with no `PAID` relationships, inbound or outbound, for a long gap;
 - then, within days, a burst of inbound and outbound `PAID`, by count or by total amount;
-- often just before the burst, a change on the holder: a new `DIRECTOR_OF` or `OWNS` relationship (its `start_date`), an old one ending (`end_date`), or a new `HOLDS_ACCOUNT` holder;
+- sometimes just before the burst, a change on the holder: a new `DIRECTOR_OF` or `OWNS` relationship (its `start_date`), an old one ending (`end_date`), or a new `HOLDS_ACCOUNT` holder;
 - the company variant: a `:Company` whose `incorporation_date` lies long before its first payment, or a newly incorporated company that receives large sums and passes them on soon afterwards.
 
-The burst itself often has the shape of another typology, such as `fan_in_collection`, `rapid_pass_through` or `fan_out_distribution`.
+The burst itself can have the shape of another typology, such as `fan_in_collection`, `rapid_pass_through` or `fan_out_distribution`.
 
 ```mermaid
 flowchart LR
@@ -34,6 +38,8 @@ flowchart LR
   A -->|"PAID, 2026-03-05"| Y1["Account Y1"]
   A -->|"PAID, 2026-03-06"| Y2["Account Y2"]
 ```
+
+What the graph cannot show: why an account was quiet. A gap may only mean that the loaded data does not cover that period. C2 stores no balance and no dormancy status for an account, only its `opening_date` and `closing_date`. A change of holder, director or owner shows only when the source gives a `start_date` for the new relationship.
 
 ## Red flags the sources list
 
@@ -57,7 +63,7 @@ Many ordinary events wake up a quiet account. NeonRadar's catalog lists these lo
 - a dormant company restarted by new owners, and other genuine acquisitions;
 - student accounts that come back to life at the start of term.
 
-A change of control followed by a burst of activity is more specific than a burst alone, but a genuine takeover produces exactly that sequence. Buying a ready-made shelf company is also an ordinary way to get a company quickly. The Puppet Masters study gives the typical reason as "I need a company now, not in six weeks", and adds that this reason is "losing validity" where setting up a new company takes little more than a simple online form [star_puppet_masters_2011] (p. 38).
+A change of control followed by a burst of activity is more specific than a burst alone, but a genuine takeover produces exactly that sequence. Buying a ready-made shelf company is also an ordinary way to get a company quickly [star_puppet_masters_2011] (p. 38). The Puppet Masters study gives the typical reason as "I need a company now, not in six weeks", and adds that this reason is "losing validity" where setting up a new company takes little more than a simple online form [star_puppet_masters_2011] (p. 38).
 
 ## Can synthetic data show it?
 
@@ -71,8 +77,13 @@ None in the definition file yet. PHASE-1.md 7.2 suggests a quiet gap of 180 days
 
 ## Open questions
 
-- The statement that FATF's 2010 TCSP study covers the sale of shelf companies comes from the research note `docs/research/2026-10-16/aml-domain.md` (section 2, entry j). The build could not open the FATF report (fatf-gafi.org blocks automated clients); confirm the page in a browser.
-- The FFIEC quotes come from the research note (checked 16 October 2026); confirm them in a browser. The Annex E, executive summary and Puppet Masters quotes were checked against the PDFs on 21 October 2026, and the FATF cyber-fraud quotes against a mirror copy of the report.
+- The statement that FATF's 2010 TCSP study covers the sale of shelf companies comes from the research note (section 2, entry j). The build could not open the FATF report (fatf-gafi.org blocks automated clients); confirm the page in a browser.
+- The FFIEC quotes come from the research note (checked 16 October 2026); confirm them in a browser.
+- Quotes that are not in the research note `docs/research/2026-10-16/aml-domain.md` were verified by the builder against the source on 21 Oct 2026; typology researcher to confirm before approval:
+  - Annex E (Egmont copy): "have demonstrated a long period of inactivity following incorporation, …" and "receive large sums of capital funding quickly following incorporation/formation, …" (indicator 4; the research note has a shorter form of the second), "the resignation and replacement of directors or key shareholders shortly after incorporation" (indicator 7), "is not exhaustive" (introduction).
+  - Executive summary (Egmont copy, p. 5): "incorporated company with inactive shareholders, directors, and secretary" and "is left dormant for a longer period …" (also in the glossary).
+  - Puppet Masters: "the purchaser may receive the company's credit and tax history" (p. 37); "may hold a stock of shelf companies, …", "I need a company now, not in six weeks" and "losing validity" (p. 38).
+  - FATF cyber-fraud report (mirror copy): "Rapid or immediate, high or low value transactions after opening of an account, …" (Annex A).
 
 ## Sources
 

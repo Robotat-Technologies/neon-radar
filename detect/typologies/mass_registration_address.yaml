@@ -17,6 +17,7 @@ citations:
   - fatf_tcsp_2010
   - fatf_glossary
   - star_puppet_masters_2011
+  - ffiec_appendix_f
 graph_pattern: >
   An Address with many incoming HAS_ADDRESS relationships with role registered (threshold
   parameter); stronger when Companies registered at that Address pay each other (PAID between

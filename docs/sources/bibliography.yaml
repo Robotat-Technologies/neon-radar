@@ -136,9 +136,10 @@ entries:
     publisher: FATF, INTERPOL and Egmont Group
     year: 2023
     url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/illicit-financial-flows-cyber-enabled-fraud.html
-    extra_urls: []
+    extra_urls:
+      - https://www.cbr.ru/Content/Document/File/156253/IFF.PDF
     verified: 2026-10-15
-    note: "November 2023. Mule accounts, pass-through transactions and account hopping. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+    note: "November 2023. Mule accounts, pass-through transactions and account hopping. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser. Mirror PDF read 2026-10-21 for paragraphs 28-29, Boxes 17 and 23 and Annex A."
   - key: fatf_cyber_fraud_2026
     title: Cyber-Enabled Fraud - Digitalisation and ML/TF/PF Risks
     publisher: FATF
@@ -254,7 +255,7 @@ entries:
     url: https://star.worldbank.org/sites/star/files/puppetmastersv1.pdf
     extra_urls: []
     verified: 2026-10-21
-    note: "About 150 grand corruption cases; beneficial ownership as de facto control, which can be exercised through ownership, contractually or informally (Executive Summary)."
+    note: "About 150 grand corruption cases; beneficial ownership as de facto control, which can be exercised through ownership, contractually or informally (Executive Summary). Typology explainers cite printed page numbers 2, 35-38, 55-56 and 156 (PDF page = printed page + 18), read 2026-10-21."
   # United States
   - key: fincen_fin_2014_a005
     title: "FinCEN Advisory FIN-2014-A005: Update on U.S. Currency Restrictions in Mexico: Funnel Accounts and TBML"

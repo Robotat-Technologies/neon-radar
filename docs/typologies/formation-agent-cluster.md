@@ -17,18 +17,20 @@ What the sources found:
 - In about 150 grand corruption cases reviewed by the Puppet Masters study, where ownership information was available, the corporate vehicle was in the vast majority of cases "established or managed by a professional intermediary" [star_puppet_masters_2011] (p. 2). Interviews with TCSPs for that study "showed that it is not expensive or time-consuming to establish an anonymous shell corporation", with additional services such as "nominee director or shareholder arrangements, filing of any annual documentation, or phone and mail forwarding" [star_puppet_masters_2011] (p. 35).
 - In the FATF and Egmont Group study of 106 cases, "The majority of the case studies involved professional intermediaries", and "approximately half of all intermediaries involved were assessed as having been complicit", which shows that "professionals can be unwitting or negligent in their involvement" [fatf_egmont_concealment_2018] (executive summary, paragraph 6).
 - In that sample, TCSPs were the professionals most often involved in setting up legal persons, legal arrangements and bank accounts, yet they "appear less likely to be the architect of schemes designed to obscure beneficial ownership"; their role "is more likely to be transactional in nature, operating at the behest of a client or other intermediary" [fatf_egmont_concealment_2018] (executive summary, paragraph 6). "When multiple TCSPs were exploited in a single scheme, almost all of the cases involved TCSPs in multiple jurisdictions" [fatf_egmont_concealment_2018] (executive summary, paragraph 7).
-- FATF found that TCSPs "have often been used, wittingly or unwittingly, in the conduct of money laundering activities" [fatf_tcsp_2010], building on its 2006 study of the misuse of corporate vehicles and the role of TCSPs [fatf_corporate_vehicles_2006].
+- FATF found that TCSPs "have often been used, wittingly or unwittingly, in the conduct of money laundering activities" [fatf_tcsp_2010], building on its 2006 study of the misuse of corporate vehicles and the role of TCSPs [fatf_corporate_vehicles_2006]; that is a statement about how a service can be misused, not about any provider.
 - FinCEN notes that agents, also called intermediaries or nominee incorporation services, "can play a central role" in creating and maintaining shell companies, and that incorporators may "provide the shell company with nominees for all offices that appear in public records" [fincen_fin_2006_g014].
 
 ## How it looks in the graph
 
-In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)) the pattern is:
+In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)), people (`:Person`) and organisations, including companies (`:Company`), are legal entities. `REPRESENTS` links an agent to a client, `HAS_ADDRESS` links an entity to an `:Address` with a `role` such as `registered`, `DIRECTOR_OF` links a director to a company, and `EMPLOYED_BY` links a person to an organisation. Companies hold accounts through `HOLDS_ACCOUNT`, and payments are `PAID` relationships between accounts.
+
+The pattern:
 
 - one agent, a `:LegalEntity`, with outgoing `REPRESENTS` relationships (agent to client) to many companies; ICIJ intermediaries arrive with `role = 'intermediary'`;
 - or many companies with `HAS_ADDRESS` (`role = 'registered'`) to the agent's `:Address`;
 - `incorporation_date` values on those companies that fall in bursts;
-- the same persons as directors or secretaries of many of them (`DIRECTOR_OF`, often with `is_nominee = true`), sometimes persons `EMPLOYED_BY` the agent;
-- and, the decisive part, `PAID` between accounts held by those companies (`HOLDS_ACCOUNT`).
+- the same persons as directors or secretaries of many of them (`DIRECTOR_OF`, often with `is_nominee = true`), sometimes persons `EMPLOYED_BY` the agent (when the agent is an `:Organization`);
+- and, what makes the pattern more specific, `PAID` between accounts held by those companies (`HOLDS_ACCOUNT`).
 
 ```mermaid
 flowchart LR
@@ -44,7 +46,7 @@ flowchart LR
   A1 -->|PAID| A2
 ```
 
-Without the payments, the graph shows only that one agent served many clients, which is what agents do.
+What the graph cannot show: why clients chose the agent, what the agent knew about them, or what the companies do. `REPRESENTS` exists only where a source records the agent (for example ICIJ intermediaries); without it, the agent is visible only through a shared address or shared directors. Dates in C2 may be partial, so an `incorporation_date` that gives only a year or a month blurs a burst. Without the payments, the graph shows only that one agent served many clients, which is what agents do.
 
 ## Red flags the sources list
 
@@ -59,7 +61,7 @@ From the FATF and Egmont Group indicators of concealed beneficial ownership [fat
 
 FinCEN adds "Multiple high-value payments or transfers between shell companies with no apparent legitimate business purpose" [fincen_fin_2006_g014].
 
-A red flag is a reason to look closer, not evidence; see [wording](../wording.md), documentation rule 5.
+A red flag is a reason to look closer, not evidence [ffiec_appendix_f]; see [wording](../wording.md), documentation rule 5.
 
 ## Typical false positives
 
@@ -70,7 +72,7 @@ NeonRadar's catalog lists these look-alikes:
 - ready-made companies formed in batches and kept in stock for later sale: service providers "may hold a stock of shelf companies, purchased in bulk from a company wholesaler" [star_puppet_masters_2011] (p. 38);
 - professional directors and company secretaries who hold many appointments.
 
-The FATF and Egmont Group found TCSPs less likely to design schemes than to carry out a client's instructions [fatf_egmont_concealment_2018] (executive summary, paragraph 6), and most shell companies are formed for legitimate purposes [fincen_fin_2006_g014]. NeonRadar therefore treats a large client list as the normal state of a formation agent, not as a signal.
+Forming companies for many clients is what a formation agent does [fatf_glossary], and most shell companies are formed for legitimate purposes [fincen_fin_2006_g014]. NeonRadar therefore treats a large client list as the normal state of a formation agent, not as a signal.
 
 ## Can synthetic data show it?
 
@@ -84,9 +86,13 @@ None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A d
 
 ## Open questions
 
-- The FATF 2010 TCSP study and the 2006 corporate vehicles study could not be opened by the build (fatf-gafi.org blocks automated clients); the statements citing them follow the research note `docs/research/2026-10-16/aml-domain.md` and the bibliography notes. Check them in a browser; quote the 2006 study only after a manual download.
+- The FATF 2010 TCSP study and the 2006 corporate vehicles study could not be opened by the build (fatf-gafi.org blocks automated clients); the statements citing them follow the research note and the bibliography notes. Check them in a browser; quote the 2006 study only after a manual download.
 - Which sources NeonRadar loads in Phase 2 record the agent that formed a company (beyond ICIJ intermediaries) is not settled; without that link, the address and shared-director signals carry the pattern.
-- The Annex E, executive summary, FinCEN and Puppet Masters quotes were checked against the sources on 21 October 2026.
+- Quotes that are not in the research note `docs/research/2026-10-16/aml-domain.md` were verified by the builder against the source on 21 Oct 2026; typology researcher to confirm before approval:
+  - Puppet Masters: "established or managed by a professional intermediary" (p. 2); "showed that it is not expensive or time-consuming to establish an anonymous shell corporation" and "nominee director or shareholder arrangements, …" (p. 35); "may hold a stock of shelf companies, …" (p. 38).
+  - Executive summary (Egmont copy): "approximately half of all intermediaries involved were assessed as having been complicit", "professionals can be unwitting or negligent in their involvement", "appear less likely to be the architect of schemes …" and "is more likely to be transactional in nature, …" (paragraph 6); "When multiple TCSPs were exploited in a single scheme, …" (paragraph 7).
+  - FinCEN FIN-2006-G014 (web page): "can play a central role".
+  - Annex E (Egmont copy): "is not exhaustive" (introduction); "request the formation of complex company structures without sufficient business rationale" (indicator 6); "the resignation and replacement of directors or key shareholders shortly after incorporation" (indicator 7); "may be 'mass' nominees …" (indicator 10); "Address of mass registration (usually the address of a TCSP …)" (indicator 11; the research note has a shorter form); "involves two legal persons with similar or identical directors, …" (indicator 22).
 
 ## Sources
 
@@ -94,5 +100,6 @@ None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A d
 - [fatf_egmont_concealment_2018] FATF and Egmont Group, *Concealment of Beneficial Ownership*, 2018. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Concealment-beneficial-ownership.html>
 - [fatf_glossary] FATF, *FATF Glossary (web version of the General Glossary)*, living document. <https://www.fatf-gafi.org/glossary/>
 - [fatf_tcsp_2010] FATF, *Money Laundering Using Trust and Company Service Providers*, 2010. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Moneylaunderingusingtrustandcompanyserviceproviders.html>
+- [ffiec_appendix_f] FFIEC, *BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags*, living document. <https://bsaaml.ffiec.gov/manual/Appendices/07>
 - [fincen_fin_2006_g014] FinCEN, *FinCEN Guidance FIN-2006-G014: Potential Money Laundering Risks Related to Shell Companies*, 2006. <https://www.fincen.gov/resources/statutes-regulations/guidance/potential-money-laundering-risks-related-shell-companies>
 - [star_puppet_masters_2011] StAR (World Bank and UNODC), *The Puppet Masters: How the Corrupt Use Legal Structures to Hide Stolen Assets and What to Do About It*, 2011. <https://star.worldbank.org/sites/star/files/puppetmastersv1.pdf>

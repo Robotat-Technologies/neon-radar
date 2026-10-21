@@ -16,12 +16,13 @@ citations:
   - fatf_pml_2018
   - fatf_cyber_fraud_2023
   - fincen_fin_2025_a003
+  - europol_money_muling
 graph_pattern: >
   One Account with outgoing PAID relationships to many distinct Accounts within a short
   window, with similar or round amounts, to recipient Accounts that had no earlier PAID
   relationship with it (and usually none with each other), followed by cash withdrawals
   (PAID with channel cash_withdrawal to a cash_ledger Account) or a second layer of PAID from
-  the recipients. It often follows a fan-in to the same Account.
+  the recipients. It can follow a fan-in to the same Account.
 parameters: {}
 metrics: []
 wording: null

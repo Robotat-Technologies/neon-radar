@@ -4,11 +4,11 @@
 
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
-This explainer uses the terms "shell company" and "nominee" to describe structures. Never use them as a label for a real, named company or person: describe the structure instead (documentation rule 4 in [wording](../wording.md)).
+This explainer uses the terms "shell company" and "nominee" to describe structures. Never use them as a label for a real, named company or person: describe the structure instead (documentation rule 4 in [wording](../wording.md); NeonRadar applies the same rule to people).
 
 ## What it is
 
-Companies own other companies in several layers, often in different countries. The directors or shareholders on the public record are nominees who act for someone else. The natural person who controls the money, the beneficial owner, does not appear in any public record.
+Companies own other companies in several layers, often in different countries [star_puppet_masters_2011] (pp. 35 and 36). The directors or shareholders on the public record are nominees who act for someone else [fatf_egmont_concealment_2018], so the natural person who controls the money, the beneficial owner, does not appear in any public record [fincen_fin_2006_g014].
 
 Two terms from the [glossary](../glossary.md):
 
@@ -20,23 +20,25 @@ What the sources found:
 - In 106 case studies, FATF and the Egmont Group found that "legal persons, principally shell companies, are a key feature in schemes designed to disguise beneficial ownership, while front companies and bearer shares are less frequently exploited" [fatf_egmont_concealment_2018] (executive summary, paragraph 3).
 - "In a majority of cases, the beneficial owner used a combination of layering and direct ownership chains, as well as professional intermediaries and third parties exercising control on their behalf" [fatf_egmont_concealment_2018] (executive summary, paragraph 4).
 - Nominee directors and shareholders "were identified in a large majority of case studies", although "the appointment of nominees is lawful in most countries" [fatf_egmont_concealment_2018] (executive summary, paragraph 5).
-- In the vast majority of about 150 grand corruption cases reviewed by the Puppet Masters study, "a corporate vehicle was misused to hide the money trail", and the vehicle was "a company or corporation" [star_puppet_masters_2011] (p. 2). Shell companies used this way are "generally used in combination with additional mechanisms", including "adding layers of corporate vehicles" and placing the beneficial owners or their identifying information in another jurisdiction [star_puppet_masters_2011] (pp. 35 and 36).
+- In the vast majority of about 150 grand corruption cases reviewed by the Puppet Masters study, "a corporate vehicle was misused to hide the money trail", and the vehicle was most often "a company or corporation" [star_puppet_masters_2011] (p. 2). Shell companies used this way are "generally used in combination with additional mechanisms", including "adding layers of corporate vehicles" and placing the beneficial owners or their identifying information in another jurisdiction [star_puppet_masters_2011] (pp. 35 and 36).
 - FinCEN describes incorporators who "provide the shell company with nominees for all offices that appear in public records" [fincen_fin_2006_g014].
-- FATF found that trust and company service providers (TCSPs) "have often been used, wittingly or unwittingly, in the conduct of money laundering activities" [fatf_tcsp_2010], building on its 2006 study of the misuse of corporate vehicles [fatf_corporate_vehicles_2006].
+- FATF found that trust and company service providers (TCSPs) "have often been used, wittingly or unwittingly, in the conduct of money laundering activities" [fatf_tcsp_2010], building on its 2006 study of the misuse of corporate vehicles [fatf_corporate_vehicles_2006]; that is a statement about how a service can be misused, not about any provider.
 - FATF's 2023 guidance explains how countries should put the revised Recommendation 24 on the beneficial ownership of legal persons into practice, including nominee arrangements and indirect ownership and control [fatf_bo_legal_persons_2023].
 
 ## How it looks in the graph
 
-In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)) the pattern is:
+In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)), people (`:Person`) and companies (`:Company`) are legal entities. `OWNS` links an owner to what it owns, with share bounds `share_pct_min` and `share_pct_max`; `CONTROLS` links a controller without ownership; `DIRECTOR_OF` links a director to a company, with `is_nominee` when the source says so. Every company has a `jurisdiction`.
 
-- an `OWNS` chain of two or more company layers above the subject, for example `(owner)-[:OWNS]->{2,6}(subject)`, often with companies in different `jurisdiction`s;
+The pattern:
+
+- an `OWNS` chain with two or more company layers above the subject: counted in hops from the top owner (a person or a company), `(top)-[:OWNS]->{3,7}(subject)` passes through two to six intermediate companies, which are the layers; often with companies in different `jurisdiction`s;
 - a chain that ends at a `:Person`, at a company with no recorded owner, or loops back on itself;
 - nominee directorships (`DIRECTOR_OF` with `is_nominee = true`), or directors with many appointments across unrelated companies (see the typology `recycled_directors`);
 - companies in the chain that move money (`HOLDS_ACCOUNT` and `PAID`) but show no payroll or supplier payments;
 - `CONTROLS` relationships, which give control without ownership.
 
 ```mermaid
-flowchart BT
+flowchart TD
   P["Person"] -->|OWNS| L2["Company, layer 2, jurisdiction C"]
   L2 -->|OWNS| L1["Company, layer 1, jurisdiction B"]
   L1 -->|OWNS| S["Subject company, jurisdiction A"]
@@ -44,6 +46,8 @@ flowchart BT
   N -->|"DIRECTOR_OF, is_nominee"| L1
   S -->|HOLDS_ACCOUNT| A["Account"]
 ```
+
+What the graph cannot show: staff, premises and real business activity, which several red flags below depend on. C2 stores a company's `sector`, but no employee count and no type of premises. `is_nominee` is set only when the source says that a director is a nominee, so a missing value does not mean that the director is not one.
 
 ## Red flags the sources list
 
@@ -88,8 +92,13 @@ None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A d
 
 ## Open questions
 
-- The FATF 2010 and 2023 reports and the 2006 corporate vehicles study could not be opened by the build (fatf-gafi.org blocks automated clients). The statements citing them follow the research note `docs/research/2026-10-16/aml-domain.md` and the bibliography notes; the 2006 study should be quoted only after a manual download. Check them in a browser.
-- The FinCEN, Annex E, executive summary and Puppet Masters quotes were checked against the sources on 21 October 2026.
+- The FATF 2010 and 2023 reports and the 2006 corporate vehicles study could not be opened by the build (fatf-gafi.org blocks automated clients). The statements citing them follow the research note and the bibliography notes; the 2006 study should be quoted only after a manual download. Check them in a browser.
+- The Europol quote ("strawmen that appear on the paperwork, …") is taken from the glossary, where M1.10a checked it against the report on 21 October 2026; this builder did not re-read it.
+- Quotes that are not in the research note `docs/research/2026-10-16/aml-domain.md` were verified by the builder against the source on 21 Oct 2026; typology researcher to confirm before approval:
+  - FinCEN FIN-2006-G014 (web page): the definition "non-publicly traded corporations, … little to no independent economic value" (the research note has a shorter form) and "Most shell companies are formed by individuals and businesses for legitimate purposes".
+  - Executive summary (Egmont copy): "legal persons, principally shell companies, … less frequently exploited" (paragraph 3; the research note has a shorter form), "In a majority of cases, the beneficial owner used …" (paragraph 4), "the appointment of nominees is lawful in most countries" (paragraph 5).
+  - Annex E (Egmont copy): "is not exhaustive" (introduction); "may be 'mass' nominees …" and "informal nominees, such as children, spouses, relatives or associates who do not appear to be involved in the running of the corporate enterprise" (indicator 10); "listed against the accounts of other legal persons or arrangements, indicating the use of professional nominees" (indicator 4); "Complex corporate structures …" (indicator 8); "No personnel (or only a single person as a staff member)" and "Does not have a physical presence" (indicators 15 and 17); "involves two legal persons with similar or identical directors, …" and "the transfer of (bearer) shares in an off-market sale" (indicator 22).
+  - Puppet Masters: "generally used in combination with additional mechanisms" and "adding layers of corporate vehicles" (pp. 35 and 36); "but only if one has a good grasp on what constitutes 'excessive'" and "will depend on where the corporate vehicle's assets come from …" (p. 55); "to implement perfectly legitimate goals", "three-layer complexity test", "a quick-and-dirty rule of thumb" and "a particularly steep burden of proof" (p. 56).
 
 ## Sources
 

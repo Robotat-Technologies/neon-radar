@@ -4,7 +4,7 @@ from typing import Annotated
 
 import typer
 
-from neonradar_cli import __version__, contracts, doctor
+from neonradar_cli import __version__, contracts, doctor, graph
 
 app = typer.Typer(
     name="neonradar",
@@ -13,6 +13,7 @@ app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(contracts.app, name="contracts")
+app.add_typer(graph.app, name="graph")
 
 
 def _print_version(value: bool) -> None:

@@ -36,10 +36,16 @@ class Neo4jSettings(BaseSettings):
 
 
 def get_driver(settings: Neo4jSettings | None = None) -> Driver:
-    """A neo4j 6.x driver for the configured database; close it after use."""
+    """A neo4j 6.x driver for the configured database; close it after use.
+
+    Driver telemetry is off (guardrail G3), and a connection attempt gives up after 10 s.
+    """
     settings = settings or Neo4jSettings()
     return GraphDatabase.driver(
-        settings.uri, auth=(settings.user, settings.password.get_secret_value())
+        settings.uri,
+        auth=(settings.user, settings.password.get_secret_value()),
+        telemetry_disabled=True,
+        connection_timeout=10.0,
     )
 
 

@@ -7,7 +7,6 @@ beyond; docs/data/spikes/gleif.md).
 """
 
 import re
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -64,6 +63,12 @@ def expected_authority(number: str) -> str:
     return {"SC": "RA000587", "NI": "RA000586"}.get(number[:2], "RA000585")
 
 
+def _checked(lei: str) -> str:
+    if not LEI_RE.fullmatch(lei):
+        raise ValueError(f"{lei!r} is not an LEI (18 letters or digits, then 2 check digits)")
+    return lei
+
+
 @dataclass(frozen=True, slots=True)
 class ParentLink:
     """A record's `direct-parent` or `ultimate-parent` link: a parent, an exception or nothing.
@@ -93,11 +98,6 @@ class SpikeResult:
     publish_date: str | None = None
     urls: list[str] = field(default_factory=list)
 
-    def parents(self) -> Iterator[ParentLink]:
-        """The links of the spike record itself whose parent was fetched."""
-        lei = self.record["id"]
-        return (link for link in self.links if link.child == lei and link.parent is not None)
-
 
 class Gleif:
     """The calls of one spike run over an `HttpClient`; it keeps every URL it fetched."""
@@ -125,21 +125,24 @@ class Gleif:
         return int(body["meta"]["pagination"]["total"]) if body else 0
 
     def link(self, record: dict[str, Any], level: str, follow: bool) -> ParentLink:
-        """Branch on the link GLEIF gives: a parent record, a reporting exception, or none."""
-        child = record["id"]
+        """Branch on the link GLEIF gives: a parent record, a reporting exception, or none.
+
+        Only the presence of a link counts; the paths are built here from the checked LEI, so
+        a URL inside a response is never followed.
+        """
+        child = _checked(record["id"])
         links = record.get("relationships", {}).get(f"{level}-parent", {}).get("links", {})
+        path = f"lei-records/{child}/{level}-parent"
         if "reporting-exception" in links:
-            exception = self.data(links["reporting-exception"])
+            exception = self.data(f"{path}-reporting-exception")
             attributes = exception["attributes"] if exception else None
             return ParentLink(child, level, exception=attributes)
         if "lei-record" not in links and "relationship-record" not in links:
             return ParentLink(child, level)
         if not follow:
             return ParentLink(child, level, reported=True)
-        parent = self.data(links["lei-record"]) if "lei-record" in links else None
-        relationship = (
-            self.data(links["relationship-record"]) if "relationship-record" in links else None
-        )
+        parent = self.data(path) if "lei-record" in links else None
+        relationship = self.data(f"{path}-relationship") if "relationship-record" in links else None
         return ParentLink(child, level, True, parent, relationship)
 
     def join(self, number: str) -> list[dict[str, Any]]:
@@ -163,10 +166,8 @@ def run_spike(client: HttpClient, lei: str, ch_number: str | None = None) -> Spi
     Companies House authority. Raises LookupError for an unknown LEI, ValueError for a
     malformed one and HttpError when GLEIF fails.
     """
-    if not LEI_RE.fullmatch(lei):
-        raise ValueError(f"{lei!r} is not an LEI (18 letters or digits, then 2 check digits)")
     gleif = Gleif(client)
-    record = gleif.data(f"lei-records/{lei}")
+    record = gleif.data(f"lei-records/{_checked(lei)}")
     if record is None:
         raise LookupError(f"GLEIF has no LEI record {lei}")
     result = SpikeResult(record)

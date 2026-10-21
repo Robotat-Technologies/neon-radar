@@ -52,7 +52,7 @@ def test_fetches_the_record_its_parents_their_exceptions_children_and_the_join()
         result = gleif.run_spike(client, CHILD)
     pairs = [(child, level) for child in (CHILD, PARENT, APEX) for level in ("direct", "ultimate")]
     assert [(link.child, link.level) for link in result.links] == pairs
-    assert [link.parent["id"] for link in result.parents() if link.parent] == [PARENT, APEX]
+    assert [link.parent["id"] for link in result.links if link.parent] == [PARENT, APEX]
     assert [link.reported for link in result.links[2:4]] == [True, True]  # not followed
     assert result.links[4].exception and result.links[4].exception["reason"] == "NATURAL_PERSONS"
     assert (result.children, result.join_number) == (3, "ZZ000001")
@@ -60,6 +60,7 @@ def test_fetches_the_record_its_parents_their_exceptions_children_and_the_join()
     assert result.publish_date == "2026-10-21T00:00:00Z"
     assert not any(f"{PARENT}/direct-parent" in path for path in seen)  # one level up: links only
     assert len(seen) == len(result.urls) == 9
+    assert all(url.startswith("https://api.gleif.org/api/v1/lei-records") for url in result.urls)
 
 
 def test_maps_to_c1_records_that_validate_in_strict_mode() -> None:

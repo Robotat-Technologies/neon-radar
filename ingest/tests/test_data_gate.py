@@ -5,6 +5,7 @@ fails gives exit 3, its own message, no request on the mock transport and no fil
 Everything is synthetic: a test profile `uk-test`, a fake `us_ofac_sdn` source.
 """
 
+import json
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -16,7 +17,7 @@ from typer.testing import CliRunner
 
 from neonradar_cli.main import app
 from neonradar_ingest.data import gate, sources
-from neonradar_ingest.data.profiles import load_profile
+from neonradar_ingest.data.profiles import Profile, SourceConfig, load_profile
 from neonradar_ingest.data.project import load_project
 from neonradar_ingest.http import HttpClient, RateLimiter
 
@@ -196,11 +197,29 @@ def test_other_access_rules(data_env: Any) -> None:
             gate.check_real_data(project, tiny, dataset, step=step)
 
 
-def test_a_synthetic_profile_passes_without_checks(
+def test_a_synthetic_profile_passes_only_for_synthetic_data(
     data_env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("CI", "")  # set, even empty: CI
+    demo = load_profile("demo")
+    gate.check_real_data(load_project(), demo)
+    gate.check_real_data(load_project(), demo, "nr_synthetic")
+
+
+def test_a_real_dataset_takes_the_gate_whatever_the_profile_says(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A profile file cannot get here (the model refuses it), but the gate does not rely on it."""
+    data_env.write_project(**(ALLOWED | {"real_data_profiles": ["disguised"]}))
+    data_env.approve_machine()
+    sources = {"us_ofac_sdn": SourceConfig(enabled=True)}
+    disguised = Profile.model_construct(profile="disguised", real_data=False, sources=sources)
+    gate.check_real_data(load_project(), disguised, "us_ofac_sdn")  # every condition passes
     monkeypatch.setenv("CI", "true")
-    gate.check_real_data(load_project(), load_profile("demo"), "us_ofac_sdn")
+    with pytest.raises(gate.RealDataRefused, match="CI is set"):
+        gate.check_real_data(load_project(), disguised, "us_ofac_sdn")
+    with pytest.raises(gate.RealDataRefused, match="CI is set"):
+        gate.check_real_data(load_project(), disguised, "us_ofac_sdn", step="officers")
 
 
 def test_the_real_instance_gate_refuses_while_no_profile_is_allowed(
@@ -226,3 +245,61 @@ def test_the_machine_setting_reads_the_environment_then_dot_env(
     data_env.approve_machine()
     assert gate.machine_approved()
     assert os.environ.get("NR_REAL_DATA_MACHINE") is None
+
+
+def test_a_list_project_yaml_refuses_gets_no_request_without_dataset(
+    data_env: Any, transport: Transport, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """un_sc_sanctions is enabled in the profile but not in access.sanctions_lists."""
+    un = Transport()
+    spec = sources.SourceSpec("un_sc_sanctions", lambda client: [], client=un.client)
+    monkeypatch.setitem(sources._SOURCES, "un_sc_sanctions", spec)
+    data_env.write_profile(
+        "uk-test",
+        real_data=True,
+        sources={"us_ofac_sdn": {"enabled": True}, "un_sc_sanctions": {"enabled": True}},
+    )
+    checked: list[str | None] = []
+    original = gate.check_real_data
+
+    def spy(project: Any, profile: Any, dataset: str | None = None, **kw: Any) -> None:
+        checked.append(dataset)
+        original(project, profile, dataset, **kw)
+
+    monkeypatch.setattr(gate, "check_real_data", spy)
+    result = runner.invoke(app, ["data", "fetch", "--profile", "uk-test"])
+    assert result.exit_code == 0, result.output
+    assert un.requests == [] and len(transport.requests) == 2
+    assert checked == [None, "us_ofac_sdn"]  # every dataset that runs, before any request
+    report = json.loads((files_under(data_env.cache / "reports" / "uk-test"))[0].read_text())
+    assert set(report["datasets"]) == {"us_ofac_sdn"}
+
+
+def test_a_failed_discovery_stops_only_that_dataset(
+    data_env: Any, transport: Transport, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failing(client: HttpClient) -> list[sources.RemoteFile]:
+        client.get("https://lists.example.test/uk")
+        return []
+
+    def down(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    def uk_client() -> HttpClient:
+        return HttpClient("", follow_redirects=False, limiter=RateLimiter(1000),
+                          sleep=lambda _: None, transport=httpx.MockTransport(down))  # fmt: skip
+
+    spec = sources.SourceSpec("gb_fcdo_sanctions", failing, client=uk_client)
+    monkeypatch.setitem(sources._SOURCES, "gb_fcdo_sanctions", spec)
+    data_env.write_profile(
+        "uk-test",
+        real_data=True,
+        sources={"us_ofac_sdn": {"enabled": True}, "gb_fcdo_sanctions": {"enabled": True}},
+    )
+    data_env.write_project(**(ALLOWED | {"sanctions_lists": ["gb_fcdo_sanctions", "us_ofac_sdn"]}))
+    result = runner.invoke(app, ["data", "fetch", "--profile", "uk-test"])
+    assert result.exit_code == 1
+    assert "gb_fcdo_sanctions: stopped: discover: HTTP 503 after retries" in result.output
+    report = json.loads((files_under(data_env.cache / "reports" / "uk-test"))[0].read_text())
+    assert report["datasets"]["gb_fcdo_sanctions"] == {"status": "stopped", "rule": "http"}
+    assert report["datasets"]["us_ofac_sdn"]["status"] == "ok"

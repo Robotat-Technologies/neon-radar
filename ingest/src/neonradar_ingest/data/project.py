@@ -6,7 +6,6 @@ fail closed: no real profile, no data protection documents, no list, no PEP sour
 """
 
 import hashlib
-import os
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -15,7 +14,6 @@ from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 REPO_ROOT = Path(__file__).resolve().parents[4]  # members are installed editable
 DEFAULT_PROJECT_FILE = REPO_ROOT / "docs" / "build" / "project.yaml"
-PROJECT_FILE_VARIABLE = "NR_PROJECT_FILE"
 
 SanctionsList = Literal["gb_fcdo_sanctions", "us_ofac_sdn", "un_sc_sanctions", "eu_fsf"]
 PepSource = Literal["gb_parliament_members", "opensanctions_default"]
@@ -92,8 +90,11 @@ class Project(BaseModel):
 
 
 def project_file() -> Path:
-    """`NR_PROJECT_FILE` when it is set, else docs/build/project.yaml."""
-    named = os.environ.get(PROJECT_FILE_VARIABLE, "").strip()
+    """`NR_PROJECT_FILE` when it is set (the ingest settings object: the environment, then
+    `.env`), else docs/build/project.yaml."""
+    from neonradar_ingest.settings import IngestSettings
+
+    named = IngestSettings().nr_project_file.strip()
     return Path(named) if named else DEFAULT_PROJECT_FILE
 
 

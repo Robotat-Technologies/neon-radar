@@ -8,15 +8,16 @@ dict. Whether an enabled source runs is decided by `project.yaml` (`Project.acce
 
 import re
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, StrictBool, field_validator, model_validator
 
 from neonradar_ingest.data.project import REPO_ROOT, Project, load_project
 
 PROFILES_DIR = REPO_ROOT / "ingest" / "profiles"  # looked up per call, so tests can patch it
 PROFILE_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+RESERVED_NAMES = ("er-bench-small", "er-bench-large", "all-profiles")  # layout's pseudo-profiles
 SYNTHETIC = "nr_synthetic"
 # Every dataset a profile may name, in the order `neonradar ingest build` runs their builders
 # (deliverable 12): synthetic first, Companies House before GLEIF (GLEIF's slice depends on it).
@@ -104,6 +105,8 @@ class Profile(BaseModel):
     def _name(cls, name: str) -> str:
         if not PROFILE_NAME.fullmatch(name):
             raise ValueError(f"{name!r} is not lower-case words joined by hyphens")
+        if name in RESERVED_NAMES:
+            raise ValueError(f"{name!r} is reserved for the data manager's own folders")
         return name
 
     @field_validator("sources")
@@ -116,6 +119,18 @@ class Profile(BaseModel):
             if model is not None:
                 model.model_validate({"enabled": config.enabled, **config.options})
         return sources
+
+    @model_validator(mode="after")
+    def _synthetic_only(self) -> Self:
+        """A synthetic profile enables only synthetic data, so it can never skip the gate."""
+        if not self.real_data:
+            real = [d for d, c in self.sources.items() if c.enabled and d != SYNTHETIC]
+            if real:
+                raise ValueError(
+                    f"real_data is false, so the profile may enable only {SYNTHETIC};"
+                    f" it enables {', '.join(real)}"
+                )
+        return self
 
     def options(self, dataset: str) -> Any:
         """The source's block: its registered model's instance, else a dict."""

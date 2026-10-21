@@ -63,7 +63,7 @@ def test_data_fetch_names_the_missing_loaders(data_env: Any) -> None:
 def test_data_fetch_on_a_synthetic_profile_downloads_nothing(data_env: Any) -> None:
     result = runner.invoke(app, ["data", "fetch", "--profile", "demo"])
     assert result.exit_code == 0, result.output
-    assert "demo is a synthetic profile: nothing to download" in result.output
+    assert "demo has no dataset to download" in result.output
     assert not (data_env.cache / "real").exists()
 
 
@@ -79,6 +79,20 @@ def test_data_status_counts(data_env: Any) -> None:
         "demo (synthetic): 0 record folder(s) with 0 file(s), 0 resolution run(s), 0 label file(s)",
         "DuckDB spill folders left behind: real 0, synthetic 0",
     ]
+    report = reports(data_env, "demo")[0]
+    assert report["downloads"] == {
+        "gleif_lei": {
+            "golden-copy": {
+                "version_count": 1, "file_count": 1, "bytes": 2_000_000, "partial_files": 0,
+                "versions_past_retention": 0, "oldest_days": 0,
+            }
+        }
+    }  # fmt: skip
+    assert report["profiles"] == {
+        "demo": {"record_folders": 0, "record_files": 0, "resolution_runs": 0, "label_files": 0}
+    }
+    assert runner.invoke(app, ["data", "status"]).exit_code == 0
+    assert reports(data_env, "all-profiles")[0]["profile"] == "all-profiles"
 
 
 @pytest.mark.parametrize(
@@ -110,10 +124,11 @@ class Docker:
         out = ""
         if command[1:3] == ["ps", "--all"]:
             out = "c0ffee\n"
+        elif command[1:3] == ["volume", "ls"] and command[-1].startswith("name="):
+            name = command[-1].removeprefix("name=")
+            out = f"{name}\n{name}-copy\n"  # Docker's name filter also matches parts of names
         elif command[1:3] == ["volume", "ls"]:
-            out = "neonradar_neo4j-real-data\n"
-            if command[-1].startswith("name="):  # Docker's name filter also matches parts
-                out += "neonradar_neo4j-real-data-copy\n"
+            out = f"neonradar_{command[-1].rsplit('=', 1)[1]}\n"  # by the Compose volume label
         return subprocess.CompletedProcess(command, 0, stdout=out, stderr="")
 
 
@@ -127,18 +142,22 @@ def test_data_purge_all_real_with_graph(data_env: Any, monkeypatch: pytest.Monke
     assert result.exit_code == 0, result.output
     assert result.output.splitlines() == [
         "purge --all-real: deleted 1 file(s), 10 bytes",
-        "purge --graph: removed 1 real-data container(s) and deleted 1 volume(s); the default"
+        "purge --graph: removed 1 real-data container(s) and deleted 2 volume(s); the default"
         " instance is untouched",
     ]
     project = "label=com.docker.compose.project=neonradar"
+    label = "label=com.docker.compose.volume="
     assert docker.commands == [
         ["docker", "ps", "--all", "--quiet", "--filter", project,
          "--filter", "label=com.docker.compose.service=neo4j-real"],
         ["docker", "rm", "--force", "--volumes", "c0ffee"],
         ["docker", "volume", "ls", "--quiet", "--filter", project,
-         "--filter", "label=com.docker.compose.volume=neo4j-real-data"],
+         "--filter", f"{label}neo4j-real-data"],
         ["docker", "volume", "ls", "--quiet", "--filter", "name=neonradar_neo4j-real-data"],
-        ["docker", "volume", "rm", "neonradar_neo4j-real-data"],
+        ["docker", "volume", "ls", "--quiet", "--filter", project,
+         "--filter", f"{label}neo4j-real-logs"],
+        ["docker", "volume", "ls", "--quiet", "--filter", "name=neonradar_neo4j-real-logs"],
+        ["docker", "volume", "rm", "neonradar_neo4j-real-data", "neonradar_neo4j-real-logs"],
     ]  # fmt: skip
     assert not (data_env.cache / "real").exists()
 
@@ -158,6 +177,12 @@ def test_data_purge_graph_alone_and_docker_failures(
     monkeypatch.setattr(real_graph, "_run", unlabelled)
     result = runner.invoke(app, ["data", "purge", "--graph", "--yes"])
     assert "removed 0 real-data container(s) and deleted 1 volume(s)" in result.output
+
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "elsewhere")
+    result = runner.invoke(app, ["data", "purge", "--graph", "--yes"])
+    assert result.exit_code == 1 and "COMPOSE_PROJECT_NAME is set to another" in result.output
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "neonradar")
+    assert runner.invoke(app, ["data", "purge", "--graph", "--yes"]).exit_code == 0
 
     def broken(command: list[str]) -> subprocess.CompletedProcess[str]:
         raise FileNotFoundError("docker")
@@ -186,16 +211,45 @@ def test_ingest_build_runs_registered_builders_with_their_keys(
     builder = Builder("gleif_lei", build, steps=("slice", "load"), string_keys=("slice_sha256",),
                       list_keys=("lei_headers",))  # fmt: skip
     monkeypatch.setitem(sources._BUILDERS, "gleif_lei", builder)
-    data_env.write_profile("syn-real", real_data=False, sources={"gleif_lei": {"enabled": True}})
-    args = ["ingest", "build", "--profile", "syn-real", "--dataset", "gleif_lei"]
+    data_env.write_profile("uk-test", real_data=True, sources={"gleif_lei": {"enabled": True}})
+    data_env.allow_real("uk-test")
+    args = ["ingest", "build", "--profile", "uk-test", "--dataset", "gleif_lei"]
     result = runner.invoke(app, [*args, "--step", "load"])
     assert result.exit_code == 0, result.output
-    built = reports(data_env, "syn-real")[0]["datasets"]["gleif_lei"]
+    built = reports(data_env, "uk-test")[0]["datasets"]["gleif_lei"]
     assert built == {"status": "ok", "rows": 3, "slice_sha256": "ab" * 32, "lei_headers": ["LEI"]}
     result = runner.invoke(app, [*args, "--step", "index"])
     assert result.exit_code == 2 and "gleif_lei has no step 'index'" in result.output
-    result = runner.invoke(app, ["ingest", "build", "--profile", "syn-real", "--step", "load"])
+    result = runner.invoke(app, ["ingest", "build", "--profile", "uk-test", "--step", "load"])
     assert result.exit_code == 2 and "--step needs --dataset" in result.output
+
+
+def test_ingest_build_gates_every_step_before_any_builder(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The officers step needs access.companies_house_key: available (checked centrally)."""
+    ran: list[tuple[str, ...]] = []
+
+    def build(profile: Any, context: Any) -> BuildResult:
+        ran.append(context.steps)
+        return BuildResult({"rows": 1})
+
+    builder = Builder("gb_companies_house", build, steps=("companies", "psc", "officers"))
+    monkeypatch.setitem(sources._BUILDERS, "gb_companies_house", builder)
+    data_env.write_profile(
+        "uk-test", real_data=True, sources={"gb_companies_house": {"enabled": True}}
+    )
+    data_env.allow_real("uk-test")  # access.companies_house_key stays pending
+    result = runner.invoke(app, ["ingest", "build", "--profile", "uk-test"])
+    assert result.exit_code == 3 and ran == []
+    assert "rule access.companies_house_key" in result.output
+    args = ["ingest", "build", "--profile", "uk-test", "--dataset", "gb_companies_house"]
+    assert runner.invoke(app, [*args, "--step", "officers"]).exit_code == 3
+    result = runner.invoke(app, [*args, "--step", "companies", "--step", "psc"])
+    assert result.exit_code == 0 and ran == [("companies", "psc")]
+    data_env.allow_real("uk-test", companies_house_key="available")
+    assert runner.invoke(app, ["ingest", "build", "--profile", "uk-test"]).exit_code == 0
+    assert ran[-1] == ()  # no --step: every step, in the builder's order
 
 
 def test_ingest_build_refuses_a_real_profile_before_any_builder(

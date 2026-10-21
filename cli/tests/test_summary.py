@@ -12,14 +12,14 @@ from neonradar_cli.summary import SummaryRefused, clean, emit
 @pytest.mark.parametrize(
     ("value", "message"),
     [
-        ({"name": "Petra Marlowe"}, "summary.name: a string under a key that is not allowed"),
+        ({"name": "Testa Holderson"}, "summary.name: a string under a key that is not allowed"),
         ({"first_record": {"id": "syn-off-0101"}}, "summary.first_record.id: a string"),
         ({"status": "x" * 81}, "not a short string"),
         ({"status": "line\nbreak"}, "not a short string"),
         ({"dataset": "Ünïcode"}, "not a short string"),
-        ({"names": ["Petra Marlowe"]}, "a list under a key that is not registered"),
+        ({"names": ["Testa Holderson"]}, "a list under a key that is not registered"),
         ({"headers": ["ok", "x" * 81]}, "a list item that is not a short string"),
-        ({"Petra Marlowe": 1}, "a key that is not a lower-case name"),
+        ({"Testa Holderson": 1}, "a key that is not a lower-case name"),
         ({"kinds_by_value": {"Company": 12}}, "a key that is not a lower-case name"),
         ({"kinds_by_value": {"company": "12"}}, "must be a whole count"),
         ({"rate": float("nan")}, "not a finite number"),
@@ -29,7 +29,7 @@ from neonradar_cli.summary import SummaryRefused, clean, emit
 def test_record_like_values_are_refused(value: dict[str, Any], message: str) -> None:
     with pytest.raises(SummaryRefused, match=message) as refused:
         clean(value)
-    assert "Petra" not in str(refused.value) and "syn-off" not in str(refused.value)
+    assert "Testa" not in str(refused.value) and "syn-off" not in str(refused.value)
 
 
 def test_allowed_values_pass() -> None:
@@ -78,6 +78,6 @@ def test_emit_prints_and_writes_the_report(
 
 def test_emit_refuses_before_writing(data_env: Any) -> None:
     with pytest.raises(SummaryRefused):
-        emit("demo", "data fetch", {"name": "Petra Marlowe"})
+        emit("demo", "data fetch", {"name": "Testa Holderson"})
     assert not (data_env.cache / "reports").exists()
     assert summary.SummaryRefused.exit_code == 1

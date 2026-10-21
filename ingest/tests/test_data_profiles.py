@@ -92,6 +92,11 @@ def test_a_malformed_project_file_fails(data_env: Any) -> None:
             "not a folder under data/fixtures/",
         ),
         ({"sources": {"gleif_lei": {"scope": "slice"}}}, "enabled"),
+        (
+            {"sources": {"gleif_lei": {"enabled": True}}},
+            "real_data is false, so the profile may enable only nr_synthetic; it enables gleif_lei",
+        ),
+        ({"profile": "all-profiles"}, "reserved for the data manager"),
     ],
 )
 def test_profile_validation_errors(data_env: Any, change: dict[str, Any], message: str) -> None:
@@ -144,3 +149,10 @@ def test_record_dirs(data_env: Any) -> None:
         Path(d).is_relative_to(data_env.cache / "real" / "records" / "uk-tiny") for d in dirs
     )
     assert len(dirs) == len(tiny.enabled_sources(project)) == 5
+
+
+def test_a_synthetic_profile_may_list_a_real_dataset_only_disabled(data_env: Any) -> None:
+    data_env.write_profile(
+        "quiet", real_data=False, sources={"gleif_lei": {"enabled": False, "scope": "slice"}}
+    )
+    assert load_profile("quiet").enabled_sources(load_project()) == []

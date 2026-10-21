@@ -85,15 +85,21 @@ def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None
     """Run the gate, then download the current files of every enabled source."""
     from neonradar_cli import redact, summary
     from neonradar_ingest.data import download, gate, sources
+    from neonradar_ingest.data.profiles import SYNTHETIC
 
     project, chosen = project_or_exit(), profile_or_exit(profile)
     failed = 0
     with redact.guard(chosen, "data fetch") as where:
         where.step = "gate"
         gate.check_real_data(project, chosen, dataset)
+        datasets = [slug for slug in selected(project, chosen, dataset) if slug != SYNTHETIC]
+        for slug in datasets:  # every dataset passes the gate before the first request
+            where.dataset = slug
+            gate.check_real_data(project, chosen, slug)
+        where.dataset = None
         report: dict[str, object] = {"profile": chosen.profile, **project.summary_fields()}
         results: dict[str, object] = {}
-        for slug in selected(project, chosen, dataset) if chosen.real_data else []:
+        for slug in datasets:
             where.step, where.dataset = "fetch", slug
             spec = sources.source_spec(slug)
             if spec is None:
@@ -108,8 +114,8 @@ def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None
                 typer.echo(f"{slug}: stopped: {exc}", err=True)
                 results[slug] = {"status": "stopped", "rule": exc.rule}
                 failed += 1
-        if not chosen.real_data:
-            typer.echo(f"{chosen.profile} is a synthetic profile: nothing to download")
+        if not datasets:
+            typer.echo(f"{chosen.profile} has no dataset to download")
         report["datasets"] = results
         summary.emit(chosen, "data fetch", report)
     if failed:
@@ -121,30 +127,60 @@ def status_command(
     profile: Annotated[str | None, typer.Option("--profile", help="Only this profile.")] = None,
 ) -> None:
     """Downloads per dataset and product, and each profile's folders: counts, sizes and ages."""
-    from neonradar_ingest.data import status
+    from neonradar_cli import redact, summary
+    from neonradar_ingest.data import layout, status
     from neonradar_ingest.data.profiles import profile_names
 
     project = project_or_exit()
-    versions = status.downloads(project)
-    days = project.access.real_data_days
-    typer.echo(f"downloads: {len(versions)} version(s); retention {days} day(s)")
-    for v in versions:
-        past = "; past retention" if v.past_retention else ""
-        partial = f"; {v.partial} partial" if v.partial else ""
+    profiles = [profile_or_exit(name) for name in ([profile] if profile else profile_names())]
+    with redact.guard(None, "data status", real=True):  # it lists the real-data folders
+        versions = status.downloads(project)
+        days = project.access.real_data_days
+        typer.echo(f"downloads: {len(versions)} version(s); retention {days} day(s)")
+        downloads: dict[str, dict[str, dict[str, int]]] = {}
+        for v in versions:
+            past = "; past retention" if v.past_retention else ""
+            partial = f"; {v.partial} partial" if v.partial else ""
+            typer.echo(
+                f"  {v.dataset}/{v.product}/{v.version}: {v.files} file(s),"
+                f" {v.bytes / GB:.2f} GB, {v.age_days} day(s) old{partial}{past}"
+            )
+            product = downloads.setdefault(v.dataset, {}).setdefault(v.product, {})
+            for key, value in (("version_count", 1), ("file_count", v.files),
+                               ("bytes", v.bytes), ("partial_files", v.partial),
+                               ("versions_past_retention", int(v.past_retention))):  # fmt: skip
+                product[key] = product.get(key, 0) + value
+            product["oldest_days"] = max(product.get("oldest_days", 0), v.age_days)
+        folders: dict[str, dict[str, int]] = {}
+        for chosen in profiles:
+            s = status.profile_status(chosen)
+            kind = "real data" if s.real_data else "synthetic"
+            typer.echo(
+                f"{s.profile} ({kind}): {s.record_folders} record folder(s) with"
+                f" {s.record_files} file(s), {s.resolution_runs} resolution run(s),"
+                f" {s.label_files} label file(s)"
+            )
+            folders[s.profile] = {
+                "record_folders": s.record_folders,
+                "record_files": s.record_files,
+                "resolution_runs": s.resolution_runs,
+                "label_files": s.label_files,
+            }
+        spill = status.spill_leftovers()
         typer.echo(
-            f"  {v.dataset}/{v.product}/{v.version}: {v.files} file(s), {v.bytes / GB:.2f} GB,"
-            f" {v.age_days} day(s) old{partial}{past}"
+            f"DuckDB spill folders left behind: real {spill['real']},"
+            f" synthetic {spill['synthetic']}"
         )
-    for name in [profile] if profile else profile_names():
-        s = status.profile_status(profile_or_exit(name))
-        kind = "real data" if s.real_data else "synthetic"
-        typer.echo(
-            f"{s.profile} ({kind}): {s.record_folders} record folder(s) with {s.record_files}"
-            f" file(s), {s.resolution_runs} resolution run(s), {s.label_files} label file(s)"
-        )
-    spill = status.spill_leftovers()
-    typer.echo(f"DuckDB spill folders left behind: real {spill['real']}, synthetic "
-               f"{spill['synthetic']}")  # fmt: skip
+        name = profile or layout.ALL_PROFILES
+        report = {
+            "profile": name,
+            **project.summary_fields(),
+            "real_data_days": days,
+            "downloads": downloads,
+            "profiles": folders,
+            "spill_leftovers": spill,
+        }
+        summary.emit(name, "data status", report, echo=False)  # the same counts, as a file
 
 
 @app.command(name="purge")
@@ -200,12 +236,12 @@ def purge_command(
     target = profile_or_exit(profile) if profile is not None else None
     with redact.guard(target, "data purge", real=target is None or target.real_data) as where:
         for scope in chosen:
-            where.step = f"purge {scope}"
+            where.step = f"purge-{scope}"
             paths = purge.targets(scope, project, dataset=dataset, profile=target)
             deleted = purge.delete(paths)
             typer.echo(f"purge --{scope}: deleted {deleted.files} file(s), {deleted.bytes} bytes")
         if graph:
-            where.step = "purge graph"
+            where.step = "purge-graph"
             containers, volumes = real_graph.wipe()
             typer.echo(
                 f"purge --graph: removed {containers} real-data container(s) and deleted"

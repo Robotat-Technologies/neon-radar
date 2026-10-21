@@ -11,6 +11,7 @@ exception with an `exit_code` prints its message, any other propagates with its 
 """
 
 import itertools
+import re
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -20,9 +21,11 @@ from datetime import UTC, datetime
 import typer
 
 from neonradar_ingest.data import layout
+from neonradar_ingest.data.gate import machine_approved
 from neonradar_ingest.data.profiles import Profile
 
 _REFERENCES = itertools.count(1)
+SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}")
 # Typer's own exits and usage errors (typer.Exit is not a TyperException).
 PASS_THROUGH = (typer.Exit, typer.Abort, typer.TyperException, KeyboardInterrupt)
 
@@ -40,25 +43,41 @@ def _exit_code(exc: BaseException) -> int:
     return code if isinstance(code, int) and not isinstance(code, bool) and code > 0 else 1
 
 
+def _safe(value: object) -> str:
+    """`value` if it is a plain name (the summary key pattern, capitals allowed for variable
+    names such as CI or NR_REAL_DATA_MACHINE), else `-`: an attribute could hold a value."""
+    return value if isinstance(value, str) and SAFE_NAME.fullmatch(value) else "-"
+
+
 def _report(exc: Exception, command: str, where: Where) -> None:
     reference = f"err-{next(_REFERENCES)}"
     rule = getattr(exc, "rule", None)
     parts = [
         type(exc).__name__,
-        f"step {getattr(exc, 'step', None) or where.step or '-'}",
-        f"dataset {getattr(exc, 'dataset', None) or where.dataset or '-'}",
-        *([f"rule {rule}"] if rule else []),
+        f"step {_safe(getattr(exc, 'step', None) or where.step)}",
+        f"dataset {_safe(getattr(exc, 'dataset', None) or where.dataset)}",
+        *([f"rule {_safe(rule)}"] if rule else []),
         reference,
     ]
+    line = ", ".join(parts)
     if getattr(exc, "counts_only", False) is True:
-        typer.echo(f"{', '.join(parts)}: {exc}", err=True)
+        typer.echo(f"{line}: {exc}", err=True)
         return
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-    log = layout.logs_dir() / f"{'-'.join(command.split())}-{stamp}.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    with log.open("a", encoding="utf-8") as handle:  # two errors in one second share the file
-        handle.write(f"{reference}\n{''.join(traceback.format_exception(exc))}")
-    typer.echo(f"{', '.join(parts)} (traceback in {layout.logs_dir().name}/{log.name})", err=True)
+    try:
+        if where.step == "gate" and not machine_approved():
+            # The gate runs before anything is written, so on a machine that may not hold
+            # real data nothing goes under data/cache/real/, not even a traceback.
+            typer.echo(f"{line} (no traceback kept on an unapproved machine)", err=True)
+            return
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+        log = layout.logs_dir() / f"{'-'.join(command.split())}-{stamp}.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open("a", encoding="utf-8") as handle:  # errors in one second share the file
+            handle.write(f"{reference}\n{''.join(traceback.format_exception(exc))}")
+    except Exception:  # never let a failed log show the original error or chain it
+        typer.echo(f"{line} (traceback not saved)", err=True)
+        return
+    typer.echo(f"{line} (traceback in {log.parent.name}/{log.name})", err=True)
 
 
 @contextmanager

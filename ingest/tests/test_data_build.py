@@ -129,3 +129,22 @@ def test_the_registry_knows_only_the_data_manager_datasets() -> None:
     with pytest.raises(ValueError, match="not a dataset"):
         sources.register_source(sources.SourceSpec("gleif", lambda client: []))
     assert set(sources.AVAILABLE_IN) == set(sources.DATASETS)
+
+
+def test_a_failed_swap_restores_the_previous_records(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    final = layout.records_dir("uk-tiny", "gleif_lei")
+    run(writer(record("syn-co-1", "A Ltd")), "build-1")
+    real_rename = Path.rename
+
+    def rename(self: Path, target: Any) -> Path:
+        if self.name.endswith(".tmp"):
+            raise OSError("synthetic rename failure")
+        return real_rename(self, target)
+
+    monkeypatch.setattr(Path, "rename", rename)
+    with pytest.raises(OSError, match="synthetic rename failure"):
+        run(writer(record("syn-co-2", "B Ltd")), "build-2")
+    assert "syn-co-1" in (final / "out.ftm.jsonl").read_text(encoding="utf-8")
+    assert [p.name for p in final.parent.iterdir()] == ["gleif_lei"]

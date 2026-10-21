@@ -47,9 +47,20 @@ class DataEnv:
         value = "approved" if approved else ""
         self.env_file.write_text(f"NR_REAL_DATA_MACHINE={value}\n", encoding="utf-8")
 
+    def allow_real(self, profile: str, **access: Any) -> None:
+        """Every gate condition passes for `profile` (synthetic test inputs only)."""
+        self.write_project(real_data_profiles=[profile], data_protection_filed=True, **access)
+        self.approve_machine()
+
+
+def _no_network(*args: Any, **kwargs: Any) -> Any:
+    raise RuntimeError("tests never use the network: give the client an httpx.MockTransport")
+
 
 @pytest.fixture
 def data_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DataEnv:
+    import httpx
+
     from neonradar_ingest.data import gate, layout, profiles
 
     env = DataEnv(
@@ -66,5 +77,8 @@ def data_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DataEnv:
     monkeypatch.setenv("NR_PROJECT_FILE", str(env.project))
     for name in ("CI", "CODESPACES", "NR_REAL_DATA_MACHINE"):
         monkeypatch.delenv(name, raising=False)
+    # Only httpx.MockTransport may answer: the real transports refuse every request.
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", _no_network)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", _no_network)
     env.write_project(**SYNTHETIC_ONLY)
     return env

@@ -114,3 +114,16 @@ def test_run_ids_and_dataset_and_profile_folders(data_env: Any) -> None:
         data_env.cache / "synthetic" / kind / "demo"
         for kind in ("records", "work", "resolution", "labels")
     ]
+
+
+def test_a_real_dataset_always_lands_under_real(data_env: Any) -> None:
+    """Even for a profile that claims to be synthetic (the model refuses such a file)."""
+    from neonradar_ingest.data.profiles import Profile, SourceConfig
+
+    sources = {"gleif_lei": SourceConfig(enabled=True)}
+    disguised = Profile.model_construct(profile="disguised", real_data=False, sources=sources)
+    for function in (layout.records_dir, layout.work_dir):
+        path = function(disguised, "gleif_lei")
+        assert path.is_relative_to(data_env.cache / "real")
+        assert not function(disguised, "nr_synthetic").is_relative_to(data_env.cache / "real")
+    assert layout.reports_dir(layout.ALL_PROFILES) == data_env.cache / "reports" / "all-profiles"

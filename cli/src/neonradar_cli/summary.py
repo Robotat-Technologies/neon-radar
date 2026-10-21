@@ -110,8 +110,12 @@ def emit(
     *,
     string_keys: Iterable[str] = (),
     list_keys: Iterable[str] = (),
+    echo: bool = True,
 ) -> dict[str, Any]:
-    """Check, print and write the summary of `command` (for example "ingest build")."""
+    """Check, print and write the summary of `command` (for example "ingest build").
+
+    `echo=False` only for a command that already printed the same counts as text.
+    """
     cleaned = clean(summary, string_keys=string_keys, list_keys=list_keys)
     text = json.dumps(cleaned, indent=2, ensure_ascii=True)
     folder = layout.reports_dir(profile)
@@ -122,5 +126,6 @@ def emit(
         number += 1
         path = folder / f"{stem}-{number}.json"
     path.write_text(text + "\n", encoding="utf-8")
-    typer.echo(text)
+    if echo:
+        typer.echo(text)
     return cleaned

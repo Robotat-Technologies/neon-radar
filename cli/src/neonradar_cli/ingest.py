@@ -60,8 +60,8 @@ def build_command(
         results: dict[str, object] = {}
         string_keys: set[str] = set()
         list_keys: set[str] = set()
+        plan: list[tuple[str, sources.Builder, tuple[str, ...]]] = []
         for slug in datasets:
-            where.step, where.dataset = "build", slug
             builder = sources.builder_for(slug)
             if builder is None:
                 status = f"not available until {sources.AVAILABLE_IN[slug]}"
@@ -72,13 +72,22 @@ def build_command(
             if unknown:
                 typer.echo(f"FAIL  {slug} has no step {unknown[0]!r}", err=True)
                 raise typer.Exit(code=2)
+            chosen_steps = tuple(name for name in builder.steps if name in steps)
+            # The gate for every dataset and every step that will run, before any builder:
+            # the officers step's access rule (access.companies_house_key) is checked here.
+            where.dataset = slug
+            for name in chosen_steps or builder.steps or (None,):
+                gate.check_real_data(project, chosen, slug, step=name)
+            plan.append((slug, builder, chosen_steps))
+        for slug, builder, chosen_steps in plan:
+            where.step, where.dataset = "build", slug
             result = build_dataset(
                 builder,
                 chosen,
                 project,
                 _validate,
                 run_id=run_id,
-                steps=tuple(name for name in builder.steps if name in steps),
+                steps=chosen_steps,
                 keep_work=keep_work,
                 accept_size=accept_size,
             )

@@ -12,11 +12,18 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-from neonradar_ingest.data.profiles import DATASETS, PROFILE_NAME, Profile, load_profile
+from neonradar_ingest.data.profiles import (
+    DATASETS,
+    PROFILE_NAME,
+    SYNTHETIC,
+    Profile,
+    load_profile,
+)
 from neonradar_ingest.data.project import REPO_ROOT
 
 CACHE_ROOT = REPO_ROOT / "data" / "cache"  # looked up per call, so tests can patch it
 PSEUDO_PROFILES = ("er-bench-small", "er-bench-large")
+ALL_PROFILES = "all-profiles"  # the reports folder of commands about every profile (data status)
 PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+-]{0,99}\Z")  # one folder or file name: no / or ..
 LATEST = "LATEST"
 DECISIONS = "decisions.jsonl"
@@ -74,15 +81,26 @@ def sources_dir(dataset: str, product: str, version: str) -> Path:
     )
 
 
-def records_dir(profile: Profile | str, dataset: str) -> Path:
+def _dataset_tree(profile: Profile | str, dataset: str) -> tuple[str, Path]:
+    """A dataset's tree: `real/` for a real profile, and for every dataset but `nr_synthetic`
+    whatever the profile says, so real records never land under `synthetic/`."""
     name, tree = _profile(profile)
-    return tree / "records" / name / _dataset(dataset)
+    if _dataset(dataset) != SYNTHETIC:
+        tree = real_root()
+    if dataset != SYNTHETIC and not tree.is_relative_to(real_root()):
+        raise AssertionError(f"{dataset} would be written outside data/cache/real/")
+    return name, tree
+
+
+def records_dir(profile: Profile | str, dataset: str) -> Path:
+    name, tree = _dataset_tree(profile, dataset)
+    return tree / "records" / name / dataset
 
 
 def work_dir(profile: Profile | str, dataset: str) -> Path:
     """A build's intermediate files (indexes, slice.csv)."""
-    name, tree = _profile(profile)
-    return tree / "work" / name / _dataset(dataset)
+    name, tree = _dataset_tree(profile, dataset)
+    return tree / "work" / name / dataset
 
 
 def resolution_dir(profile: Profile | str, run_id: str) -> Path:
@@ -120,8 +138,12 @@ def duckdb_tmp_dir(profile: Profile | str, run_id: str) -> Path:
 
 
 def reports_dir(profile: Profile | str) -> Path:
-    """Counts-only summaries of every command: the one folder the agent reads for real data."""
-    return CACHE_ROOT / "reports" / _profile(profile, pseudo=True)[0]
+    """Counts-only summaries of every command: the one folder the agent reads for real data.
+
+    `ALL_PROFILES` names the folder of commands that are about every profile.
+    """
+    name = ALL_PROFILES if profile == ALL_PROFILES else _profile(profile, pseudo=True)[0]
+    return CACHE_ROOT / "reports" / name
 
 
 def logs_dir() -> Path:

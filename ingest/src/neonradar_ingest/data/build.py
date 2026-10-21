@@ -52,7 +52,12 @@ def build_dataset(
         old = final.parent / f".{builder.dataset}.{run_id}.old"
         if final.exists():
             final.rename(old)
-        temporary.rename(final)
+        try:
+            temporary.rename(final)
+        except OSError:
+            if old.exists():
+                old.rename(final)  # the previous records stay in place
+            raise
         shutil.rmtree(old, ignore_errors=True)
         return result
     finally:

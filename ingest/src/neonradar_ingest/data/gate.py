@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
-from neonradar_ingest.data.profiles import Profile
+from neonradar_ingest.data.profiles import SYNTHETIC, Profile
 from neonradar_ingest.data.project import REPO_ROOT, Project
 from neonradar_ingest.settings import IngestSettings
 
@@ -38,8 +38,8 @@ class RealDataRefused(Exception):
 
 
 def ci_variable() -> str | None:
-    """`CI` or `CODESPACES` when either is set to anything but an empty value."""
-    return next((name for name in ("CI", "CODESPACES") if os.environ.get(name, "").strip()), None)
+    """`CI` or `CODESPACES` when either exists in the environment, whatever its value."""
+    return next((name for name in ("CI", "CODESPACES") if name in os.environ), None)
 
 
 def machine_approved(env_file: Path | None = None) -> bool:
@@ -101,8 +101,12 @@ def _refuse_first(checks: list[Condition]) -> None:
 def check_real_data(
     project: Project, profile: Profile, dataset: str | None = None, *, step: str | None = None
 ) -> None:
-    """Raise `RealDataRefused` on the first failing condition; a synthetic profile passes."""
-    if not profile.real_data:
+    """Raise `RealDataRefused` on the first failing condition.
+
+    Only a synthetic profile with no dataset or `nr_synthetic` passes unchecked: a real dataset
+    always takes every check, whatever the profile says.
+    """
+    if not profile.real_data and dataset in (None, SYNTHETIC):
         return
     if dataset is not None:
         refusal = project.access_refusal(dataset, step)

@@ -25,6 +25,10 @@ app = typer.Typer(
     help="NeonRadar: local-first graph investigation for AML and anti-corruption work.",
     no_args_is_help=True,
     add_completion=False,
+    # Never print local variables (they can hold record values) and no Rich tracebacks: typer
+    # 0.27.3 defaults to pretty_exceptions_enable=True, pretty_exceptions_show_locals=False.
+    pretty_exceptions_enable=False,
+    pretty_exceptions_show_locals=False,
 )
 app.add_typer(api.app, name="api")
 app.add_typer(contracts.app, name="contracts")

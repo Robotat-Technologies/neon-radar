@@ -25,6 +25,8 @@ class IngestSettings(BaseSettings):
 
     ch_api_key: SecretStr | None = None
     nr_real_data_machine: str = ""
+    nr_project_file: str = ""  # another project.yaml: tests and acceptance commands only (M2.2)
+    compose_project_name: str = ""  # Docker Compose's own override; purge --graph checks it
 
     def companies_house_key(self) -> str | None:
         key = self.ch_api_key.get_secret_value().strip() if self.ch_api_key else ""

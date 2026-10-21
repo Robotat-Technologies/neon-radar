@@ -2,11 +2,12 @@
 
 `fetch(spec, client)` writes each file as `<name>.part` in
 `layout.sources_dir(dataset, product, version)`, resumes it with an HTTP `Range` request when
-the server sent `Accept-Ranges: bytes` (any reply but 206 restarts the file), renames it when
-complete, checks the size and SHA-256 when the spec gives them, and records it in the version
-folder's `download.json`. URLs are stored without their query string (the EU download token).
-After a cut connection it retries with backoff up to three times, then stops that dataset and
-keeps the partial file for the next fetch (2.7). The two newest complete versions of each
+the server sent `Accept-Ranges: bytes` (any reply but a 206 that continues the part exactly
+restarts the file), renames it when complete, checks the size and SHA-256 when the spec gives
+them, and records it in the version folder's `download.json`. URLs are stored without their
+query string (the EU download token). After a cut connection it retries with backoff up to
+three times, then stops that dataset and keeps the partial file for the next fetch (2.7); a
+failed discovery stops only that dataset too. The two newest complete versions of each
 dataset and product are kept; older ones are deleted after a successful download.
 """
 
@@ -32,6 +33,7 @@ CHUNK = 1 << 20
 RETRIES = 3
 KEEP = 2  # complete versions kept per dataset and product
 RECORD = "download.json"
+RESERVED_ENDINGS = (".part", ".part.json", ".tmp")  # partial files and atomic writes
 
 
 class DownloadError(Exception):
@@ -85,10 +87,30 @@ def _complete(folder: Path, record: dict[str, Any], remote: RemoteFile) -> bool:
     return entry is not None and path.is_file() and path.stat().st_size == entry.get("size")
 
 
+def _encoded(response: httpx.Response) -> bool:
+    return response.headers.get("Content-Encoding", "").strip().lower() not in ("", "identity")
+
+
+def _continues(response: httpx.Response, offset: int, meta: dict[str, Any]) -> bool:
+    """A 206 that continues the part exactly: same start, same file, no content encoding."""
+    etag, stored = response.headers.get("ETag"), meta.get("etag")
+    return (
+        response.status_code == 206
+        and response.headers.get("Content-Range", "").startswith(f"bytes {offset}-")
+        and not (etag and stored and etag != stored)
+        and not _encoded(response)
+    )
+
+
 def _stream(
     client: HttpClient, remote: RemoteFile, part: Path, meta_path: Path, counts: Counter[str]
 ) -> dict[str, Any]:
-    """One attempt: resume or restart `part`; return the response's validators."""
+    """One attempt: resume or restart `part`; return the response's validators.
+
+    A Range request answered with anything but a 206 that continues the part exactly (a 200,
+    a 416, a 206 from another offset or of another file, an encoded body) deletes the part and
+    asks again without a range.
+    """
     meta = _read_json(meta_path) if part.exists() else {}
     offset = part.stat().st_size if part.exists() else 0
     headers = {"Accept-Encoding": "identity"}  # the file as published: byte ranges stay exact
@@ -96,23 +118,32 @@ def _stream(
         headers["Range"] = f"bytes={offset}-"
         if meta.get("etag") or meta.get("last_modified"):
             headers["If-Range"] = meta.get("etag") or meta["last_modified"]
+    restart = False
     with client.stream("GET", remote.url, headers=headers) as response:
-        if response.status_code == 206 and "Range" in headers:
+        if "Range" in headers:
+            restart = not _continues(response, offset, meta)
             mode = "ab"
-            counts["files_resumed"] += 1
         elif response.status_code == 200:
             mode = "wb"
+            ranges = response.headers.get("Accept-Ranges", "").strip().lower()
             meta = {
-                "accept_ranges": response.headers.get("Accept-Ranges", "").strip().lower(),
+                "accept_ranges": "none" if _encoded(response) else ranges,  # never resume those
                 "etag": response.headers.get("ETag"),
                 "last_modified": response.headers.get("Last-Modified"),
             }
             _write_json(meta_path, meta)
         else:
             raise DownloadError(f"{remote.name}: HTTP {response.status_code}", "http")
-        with part.open(mode) as handle:
-            for chunk in response.iter_bytes():  # as received, so a cut keeps what arrived
-                handle.write(chunk)
+        if not restart:
+            counts["files_resumed"] += mode == "ab"
+            with part.open(mode) as handle:
+                for chunk in response.iter_bytes():  # as received, so a cut keeps what arrived
+                    handle.write(chunk)
+    if restart:
+        part.unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
+        counts["files_restarted"] += 1
+        return _stream(client, remote, part, meta_path, counts)  # no part now: no Range
     return meta
 
 
@@ -196,7 +227,15 @@ def fetch(
     """Download the current version of every product of `spec`; return counts and versions."""
     counts: Counter[str] = Counter()
     groups: dict[tuple[str, str], list[RemoteFile]] = {}
-    for remote in spec.discover(client):
+    try:
+        found = spec.discover(client)
+    except HttpError as exc:  # stop this dataset only; the message would carry the URL
+        status = f"HTTP {exc.status}" if exc.status else "no response"
+        raise DownloadError(f"discover: {status} after retries", "http") from None
+    for remote in found:
+        layout.safe_name("file name", remote.name)
+        if remote.name == RECORD or remote.name.endswith(RESERVED_ENDINGS):
+            raise DownloadError(f"{remote.name}: a file name the data manager uses itself", "name")
         groups.setdefault((remote.product, remote.version), []).append(remote)
     products: dict[str, dict[str, Any]] = {}
     for (product, version), remotes in sorted(groups.items()):
@@ -204,7 +243,6 @@ def fetch(
         folder.mkdir(parents=True, exist_ok=True)
         record = _read_json(folder / RECORD) or {"files": []}
         for remote in remotes:
-            layout.safe_name("file name", remote.name)
             if _complete(folder, record, remote):
                 counts["files_skipped"] += 1
                 continue

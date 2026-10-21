@@ -106,13 +106,21 @@ def test_query_strings_are_never_written(data_env: Any) -> None:
     assert download.stored_url("https://u:p@x.test/a.zip?t=1#f") == "https://x.test/a.zip"
 
 
+def partial(start: int, headers: dict[str, str] | None = None, body: bytes = BODY) -> Handler:
+    """A 206 with the rest of the body from `start`, and a Content-Range saying so."""
+    content_range = {"Content-Range": f"bytes {start}-{len(body) - 1}/{len(body)}"}
+    return lambda request: httpx.Response(
+        206, content=body[start:], headers=content_range | (headers or {})
+    )
+
+
 def test_resume_after_a_cut_connection_with_206(data_env: Any) -> None:
     ranges = {"Accept-Ranges": "bytes", "ETag": '"v1"'}
 
     def rest(request: httpx.Request) -> httpx.Response:
         assert request.headers["Range"] == "bytes=4000-"
         assert request.headers["If-Range"] == '"v1"'
-        return httpx.Response(206, content=BODY[4000:])
+        return partial(4000, {"ETag": '"v1"'})(request)
 
     server = Server(cut(4000, ranges), rest)
     counts = fetch(spec(remote(size=len(BODY))), server.client(), sleep=no_sleep)
@@ -121,12 +129,34 @@ def test_resume_after_a_cut_connection_with_206(data_env: Any) -> None:
     assert not list(folder().glob("*.part*"))
 
 
-def test_a_reply_other_than_206_restarts_the_file(data_env: Any) -> None:
-    server = Server(cut(4000, {"Accept-Ranges": "bytes"}), full())
+@pytest.mark.parametrize(
+    "reply",
+    [
+        full(),  # a 200 to a Range request
+        lambda request: httpx.Response(416),
+        partial(0),  # a 206 that starts again from byte 0
+        partial(4000, {"ETag": '"v2"'}),  # a 206 of another version of the file
+        partial(4000, {"Content-Encoding": "x-synthetic"}),  # an encoded 206
+    ],
+    ids=["200", "416", "206-from-0", "206-other-etag", "206-encoded"],
+)
+def test_a_reply_that_does_not_continue_the_part_restarts_without_a_range(
+    data_env: Any, reply: Handler
+) -> None:
+    server = Server(cut(4000, {"Accept-Ranges": "bytes", "ETag": '"v1"'}), reply, full())
     counts = fetch(spec(remote(size=len(BODY))), server.client(), sleep=no_sleep)
     assert server.requests[1].headers["Range"] == "bytes=4000-"
+    assert "Range" not in server.requests[2].headers
     assert (folder() / "list.xml").read_bytes() == BODY
-    assert counts.get("files_resumed", 0) == 0
+    assert (counts.get("files_resumed", 0), counts["files_restarted"]) == (0, 1)
+
+
+def test_an_encoded_download_is_never_resumed(data_env: Any) -> None:
+    encoded = {"Accept-Ranges": "bytes", "Content-Encoding": "x-synthetic"}
+    server = Server(cut(4000, encoded), full())
+    fetch(spec(remote()), server.client(), sleep=no_sleep)
+    assert "Range" not in server.requests[1].headers
+    assert (folder() / "list.xml").read_bytes() == BODY
 
 
 def test_without_accept_ranges_the_file_restarts_without_a_range(data_env: Any) -> None:
@@ -137,7 +167,11 @@ def test_without_accept_ranges_the_file_restarts_without_a_range(data_env: Any) 
 
 
 def test_a_connection_that_keeps_failing_keeps_the_partial_file(data_env: Any) -> None:
-    server = Server(*[cut(1000, {"Accept-Ranges": "bytes"})] * 4)
+    def again(request: httpx.Request) -> httpx.Response:  # continues, then cuts at once
+        headers = {"Content-Range": f"bytes 1000-{len(BODY) - 1}/{len(BODY)}"}
+        return httpx.Response(206, stream=Cut(BODY[1000:], 0), headers=headers)
+
+    server = Server(cut(1000, {"Accept-Ranges": "bytes"}), again, again, again)
     with pytest.raises(DownloadError, match="failed 4 times") as failed:
         fetch(spec(remote()), server.client(), sleep=no_sleep)
     assert failed.value.rule == "network"
@@ -201,3 +235,23 @@ def test_rotation_keeps_two_versions_per_product(data_env: Any) -> None:
 def test_file_names_must_be_plain(data_env: Any) -> None:
     with pytest.raises(ValueError, match="file name"):
         fetch(spec(remote(name="../escape.xml")), Server(full()).client())
+
+
+def test_a_failed_discovery_or_a_reserved_name_stops_the_dataset(data_env: Any) -> None:
+    def discover(client: HttpClient) -> list[RemoteFile]:
+        client.get("https://files.example.test/index")
+        return []
+
+    server = Server(*[lambda request: httpx.Response(503)] * 4)
+    with pytest.raises(DownloadError, match="discover: HTTP 503 after retries") as failed:
+        fetch(SourceSpec("us_ofac_sdn", discover), server.client())
+    assert "files.example.test" not in str(failed.value)
+    for name in ("download.json", "list.xml.part", "list.xml.part.json", "list.xml.tmp"):
+        with pytest.raises(DownloadError, match="a file name the data manager uses"):
+            fetch(spec(remote(name=name)), Server().client())
+
+
+def test_the_real_transport_is_refused_in_tests(data_env: Any) -> None:
+    client = HttpClient("", follow_redirects=False, limiter=RateLimiter(1000), retries=0)
+    with pytest.raises(RuntimeError, match="tests never use the network"):
+        client.get("https://files.example.test/list.xml")

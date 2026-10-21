@@ -94,10 +94,12 @@ def _prune(root: Path) -> None:
 
 def delete(paths: list[Path]) -> Deleted:
     """Delete every path (file or folder) under `data/cache/`; count files and bytes."""
-    cache = layout.CACHE_ROOT.absolute()
+    # Lexical containment (normpath removes `..` without following links), so a symbolic link
+    # to an encrypted volume inside the cache still counts as inside; it is emptied, not followed.
+    cache = Path(os.path.normpath(layout.CACHE_ROOT.absolute()))
     deleted = Deleted()
     for path in paths:
-        if not path.absolute().is_relative_to(cache):
+        if not Path(os.path.normpath(path.absolute())).is_relative_to(cache):
             raise ValueError(f"{path} is outside {cache}: not deleted")
         if path.is_symlink() or path.exists():
             _remove(path, deleted)

@@ -5,6 +5,7 @@ description = "NeonRadar graph: Neo4j client, schema migrations and the record l
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
 dependencies = [
+    "followthemoney>=4.11,<5",
     "neo4j>=6.4,<7",
     "neonradar-contracts",
     "pydantic-settings>=2.16,<3",

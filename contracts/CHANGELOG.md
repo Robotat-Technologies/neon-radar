@@ -31,3 +31,34 @@ The spec's rules are kept; these say how the validator reads them.
 - **Patterns** end with `\Z`, so a value with a trailing newline fails.
 - **Manifest:** `source.retrieved_at` is a UTC timestamp like `created_at`, and `dataset`, `licence.id` and `synthetic` must agree with `contracts/datasets.yaml`.
 - **`nr.v`** is the contract's major and minor version: `"1.0"` for every 1.0.x release; a minor release adds its value and keeps accepting the older ones.
+
+### C2: Graph schema 1.0.0
+
+- The graph schema: node labels that mirror the FtM hierarchy, flag labels from source data, 19 relationship types, common properties, and the migration `graph/schema/migrations/0001_init.cypher` with 22 uniqueness constraints and 7 indexes ([C2-graph-schema.md](C2-graph-schema.md)).
+- The mapping as data in `neonradar_contracts.graph`; `neonradar_graph.mapping` turns C1 records into loader rows, and `neonradar graph migrate` applies the migrations.
+
+#### Changed from `docs/build/PHASE-1.md` 5.2 (tech lead sign-off at Gate 1)
+
+- **Flags:** `:PEP` is set by `role.pep` and by any sub-topic `role.pep.*`, and `:RCA` by `role.rca` and `role.rca.*`; `:Sanctioned` only by the exact topic `sanction` (`sanction.linked`, `sanction.control` and `sanction.counter` do not mean the entity is sanctioned). The spec named only the three exact topics. Taken by the orchestrating session on the operator's standing instruction (OD-10).
+
+#### Clarifications of 5.2 (tech lead sign-off at Gate 1)
+
+The spec's tables are kept; these say how the mapping reads them.
+
+- **Ownership:** `HOLDS_ACCOUNT` (asset is a `BankAccount` in the load) wins over `CONSOLIDATES` (`nr.consolidation` set), which wins over `OWNS`.
+- **Values:** a STRING or FLOAT graph property takes the first value in FtM's stored value order; LIST properties keep every value; absent values are left out.
+- **Person** gets exactly the three properties of its row; Organization and PublicBody get the Company properties.
+- **`:Synthetic`** is also set on `:Sanction` nodes, so invariant I2 holds for every node that has `synthetic`.
+- **`caption`** is the record's own caption, else FtM's caption, which falls back to the schema label, so it is never empty.
+- **PAID** stores no payer or beneficiary; holders are found through `HOLDS_ACCOUNT`.
+- **Skipped with a `MappingIssue`, failing a strict load:** an edge record with other than one source and one target value; an endpoint in the load without the required label; `addressEntity` on a record that is not a `LegalEntity`; a duplicate id.
+- **Not mapped in v1:** the references `parent`, `riskSource`, `BankAccount.bank`, `Position.organization`, `Payment.payer`, `Payment.beneficiary`, `Payment.contract`, `Payment.project` and `proof`; on `HOLDS_ACCOUNT` and `CONSOLIDATES`, the Ownership's `percentage`, `ownershipType`, `nr.natures_of_control` and `nr.share_pct_*`; every other FtM property that `neonradar_contracts.graph` does not name; the record keys `last_change` and `referents`; and `nr.v`, `nr.source_ref` and `nr.synthetic_kind`.
+- **Countries:** every country-typed value is stored as a lower-case code (FtM's country type normalises `GB` to `gb`), in `countries` and in `jurisdiction`, `country` and `nationalities`.
+- **Relationship ids** are unique across all types and never equal a node id (derived ids contain `|`, outside the C1 id alphabet); they do not change after entity resolution.
+- **Migration runner:** the checksum is taken after normalising line endings to LF; the runner also refuses a database that has a migration the folder lacks and a pending migration numbered below an applied one, and waits for new indexes (`db.awaitIndexes`) before recording a migration.
+
+#### Open for Gate 1 sign-off (tech lead)
+
+- **Single-valued identifiers.** `registration_number`, `lei` and `account_number` hold one value (the first, in FtM's stored order), so the range indexes can serve equality lookups; C3 `EntityDetail.identifiers` is `dict[str, list[str]]`. Either keep the graph single-valued and let the API list one value (Phase 2's `:SourceRecord` keeps all), or make them lists in C2 before the freeze.
+- **`PAID.amount` is a FLOAT.** A double is exact to the cent only up to about 10^13 major units; detectors compare amounts after rounding to cents. A Phase 1 alternative would be an INTEGER in minor units.
+- **`MIGRATIONS_DIR` lives in the source tree** (`graph/schema/migrations`, found relative to the package source). That works for the uv workspace's editable install; packaging the migrations as package data is open for M1.9e or later.

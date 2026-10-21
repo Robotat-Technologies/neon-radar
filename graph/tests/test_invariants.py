@@ -1,7 +1,9 @@
 """Integration: the C2 graph invariants I1 to I5 hold after loading demo-mini (PHASE-1.md 5.2,
-M1.9a). I6 needs alerts and joins in M1.9b. Each query returns at most 10 violating ids."""
+M1.9a), and I6 after a detection run on it (M1.9b). Each query returns at most 10 violating
+ids."""
 
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -43,6 +45,12 @@ INVARIANTS = {
            OR (low IS NOT NULL AND high IS NOT NULL AND low > high)
         RETURN elementId(r) AS bad LIMIT 10""",
 }
+# I6 (guardrail G1): no synthetic_scenario alert flags a node that is not synthetic. A node
+# without the property counts as real here, which is stricter than `synthetic = false`.
+I6 = """
+    MATCH (a:Alert {wording_class: 'synthetic_scenario'})-[:FLAGS]->(n)
+    WHERE NOT coalesce(n.synthetic = true, false)
+    RETURN elementId(n) AS bad LIMIT 10"""
 # Each invariant must have something to check on demo-mini, or it would pass vacuously.
 SUBJECTS = """
 RETURN COUNT { (n:Entity) } AS I1, COUNT { (n:Synthetic) } AS I2, COUNT { ()-[:PAID]->() } AS I3,
@@ -90,3 +98,19 @@ def test_demo_mini_flags_match_its_records(demo_mini: Neo4jTarget) -> None:
     assert {row["label"]: row["n"] for row in stored} == dict(flags)
     paid = query(demo_mini, "MATCH ()-[r:PAID]->() RETURN count(r) AS n")[0]["n"]
     assert paid == sum(row.type == "PAID" for row in relationships)
+
+
+def test_invariant_i6_holds_after_a_detection_run(demo_mini: Neo4jTarget, tmp_path: Path) -> None:
+    from neonradar_detect.runner import run  # detection writes the alerts I6 is about
+
+    report = run(demo_mini.driver, demo_mini.database, runs_dir=tmp_path)
+    assert report.alerts, "the run found no alerts, so I6 would pass vacuously"
+    assert query(demo_mini, I6) == []
+    # The check catches a violation: a synthetic_scenario alert flagging a real node.
+    demo_mini.driver.execute_query(
+        "CREATE (:Alert {alert_id: 'alr-00000000000000000000', wording_class:"
+        " 'synthetic_scenario'})-[:FLAGS {role: 'origin'}]->"
+        "(:Entity {id: 'gbch-co-T0000002', synthetic: false})",
+        database_=demo_mini.database,
+    )
+    assert len(query(demo_mini, I6)) == 1

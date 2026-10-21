@@ -1,7 +1,8 @@
 # graph: neonradar_graph
 
 - Purpose: the Neo4j client and settings, schema migrations (`graph/schema/`, frozen at
-  Gate 1), the C1 record loader and, in Phase 2, entity resolution.
+  Gate 1), the C1 record loader and, in Phase 2, entity resolution. `onboarding.py` is the
+  Assignment 1 sandbox: `Onb*` labels only, never part of C2.
 - Owner: graph squad (nr-graph); `graph/schema/` also needs the tech lead.
 - Depends on: C1 records (input) and C2 graph schema (output).
 - Commands: `uv run pytest graph/tests`, `make test-int`, `make up` and `make smoke`.

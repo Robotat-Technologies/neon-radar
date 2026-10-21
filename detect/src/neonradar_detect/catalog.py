@@ -21,6 +21,7 @@ from neonradar_contracts.alert import (
     SLUG_PATTERN,
     VERSION_PATTERN,
 )
+from neonradar_contracts.api import TypologyStatus, TypologyTier
 from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden, find_forbidden_in_name
 
 # The workspace installs members editable, so this is the root of the repository.
@@ -91,8 +92,8 @@ class TypologyFile(_Strict):
     slug: Slug
     name: Text
     version: Annotated[str, Field(pattern=VERSION_PATTERN)]
-    status: Literal["draft", "approved", "retired"]
-    tier: Literal["core", "extended", "explainer_only"]
+    status: TypologyStatus  # the API serves both (C3), so the values live in the contract
+    tier: TypologyTier
     owner: Handle
     approved_by: Handle | None
     summary: Text

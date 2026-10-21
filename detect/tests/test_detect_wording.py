@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from neonradar_contracts.alert import Alert
-from neonradar_detect.catalog import TypologyFile, load_typology
+from neonradar_detect.catalog import TypologyFile, Wording, load_typology
 from neonradar_detect.wording import WordingError, format_metric, render_headline
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,9 +49,21 @@ def test_typology_without_wording() -> None:
 
 
 def test_output_that_fails_the_lint_is_refused() -> None:
-    typology = with_template("{count} suspicious transfers")
+    """The catalog rejects such a template; render_headline still checks its own output."""
+    wording = Wording.model_construct(
+        headline_structural="{cycle_length} suspicious transfers", headline_synthetic="x"
+    )
+    typology = CIRCULAR_FLOW.model_copy(update={"wording": wording})
     with pytest.raises(WordingError, match="refused by the wording lint"):
-        render_headline(typology, "structural_pattern", {"count": 3})
+        render_headline(typology, "structural_pattern", {"cycle_length": 3})
+
+
+def test_structural_headline_never_says_synthetic_scenario() -> None:
+    """B1: a metric value cannot carry the phrase into a structural_pattern headline."""
+    typology = with_template("Funds returned in {currency}")
+    metrics = {"currency": "a synthetic scenario", "count": 1}
+    with pytest.raises(WordingError, match="only a synthetic_scenario headline"):
+        render_headline(typology, "structural_pattern", metrics)
 
 
 def test_a_metric_value_cannot_smuggle_in_forbidden_wording() -> None:
@@ -81,6 +93,14 @@ def test_headline_longer_than_c4_allows_is_refused() -> None:
 )
 def test_format_metric(value: int | float | str, spec: str, text: str) -> None:
     assert format_metric(value, spec) == text
+
+
+def test_format_spec_on_a_string_metric_is_a_wording_error() -> None:
+    with pytest.raises(WordingError, match="does not fit metric value 'EUR'"):
+        format_metric("EUR", ".0f")
+    typology = with_template("Funds returned in {currency:.0f}")
+    with pytest.raises(WordingError):
+        render_headline(typology, "structural_pattern", {"currency": "EUR", "count": 1})
 
 
 @pytest.mark.parametrize("value", [True, float("nan"), float("inf")])

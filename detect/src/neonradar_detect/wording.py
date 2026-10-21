@@ -2,8 +2,10 @@
 
 `render_headline` picks `headline_synthetic` for a `synthetic_scenario` alert and
 `headline_structural` otherwise, fills in the metrics and refuses any result that is too long
-for C4 or matches a forbidden pattern (contracts/wording/forbidden-terms.txt). Number format
-without a format spec: thousands separators, at most two decimals (120000.0 gives 120,000).
+for C4, matches a forbidden pattern (contracts/wording/forbidden-terms.txt), or says "synthetic
+scenario" for an alert that is not a synthetic_scenario. Number format without a format spec:
+thousands separators, at most two decimals (120000.0 gives 120,000). String metrics are codes
+such as a currency; detectors never put names in metrics.
 scripts/check_wording.py lints the string literals of this file in CI.
 """
 
@@ -12,7 +14,7 @@ import string
 from collections.abc import Mapping
 
 from neonradar_contracts.alert import HEADLINE_MAX, WordingClass
-from neonradar_contracts.wording import find_forbidden
+from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden
 from neonradar_detect.catalog import TypologyFile
 
 MetricValue = int | float | str
@@ -27,7 +29,10 @@ def format_metric(value: MetricValue, spec: str = "") -> str:
     if isinstance(value, bool) or (isinstance(value, float) and not math.isfinite(value)):
         raise WordingError(f"metric value {value!r} cannot appear in a headline")
     if spec:
-        return format(value, spec)
+        try:
+            return format(value, spec)
+        except (TypeError, ValueError) as exc:
+            raise WordingError(f"format spec {spec!r} does not fit metric value {value!r}") from exc
     if isinstance(value, int):
         return f"{value:,}"
     if isinstance(value, float):
@@ -60,4 +65,6 @@ def render_headline(
     terms = find_forbidden(headline)
     if terms:
         raise WordingError(f"headline refused by the wording lint (7.1): {'; '.join(terms)}")
+    if wording_class != "synthetic_scenario" and SYNTHETIC_PHRASE.search(headline):
+        raise WordingError(f"only a synthetic_scenario headline may say so (7.1): {headline!r}")
     return headline

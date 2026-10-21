@@ -4,6 +4,8 @@ Not a frozen contract, but alerts refer to it, so its shape is fixed. `TypologyF
 the shape and the rules under it; `load_catalog` reads the folder (an empty or missing folder
 is an empty catalog); `render_index` renders docs/typologies/README.md for
 `neonradar docs typology-index`. Only a typology researcher sets `status: approved`.
+NeonRadar's own words in a file (wording templates, false positives, the slug, and the name of a
+typology with a detector) pass the 7.1 wording lint.
 """
 
 import string
@@ -13,14 +15,18 @@ from typing import Annotated, Literal, Self
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from neonradar_contracts.alert import MODULE_PATTERN, SLUG_PATTERN, VERSION_PATTERN
+from neonradar_contracts.alert import (
+    CITATION_KEY_PATTERN,
+    MODULE_PATTERN,
+    SLUG_PATTERN,
+    VERSION_PATTERN,
+)
+from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden, find_forbidden_in_name
 
 # The workspace installs members editable, so this is the root of the repository.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TYPOLOGY_DIR = REPO_ROOT / "detect" / "typologies"
 INDEX_PATH = REPO_ROOT / "docs" / "typologies" / "README.md"
-# Bibliography keys (7.3): lowercase snake case with at least one underscore.
-CITATION_KEY_PATTERN = r"^[a-z][a-z0-9]*(_[a-z0-9]+)+$"
 HANDLE_PATTERN = r"^@[A-Za-z0-9][A-Za-z0-9-]*(/[A-Za-z0-9._-]+)?$"
 
 Slug = Annotated[str, Field(pattern=SLUG_PATTERN)]
@@ -107,6 +113,10 @@ class TypologyFile(_Strict):
             raise ValueError(
                 "status approved needs approved_by (only a typology researcher sets it)"
             )
+        if self.approved_by is not None and self.approved_by.casefold() == "@todo":
+            raise ValueError("approved_by must name the typology researcher, not @TODO")
+        if self.tier == "explainer_only" and self.detector is not None:
+            raise ValueError("an explainer_only typology has no detector (detector: null)")
         expected_doc = f"docs/typologies/{self.slug.replace('_', '-')}.md"
         if self.doc != expected_doc:
             raise ValueError(f"doc must be {expected_doc}")
@@ -120,6 +130,7 @@ class TypologyFile(_Strict):
                 raise ValueError(f"a typology with a detector needs {', '.join(missing)}")
         if self.wording is not None:
             self._check_wording(self.wording)
+        self._lint()
         return self
 
     def _check_wording(self, wording: Wording) -> None:
@@ -128,8 +139,23 @@ class TypologyFile(_Strict):
             if unknown:
                 raise ValueError(f"wording.{key} uses names that are not metrics: {unknown}")
         # 7.1: "synthetic scenario" only when every entity in the alert is synthetic.
-        if "synthetic scenario" in wording.headline_structural.casefold():
+        if SYNTHETIC_PHRASE.search(wording.headline_structural):
             raise ValueError("wording.headline_structural must not say 'synthetic scenario'")
+        if not wording.headline_synthetic.startswith("Synthetic scenario"):
+            raise ValueError("wording.headline_synthetic must start with 'Synthetic scenario'")
+
+    def _lint(self) -> None:
+        texts = {f"false_positives[{i}]": text for i, text in enumerate(self.false_positives)}
+        if self.wording is not None:
+            texts["wording.headline_structural"] = self.wording.headline_structural
+            texts["wording.headline_synthetic"] = self.wording.headline_synthetic
+        if self.detector is not None:  # alerts say "matches the graph pattern of <name>"
+            texts["name"] = self.name
+        found = {where: find_forbidden(text) for where, text in texts.items()}
+        found["slug"] = find_forbidden_in_name(self.slug)
+        problems = [f"{where}: {'; '.join(terms)}" for where, terms in found.items() if terms]
+        if problems:
+            raise ValueError(f"wording lint (7.1) fails: {' | '.join(problems)}")
 
 
 def load_typology(path: Path) -> TypologyFile:

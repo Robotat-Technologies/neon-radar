@@ -116,11 +116,66 @@ def test_format_specs_are_allowed() -> None:
     TypologyFile.model_validate(data)
 
 
-def test_structural_template_never_says_synthetic_scenario() -> None:
+@pytest.mark.parametrize(
+    "template",
+    ["Synthetic scenario: {cycle_length} transfers", "A synthetic_scenario of {cycle_length}"],
+)
+def test_structural_template_never_says_synthetic_scenario(template: str) -> None:
     data = spec_example()
-    data["wording"]["headline_structural"] = data["wording"]["headline_synthetic"]
+    data["wording"]["headline_structural"] = template
     with pytest.raises(ValueError, match="must not say 'synthetic scenario'"):
         TypologyFile.model_validate(data)
+
+
+def test_synthetic_template_starts_with_synthetic_scenario() -> None:
+    data = spec_example()
+    data["wording"]["headline_synthetic"] = "Funds returned through {cycle_length} transfers"
+    with pytest.raises(ValueError, match="must start with 'Synthetic scenario'"):
+        TypologyFile.model_validate(data)
+
+
+def test_explainer_only_has_no_detector() -> None:
+    with pytest.raises(ValueError, match="explainer_only typology has no detector"):
+        TypologyFile.model_validate({**spec_example(), "tier": "explainer_only"})
+    TypologyFile.model_validate({**without_detector(), "tier": "explainer_only"})
+
+
+def test_approved_by_is_a_real_handle() -> None:
+    data = {**spec_example(), "status": "approved", "approved_by": "@TODO"}
+    with pytest.raises(ValueError, match="not @TODO"):
+        TypologyFile.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("changes", "where"),
+    [
+        ({"false_positives": ["Refunds", "Fraud rings"]}, r"false_positives\[1\]"),
+        ({"name": "Laundering cycles"}, "name: "),
+        ({"slug": "mule_cycle", "doc": "docs/typologies/mule-cycle.md"}, "slug: "),
+    ],
+)
+def test_own_words_pass_the_wording_lint(changes: dict[str, Any], where: str) -> None:
+    with pytest.raises(ValueError, match=f"wording lint .*{where}"):
+        TypologyFile.model_validate({**spec_example(), **changes})
+
+
+def test_templates_pass_the_wording_lint() -> None:
+    data = spec_example()
+    data["wording"]["headline_structural"] = "{cycle_length} suspicious transfers"
+    with pytest.raises(ValueError, match=r"wording\.headline_structural"):
+        TypologyFile.model_validate(data)
+
+
+def test_name_of_a_typology_without_detector_is_not_linted() -> None:
+    """Explainers may name a subject (7.1); only names shown in alerts are linted."""
+    data = {**without_detector(), "name": "Trade-based money laundering"}
+    assert TypologyFile.model_validate(data).name == "Trade-based money laundering"
+
+
+def test_c4_document_shows_the_catalog_example() -> None:
+    doc = (Path(__file__).resolve().parents[2] / "contracts" / "C4-alert.md").read_text()
+    block = doc.split("## The typology catalog file", 1)[1].split("```yaml\n", 1)[1]
+    assert block.split("```", 1)[0] == CIRCULAR_FLOW.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(

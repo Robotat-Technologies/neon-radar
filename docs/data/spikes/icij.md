@@ -6,7 +6,7 @@ Milestone M1.8c ([PHASE-1.md](../../build/PHASE-1.md), section 6). This was a te
 
 - Command: `uv run neonradar spike icij --rows 1000` (the network test `ingest/tests/test_icij_network.py` runs the same code). Validation: `uv run neonradar contracts validate-records data/cache/spikes/icij/*.ftm.jsonl --strict`.
 - Date: 21 October 2026.
-- Duration: 52.3 s from the HEAD request to the written manifest (54.8 s for the whole command, 19.8 s of it CPU). The archive was read over HTTP range requests: one HEAD and 14 range requests, 45,695,851 bytes received, which is about 64 percent of the archive. No archive copy was written to disk. The network test ran the same spike again in 72 s.
+- Duration: 52.3 s from the HEAD request to the written manifest (54.8 s for the whole command, 19.8 s of it CPU). The archive was read over HTTP range requests: one HEAD and 14 range requests, 45,695,851 bytes received, which is about 64 percent of the archive. No archive copy was written to disk. The network test ran the same spike again in 72 s. After the review fixes (range checks with `If-Range`, `Content-Range` and `ETag`; the jurisdiction rule in section 4) the command ran again: same 14 range requests, same bytes and the same record counts, 57.9 s, strict validation 0 issues.
 - Network: the build machine's internet connection to Amazon CloudFront (edge `FRA50-P1`). A single range request ran at about 1.8 MB/s. There were no errors, no retries and no rate limiting.
 - Source: `https://offshoreleaks-data.icij.org/offshoreleaks/csv/full-oldb.LATEST.zip`, downloaded straight from ICIJ, not from the OpenSanctions copy (CC BY-NC).
 
@@ -156,7 +156,7 @@ Ids come from `neonradar_contracts.records.make_id`. Every node is `icij-node-<n
 | `name` (empty when it is only `?`) | `name`; a LegalEntity without a usable name is skipped and counted |
 | `original_name` | `alias`, unless it repeats `name` |
 | `former_name` | `previousName` |
-| `jurisdiction_description`, then `jurisdiction` | `jurisdiction` (FtM cleans both; "XXX" and "Undetermined" are dropped) |
+| `jurisdiction_description`; the `jurisdiction` code only when the description is empty or does not clean to a country | `jurisdiction`. ICIJ's codes are not ISO codes: FtM cleans "ANG" to Angola, but ICIJ uses it for Anguilla. "XXX" and "Undetermined" are dropped. |
 | `company_type` (entities), `type` (others) | `legalForm` |
 | `address` (entities, intermediaries) | `address` (text) |
 | `address`, then `name` (addresses) | `full` |
@@ -171,7 +171,7 @@ Ids come from `neonradar_contracts.records.make_id`. Every node is `icij-node-<n
 | lookup table, Ownership | shareholder, beneficiary, owner |
 | lookup table, Directorship | director, secretary, nominee, signatory, president, treasurer, chairman, board member, officer, protector, attorney, manager, representative, liquidator; `nr.is_nominee` is true when the link contains "nominee" |
 | `intermediary_of` | `Representation` (agent the intermediary, client the entity), `role` `intermediary` |
-| `registered_address` | `addressEntity` on the start node, with `nr.address_roles` from the link: `registered`, `residential`, `business` or `service` (the first such word in the link), else `unknown` |
+| `registered_address` | `addressEntity` on the start node, with `nr.address_roles` from the link: the first of `registered`, `residential`, `business` and `service`, checked in that order, that the link contains, else `unknown`. So "mailing address; residential address" gives `residential`. |
 | other `rel_type` values (`connected_to`, `underlying`) | `UnknownLink`, `role` the raw link |
 | `same_*`, `similar*` and `probably_same_*` rows | not loaded; counted as resolution hints |
 | relationship `status`, `start_date`, `end_date`, `sourceID` | `status`, `startDate`, `endDate`, `publisher` |
@@ -197,7 +197,7 @@ Not mapped: `internal_id`, `dorm_date` (FtM has no matching property), `service_
 
 ## 6. Gotchas and recommendations for the Phase 2 loader
 
-1. Read the whole archive once per release. It is 72 MB compressed, and 46 MB of it streamed in about 52 s here. Either stream it over ranges as the spike does, or download it once and revalidate with `If-None-Match` and `If-Modified-Since`. Key the release on `GENERATED_ON_<date>` (written to the manifest as `source_version`) rather than the ETag.
+1. Read the whole archive once per release. It is 72 MB compressed, and 46 MB of it streamed in about 52 s here. Either stream it over ranges as the spike does, or download it once and revalidate with `If-None-Match` and `If-Modified-Since`. Key the release on `GENERATED_ON_<date>` (written to the manifest as `source_version`) rather than the ETag. The spike's range reader sends `If-Range` with the ETag and checks every answer's `Content-Range` and `ETag`, so a file replaced during a read fails with "the archive changed during the read; run again" instead of mixing two versions. It resumes a body that breaks off, at most 5 times per read.
 2. Load nodes before relationships. Merge the 1,139 officer and intermediary rows that share a `node_id` into one record instead of keeping the first, as the spike does (it counts them as `node ids in more than one file`).
 3. A slice must be closed to pass strict validation. The first 1,000 rows of `relationships.csv` touch none of the first 1,000 rows of the node files (they are 677 `registered_address`, 319 `same_as` and 4 `same_address_as` rows), so the spec's "first rows of each file" gives no edges. The spike instead takes a neighbourhood of the first entities. A full load has no such problem.
 4. Review the long tail of the 976 `(rel_type, link)` pairs with the typology researchers: multi-role strings ("mailing address; residential address", role lists joined with `;`), roles such as "records & registers of" and "auditor of", and whether `judicial representative of` (Paradise Papers, Malta registry) belongs in Directorship.

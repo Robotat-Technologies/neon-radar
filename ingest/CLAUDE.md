@@ -44,3 +44,7 @@
     `labels/*.csv`, never into records (R9). Person names come from Faker plus curated lists
     in `synth/words.py` (never Faker `ar_SA` surnames, never mimesis), filtered by
     `synth/denylist.txt`.
+  - The synthetic join (`synth/join.py`, ADR-0005 rule 2) gives input organisations only
+    background activity with one-way synthetic counterparties; no person or bare
+    LegalEntity gets an account; scenarios, labels, topics and every other schema stay off
+    input entities (`touches_input` must report all zeros). New ids use `syn-<kind>-j<seed>-`.

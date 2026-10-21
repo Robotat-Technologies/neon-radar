@@ -1,1 +1,1 @@
-"""Source loaders and spikes, one package per source (PHASE-1.md M1.8)."""
+"""Data source clients and their mappings to C1 records, one sub-package per source."""

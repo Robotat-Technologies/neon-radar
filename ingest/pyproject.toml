@@ -5,10 +5,10 @@ description = "NeonRadar ingestion: source loaders, spikes and the synthetic gen
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
 dependencies = [
-    "neonradar-contracts",
     "followthemoney>=4.11,<5",
-    "pyyaml>=6,<7",
     "httpx>=0.28,<0.29",
+    "neonradar-contracts",
+    "pyyaml>=6,<7",
 ]
 
 [tool.uv.sources]

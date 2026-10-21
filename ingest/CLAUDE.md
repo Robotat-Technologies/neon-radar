@@ -18,6 +18,10 @@
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use
     `httpx.MockTransport` with synthetic bodies; the one real run is `@pytest.mark.network`.
   - Output goes to `data/cache/` (gitignored); never commit real data or API responses.
+    Spikes write through `spikes.write_output` (records plus manifest in
+    `data/cache/spikes/<source>/`) and build records with `spikes.entity_record`
+    (`ValueEntity`, NFC); `neonradar spike clean` deletes output older than
+    `access.spike_cache_days`.
   - OpenSanctions use follows `access.opensanctions` in `docs/build/project.yaml` through the
     gate in `sources/opensanctions/access.py`: `none` sends no request, and only `licensed`
     writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.

@@ -8,8 +8,8 @@
   "items": [
     {
       "kind": "individual-person-with-significant-control",
-      "name": "Mr Omar Haddad",
-      "name_elements": {"title": "Mr", "forename": "Omar", "surname": "Haddad"},
+      "name": "Mr Zafir Qandelouni",
+      "name_elements": {"title": "Mr", "forename": "Zafir", "surname": "Qandelouni"},
       "date_of_birth": {"month": 8, "year": 1979},
       "nationality": "Jordanian",
       "country_of_residence": "England",
@@ -26,7 +26,7 @@
         "appointment_verification_statement_due_on": "2025-12-02"
       },
       "etag": "syn0000000000000000000000000000000000004",
-      "links": {"self": "/company/SYN00001/persons-with-significant-control/individual/SYNpsc_0001haddad"}
+      "links": {"self": "/company/SYN00001/persons-with-significant-control/individual/SYNpsc_0001qandelouni"}
     },
     {
       "kind": "corporate-entity-person-with-significant-control",

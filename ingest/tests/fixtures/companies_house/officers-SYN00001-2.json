@@ -26,13 +26,13 @@
       }
     },
     {
-      "name": "HADDAD, Omar",
+      "name": "QANDELOUNI, Zafir",
       "officer_role": "secretary",
       "appointed_on": "2023-02-01",
       "resigned_on": "2024-05-10",
       "links": {
         "self": "/company/SYN00001/appointments/SYNapp0005",
-        "officer": {"appointments": "/officers/SYNoff_0001haddad/appointments"}
+        "officer": {"appointments": "/officers/SYNoff_0001qandelouni/appointments"}
       }
     }
   ]

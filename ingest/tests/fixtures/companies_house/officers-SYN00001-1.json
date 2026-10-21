@@ -9,7 +9,7 @@
   "links": {"self": "/company/SYN00001/officers"},
   "items": [
     {
-      "name": "HADDAD, Omar",
+      "name": "QANDELOUNI, Zafir",
       "officer_role": "director",
       "appointed_on": "2019-04-02",
       "date_of_birth": {"month": 8, "year": 1979},
@@ -24,11 +24,11 @@
       },
       "links": {
         "self": "/company/SYN00001/appointments/SYNapp0001",
-        "officer": {"appointments": "/officers/SYNoff_0001haddad/appointments"}
+        "officer": {"appointments": "/officers/SYNoff_0001qandelouni/appointments"}
       }
     },
     {
-      "name": "EXAMPLE, Zoe Anne",
+      "name": "ULVARAZI, Nadim",
       "officer_role": "secretary",
       "appointed_on": "2019-04-02",
       "resigned_on": "2023-01-31",
@@ -37,7 +37,7 @@
       "address": {"premises": "1", "address_line_1": "Example Lane", "locality": "London", "postal_code": "ZZ1 1ZZ", "country": "England"},
       "links": {
         "self": "/company/SYN00001/appointments/SYNapp0002",
-        "officer": {"appointments": "/officers/SYNoff-0002example/appointments"}
+        "officer": {"appointments": "/officers/SYNoff-0002ulvarazi/appointments"}
       }
     },
     {

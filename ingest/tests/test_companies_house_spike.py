@@ -77,7 +77,7 @@ def test_the_summary_has_counts_and_field_names_but_no_register_values(tmp_path:
     assert "'SURNAME, Forenames': 4 of 4 (100%)" in text
     assert "pages: officers 2, persons-with-significant-control 1; status codes: 200 4" in text
     assert "psc.appointment_verification_start_on 2" in text
-    for value in ("HADDAD", "Haddad", "QUILLON", "Example Street", "1979", "SYNoff"):
+    for value in ("QANDELOUNI", "Qandelouni", "QUILLON", "Example Street", "1979", "SYNoff"):
         assert value not in text
 
 

@@ -43,7 +43,7 @@ def psc(kind: str, natures: list[str], native: str = "SYNpsc-x") -> dict[str, An
     }
 
 
-def officer(role: str, name: str = "EXAMPLE, Zoe", **extra: Any) -> dict[str, Any]:
+def officer(role: str, name: str = "ULVARAZI, Nadim", **extra: Any) -> dict[str, Any]:
     links = {"self": "/company/SYN00001/appointments/SYNapp9", "officer": {
         "appointments": "/officers/SYNoff-9/appointments"}}  # fmt: skip
     return {"name": name, "officer_role": role, "links": links, **extra}
@@ -155,7 +155,7 @@ def test_officer_ids_use_make_id_and_keep_the_raw_id() -> None:
 
 def test_officers_without_an_officer_link_are_skipped() -> None:
     mapper = Mapper()
-    mapper.add_officer({"name": "EXAMPLE, Zoe", "officer_role": "director"}, COMPANY, NUMBER)
+    mapper.add_officer({"name": "ULVARAZI, Nadim", "officer_role": "director"}, COMPANY, NUMBER)
     assert mapper.records() == []
     assert mapper.stats.skipped == {"officer-without-id-or-role": 1}
 
@@ -172,10 +172,10 @@ def test_corporate_officers_without_a_company_identification_are_legal_entities(
 
 def test_names_unescape_html_entities_and_count_the_name_format() -> None:
     mapper = Mapper()
-    mapper.add_officer(officer("director", "Zoe Example"), COMPANY, NUMBER)
-    mapper.add_officer(officer("nominee-secretary", "O&#39;EXAMPLE, Zoe"), COMPANY, NUMBER)
+    mapper.add_officer(officer("director", "Nadim Ulvarazi"), COMPANY, NUMBER)
+    mapper.add_officer(officer("nominee-secretary", "O&#39;ULVARAZI, Nadim"), COMPANY, NUMBER)
     names = [r["properties"]["name"] for r in mapper.records() if r["schema"] == "Person"]
-    assert names == [["Zoe Example", "O'EXAMPLE, Zoe"]]  # one officer id, two names
+    assert names == [["Nadim Ulvarazi", "O'ULVARAZI, Nadim"]]  # one officer id, two names
     assert mapper.stats.surname_first_names == 1
     nominee = {
         r["properties"]["role"][0]: r["nr"]["is_nominee"]

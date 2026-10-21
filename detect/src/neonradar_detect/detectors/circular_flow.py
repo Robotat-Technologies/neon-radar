@@ -15,9 +15,16 @@ Pattern strength orders the review queue; it is a heuristic, not a risk score:
                      + 0.3 x (1 - duration_hours / (max_window_days x 24))
                      + 0.2 x min(1, (cycle_length - 1) / 4)
 
-clipped to [0, 1] and rounded to two decimals, computed from the reported metrics. A cycle
-that returns more of the sent amount, closes faster and passes through more accounts matches
-the graph pattern more closely.
+clipped to [0, 1] and rounded to two decimals, computed from the reported metrics. Up to a
+return ratio of 1, a cycle that returns more of the sent amount, closes faster and passes
+through more accounts scores higher. The ratio has a lower bound only (`min_return_ratio`), so
+a cycle that returns more than was sent also scores high although its amounts are not
+near-equal: an open question for the typology researcher (docs/typologies/circular-flow.md).
+
+Metrics: `duration_hours` is rounded to one decimal and `duration_days` is that rounded
+`duration_hours` divided by 24, rounded up (C4); `return_ratio` is rounded to four decimals.
+Findings are sorted in Python by origin account id and edge ids, whatever order the query
+returns.
 """
 
 import logging
@@ -146,7 +153,11 @@ def detect(
     )
     if len(records) >= limit:
         logger.warning("circular_flow stopped at the result limit of %d cycles", limit)
-    return [finding(record.data(), cypher, run_parameters, params) for record in records]
+    rows = sorted(
+        (record.data() for record in records),
+        key=lambda row: (str(row["origin"]), [str(hop["id"]) for hop in row["hops"]]),
+    )
+    return [finding(row, cypher, run_parameters, params) for row in rows]
 
 
 def _label(account: Mapping[str, Any]) -> str:
@@ -175,18 +186,19 @@ def finding(
     start, end = _moment(first["ts"]), _moment(last["ts"])
     seconds = (end - start).total_seconds()
     sent, returned = float(first["amount"]), float(last["amount"])
+    hours = round(seconds / 3600, 1)
     metrics: dict[str, MetricValue] = {
         "cycle_length": len(hops),
         "sent_amount": sent,
         "returned_amount": returned,
         "currency": str(first["currency"]),
-        "duration_hours": round(seconds / 3600, 1),
-        "duration_days": math.ceil(seconds / 86400),
+        "duration_hours": hours,
+        "duration_days": math.ceil(hours / 24),  # C4: hours divided by 24, rounded up
         "return_ratio": round(returned / sent, 4),
     }
     strength = pattern_strength(
         float(metrics["return_ratio"]),
-        float(metrics["duration_hours"]),
+        hours,
         params.max_window_days,
         len(hops),
     )

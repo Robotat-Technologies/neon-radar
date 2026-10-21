@@ -24,7 +24,7 @@ from neo4j.exceptions import DriverError, Neo4jError
 
 from neonradar_contracts.alert import RUN_ID_PATTERN, Alert
 from neonradar_detect.alerts import Finding, build_alert, utc_text
-from neonradar_detect.catalog import REPO_ROOT, TypologyFile, load_catalog
+from neonradar_detect.catalog import REPO_ROOT, CatalogError, TypologyFile, load_catalog
 from neonradar_detect.detectors import circular_flow
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,10 @@ CALL (a, row) {
 CALL (a, row) {
   UNWIND row.subjects AS s
   MATCH (e:Entity {id: s.entity_id})
+  // one FLAGS per alert and subject (C4): drop duplicates made outside the runner
+  OPTIONAL MATCH (a)-[old:FLAGS]->(e)
+  WITH a, s, e, collect(old) AS existing
+  FOREACH (extra IN existing[1..] | DELETE extra)
   MERGE (a)-[f:FLAGS]->(e)
   SET f.role = s.role
   RETURN count(f) AS flagged
@@ -215,10 +219,14 @@ def run(
     clock: Callable[[], datetime] = now_utc,
 ) -> RunReport:
     """One detection run; raises `RunError` when it cannot start or when it failed."""
-    selected = select(load_catalog() if catalog is None else catalog, typology)
+    try:
+        selected = select(load_catalog() if catalog is None else catalog, typology)
+    except (CatalogError, OSError) as error:
+        raise RunError(f"cannot read the typology catalog: {error}") from error
     started = clock()
     run_id = run_id or new_run_id(started)
-    if not re.fullmatch(RUN_ID_PATTERN.removeprefix("^").removesuffix("$"), run_id):
+    # ASCII only: `\d` in the C4 pattern would also accept other scripts' digits.
+    if not re.fullmatch(RUN_ID_PATTERN.removeprefix("^").removesuffix("$"), run_id, re.ASCII):
         raise RunError(f"run id {run_id!r} must look like run-20261021T101500-7f3a")
     report = RunReport(run_id=run_id, directory=runs_dir / run_id, started_at=utc_text(started))
     report.typologies = [item.slug for item in selected]
@@ -268,8 +276,13 @@ def _fail(
     report.alerts = []
     report.error = f"{type(error).__name__}: {error}"
     report.finished_at = report.finished_at or utc_text(now)
-    (report.directory / "alerts.jsonl").unlink(missing_ok=True)
-    _write_files(report, alerts=False)
+    try:
+        (report.directory / "alerts.jsonl").unlink(missing_ok=True)
+        _write_files(report, alerts=False)
+    except OSError as write_error:
+        logger.warning(
+            "could not write run.json for the failed run %s: %s", report.run_id, write_error
+        )
     try:
         with driver.session(database=database) as session:
             session.execute_write(_store, report.node_properties(), [])

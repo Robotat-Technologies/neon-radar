@@ -2,7 +2,8 @@
 strength, and the finding and alert for each fixture case (PHASE-1.md M1.9b)."""
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,6 +12,7 @@ from neonradar_contracts.alert import Alert, compute_alert_id, query_sha256
 from neonradar_detect.alerts import build_alert
 from neonradar_detect.detectors import circular_flow
 from neonradar_detect.detectors.circular_flow import (
+    detect,
     finding,
     pattern_strength,
     query,
@@ -65,7 +67,8 @@ def test_query_refuses_bounds_outside_the_allowed_range(low: Any, high: Any) -> 
 def test_query_reads_only_c2_labels_types_and_properties() -> None:
     text = query(2, 6)
     labels = set(re.findall(r"\(\w*:(\w+)", text)) | set(re.findall(r"\[\w*:(\w+)\]", text))
-    assert labels == {"Account", "PAID", "LegalEntity", "HOLDS_ACCOUNT"}
+    assert labels == {"Account", "PAID", "HOLDS_ACCOUNT"}
+    assert "MATCH (holder)-[:HOLDS_ACCOUNT]->(account)" in text  # any source of HOLDS_ACCOUNT
 
 
 def test_parameters_default_to_the_catalog_and_respect_its_ranges() -> None:
@@ -164,3 +167,24 @@ def test_case_f_real_holder_gives_a_structural_pattern() -> None:
     assert ("gbch-co-T0000001", "origin_holder") in [
         (subject.entity_id, subject.role) for subject in alert.subjects
     ]
+
+
+def test_duration_days_rounds_up_the_reported_hours() -> None:
+    """C4: duration_days is duration_hours divided by 24, rounded up, from the same rounded
+    hours: 144 hours and 2 minutes report 144.0 hours and 6 days."""
+    row = query_row(fixture_records(), CASE_A)
+    row["hops"][-1]["ts"] += timedelta(minutes=2)
+    params = resolve_parameters(CIRCULAR_FLOW)
+    found = finding(row, query(2, 6), {"origin": None}, params)
+    assert (found.metrics["duration_hours"], found.metrics["duration_days"]) == (144.0, 6)
+    row["hops"][-1]["ts"] += timedelta(minutes=4)  # 144.1 hours
+    found = finding(row, query(2, 6), {"origin": None}, params)
+    assert (found.metrics["duration_hours"], found.metrics["duration_days"]) == (144.1, 7)
+
+
+def test_findings_are_sorted_by_origin_and_edge_ids_whatever_the_query_order() -> None:
+    rows = [query_row(fixture_records(), edges) for edges in (CASE_B, CASE_A)]
+    result = [SimpleNamespace(data=lambda row=row: row) for row in rows]
+    driver = SimpleNamespace(execute_query=lambda *args, **kwargs: (result, None, None))
+    found = detect(driver, "neo4j", CIRCULAR_FLOW)  # type: ignore[arg-type]
+    assert [[edge.id for edge in f.edges] for f in found] == [CASE_A, CASE_B]

@@ -19,7 +19,8 @@ ORDER BY a.id, edge_ids
 LIMIT $limit
 CALL (ns) {
   UNWIND ns[..-1] AS account
-  MATCH (holder:LegalEntity)-[:HOLDS_ACCOUNT]->(account)
+  // a holder is the source of HOLDS_ACCOUNT (C4); C2 makes it a LegalEntity
+  MATCH (holder)-[:HOLDS_ACCOUNT]->(account)
   RETURN collect(DISTINCT holder {account: account.id, .id, .caption, .synthetic, .datasets}) AS holders
 }
 RETURN a.id AS origin,

@@ -26,15 +26,16 @@ COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 
 def load_labels(path: Path = LABELS_FILE) -> list[dict[str, str]]:
     """Read and check the label file. Exit with a clear message if any entry is invalid."""
+    shown = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
     try:
         labels = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as error:
-        raise SystemExit(f"error: cannot read {path}: {error}") from None
+        raise SystemExit(f"error: cannot read {shown}: {error}") from None
     if not isinstance(labels, list) or not labels:
-        raise SystemExit(f"error: {path} must be a non-empty YAML list of labels")
+        raise SystemExit(f"error: {shown} must be a non-empty YAML list of labels")
     seen: set[str] = set()
     for number, label in enumerate(labels, start=1):
-        where = f"error: {path}, entry {number}"
+        where = f"error: {shown}, entry {number}"
         if not isinstance(label, dict) or set(label) != set(KEYS):
             raise SystemExit(f"{where}: needs exactly the keys {', '.join(KEYS)}: {label!r}")
         if not all(isinstance(label[key], str) and label[key].strip() for key in KEYS):

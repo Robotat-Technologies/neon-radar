@@ -91,4 +91,4 @@ On an approved machine:
 - `uv run neonradar doctor` warns about real files older than the retention settings and about DuckDB spill folders that a crashed run left behind. It reads file ages and counts only.
 - The data steward confirms in the Phase 2 report that the purge ran on every approved machine (PHASE-2.md 1.9).
 
-Phase 1's `make reset` (`docker compose down -v`) may also remove the real volume, depending on the Compose version. That loses only data the operator can load again.
+`make reset` deletes only the default instance's volumes, by name (`neonradar_neo4j_data` and `neonradar_neo4j_logs`), and never runs `docker compose down -v`, whose documentation says it removes every named volume declared in `compose.yaml`, the real volume `neonradar_neo4j-real-data` included (Compose 5.4.0 skipped it in a test on 22 October 2026, but that depends on the version). The real volume is deleted only by `neonradar data purge --graph` (M2.2).

@@ -106,11 +106,18 @@ down-real: ## stop the real-data instance; its volume (the real graph) is kept
 # environment or .env, so that a stray export cannot delete a database.
 CONFIRMED := $(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))
 
-reset: ## delete the local Neo4j data and logs volumes (needs CONFIRM=yes on the command line)
+# reset deletes the default instance's volumes by name (Compose project `neonradar`), never with
+# `down -v`: the Compose documentation says -v removes the named volumes declared in compose.yaml,
+# which include the real-data volume. Only `neonradar data purge --graph` deletes that one
+# (PHASE-2.md M2.2); scripts/tests/test_make_reset.py checks that reset never names it.
+DEFAULT_VOLUMES := neonradar_neo4j_data neonradar_neo4j_logs
+
+reset: ## delete the default Neo4j instance's data and logs volumes (needs CONFIRM=yes on the command line)
 	@if [ "$(CONFIRMED)" != "yes" ]; then \
 		echo "reset deletes the local Neo4j database. Run: make reset CONFIRM=yes" >&2; exit 1; \
 	fi
-	docker compose --profile app down -v
+	docker compose --profile app down
+	docker volume rm --force $(DEFAULT_VOLUMES)
 
 smoke: ## print the Neo4j, APOC and GDS versions; exit 1 if any is missing
 	uv run neonradar graph smoke

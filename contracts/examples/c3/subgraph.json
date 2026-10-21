@@ -23,10 +23,7 @@
         "datasets": [
           "nr_synthetic"
         ],
-        "names": [],
-        "referents": [
-          "syn-acct-0007"
-        ]
+        "names": []
       }
     },
     {
@@ -52,10 +49,7 @@
         "datasets": [
           "nr_synthetic"
         ],
-        "names": [],
-        "referents": [
-          "syn-acct-0012"
-        ]
+        "names": []
       }
     },
     {
@@ -81,10 +75,7 @@
         "datasets": [
           "nr_synthetic"
         ],
-        "names": [],
-        "referents": [
-          "syn-acct-0015"
-        ]
+        "names": []
       }
     },
     {
@@ -110,10 +101,7 @@
         "datasets": [
           "nr_synthetic"
         ],
-        "names": [],
-        "referents": [
-          "syn-acct-0021"
-        ]
+        "names": []
       }
     },
     {
@@ -143,9 +131,6 @@
         "jurisdiction": "gb",
         "names": [
           "Fenwhistle Holdings Ltd"
-        ],
-        "referents": [
-          "syn-co-0003"
         ],
         "registration_number": "SYN00003"
       }

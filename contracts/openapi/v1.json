@@ -1102,7 +1102,7 @@
         "additionalProperties": false,
         "properties": {
           "app_version": {
-            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "pattern": "^\\d+(\\.\\d+)*((a|b|rc)\\d+)?(\\.post\\d+)?(\\.dev\\d+)?(\\+[a-z0-9]+(\\.[a-z0-9]+)*)?$",
             "title": "App Version",
             "type": "string"
           },
@@ -1247,7 +1247,7 @@
       },
       "PathRef": {
         "additionalProperties": false,
-        "description": "A path as C2 ids; the effective share is the product of OWNS share bands (Phase 2).",
+        "description": "A path as C2 ids: `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`. The effective\nshare is the product of the OWNS share bands along an ownership path (Phase 2).",
         "properties": {
           "edge_ids": {
             "items": {
@@ -1512,10 +1512,10 @@
       },
       "SubgraphLimits": {
         "additionalProperties": false,
-        "description": "The caps applied when the subgraph was built.",
+        "description": "The caps applied when the subgraph was built; `max_edges` is twice `max_nodes`.",
         "properties": {
           "max_edges": {
-            "minimum": 1.0,
+            "minimum": 2.0,
             "title": "Max Edges",
             "type": "integer"
           },

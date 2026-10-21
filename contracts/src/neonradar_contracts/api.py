@@ -25,6 +25,7 @@ from neonradar_contracts.alert import (
     Text,
     UtcTime,
 )
+from neonradar_contracts.graph import NODE_MAPPINGS
 
 API_PREFIX: Final = "/api/v1"
 MAX_CONTEXT_ENTITIES: Final = 20
@@ -56,6 +57,24 @@ OwnershipDirection = Literal["up", "down"]
 Count = Annotated[int, Field(ge=0)]
 Share = Annotated[float, Field(ge=0, le=100)]
 Version = Annotated[str, Field(pattern=VERSION_PATTERN)]
+# A PEP 440 public version with an optional local part, for the API package (`0.1.0`,
+# `1.0.0rc1`, `0.2.0.dev3+g1a2b3c`); contract versions stay MAJOR.MINOR.PATCH.
+PackageVersion = Annotated[
+    str,
+    Field(
+        pattern=r"^\d+(\.\d+)*((a|b|rc)\d+)?(\.post\d+)?(\.dev\d+)?(\+[a-z0-9]+(\.[a-z0-9]+)*)?$"
+    ),
+]
+
+# C2 properties that never appear in a C3 property map: they are top-level fields (`id`,
+# `schema`, `caption`), flags (`synthetic`), index plumbing (`names_text`), source topics that
+# 7.1 keeps away from entities (`topics`), or Phase 2 merge history (`referents`, in provenance).
+NODE_PROPERTIES_LEFT_OUT: Final = frozenset(
+    {"id", "schema", "caption", "names_text", "synthetic", "topics", "referents"}
+)
+# EntityDetail also lifts `names`, `countries` and `datasets` into its own fields.
+DETAIL_PROPERTIES_LEFT_OUT: Final = NODE_PROPERTIES_LEFT_OUT | {"names", "countries", "datasets"}
+EDGE_PROPERTIES_LEFT_OUT: Final = frozenset({"id", "topics"})
 
 
 class _Model(BaseModel):
@@ -80,6 +99,18 @@ def _distinct(values: list[str], what: str) -> None:
         raise ValueError(f"{what} must not repeat a value")
 
 
+def _no_reserved(properties: dict[str, JsonValue], reserved: frozenset[str], what: str) -> None:
+    found = sorted(reserved & set(properties))
+    if found:
+        raise ValueError(f"{what} must not hold {found} (C3: top-level fields or left out)")
+
+
+def _mapping_labels(labels: list[NodeLabel], schema: NodeSchema) -> None:
+    expected = list(NODE_MAPPINGS[schema].labels)
+    if labels != expected:
+        raise ValueError(f"labels of a {schema} node are {expected} (C2 mapping)")
+
+
 # Graph shapes -----------------------------------------------------------------------------
 
 
@@ -102,6 +133,12 @@ class GraphNode(_WithSchema):
     flags: NodeFlags
     properties: dict[str, JsonValue]
 
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        _mapping_labels(self.labels, self.schema_)
+        _no_reserved(self.properties, NODE_PROPERTIES_LEFT_OUT, "node properties")
+        return self
+
 
 class GraphEdge(_Model):
     """A C2 relationship built from a record; `id` is its C2 id, never a Neo4j elementId."""
@@ -112,12 +149,23 @@ class GraphEdge(_Model):
     target: EntityId
     properties: dict[str, JsonValue]
 
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        _no_reserved(self.properties, EDGE_PROPERTIES_LEFT_OUT, "edge properties")
+        return self
+
 
 class SubgraphLimits(_Model):
-    """The caps applied when the subgraph was built."""
+    """The caps applied when the subgraph was built; `max_edges` is twice `max_nodes`."""
 
     max_nodes: Annotated[int, Field(ge=1)]
-    max_edges: Annotated[int, Field(ge=1)]
+    max_edges: Annotated[int, Field(ge=2)]
+
+    @model_validator(mode="after")
+    def _ratio(self) -> Self:
+        if self.max_edges != 2 * self.max_nodes:
+            raise ValueError("limits.max_edges must be 2 x limits.max_nodes")
+        return self
 
 
 class Subgraph(_Model):
@@ -155,6 +203,11 @@ class EntitySummary(_WithSchema):
     flags: NodeFlags
     countries: list[str]
     datasets: Annotated[list[Slug], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        _mapping_labels(self.labels, self.schema_)
+        return self
 
 
 class SearchHit(_Model):
@@ -195,7 +248,7 @@ class AlertSummary(_Model):
     pattern_strength: Annotated[float, Field(ge=0, le=1)]
     headline: Annotated[str, Field(min_length=1, max_length=HEADLINE_MAX)]
     created_at: UtcTime
-    subject_ids: Annotated[list[EntityId], Field(min_length=1)]
+    subject_ids: Annotated[list[EntityId], Field(min_length=1)]  # in the order of C4 subjects
     involves_real_entities: bool
     synthetic_activity: bool
 
@@ -212,14 +265,16 @@ class EntityDetail(_Model):
     alerts: Annotated[list[AlertSummary], Field(max_length=MAX_ENTITY_ALERTS)]
 
     @model_validator(mode="after")
-    def _identifiers(self) -> Self:
+    def _shape(self) -> Self:
         for key, values in self.identifiers.items():
             _distinct(values, f"identifiers.{key}")
+        _no_reserved(self.properties, DETAIL_PROPERTIES_LEFT_OUT, "entity properties")
         return self
 
 
 class PathRef(_Model):
-    """A path as C2 ids; the effective share is the product of OWNS share bands (Phase 2)."""
+    """A path as C2 ids: `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`. The effective
+    share is the product of the OWNS share bands along an ownership path (Phase 2)."""
 
     node_ids: Annotated[list[EntityId], Field(min_length=1)]
     edge_ids: list[EdgeId]
@@ -228,10 +283,28 @@ class PathRef(_Model):
 
     @model_validator(mode="after")
     def _ordered(self) -> Self:
+        if len(self.edge_ids) != len(self.node_ids) - 1:
+            raise ValueError("a path has one edge fewer than it has nodes")
         low, high = self.effective_share_min, self.effective_share_max
         if low is not None and high is not None and low > high:
             raise ValueError("effective_share_min must not exceed effective_share_max")
         return self
+
+
+def _paths_in(paths: list[PathRef], subgraph: Subgraph, start: str, end: str | None) -> None:
+    """Every path starts at `start` (and ends at `end`), and its ids are in the subgraph."""
+    nodes = {node.id for node in subgraph.nodes}
+    edges = {edge.id: edge for edge in subgraph.edges}
+    for path in paths:
+        if path.node_ids[0] != start or (end is not None and path.node_ids[-1] != end):
+            raise ValueError(f"every path runs from {start}" + (f" to {end}" if end else ""))
+        missing = sorted(set(path.node_ids) - nodes) + sorted(set(path.edge_ids) - set(edges))
+        if missing:
+            raise ValueError(f"path ids missing from the subgraph: {missing}")
+        for i, edge_id in enumerate(path.edge_ids):
+            ends = {edges[edge_id].source, edges[edge_id].target}
+            if ends != {path.node_ids[i], path.node_ids[i + 1]}:
+                raise ValueError(f"edge {edge_id} does not join path nodes {i} and {i + 1}")
 
 
 class OwnershipResponse(_Model):
@@ -240,12 +313,22 @@ class OwnershipResponse(_Model):
     paths: list[PathRef]
     subgraph: Subgraph
 
+    @model_validator(mode="after")
+    def _paths(self) -> Self:
+        _paths_in(self.paths, self.subgraph, self.root_id, None)
+        return self
+
 
 class PathsResponse(_Model):
     from_id: EntityId
     to_id: EntityId
     paths: list[PathRef]
     subgraph: Subgraph
+
+    @model_validator(mode="after")
+    def _paths(self) -> Self:
+        _paths_in(self.paths, self.subgraph, self.from_id, self.to_id)
+        return self
 
 
 # Alerts -----------------------------------------------------------------------------------
@@ -266,6 +349,8 @@ class AlertDetail(_Model):
 
     @model_validator(mode="after")
     def _evidence(self) -> Self:
+        if self.evidence.truncated:
+            raise ValueError("an alert's evidence subgraph is never truncated")
         nodes = {node.id for node in self.evidence.nodes}
         edges = {edge.id for edge in self.evidence.edges}
         wanted = set(self.alert.evidence.node_ids)
@@ -342,7 +427,7 @@ class GraphCounts(_Model):
 
 
 class MetaResponse(_Model):
-    app_version: Version
+    app_version: PackageVersion
     contracts_version: Version
     schema_version: Version
     datasets: list[DatasetInfo]

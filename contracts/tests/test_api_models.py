@@ -65,7 +65,7 @@ def test_subgraph_edges_need_both_endpoints_and_unique_ids() -> None:
     with pytest.raises(ValidationError, match="edge ids must not repeat"):
         api.Subgraph.model_validate(twice)
     small = copy.deepcopy(data)
-    small["limits"]["max_nodes"] = 2
+    small["limits"] = {"max_nodes": 2, "max_edges": 4}
     with pytest.raises(ValidationError, match="larger than its limits"):
         api.Subgraph.model_validate(small)
 
@@ -156,7 +156,7 @@ ANSWERED = {
         "nodes": [],
         "edges": [],
         "truncated": False,
-        "limits": {"max_nodes": 1, "max_edges": 1},
+        "limits": {"max_nodes": 1, "max_edges": 2},
     },
     "refusal_reason": None,
 }
@@ -220,4 +220,109 @@ def test_every_model_is_closed_and_strict() -> None:
     with pytest.raises(ValidationError):
         api.NodeFlags.model_validate(
             {"synthetic": 1, "sanctioned": False, "pep": False, "rca": False}
+        )
+
+
+# Review fixes (PR #24): what property maps may hold, labels, limits and paths ----------------
+
+
+def _node() -> dict[str, Any]:
+    node: dict[str, Any] = _load("subgraph.json")["nodes"][-1]  # the holder company
+    return node
+
+
+@pytest.mark.parametrize("key", sorted(api.NODE_PROPERTIES_LEFT_OUT))
+def test_node_properties_leave_out_top_level_fields_topics_and_referents(key: str) -> None:
+    node = _node()
+    with pytest.raises(ValidationError, match="must not hold"):
+        api.GraphNode.model_validate({**node, "properties": {**node["properties"], key: "x"}})
+
+
+@pytest.mark.parametrize("key", sorted(api.DETAIL_PROPERTIES_LEFT_OUT))
+def test_entity_properties_leave_out_what_has_its_own_field(key: str) -> None:
+    data = _load("entity-detail.json")
+    with pytest.raises(ValidationError, match="must not hold"):
+        api.EntityDetail.model_validate({**data, "properties": {**data["properties"], key: "x"}})
+
+
+@pytest.mark.parametrize("key", sorted(api.EDGE_PROPERTIES_LEFT_OUT))
+def test_edge_properties_leave_out_id_and_topics(key: str) -> None:
+    edge = _load("subgraph.json")["edges"][0]
+    with pytest.raises(ValidationError, match="must not hold"):
+        api.GraphEdge.model_validate({**edge, "properties": {**edge["properties"], key: "x"}})
+
+
+def test_labels_follow_the_c2_mapping_of_the_schema() -> None:
+    node = _node()
+    with pytest.raises(ValidationError, match="C2 mapping"):
+        api.GraphNode.model_validate({**node, "labels": ["Entity", "Company"]})
+    summary = _load("entity-detail.json")["entity"]
+    with pytest.raises(ValidationError, match="C2 mapping"):
+        api.EntitySummary.model_validate({**summary, "schema": "Person"})
+    sanction = {**node, "id": "syn-sanction-0001", "labels": ["Sanction"], "schema": "Sanction"}
+    assert api.GraphNode.model_validate(sanction).labels == ["Sanction"]
+
+
+def test_max_edges_is_twice_max_nodes() -> None:
+    with pytest.raises(ValidationError, match="2 x"):
+        api.SubgraphLimits.model_validate({"max_nodes": 200, "max_edges": 300})
+
+
+def test_alert_evidence_is_never_truncated_and_needs_every_evidence_edge() -> None:
+    data = _load("subgraph.json")
+    truncated = api.Subgraph.model_validate({**data, "truncated": True})
+    with pytest.raises(ValidationError, match="never truncated"):
+        api.AlertDetail(alert=_alert(), evidence=truncated)
+    edgeless = {**data, "edges": [e for e in data["edges"] if e["id"] != "syn-payment-000102"]}
+    with pytest.raises(ValidationError, match="syn-payment-000102"):  # every node still present
+        api.AlertDetail(alert=_alert(), evidence=api.Subgraph.model_validate(edgeless))
+
+
+def _cycle_path(**changes: Any) -> dict[str, Any]:
+    path = {
+        "node_ids": ["syn-acct-0007", "syn-acct-0012", "syn-acct-0015"],
+        "edge_ids": ["syn-payment-000101", "syn-payment-000102"],
+        "effective_share_min": None,
+        "effective_share_max": None,
+    }
+    return {**path, **changes}
+
+
+def test_a_path_has_one_edge_fewer_than_nodes() -> None:
+    api.PathRef.model_validate(_cycle_path())
+    with pytest.raises(ValidationError, match="one edge fewer"):
+        api.PathRef.model_validate(_cycle_path(edge_ids=["syn-payment-000101"]))
+
+
+def test_paths_start_and_end_where_asked_and_stay_in_the_subgraph() -> None:
+    subgraph = _load("subgraph.json")
+    paths = {"from_id": "syn-acct-0007", "to_id": "syn-acct-0015", "subgraph": subgraph}
+    api.PathsResponse.model_validate({**paths, "paths": [_cycle_path()]})
+    wrong_edge = ["syn-payment-000101", "syn-payment-000104"]
+    unknown_edge = ["syn-payment-000101", "syn-payment-009999"]
+    for broken, match in (
+        ({"to_id": "syn-acct-0021"}, "runs from"),
+        ({"paths": [_cycle_path(edge_ids=wrong_edge)]}, "does not join"),
+        ({"paths": [_cycle_path(edge_ids=unknown_edge)]}, "missing"),
+    ):
+        with pytest.raises(ValidationError, match=match):
+            api.PathsResponse.model_validate({**paths, "paths": [_cycle_path()], **broken})
+    owners = {"root_id": "syn-acct-0012", "direction": "up", "subgraph": subgraph}
+    with pytest.raises(ValidationError, match="runs from syn-acct-0012"):
+        api.OwnershipResponse.model_validate({**owners, "paths": [_cycle_path()]})
+
+
+def test_app_version_is_a_pep_440_version_and_contract_versions_are_semver() -> None:
+    meta = {
+        "contracts_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "datasets": [],
+        "disclaimers": {"standing": "s", "synthetic_demo": "d", "real_data": "r"},
+        "counts": {"nodes_by_label": {}, "relationships_by_type": {}},
+    }
+    for version in ("0.1.0", "1.0.0rc1", "0.2.0.dev3+g1a2b3c"):
+        assert api.MetaResponse.model_validate({**meta, "app_version": version})
+    with pytest.raises(ValidationError):
+        api.MetaResponse.model_validate(
+            {**meta, "app_version": "0.1.0", "contracts_version": "1.0"}
         )

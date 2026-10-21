@@ -24,17 +24,19 @@ CH_SPIKE_COMPANY=01800000 uv run pytest -m network ingest/tests/test_companies_h
 
 `01800000` is the spec's default company number (PHASE-1.md M1.8a step 1), used here only as a command-line example. The first command prints the counts this report needs (records by schema, requests and pages, rate-limit waits and headers, officer and PSC counts, identity verification field names) and writes the records and manifest to `data/cache/spikes/companies_house/`. Paste its output into the pull request and fill in the "Network run" columns below; then set the verdict in section 7.
 
-Mock run, for comparison (synthetic company `SYN00001`):
+Mock run, for comparison (synthetic company `SYN00001`, first lines of the summary; the command then prints the strict validation of its output, here 20 records, 0 issues):
 
 ```text
 company SYN00001: 20 records
-requests: 4; pages: officers 2, persons-with-significant-control 1
-time: 0.2 s; at 2 requests/s the company costs 2.0 s
-rate limit: 0 wait(s); headers seen: none
+requests: 4; pages: officers 2, persons-with-significant-control 1; status codes: 200 4
+time: 0.3 s; at 2 requests/s the company costs 2.0 s
+rate limit waits: none; headers seen: none
 officer appointments: 5 (1 corporate, 20%); natural names as 'SURNAME, Forenames': 4 of 4 (100%)
 skipped: psc:super-secure-person-with-significant-control 1
 values FtM could not parse: Person.nationality 1
 ```
+
+Without a key the command stops before any request: `FAIL  CH_API_KEY is not set: the operator adds it to .env (OD-14)`, exit code 1.
 
 ## 2. What was fetched
 
@@ -111,7 +113,7 @@ Seen but not mapped (the spike counts how often each appears):
 - The spike output holds personal data: officer and PSC names, month and year of birth, nationality and country of residence. It is written only to `data/cache/spikes/companies_house/` (gitignored), and should be deleted after `access.spike_cache_days` (7) with `neonradar spike clean`. A new run for the same company replaces the earlier files. Whoever runs the spike is a UK GDPR controller for that output [CH36].
 - Minimised on purpose: no service addresses, no `care_of`, no day of birth (the register never shows it [CH36]), no identity verification values.
 - `is_sanctioned` (overseas entity owners) is not mapped. Turning it into a C2 flag on a real person is a data steward decision under guardrail G1.
-- Committed test data is synthetic: company numbers start with `SYN`, officer and PSC ids contain `SYN`, and the names were checked against the public Companies House search on 21 October 2026 (OD-12; results in the M1.8a pull request). The expected output is a JSON array, never a committed `.ftm.jsonl` file.
+- Committed test data is synthetic: company numbers start with `SYN`, officer and PSC ids contain `SYN`, and the names were checked against the public Companies House company and officer searches on 21 October 2026 (OD-12; results in the M1.8a pull request). The expected output is a JSON array, never a committed `.ftm.jsonl` file.
 
 ## 6. Gotchas and recommendations for the Phase 2 loader
 

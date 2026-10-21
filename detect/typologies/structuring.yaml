@@ -1,0 +1,27 @@
+slug: structuring
+name: Structuring (smurfing) below reporting thresholds
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  Cash is split into many deposits, each just below a reporting threshold, often at several
+  branches or by several people, so that no single deposit reaches the threshold.
+doc: docs/typologies/structuring.md
+citations: [cfr_31_1010_314, ffiec_appendix_g, ffiec_appendix_f, fatf_pml_2018, fincen_fin_2014_a005, fincen_fin_2025_a003, europol_efecta_2023]
+graph_pattern: >
+  Many PAID relationships with channel 'cash_deposit' (from cash_ledger accounts) into one
+  customer Account, or into several Accounts with the same holder, within a short window,
+  each amount just below a threshold parameter, often through several branches, with a
+  daily total above the threshold.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Cash businesses banking their daily takings
+  - Deposit caps set by insurers or cash-in-transit contracts
+  - Fixed weekly savings deposits
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null

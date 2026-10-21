@@ -18,17 +18,17 @@ Every page waits for `GET /api/v1/meta` and shows its standing disclaimer, then 
 
 Run from the repository root with `--prefix ui`, or from this folder.
 
-| Command                      | What it does                                                                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `npm ci`                     | Install the locked dependencies                                                                                   |
-| `npm run dev`                | Vite dev server on `http://localhost:5173`; `/api` goes to `http://127.0.0.1:8000` (`uv run neonradar api serve`) |
-| `npm run gen:api`            | Regenerate `src/api/schema.d.ts` from `contracts/openapi/v1.json`; commit the result unchanged                    |
-| `npm run lint`               | oxlint, ESLint and Prettier, checking only (CI)                                                                   |
-| `npm run lint:fix`           | The same, fixing what they can                                                                                    |
-| `npm run type-check`         | `vue-tsc --build`                                                                                                 |
-| `npm run test:unit -- --run` | Vitest unit and component tests                                                                                   |
-| `npm run build`              | Type-check and build into `dist/`                                                                                 |
-| `npm run test:e2e`           | Playwright tests (`e2e/`); `shell.spec.ts` answers every API call from the contract examples                      |
+| Command                      | What it does                                                                                                                                                                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm ci`                     | Install the locked dependencies                                                                                                                                                                                                              |
+| `npm run dev`                | Vite dev server on `http://localhost:5173`; `/api` goes to `http://127.0.0.1:8000` (`uv run neonradar api serve`)                                                                                                                            |
+| `npm run gen:api`            | Regenerate `src/api/schema.d.ts` from `contracts/openapi/v1.json`; commit the result unchanged                                                                                                                                               |
+| `npm run lint`               | oxlint, ESLint and Prettier, checking only (CI)                                                                                                                                                                                              |
+| `npm run lint:fix`           | The same, fixing what they can                                                                                                                                                                                                               |
+| `npm run type-check`         | `vue-tsc --build`                                                                                                                                                                                                                            |
+| `npm run test:unit -- --run` | Vitest unit and component tests                                                                                                                                                                                                              |
+| `npm run build`              | Type-check and build into `dist/`                                                                                                                                                                                                            |
+| `npm run test:e2e`           | Playwright tests (`e2e/`) against a running UI (`make e2e`, `E2E_BASE_URL`, default `http://localhost:8080`); `shell.spec.ts` answers every API call from the contract examples, `demo-mini.spec.ts` uses the stack `make demo-mini` started |
 
 ## Rules
 

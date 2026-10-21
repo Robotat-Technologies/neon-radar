@@ -60,7 +60,7 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 
 - `make down` stops Neo4j, and the demo's API and UI if `make demo-mini` started them, and keeps the data. `make up` starts Neo4j again with the same data and plugins. The demo itself is in [the quickstart](../quickstart.md).
 - `make logs` follows the server log.
-- `make reset CONFIRM=yes` deletes the database and logs volumes. The next `make up` starts empty.
+- `make reset CONFIRM=yes` deletes the default instance's database and logs volumes by name; it never touches the real-data instance's volume, which only `neonradar data purge --graph` deletes. The next `make up` starts empty.
 - The password in `.env` takes effect only when the database is first created. If you change `NEO4J_PASSWORD` later, run `make reset CONFIRM=yes`, then `make up`.
 - All checkouts on one machine (the main checkout and every git worktree) share the same Compose project, `neonradar`, and so the same database. Give them the same `.env`: worktrees that Claude Code creates copy it (`.worktreeinclude`), and in any other worktree `bash scripts/ensure_env.sh` (run by `make setup`, `make plugins` and `make up`) links `.env` to the main checkout's. It stops with a message if the main checkout has no `.env` yet.
 - To fetch the GDS jar again, delete `data/cache/neo4j-plugins/` and run `make plugins`.

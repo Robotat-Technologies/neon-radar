@@ -25,6 +25,13 @@
     `PROJECT_FILE` to tmp paths. `spike synthetic-join` reads other C1 files, so it
     validates input plus output together and prints counts and rule codes only, never an
     input name or id (its records reference input entities that may be real).
+  - Phase 2 data commands (M2.2): `data profiles|fetch|status|purge` (`data.py`) and
+    `ingest build` (`ingest.py`). A command that touches a profile runs inside
+    `redact.guard(profile, command)`, runs the gate first and reports through `summary.emit`
+    (counts only; it refuses record-like values). Errors carry `exit_code` (2 refusal, 3 gate,
+    4 cap) and `counts_only` when their message is safe to print on a real profile. Human-only
+    commands call `tty.require_terminal` inside the guard. `purge --graph` is
+    `real_graph.wipe()`; tests replace `real_graph._run` and never call Docker.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

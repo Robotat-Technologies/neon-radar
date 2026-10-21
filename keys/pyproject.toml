@@ -4,12 +4,14 @@ version = "0.1.0"
 description = "NeonRadar matching keys: names, organisations, addresses, postcodes, countries and identifiers (pure functions)."
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
-# Pins from docs/build/PHASE-2.md 3.1. M2.8 adds typing-extensions>=4.12 (rigour 2.5.0 imports
-# it without declaring it). rigour needs python-stdnum (LGPL-2.1-or-later, OD-20).
+# Pins from docs/build/PHASE-2.md 3.1. typing-extensions: rigour 2.5.0 imports it without
+# declaring it (M2.8). rigour needs python-stdnum (LGPL-2.1-or-later, OD-20). A lock update that
+# moves rigour needs a rebuilt data/ar_symbols.json.gz and a RULES_VERSION bump (keys/CLAUDE.md).
 dependencies = [
     "anyascii==0.3.*",
     "normality==3.1.*",
     "rigour==2.5.*",
+    "typing-extensions>=4.12",
 ]
 
 [build-system]

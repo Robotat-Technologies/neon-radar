@@ -17,6 +17,7 @@ from neonradar_graph.loader import (
     LoadError,
     LoadRefused,
     collect_files,
+    load_files,
     load_records,
     node_query,
     plan_load,
@@ -24,6 +25,7 @@ from neonradar_graph.loader import (
     relationship_query,
 )
 from neonradar_graph.mapping import RelationshipRow
+from neonradar_graph.migrate import discover
 
 from .conftest import record
 
@@ -79,20 +81,29 @@ def test_node_queries_take_labels_from_the_mapping() -> None:
 
 def test_relationship_queries_match_ends_on_the_key_label_and_check_the_c2_label() -> None:
     paid = relationship_query(RelationshipRow("PAID", "x", "a", "b", {}, "2026-03-14T10:22:05Z"))
-    assert "OPTIONAL MATCH (s:Entity {id: row.source}) WHERE s:Account" in paid
-    assert "OPTIONAL MATCH (t:Entity {id: row.target}) WHERE t:Account" in paid
+    seek = "USING INDEX SEEK"
+    assert (
+        f"OPTIONAL MATCH (s:Entity {{id: row.source}}) {seek} s:Entity(id) WHERE s:Account" in paid
+    )
+    assert (
+        f"OPTIONAL MATCH (t:Entity {{id: row.target}}) {seek} t:Entity(id) WHERE t:Account" in paid
+    )
     assert "MERGE (s)-[r:PAID {id: row.id}]->(t)" in paid
     assert "SET r += row.props, r.ts = datetime(row.ts))" in paid
     subject = relationship_query(RelationshipRow("SUBJECT_OF", "x", "a", "b", {}))
-    assert "OPTIONAL MATCH (s:Entity {id: row.source}) WHERE s:Entity" in subject
-    assert "OPTIONAL MATCH (t:Sanction {id: row.target}) WHERE t:Sanction" in subject
+    assert f"(s:Entity {{id: row.source}}) {seek} s:Entity(id) WHERE s:Entity" in subject
+    assert f"(t:Sanction {{id: row.target}}) {seek} t:Sanction(id) WHERE t:Sanction" in subject
     assert "datetime" not in subject
+    assert "DELETE old\n" in paid  # Payment builds only PAID
     owns = relationship_query(RelationshipRow("OWNS", "x", "a", "b", {}))
     assert "OPTIONAL MATCH (a)-[old:OWNS {id: row.id}]->(b)" in owns
-    assert "DELETE old" in owns
+    assert "  WHERE s IS NULL OR t IS NULL OR a <> s OR b <> t" in owns  # moved or missing end
+    for n, other in enumerate(["HOLDS_ACCOUNT", "CONSOLIDATES"]):  # the other Ownership types
+        assert f"OPTIONAL MATCH ()-[o{n}:{other} {{id: row.id}}]->()" in owns
+    assert "DELETE old, o0, o1\n" in owns
 
 
-@pytest.mark.parametrize("name", ["Company`) DETACH DELETE n //", "company", ""])
+@pytest.mark.parametrize("name", ["Company`) DETACH DELETE n //", "company", "", "UNKNOWN"])
 def test_a_name_that_is_not_an_identifier_never_reaches_query_text(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
@@ -134,6 +145,20 @@ def test_a_non_strict_plan_never_maps_records_that_fail_c1() -> None:
     assert any(row.source == "syn-co-0002" for row in plan.relationships)
 
 
+def test_a_non_strict_plan_drops_an_account_whose_holding_was_skipped() -> None:
+    records = fixture()
+    holding = records["syn-ownership-0002"]  # syn-co-0001 holds syn-acct-0001
+    holding["properties"]["owner"].append("syn-co-0002")  # two owners: C1 passes, C2 skips it
+    account = holding["properties"]["asset"][0]
+    plan = plan_load(list(records.values()), strict=False)
+    assert [str(issue) for issue in plan.skipped] == [
+        "C2 syn-ownership-0002: one relationship needs exactly one owner and one asset"
+        " (has 2 and 1)"
+    ]
+    assert account not in {row.id for row in plan.nodes}  # else invariant I4 would break
+    assert [(i.rule, i.record_id) for i in plan.rejected] == [("R8", account)]
+
+
 class FakeDriver:
     """Records each query; answers the migration check and returns no dangling rows."""
 
@@ -142,7 +167,7 @@ class FakeDriver:
 
     @contextmanager
     def session(self, **kwargs: Any) -> Iterator[Any]:
-        yield SimpleNamespace(run=lambda query: [{"id": "0001_init"}])
+        yield SimpleNamespace(run=lambda query: [{"id": m.id} for m in discover()])
 
     def execute_query(self, query: str, rows: list[dict[str, Any]], database_: str) -> Any:
         self.calls.append((query, rows))
@@ -179,3 +204,11 @@ def test_rows_go_in_batches_as_parameters_and_never_into_query_text() -> None:
     first_relationship = next(i for i, query in enumerate(queries) if "-[r:" in query)
     assert all("MERGE (n:" in query for query in queries[:first_relationship])  # nodes first
     assert loader.BATCH_SIZE == 5_000
+
+
+def test_an_empty_record_file_is_reported(tmp_path: Path) -> None:
+    empty = tmp_path / "empty.ftm.jsonl"
+    empty.write_text("", encoding="utf-8")
+    report = load_files(FakeDriver(), [empty, FIXTURE])  # type: ignore[arg-type]
+    assert report.empty_files == [empty.resolve()]
+    assert report.records == len(fixture())

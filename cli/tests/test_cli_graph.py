@@ -194,13 +194,24 @@ def test_a_non_strict_load_reports_dangling_references_and_succeeds(
     assert result.output.endswith("WARN in 0.5 s\n")
 
 
+def test_an_empty_record_file_is_a_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    use_loader(monkeypatch, load_report(empty_files=[Path("empty.ftm.jsonl")]))
+    result = runner.invoke(app, ["graph", "load", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "WARN  empty.ftm.jsonl holds no records" in result.output.splitlines()
+    assert result.output.endswith("WARN in 0.5 s\n")
+
+
 def test_a_strict_load_with_dangling_references_fails(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     use_loader(monkeypatch, load_report(dangling=[DANGLING]))
     result = runner.invoke(app, ["graph", "load", str(tmp_path)])
     assert result.exit_code == 1
-    assert result.output.endswith("FAILED (strict): 1 dangling reference(s)\n")
+    assert result.output.endswith(
+        "FAILED (strict): 1 dangling reference(s); the rest of the load was written:"
+        " fix the input and load again\n"
+    )
 
 
 def test_a_refused_load_lists_its_issues(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from neonradar_contracts.records import validate_files
+from neonradar_graph.mapping import to_node_rows, to_relationship_rows
 from neonradar_ingest.synth.cycles import Hop, find_cycles
 
 if TYPE_CHECKING:
@@ -30,6 +31,17 @@ def test_validates_in_strict_mode(demo_mini: Load) -> None:
     counts, issues = validate_files([demo_mini.path], strict=True)
     assert issues == []
     assert counts.total() == len(demo_mini.records)
+
+
+def test_maps_to_the_graph_schema_without_skips(demo_mini: Load) -> None:
+    """The M1.9a loader is strict: every record and reference must map to C2."""
+    nodes, edges = to_node_rows(demo_mini.records), to_relationship_rows(demo_mini.records)
+    assert nodes.skipped == [] and edges.skipped == []
+    assert len(nodes.rows) == sum(
+        r["schema"] in ("Company", "Organization", "Person", "Address", "BankAccount")
+        for r in demo_mini.records
+    )
+    assert len(list(demo_mini.path.parent.glob("*.ftm.jsonl"))) == 1
 
 
 def test_counts_meet_the_targets(demo_mini: Load) -> None:
@@ -62,7 +74,15 @@ def test_registry_has_the_planned_structures(demo_mini: Load) -> None:
     for r in shares:
         assets.setdefault(r["properties"]["owner"][0], []).append(r["properties"]["asset"][0])
     chains = [(a, b, c) for a in assets[pep] for b in assets.get(a, []) for c in assets.get(b, [])]
-    assert len(chains) == 1  # the PEP -> company -> company -> company
+    assert [[demo_mini.prop(c, "jurisdiction") for c in chain] for chain in chains] == [
+        ["vg", "cy", "gb"]
+    ]  # the PEP -> vg -> cy -> gb
+    assert all("share_pct_min" in r["nr"] and "share_pct_max" in r["nr"] for r in shares)
+    sanctioned = next(r["id"] for r in companies if r["properties"].get("topics"))
+    participants = {
+        p.split(":")[1] for row in demo_mini.scenarios for p in row["participants"].split(";")
+    }
+    assert pep not in participants and sanctioned not in participants
     ledgers = [r["id"] for r in demo_mini.schema("BankAccount")
                if r["nr"]["account_kind"] == "cash_ledger"]  # fmt: skip
     holders = _holders(demo_mini)

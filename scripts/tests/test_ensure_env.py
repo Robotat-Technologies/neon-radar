@@ -18,7 +18,7 @@ def run_copy(tmp_path: Path, password: str) -> subprocess.CompletedProcess[str]:
     (tmp_path / "scripts").mkdir()
     shutil.copy(SCRIPT, tmp_path / "scripts" / "ensure_env.sh")
     env = {**os.environ, "NEO4J_PASSWORD": password, "GIT_CEILING_DIRECTORIES": str(tmp_path)}
-    return subprocess.run(  # noqa: S603 (fixed arguments, scratch folder)
+    return subprocess.run(
         [str(BASH), str(tmp_path / "scripts" / "ensure_env.sh")],
         capture_output=True,
         text=True,

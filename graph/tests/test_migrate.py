@@ -155,3 +155,14 @@ def test_refuses_a_database_with_an_unknown_migration(tmp_path: Path) -> None:
     with pytest.raises(MigrationError, match="0007_future"):
         run(driver, tmp_path)
     assert driver.log == []
+
+
+def test_refuses_a_pending_migration_numbered_below_an_applied_one(tmp_path: Path) -> None:
+    write(tmp_path, "0001_init.cypher", "RETURN 1;\n")
+    write(tmp_path, "0002_late.cypher", "RETURN 2;\n")
+    third = write(tmp_path, "0003_more.cypher", "RETURN 3;\n")
+    first = checksum("RETURN 1;\n")
+    driver = FakeDriver({"0001_init": first, "0003_more": checksum(third.read_text())})
+    with pytest.raises(MigrationError, match=r"0002_late\.cypher is numbered below 0003_more"):
+        run(driver, tmp_path)
+    assert driver.log == []

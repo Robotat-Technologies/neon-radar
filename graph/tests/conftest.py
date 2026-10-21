@@ -2,7 +2,8 @@
 
 - `NR_TEST_NEO4J_URI` set: use that running database (faster locally), with the user and
   password of `Neo4jSettings` (NEO4J_USER, NEO4J_PASSWORD or the root `.env`). The tests wipe
-  it, so a database that holds `:Entity` nodes is refused unless `NR_TEST_ALLOW_WIPE=1`.
+  it, so a database that holds any node other than `:SchemaMigration` is refused unless
+  `NR_TEST_ALLOW_WIPE=1`.
 - Otherwise: a throwaway Testcontainers Neo4j (`NR_NEO4J_IMAGE`, default the compose image)
   with a random password, APOC Core from the image and the GDS jar that `make plugins` pinned
   (operator decision OD-13), copied into the container before it starts. Nothing is downloaded
@@ -61,11 +62,12 @@ def _external(uri: str) -> Iterator[Neo4jTarget]:
     with get_driver(settings) as driver:
         wait_until_ready(driver, timeout_s=60)
         records, _, _ = driver.execute_query(
-            "MATCH (n:Entity) RETURN count(n) AS n", database_=settings.database
+            "MATCH (n) WHERE NOT n:SchemaMigration RETURN count(n) AS n",
+            database_=settings.database,
         )
         if records[0]["n"] and os.environ.get("NR_TEST_ALLOW_WIPE") != "1":
             pytest.fail(
-                f"NR_TEST_NEO4J_URI={uri} holds {records[0]['n']} :Entity nodes and the tests wipe"
+                f"NR_TEST_NEO4J_URI={uri} holds {records[0]['n']} nodes and the tests wipe"
                 " the database: set NR_TEST_ALLOW_WIPE=1 to allow it, or unset NR_TEST_NEO4J_URI"
             )
         yield Neo4jTarget(driver, settings.database)

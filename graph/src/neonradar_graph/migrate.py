@@ -111,8 +111,9 @@ def migrate(
     await_indexes_s: int = 300,
     clock: Callable[[], str] = _now,
 ) -> MigrationReport:
-    """Apply the pending migrations in order; raise MigrationError before applying anything if
-    an applied migration was edited or is missing from `directory`."""
+    """Apply the pending migrations in order. Raise MigrationError before applying anything if
+    an applied migration was edited or is missing from `directory`, or if a pending migration is
+    numbered below the latest applied one (it would run out of order)."""
     migrations = discover(directory)
     # Before 0001 the label and its properties do not exist yet; the server's warnings about
     # that are expected, so this one read asks for no notifications.
@@ -133,7 +134,14 @@ def migrate(
                 f" {stored[:12]}, file {migration.checksum[:12]}): add a new migration;"
                 " never edit an applied one"
             )
-    report = MigrationReport(already_applied=[m.id for m in migrations if m.id in applied])
+    done = [migration for migration in migrations if migration.id in applied]
+    late = [m for m in migrations if m.id not in applied and done and m.id < done[-1].id]
+    if late:
+        raise MigrationError(
+            f"{late[0].path.name} is numbered below {done[-1].path.name}, which is already"
+            " applied: give it the next free number"
+        )
+    report = MigrationReport(already_applied=[migration.id for migration in done])
     for migration in migrations:
         if migration.id in applied:
             continue

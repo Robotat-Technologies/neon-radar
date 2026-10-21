@@ -6,7 +6,7 @@ When AI drafts most of the code, people do not learn by watching it happen. Lear
 2. **Owning decision records.** The agent drafts architecture decision records as `proposed`; the people who decide edit them until they say what they think, and accept them ([docs/decisions/](../decisions/README.md)).
 3. **Teaching it back.** Thirty minutes on Thursdays, two or three people at a time ([teach-back.md](teach-back.md)).
 
-This folder holds the rest of the track: your learning log, the skills self-assessment and, in the final week, your exit post.
+This folder holds the rest of the track: your learning log, the skills self-assessment, the reading list, the case notes and, in the final week, your exit post.
 
 | File | What it is | Who writes it |
 |---|---|---|

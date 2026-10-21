@@ -37,14 +37,14 @@ The arrows are the contracts. A squad builds its box against the contract and a 
 | Box | Directory and package | What it does | Built in |
 |---|---|---|---|
 | Loaders and spikes | `ingest/` (`neonradar_ingest`) | Fetch a source and write C1 records. Phase 1 has spikes that fetch a small slice of each source (`neonradar spike <source>`, reports in [docs/data/spikes/](../data/spikes/)) on a shared HTTP client | Spikes M1.8a to M1.8d; production loaders Phase 2 |
-| Synthetic generator | `ingest/` | Seeded synthetic companies, people, accounts and payments, attached to registry entities as background activity only (guardrail G1) | M1.8e; full generator Phase 3 |
+| Synthetic generator | `ingest/` | Seeded synthetic companies, people, accounts and payments: background activity for existing registry entities, and typology scenarios planted only among synthetic (`syn-`) entities (guardrail G1) | M1.8e; full generator Phase 3 |
 | Record contract | `contracts/` (`neonradar_contracts`) | Models, validators, JSON Schemas, the dataset registry and golden examples for all four contracts | M1.7a to M1.7d |
 | Graph | `graph/` (`neonradar_graph`) | Migrations (`neonradar graph migrate`), the mapping from records to nodes and relationships, the loader and the Neo4j client | M1.7b, M1.9a; resolver Phase 2 |
 | Detection | `detect/` (`neonradar_detect`) | The typology catalog (`detect/typologies/`), detectors and the alert writer | M1.9b (circular flow); nine more in Phase 3 |
 | API | `api/` (`neonradar_api`) | Read-only FastAPI service on `127.0.0.1` | M1.7d (skeleton), M1.9c |
 | Copilot | `copilot/` (`neonradar_copilot`) | Placeholder until Phase 4; proposed design in [ADR-0010](../decisions/0010-copilot-local-template-first.md) | Phase 4 |
 | Explorer | `ui/` | Vue 3 app with Cytoscape.js | M1.9d (shell); Phase 5 |
-| Command line | `cli/` (`neonradar_cli`) | The `neonradar` command: `doctor`, `contracts`, `docs`, `graph`, `spike`, with more groups as milestones add them | M1.3 onwards |
+| Command line | `cli/` (`neonradar_cli`) | The `neonradar` command: `doctor`, `contracts`, `docs`, `graph`, `onboarding`, `spike`, with more groups as milestones add them | M1.3 onwards |
 
 ## The four contracts
 
@@ -120,18 +120,18 @@ neon-radar/
 | Path | Owner | Required reviewer for |
 |---|---|---|
 | `contracts/`, `graph/schema/` | tech lead and the maintainers team | every change |
-| `ingest/`, `data/fixtures/` | Ingestion squad | loaders, generator, fixtures |
-| `graph/` | Graph squad | loader, migrations, mapping |
-| `detect/` | Detection squad | detectors, typology catalog |
-| `copilot/`, `api/` | Copilot squad | API and copilot |
-| `ui/` | UI squad | frontend |
-| `cli/`, `docs/`, root files, `.github/`, `.devcontainer/`, `Makefile` | Docs squad | developer experience and docs |
+| `ingest/`, `data/fixtures/` | Data ingestion squad | loaders, generator, fixtures |
+| `graph/` | Graph and entity resolution squad | loader, migrations, mapping |
+| `detect/` | Typologies and detection squad | detectors, typology catalog |
+| `copilot/`, `api/` | Investigation copilot squad | API and copilot |
+| `ui/` | Explorer UI squad | frontend |
+| `cli/`, `docs/`, root files, `.github/`, `.devcontainer/`, `Makefile` | Docs, DX and launch squad | developer experience and docs |
 | `.claude/`, `CLAUDE.md`, `docs/build/` | tech lead | agent kit and build spec |
 | `docs/build/PROGRESS.md` | nobody | every pull request updates its own row |
 | `DATA_SOURCES.md`, `docs/data/licences/`, `contracts/datasets.yaml` | data steward (with the tech lead for `datasets.yaml`) | licence statements |
 | `docs/typologies/`, `detect/typologies/` | typology researchers | AML definitions |
 
-Until the team joins, @robotat-com holds every named role (OD-6), and the squad teams (`@neonradar/nr-*`) take effect after the repository moves to the `neonradar` organisation (OD-7).
+Squad names follow [docs/team/roles.md](../team/roles.md). Until the team joins, @robotat-com holds every named role (OD-6), and the squad teams (`@neonradar/nr-*`) take effect after the repository moves to the `neonradar` organisation (OD-7).
 
 ## Naming conventions
 
@@ -153,7 +153,7 @@ Until the team joins, @robotat-com holds every named role (OD-6), and the squad 
 
 ## How the project is built
 
-AI agents (Claude Code) build NeonRadar one milestone per branch and pull request, from the build spec. During the initial build the operator authorised an orchestrating agent session to merge each pull request after its acceptance commands passed, an independent agent review found nothing left that affects correctness, requirements or guardrails, and CI passed (OD-2 to OD-4). Milestone builders never merge. People review merged work and keep every human decision: freezing contracts, approving typologies, accepting ADRs and confirming licence decisions (OD-5). The rules and the controls that enforce them are in [ADR-0011](../decisions/0011-ai-built-workflow.md).
+AI agents (Claude Code) build NeonRadar one milestone per branch and pull request, from the build spec. During the initial build the operator authorised an orchestrating agent session to merge each pull request after its acceptance commands passed, an independent agent review found nothing left that affects correctness, requirements or guardrails, and CI passed (OD-2 to OD-4). Milestone builders never merge. People review merged work and keep every human decision: freezing contracts, approving typologies, accepting ADRs and confirming licence decisions (OD-5). People also write their own learning logs, self-assessments, teach-backs, exit posts and assignment submissions. CI checks start at M1.6, and GitHub does not enforce them on this plan; the orchestrating session checks them before every merge (OD-16). The guard hook `.claude/hooks/guard_git.py` and the deny rules in `.claude/settings.json` allow only `gh pr merge <n> --merge` and block pushes to `main`, force-pushes, remote branch deletion and settings changes (OD-9). The rules and the controls that enforce them are in [ADR-0011](../decisions/0011-ai-built-workflow.md).
 
 ## Decisions
 

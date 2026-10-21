@@ -6,7 +6,7 @@
 
 Danske Bank's Estonian branch served a portfolio of non-resident customers. The bank's own investigation, carried out by Bruun & Hjejle and published by the bank in September 2018, describes about 10,000 non-resident customers (about 15,000 when every customer with a cross-border characteristic is counted) and about EUR 200 billion of payments through the portfolio from 2007 to 2015, in about 9.5 million payments [danske_bruun_hjejle_2018]. The report states that its findings do not allow a conclusion that money laundering or other crime actually occurred, and it does not name customers [danske_bruun_hjejle_2018].
 
-In December 2022 Danske Bank pleaded guilty in the United States to conspiracy to commit bank fraud. It admitted that the branch processed about USD 160 billion through US banks on behalf of the non-resident portfolio while misrepresenting its anti-money-laundering controls to its US correspondent banks, and it agreed to forfeit about USD 2 billion [doj_danske_2022]. The charge was bank fraud against those correspondent banks, not a money laundering offence.
+In December 2022 Danske Bank pleaded guilty in the United States to conspiracy to commit bank fraud. It admitted that the branch processed about USD 160 billion through US banks on behalf of the non-resident portfolio while misrepresenting its anti-money-laundering controls to its US correspondent banks, and it agreed to forfeit about USD 2 billion [doj_danske_2022]. The charge was conspiracy to commit bank fraud against those US banks, not a money laundering offence [doj_danske_2022].
 
 ## The structure as a graph
 
@@ -27,18 +27,20 @@ flowchart LR
   BE["Beneficiaries<br/>in other countries"]
   AG -. introduced .-> CU
   IM -. introduced .-> CU
-  CU -- holds --> AC1
-  CU -- holds --> AC2
-  SB -- inbound transfers --> AC1
-  SB -- inbound transfers --> AC2
+  CU -. holds .-> AC1
+  CU -. holds .-> AC2
+  SB -. inbound transfers .-> AC1
+  SB -. inbound transfers .-> AC2
   AC1 -- dollar payments --> CB
   AC2 -- dollar payments --> CB
-  CB -- cleared to --> BE
+  CB -. cleared to .-> BE
 ```
+
+Solid arrows: admitted in the bank's US guilty plea [doj_danske_2022]. Dotted arrows: documented by the bank's own investigation, not a court finding [danske_bruun_hjejle_2018].
 
 ## Typologies this structure illustrates
 
-- `rapid_pass_through`: funds that come in from banks abroad and pass on to beneficiaries in other countries through correspondent banks. The glossary defines a [pass-through or transit account](../../glossary.md) [fatf_egmont_tbml_indicators_2021] and [correspondent banking](../../glossary.md) [wolfsberg_correspondent_2022].
+- [`rapid_pass_through`](../../typologies/rapid-pass-through.md): funds that come in from banks abroad and pass on to beneficiaries in other countries through correspondent banks. The glossary defines a [pass-through or transit account](../../glossary.md) [fatf_egmont_tbml_indicators_2021] and [correspondent banking](../../glossary.md) [wolfsberg_correspondent_2022].
 
 A typology names the graph pattern this reported structure shows. It is not a finding about any customer.
 

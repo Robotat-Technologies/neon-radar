@@ -22,7 +22,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.8a | todo | - | - | 2026-10-21 | - | - |
 | M1.8b | todo | - | - | 2026-10-21 | - | - |
 | M1.8c | todo | - | - | 2026-10-21 | - | - |
-| M1.8d | todo | - | - | 2026-10-21 | - | Gated by the OpenSanctions licence decision (access.opensanctions) |
+| M1.8d | pr-open | p1/m1-8d-spike-opensanctions | #18 | 2026-10-21 | acceptance after the review fixes: with access.opensanctions none, neonradar spike opensanctions exits 3 with the spec message before any HTTP client exists; 88 OpenSanctions tests pass offline (gate, mapping, spike over MockTransport, command); any non-route access value refuses with zero requests; the network test skips while access is none; report exists; make check: 364 passed | Verdict blocked on licence decision; no OpenSanctions data fetched or committed; needs-human-decision (OpenSanctions route, data steward); mapping per contracts/C1-record.md (OD-17): os-ent- ids, one dataset, target dropped; evaluation needs the data steward's confirmed line in docs/data/licences/opensanctions.md; Payments skipped (R7); review fixes: gate fails closed for every value, read_index gated, malformed referents and datasets counted, stream errors and unreadable output end cleanly; size-exception granted under OD-15; built on M1.8-0 (#12, #13); built in a worktree; review by the orchestrator (OD-4); other deviations listed in the PR |
 | M1.8e | todo | - | - | 2026-10-21 | - | - |
 | M1.9a | todo | - | - | 2026-10-21 | - | - |
 | M1.9b | todo | - | - | 2026-10-21 | - | - |

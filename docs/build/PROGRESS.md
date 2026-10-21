@@ -17,7 +17,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.7b | todo | - | - | 2026-10-21 | - | - |
 | M1.7c | todo | - | - | 2026-10-21 | - | - |
 | M1.7d | todo | - | - | 2026-10-21 | - | - |
-| M1.8-0-1 | in-progress | p1/m1-8-0-http-client | - | 2026-10-21 | - | First of two M1.8-0 pull requests (2.3): the shared HTTP client; M1.8-0-2 adds the spike command group |
+| M1.8-0-1 | pr-open | p1/m1-8-0-http-client | #12 | 2026-10-21 | test_http.py: 10 passed (MockTransport, fake clock); make check: 261 passed; make hygiene: 302 counted lines, all checks OK | First of two M1.8-0 pull requests (2.3; 495 counted lines as one): the shared HTTP client, written as its own pull request at the orchestrator's direction instead of by the first spike to land; transport errors retried too (2.7); HttpClient subclasses httpx.Client so get, head and stream are limited and retried; httpx's URL logs redacted; built in a worktree; review by the orchestrator after the PR opens (OD-4) |
 | M1.8a | todo | - | - | 2026-10-21 | - | - |
 | M1.8b | todo | - | - | 2026-10-21 | - | - |
 | M1.8c | todo | - | - | 2026-10-21 | - | - |

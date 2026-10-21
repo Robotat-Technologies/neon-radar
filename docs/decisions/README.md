@@ -16,7 +16,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0003](0003-followthemoney-record-format.md) | FollowTheMoney as the record format | M1.7a | proposed | tech lead |
 | [0004](0004-graph-schema-v1.md) | Graph schema v1 | M1.7b | proposed | tech lead |
 | [0005](0005-synthetic-data-policy.md) | Synthetic data policy | M1.8e | proposed | tech lead, data steward |
-| 0006 | Data licensing | M1.10a | not written yet | data steward, project lead |
+| [0006](0006-data-licensing.md) | Data licensing | M1.10a | proposed | data steward, project lead |
 | [0007](0007-toolchain.md) | Toolchain | M1.3 | proposed | tech lead |
 | 0008 | API gateway and OpenAPI snapshot | M1.7d | not written yet | tech lead |
 | [0009](0009-alert-object-and-wording.md) | Alert object and wording | M1.7c | proposed | tech lead, typology researchers |

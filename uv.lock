@@ -690,6 +690,7 @@ dependencies = [
     { name = "httpx" },
     { name = "neonradar-contracts" },
     { name = "numpy" },
+    { name = "pydantic-settings" },
     { name = "pyyaml" },
 ]
 
@@ -700,6 +701,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "neonradar-contracts", editable = "contracts" },
     { name = "numpy", specifier = ">=2.5,<3" },
+    { name = "pydantic-settings", specifier = ">=2.16,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
 ]
 

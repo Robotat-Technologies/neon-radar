@@ -26,6 +26,13 @@
     gate in `sources/opensanctions/access.py`: `none` sends no request, and only `licensed`
     writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
+  - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
+    username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids
+    with `make_id` and keep raw ids in `nr.source_ref`; count `identity_verification_details`,
+    never map it. Its `Mapper` builds `ValueEntity` records itself (it merges an officer's
+    appointments into one record) and writes through `spikes.write_output`. Tests use
+    synthetic bodies in `tests/fixtures/companies_house/` and compare with
+    `*.expected.json`, never a committed `.ftm.jsonl` with `gbch-` ids.
   - The synthetic generator (`synth/`, ADR-0005) must stay byte-reproducible: draw only
     through `synth.rng` (numpy `integers`, `random`, `choice`, `permutation`; never normal or
     lognormal), never iterate a set, never read the clock or the network, write `\n` line

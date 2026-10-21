@@ -17,8 +17,8 @@ services:
     command: ["neo4j"]
     restart: unless-stopped
     ports:
-      - "127.0.0.1:7474:7474"
-      - "127.0.0.1:7687:7687"
+      - "127.0.0.1:${NEO4J_HTTP_PORT:-7474}:7474"
+      - "127.0.0.1:${NEO4J_BOLT_PORT:-7687}:7687"
     environment:
       NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env (at least 8 characters)}"
       # APOC Core is installed from the image's labs/ folder. The Community image has no GDS jar
@@ -53,6 +53,62 @@ services:
       timeout: 10s
       retries: 30
       start_period: 30s
+
+  # The demo (`make demo-mini`): API and UI images built from this repository, started only with
+  # the "app" profile, so `make up` still starts Neo4j alone. Both publish on 127.0.0.1 only.
+  api:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env (at least 8 characters)}"
+    ports:
+      - "127.0.0.1:${NR_API_PORT:-8000}:8000"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      # Healthy once the API answers and reports Neo4j, APOC and GDS ("ok"); no curl in the image.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request as u; r = u.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=4); raise SystemExit(json.load(r)['status'] != 'ok')"
+      interval: 5s
+      timeout: 6s
+      retries: 30
+      start_period: 10s
+
+  ui:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${NR_UI_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+        # nginx resolves the api container once at start; restart it when api is recreated.
+        restart: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   # The real-data instance (PHASE-2.md 4.1, C2 L17, M2.0). Real profiles load only here, never
   # into neo4j above, which the API, the UI, the tests and the agent use. Its only database is

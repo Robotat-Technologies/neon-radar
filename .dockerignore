@@ -1,0 +1,31 @@
+# Kept out of every image built from the repository root (PHASE-1.md M1.9e): secrets,
+# version control, local data and caches, and build output. No .env file, at any depth, ever
+# enters an image.
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+secrets/
+**/secrets/
+data/*
+!data/fixtures/
+data/cache/
+data/runs/
+.venv/
+**/.venv/
+**/__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+**/.DS_Store
+ui/node_modules/
+**/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+.claude/worktrees/
+.claude/settings.local.json
+CLAUDE.local.md

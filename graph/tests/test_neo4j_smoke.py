@@ -13,7 +13,7 @@ from testcontainers.core.config import testcontainers_config
 IMAGE = os.environ.get("NR_NEO4J_IMAGE", "neo4j:5.26.32-community")
 # NEO4J_PLUGINS downloads the GDS jar from graphdatascience.ninja when the container starts,
 # which can take minutes; the default wait is 120 s. Operator decision OD-13 asks for the jar
-# pinned by M1.4 instead; M1.7b (or later) makes that switch.
+# fetched and checked by scripts/fetch_gds.sh (M1.4) instead; M1.7b makes that switch.
 STARTUP_TIMEOUT_S = 300
 
 # Small enough to run next to the local stack (M1.4) and on a 7 GB CI runner.

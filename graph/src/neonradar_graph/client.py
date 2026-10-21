@@ -2,7 +2,8 @@
 
 Settings come from environment variables and the repository's `.env`; real environment
 variables win, so the devcontainer's `NEO4J_URI=bolt://neo4j:7687` is kept. Every settings
-object in the project follows this pattern.
+object in the project follows this pattern. Where Compose provides secrets (the devcontainer),
+the password can also come from the file `/run/secrets/neo4j_password`, after the other two.
 """
 
 import logging
@@ -13,12 +14,18 @@ from pathlib import Path
 from neo4j import Driver, GraphDatabase
 from neo4j.exceptions import AuthError, DriverError, Neo4jError
 from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SecretsSettingsSource,
+    SettingsConfigDict,
+)
 
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ENV_FILE = REPO_ROOT / ".env"
+SECRETS_DIR = Path("/run/secrets")  # Compose secrets; the devcontainer has neo4j_password here
 
 
 class Neo4jSettings(BaseSettings):
@@ -33,6 +40,29 @@ class Neo4jSettings(BaseSettings):
     user: str = "neo4j"
     password: SecretStr
     database: str = "neo4j"
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Arguments, then environment, then `.env`, then Compose secrets if the folder exists.
+
+        The folder is checked when the settings are read, not at import, so hosts without
+        `/run/secrets` behave exactly as before.
+        """
+        sources: tuple[PydanticBaseSettingsSource, ...] = (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+        )
+        if SECRETS_DIR.is_dir():
+            sources += (SecretsSettingsSource(settings_cls, secrets_dir=SECRETS_DIR),)
+        return sources
 
 
 def get_driver(settings: Neo4jSettings | None = None) -> Driver:

@@ -13,11 +13,22 @@ BASH = shutil.which("bash")
 pytestmark = pytest.mark.skipif(BASH is None, reason="needs bash")
 
 
-def run_copy(tmp_path: Path, password: str) -> subprocess.CompletedProcess[str]:
+def run_copy(
+    tmp_path: Path, password: str, secret: str | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run a copy of the script in an empty scratch folder that is not a git repository."""
     (tmp_path / "scripts").mkdir()
     shutil.copy(SCRIPT, tmp_path / "scripts" / "ensure_env.sh")
-    env = {**os.environ, "NEO4J_PASSWORD": password, "GIT_CEILING_DIRECTORIES": str(tmp_path)}
+    secrets = tmp_path / "secrets"  # stands in for /run/secrets
+    if secret is not None:
+        secrets.mkdir()
+        (secrets / "neo4j_password").write_text(secret, encoding="utf-8")
+    env = {
+        **os.environ,
+        "NEO4J_PASSWORD": password,
+        "NR_SECRETS_DIR": str(secrets),
+        "GIT_CEILING_DIRECTORIES": str(tmp_path),
+    }
     return subprocess.run(
         [str(BASH), str(tmp_path / "scripts" / "ensure_env.sh")],
         capture_output=True,
@@ -42,3 +53,19 @@ def test_an_empty_password_in_the_environment_does_not_count(tmp_path: Path) -> 
     assert result.returncode == 1
     assert ".env.example is missing" in result.stderr
     assert not (tmp_path / ".env").exists()
+
+
+def test_a_compose_secret_needs_no_env_file(tmp_path: Path) -> None:
+    result = run_copy(tmp_path, "", "throwaway-test-value-5678")
+    assert result.returncode == 0
+    assert result.stdout == (
+        "NEO4J_PASSWORD comes from the Compose secret neo4j_password; .env not needed.\n"
+    )
+    assert "throwaway-test-value-5678" not in result.stdout + result.stderr
+    assert not (tmp_path / ".env").exists()
+
+
+def test_an_empty_compose_secret_does_not_count(tmp_path: Path) -> None:
+    result = run_copy(tmp_path, "", "")
+    assert result.returncode == 1
+    assert ".env.example is missing" in result.stderr

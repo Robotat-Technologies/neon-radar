@@ -11,8 +11,8 @@
 - Integration tests share one Neo4j (`tests/conftest.py`): a Testcontainers container with the
   GDS jar from `make plugins` copied in, or `NR_TEST_NEO4J_URI` (wiped; refused if it holds
   any node but `:SchemaMigration` unless `NR_TEST_ALLOW_WIPE=1`).
-- Settings: `neonradar_graph.client.Neo4jSettings` (env vars win over the root `.env`,
-  `extra="ignore"`); every package's settings follow this pattern. `get_driver()`.
+- Settings: `client.Neo4jSettings`: env vars, then the root `.env` (`extra="ignore"`), then
+  `/run/secrets/neo4j_password` if present; every package follows this. `get_driver()`.
 - Traps:
   - neo4j driver 6: `execute_read` / `execute_write`; `read_transaction` is gone.
   - `CALL { } IN TRANSACTIONS` needs an auto-commit `session.run()`.

@@ -116,6 +116,10 @@ reset: ## delete the default Neo4j instance's data and logs volumes (needs CONFI
 	@if [ "$(CONFIRMED)" != "yes" ]; then \
 		echo "reset deletes the local Neo4j database. Run: make reset CONFIRM=yes" >&2; exit 1; \
 	fi
+	@name="$${COMPOSE_PROJECT_NAME:-$$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env 2>/dev/null | tail -n 1)}"; \
+	if [ -n "$$name" ] && [ "$$name" != "neonradar" ]; then \
+		echo "COMPOSE_PROJECT_NAME names another Compose project; reset knows only neonradar's volumes: unset it" >&2; \
+		exit 1; fi
 	docker compose --profile app down
 	docker volume rm --force $(DEFAULT_VOLUMES)
 

@@ -114,7 +114,9 @@ services:
   # into neo4j above, which the API, the UI, the tests and the agent use. Its only database is
   # realdata, so a query sent to the wrong instance fails. Same image, plugins, memory settings
   # and healthcheck as neo4j. Started only with the profile: `make up-real` on an approved
-  # machine (docs/data/real-data-machines.md); `neonradar data purge --graph` deletes its volume.
+  # machine (docs/data/real-data-machines.md). Its store and its logs (which can hold query
+  # text) live in two named volumes; `neonradar data purge --graph` removes the container,
+  # then both volumes (M2.2). `make reset` never touches them.
   neo4j-real:
     profiles: [real]
     image: neo4j:5.26.32-community
@@ -147,6 +149,7 @@ services:
       NEO4J_dbms_usage__report_enabled: "false"
     volumes:
       - neo4j-real-data:/data
+      - neo4j-real-logs:/logs
       - type: bind
         source: ./data/cache/neo4j-plugins
         target: /nr-plugins
@@ -165,3 +168,4 @@ volumes:
   neo4j_data:
   neo4j_logs:
   neo4j-real-data:
+  neo4j-real-logs:

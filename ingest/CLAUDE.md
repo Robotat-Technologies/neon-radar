@@ -20,8 +20,12 @@
     hand), the real-data gate `data.gate.check_real_data` before any request or write,
     downloads through `data.download.fetch`, retention and purge. A production loader
     registers a `SourceSpec`, a `Builder` and its profile-block model, and joins
-    `data.sources.PLUGINS`. Its tests use the `data_env` fixture (root conftest.py), which
-    points the cache, profiles, project file (`NR_PROJECT_FILE`) and `.env` at tmp paths.
+    `data.sources.PLUGINS`. `ingest build` runs the gate for every dataset and every builder
+    step it will run (the officers step meets `access.companies_house_key` there, not in the
+    loader), `data fetch` for every dataset. A synthetic profile may enable only
+    `nr_synthetic`; records of every other dataset always go under `data/cache/real/`. Its
+    tests use the `data_env` fixture (root conftest.py): cache, profiles, project file
+    (`NR_PROJECT_FILE`) and `.env` at tmp paths, and real httpx transports refused.
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use
     `httpx.MockTransport` with synthetic bodies; the one real run is `@pytest.mark.network`.
   - Output goes to `data/cache/` (gitignored); never commit real data or API responses.

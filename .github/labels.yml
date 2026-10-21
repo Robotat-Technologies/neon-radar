@@ -23,3 +23,5 @@
 - { name: "help wanted", color: "008672", description: "Extra attention is needed" }
 - { name: e2e, color: "c5def5", description: "Run the end-to-end demo test on this pull request" }
 - { name: size-exception, color: "c5def5", description: "Milestone allowed to exceed the 400-line limit (see PHASE-1.md 2.3)" }
+- { name: real-data-run, color: "e99695", description: "A named human runs a real-data command for this pull request" }
+- { name: er, color: "006b75", description: "Entity resolution" }

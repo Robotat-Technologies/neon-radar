@@ -7,8 +7,9 @@
   snapshot), `api serve` (127.0.0.1 only), `docs typology-index`, `graph load|stats|wipe`
   (M1.9a; `load` is strict by default, `wipe` needs `--yes`), `spike clean`, the spikes
   (`spike companies-house`, M1.8a; `spike gleif`, M1.8b; `spike icij`, M1.8c;
-  `spike opensanctions`, M1.8d), `onboarding check|reset` (Assignment 1),
-  `detect run|list` (M1.9b) and `gate check --phase 1` (`make gate-1`, M1.12).
+  `spike opensanctions`, M1.8d; `spike synthetic-join`, M1.8e), `synth demo-mini` and
+  `synth check-names` (M1.8e), `onboarding check|reset` (Assignment 1), `detect run|list`
+  (M1.9b) and `gate check --phase 1` (`make gate-1`, M1.12).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.
@@ -21,7 +22,9 @@
     validates in strict mode and exits 1 on any issue. Import ingest code inside the command
     so `neonradar --help` stays fast. `spike clean` deletes files, so it only ever cleans
     `spikes.SPIKE_ROOT` (no folder option); its tests monkeypatch `SPIKE_ROOT` and
-    `PROJECT_FILE` to tmp paths.
+    `PROJECT_FILE` to tmp paths. `spike synthetic-join` reads other C1 files, so it
+    validates input plus output together and prints counts and rule codes only, never an
+    input name or id (its records reference input entities that may be real).
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

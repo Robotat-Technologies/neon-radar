@@ -60,6 +60,9 @@ RESET = "MATCH (n:OnbCompany|OnbPerson|OnbAddress) DETACH DELETE n RETURN count(
 
 HANDLE_RE = re.compile(r"@[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}")  # a GitHub handle
 FENCE_RE = re.compile(r"```\s*(\S*)\s*")
+# A first query runs on everyone's machine: no file or URL loading, no procedures, no
+# subqueries (`LOAD CSV FROM 'https://...'` would make an outbound request).
+REFUSED_RE = re.compile(r"\bLOAD\s+CSV\b|\bapoc\.|\bCALL\b", re.IGNORECASE)
 
 
 class OnboardingError(Exception):
@@ -144,19 +147,21 @@ def parse_first_queries(text: str) -> list[Entry]:
             if current is not None:
                 entries.append(current)
     if fence is not None and current is not None:
-        current.problem = "a code block is not closed"
+        current.problem = "format: a code block is not closed"
     seen: set[str] = set()
     for entry in entries:
         if entry.problem:
             continue
         if not HANDLE_RE.fullmatch(entry.handle):
-            entry.problem = f"'{entry.handle}' is not a GitHub handle"
+            entry.problem = f"format: '{entry.handle}' is not a GitHub handle"
         elif entry.handle.lower() in seen:
-            entry.problem = f"a second section for {entry.handle}"
+            entry.problem = f"format: a second section for {entry.handle}"
         elif len(entry.queries) != 1:
-            entry.problem = f"expected exactly one ```cypher block, found {len(entry.queries)}"
+            entry.problem = f"format: expected one ```cypher block, found {len(entry.queries)}"
         elif not entry.queries[0]:
-            entry.problem = "the ```cypher block is empty"
+            entry.problem = "format: the ```cypher block is empty"
+        elif REFUSED_RE.search(entry.queries[0]):
+            entry.problem = "not allowed: first queries may not use LOAD CSV, apoc. or CALL"
         seen.add(entry.handle.lower())
     return entries
 
@@ -196,7 +201,7 @@ def check_queries(
     results: list[QueryResult] = []
     for entry in entries:
         if entry.problem:
-            results.append(QueryResult(entry.handle, error=f"format: {entry.problem}"))
+            results.append(QueryResult(entry.handle, error=entry.problem))
             continue
         try:
             rows = run_read_only(driver, entry.queries[0], database, timeout_s)

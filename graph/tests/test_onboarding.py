@@ -3,16 +3,20 @@
 import re
 from collections import Counter
 from pathlib import Path
+from typing import cast
 
 import pytest
+from neo4j import Driver
 
 from neonradar_graph.onboarding import (
     CSV_PATH,
     HEADER,
     QUERIES_PATH,
     Counts,
+    Entry,
     OnboardingError,
     QueryResult,
+    check_queries,
     expected_counts,
     parse_first_queries,
     read_rows,
@@ -144,6 +148,24 @@ RETURN 5
 
 ```
 
+## @frank
+
+```cypher
+LOAD CSV FROM 'https://example.org/x.csv' AS row RETURN row
+```
+
+## @grace
+
+```cypher
+MATCH (c) call { WITH c RETURN 1 AS one } RETURN c
+```
+
+## @heidi
+
+```cypher
+RETURN apoc.version()
+```
+
 ## @erin
 
 ```cypher
@@ -151,17 +173,23 @@ RETURN 6
 """
 
 
+REFUSED = "not allowed: first queries may not use LOAD CSV, apoc. or CALL"
+
+
 def test_parse_first_queries_reports_each_section() -> None:
     entries = {(entry.handle, entry.line): entry for entry in parse_first_queries(FILE)}
     by_handle = [(handle, entry.problem) for (handle, _), entry in entries.items()]
     assert by_handle == [
         ("@alice", None),
-        ("@bob", "expected exactly one ```cypher block, found 0"),
-        ("@carol", "expected exactly one ```cypher block, found 2"),
-        ("@alice", "a second section for @alice"),
-        ("@-bad-", "'@-bad-' is not a GitHub handle"),
-        ("@dave", "the ```cypher block is empty"),
-        ("@erin", "a code block is not closed"),
+        ("@bob", "format: expected one ```cypher block, found 0"),
+        ("@carol", "format: expected one ```cypher block, found 2"),
+        ("@alice", "format: a second section for @alice"),
+        ("@-bad-", "format: '@-bad-' is not a GitHub handle"),
+        ("@dave", "format: the ```cypher block is empty"),
+        ("@frank", REFUSED),
+        ("@grace", REFUSED),
+        ("@heidi", REFUSED),
+        ("@erin", "format: a code block is not closed"),
     ]
     alice = entries[("@alice", 9)]
     assert alice.queries == ["MATCH (a)-[:R]->(b)-[:R]->(c)\nRETURN c"]
@@ -170,3 +198,11 @@ def test_parse_first_queries_reports_each_section() -> None:
 def test_query_result_lines() -> None:
     assert QueryResult("@a", rows=4).line() == "OK    @a  ran, 4 rows returned"
     assert QueryResult("@a", error="X: y").line() == "FAIL  @a  X: y"
+
+
+def test_a_refused_query_is_reported_and_never_sent() -> None:
+    query = "LOAD CSV FROM 'https://example.org/x.csv' AS row RETURN row"
+    entry = parse_first_queries(f"## @frank\n\n```cypher\n{query}\n```\n")[0]
+    assert entry == Entry("@frank", 1, [query], REFUSED)
+    no_database = cast(Driver, object())  # any use of the driver would raise AttributeError
+    assert check_queries(no_database, [entry]) == [QueryResult("@frank", error=REFUSED)]

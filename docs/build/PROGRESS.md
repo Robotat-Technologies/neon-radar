@@ -27,7 +27,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M1.9c | todo | - | - | 2026-10-21 | - | - |
 | M1.9d | todo | - | - | 2026-10-21 | - | - |
 | M1.9e | todo | - | - | 2026-10-21 | - | - |
-| M1.10a | todo | - | - | 2026-10-21 | - | - |
+| M1.10a | pr-open | p1/m1-10a-wording-glossary | (pending) | 2026-10-21 | acceptance: check_citations.py docs/: OK, 17 Markdown files cite 39 keys, all in the bibliography (54 entries); CI form (docs/ detect/typologies/ README.md): OK; negative check exits 1 with file:line; scripts/tests/test_check_citations.py: 19 passed; make hygiene: OK (348 counted lines); make check: pass | Bibliography: the 52 entries of 7.3 plus uk_gdpr and eu_gdpr_2016 for ADR-0006; 23 other URLs re-opened 2026-10-21; the 19 FATF entries and 10 others (FFIEC, EBA, justice.gov, Open Ownership register) keep the research note's date because those sites answer automated clients with a bot challenge; EUR-Lex too, so the GDPR was read as adopted on legislation.gov.uk; glossary clauses without a readable source dropped (list in the PR); check_citations also validates the bibliography; ADR-0006 proposed; built in a worktree; review by the orchestrator after the PR opens (OD-4); other deviations listed in the PR |
 | M1.10b-1 | todo | - | - | 2026-10-21 | - | - |
 | M1.10b-2 | todo | - | - | 2026-10-21 | - | - |
 | M1.10b-3 | todo | - | - | 2026-10-21 | - | - |

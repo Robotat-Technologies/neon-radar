@@ -34,11 +34,13 @@ INVARIANTS = {
     "I4": """
         MATCH (a:Account) WHERE NOT EXISTS { (:LegalEntity)-[:HOLDS_ACCOUNT]->(a) }
         RETURN elementId(a) AS bad LIMIT 10""",
+    # A one-sided band (only min or only max) is valid; C1 compares the two when both exist.
     "I5": """
         MATCH ()-[r:OWNS]->()
-        WHERE (r.share_pct_min IS NOT NULL OR r.share_pct_max IS NOT NULL)
-          AND NOT coalesce(0 <= r.share_pct_min AND r.share_pct_min <= r.share_pct_max
-                           AND r.share_pct_max <= 100, false)
+        WITH r, r.share_pct_min AS low, r.share_pct_max AS high
+        WHERE (low IS NOT NULL AND NOT (0 <= low AND low <= 100))
+           OR (high IS NOT NULL AND NOT (0 <= high AND high <= 100))
+           OR (low IS NOT NULL AND high IS NOT NULL AND low > high)
         RETURN elementId(r) AS bad LIMIT 10""",
 }
 # Each invariant must have something to check on demo-mini, or it would pass vacuously.

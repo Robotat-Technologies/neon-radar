@@ -9,12 +9,23 @@
    `neonradar_contracts.graph`, written into the query text per schema or type; record values
    travel only as parameters.
 
-Relationships find both ends by id on the key label (`:Entity`, or `:Sanction`), so the
-uniqueness index is used, and check the C2 From and To label; a row whose end is missing is
-reported as dangling. Loading the same files twice leaves the graph unchanged. A reload of
-changed files is an upsert: properties and labels are set again, flags follow the record both
-ways, and a relationship whose end changed is moved. A property a record dropped, an old schema
-label and records no longer in the files stay until `wipe`.
+Relationships find both ends by id on the key label (`:Entity`, or `:Sanction`) with an index
+seek hint, and check the C2 From and To label; a row whose end is missing is reported as
+dangling. Loading the same files twice leaves the graph unchanged.
+
+A reload of changed files is an upsert of what the files hold:
+- properties are set again, and every mapped property the record no longer has is removed
+  (sent as null); flag labels follow the record both ways;
+- a relationship whose end or type changed (an Ownership between OWNS, CONSOLIDATES and
+  HOLDS_ACCOUNT) is moved: the old one with the same id is deleted;
+- a relationship whose new end is missing is deleted and its row reported as dangling, so the
+  graph never keeps an edge the files no longer describe.
+What stays until `wipe`: records no longer in the files, relationships from reference values a
+record dropped (`addressEntity` to HAS_ADDRESS, `Sanction.entity` to SUBJECT_OF), and the
+schema labels of a record whose schema changed. So invariants I1 to I5 are guaranteed after
+`neonradar graph wipe --yes` followed by a load; wipe before loading a regenerated synthetic
+dataset. Each batch is one transaction: a database error part-way leaves the earlier batches
+committed, and running the same load again completes it (idempotent).
 """
 
 import logging
@@ -31,7 +42,9 @@ from neo4j import Driver, RoutingControl, SummaryCounters
 
 from neonradar_contracts.graph import (
     FLAG_LABELS,
+    NODE_LABELS,
     NODE_MAPPINGS,
+    REFERENCE_MAPPINGS,
     RELATIONSHIP_ENDPOINTS,
     RELATIONSHIP_MAPPINGS,
     RELATIONSHIP_TYPES,
@@ -67,6 +80,32 @@ TS_TYPES = frozenset(
     for mapping in mappings
     if "ts" in mapping.properties.values()
 )
+# Every optional property each node schema and relationship type can carry. A load sends the
+# absent ones as null, so `SET x += row.props` removes a property a reloaded record dropped.
+# Never `address_key`, which Phase 2 computes (RESERVED_PROPERTIES).
+NODE_OPTIONAL = {
+    schema: tuple(
+        dict.fromkeys(["source_url", "first_seen", "last_seen", *mapping.properties.values()])
+    )
+    for schema, mapping in NODE_MAPPINGS.items()
+}
+_ALWAYS_SET = {"id", "datasets", "synthetic", "ts"}  # ts is set with datetime() on PAID
+RELATIONSHIP_OPTIONAL = {
+    mapping.type: tuple(
+        name
+        for name in dict.fromkeys(["source_url", *mapping.properties.values()])
+        if name not in _ALWAYS_SET
+    )
+    for mappings in RELATIONSHIP_MAPPINGS.values()
+    for mapping in mappings
+} | {ref.type: ("source_url", *ref.properties.values()) for ref in REFERENCE_MAPPINGS}
+# Types built from the same FtM schema (Ownership): a reload that changes the type deletes the
+# relationship with the same id under the other types.
+SIBLING_TYPES = {
+    mapping.type: tuple(other.type for other in mappings if other.type != mapping.type)
+    for mappings in RELATIONSHIP_MAPPINGS.values()
+    for mapping in mappings
+}
 WRITE_COUNTERS = (
     "nodes_created",
     "relationships_created",
@@ -148,11 +187,13 @@ class LoadReport:
     rejected: list[RecordIssue] = field(default_factory=list)
     skipped: list[MappingIssue] = field(default_factory=list)
     written: Counter[str] = field(default_factory=Counter)
+    empty_files: list[Path] = field(default_factory=list)
     duration_s: float = 0.0
 
     @property
     def failed(self) -> bool:
-        """A strict load fails on any dangling reference (C1 R4)."""
+        """A strict load fails on any dangling reference (C1 R4). Dangling rows are found while
+        writing, so the rest of the load has been written by then."""
         return self.strict and bool(self.dangling)
 
 
@@ -241,18 +282,25 @@ def plan_load(records: Sequence[Record], *, strict: bool) -> LoadPlan:
     skipped = list(dict.fromkeys([*nodes.skipped, *relationships.skipped]))
     if strict and skipped:
         raise LoadRefused([], skipped)
-    return LoadPlan(len(records), nodes.rows, relationships.rows, rejected, skipped)
+    node_rows = nodes.rows
+    if not strict:  # an account whose holding Ownership was skipped would break invariant I4
+        held = {row.target for row in relationships.rows if row.type == "HOLDS_ACCOUNT"}
+        unheld = {row.id for row in node_rows if "Account" in row.labels and row.id not in held}
+        message = "BankAccount has no HOLDS_ACCOUNT after mapping (its Ownership was skipped)"
+        rejected.extend(RecordIssue("R8", rid, message) for rid in sorted(unheld))
+        node_rows = [row for row in node_rows if row.id not in unheld]
+    return LoadPlan(len(records), node_rows, relationships.rows, rejected, skipped)
 
 
 def _label(name: str) -> str:
-    if not LABEL_RE.fullmatch(name):
-        raise ValueError(f"{name!r} is not a label name")
+    if not LABEL_RE.fullmatch(name) or name not in (*NODE_LABELS, *FLAG_LABELS):
+        raise ValueError(f"{name!r} is not a label name of C2")
     return name
 
 
 def _type(name: str) -> str:
-    if not TYPE_RE.fullmatch(name):
-        raise ValueError(f"{name!r} is not a relationship type name")
+    if not TYPE_RE.fullmatch(name) or name not in RELATIONSHIP_TYPES:
+        raise ValueError(f"{name!r} is not a relationship type name of C2")
     return name
 
 
@@ -277,8 +325,10 @@ def node_query(schema: str) -> str:
 def relationship_query(sample: RelationshipRow) -> str:
     """MERGE the relationships of `sample.type` between existing nodes; return dangling rows.
 
-    Each end is found on its key label with `{id: ...}` and checked for its C2 label. A
-    relationship with the row's id between other nodes is deleted first (its end changed).
+    Each end is found on its key label with `{id: ...}` (an index seek) and checked for its C2
+    label. A relationship with the row's id between other nodes (its end changed or is
+    missing) or under another type built from the same schema (its type changed) is deleted
+    first.
     """
     rel = _type(sample.type)
     (source_key, target_key), (source_label, target_label) = (
@@ -286,16 +336,22 @@ def relationship_query(sample: RelationshipRow) -> str:
         sample.endpoint_labels,
     )
     set_ts = ", r.ts = datetime(row.ts)" if rel in TS_TYPES else ""
+    others = [_type(other) for other in SIBLING_TYPES.get(rel, ())]
+    source_key, target_key = _label(source_key), _label(target_key)
     return "\n".join(
         [
             "UNWIND $rows AS row",
-            f"OPTIONAL MATCH (s:{_label(source_key)} {{id: row.source}})"
-            f" WHERE s:{_label(source_label)}",
-            f"OPTIONAL MATCH (t:{_label(target_key)} {{id: row.target}})"
-            f" WHERE t:{_label(target_label)}",
+            f"OPTIONAL MATCH (s:{source_key} {{id: row.source}})"
+            f" USING INDEX SEEK s:{source_key}(id) WHERE s:{_label(source_label)}",
+            f"OPTIONAL MATCH (t:{target_key} {{id: row.target}})"
+            f" USING INDEX SEEK t:{target_key}(id) WHERE t:{_label(target_label)}",
             f"OPTIONAL MATCH (a)-[old:{rel} {{id: row.id}}]->(b)",
-            "  WHERE s IS NOT NULL AND t IS NOT NULL AND (a <> s OR b <> t)",
-            "DELETE old",
+            "  WHERE s IS NULL OR t IS NULL OR a <> s OR b <> t",
+            *(
+                f"OPTIONAL MATCH ()-[o{n}:{other} {{id: row.id}}]->()"
+                for n, other in enumerate(others)
+            ),
+            "DELETE " + ", ".join(["old", *(f"o{n}" for n in range(len(others)))]),
             "FOREACH (_ IN CASE WHEN s IS NOT NULL AND t IS NOT NULL THEN [1] ELSE [] END |",
             f"  MERGE (s)-[r:{rel} {{id: row.id}}]->(t)",
             f"  SET r += row.props{set_ts})",
@@ -330,8 +386,9 @@ def _write(
     for schema in NODE_MAPPINGS:
         rows = [row for row in plan.nodes if row.schema == schema]
         query = node_query(schema)
+        absent = dict.fromkeys(NODE_OPTIONAL[schema])
         for chunk in batched(rows, batch_size, strict=False):
-            params = [row.as_param() for row in chunk]
+            params = [{**row.as_param(), "props": {**absent, **row.props}} for row in chunk]
             _, summary, _ = driver.execute_query(query, rows=params, database_=database)
             _count(report.written, summary.counters)
             for row in chunk:
@@ -343,8 +400,9 @@ def _write(
         if not rel_rows:
             continue
         query = relationship_query(rel_rows[0])
+        rel_absent = dict.fromkeys(RELATIONSHIP_OPTIONAL[rel_type])
         for rel_chunk in batched(rel_rows, batch_size, strict=False):
-            params = [row.as_param() for row in rel_chunk]
+            params = [{**row.as_param(), "props": {**rel_absent, **row.props}} for row in rel_chunk]
             records, summary, _ = driver.execute_query(query, rows=params, database_=database)
             _count(report.written, summary.counters)
             dangling = [
@@ -396,10 +454,16 @@ def load_files(
     """Load the record files in `paths` (files, or directories of `*.ftm.jsonl`) as one load."""
     started = time.monotonic()
     files = collect_files(paths)
-    report = load_records(
-        driver, read_records(files), strict=strict, database=database, batch_size=batch_size
-    )
-    report.files = files
+    records: list[Record] = []
+    empty: list[Path] = []
+    for path in files:
+        found = read_records([path])
+        if not found:
+            logger.warning("%s holds no records", path)
+            empty.append(path)
+        records.extend(found)
+    report = load_records(driver, records, strict=strict, database=database, batch_size=batch_size)
+    report.files, report.empty_files = files, empty
     report.duration_s = time.monotonic() - started
     return report
 

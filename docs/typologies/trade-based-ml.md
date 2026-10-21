@@ -1,6 +1,6 @@
 # Trade-based money laundering (over- and under-invoicing)
 
-> **Draft.** Slug `trade_based_ml`, version 0.1.0, tier `explainer_only`, synthetic support `low`. Definition file: `detect/typologies/trade_based_ml.yaml`. A typology researcher checks this page against its sources before the definition is approved. Research entry: `docs/research/2026-10-16/aml-domain.md`, section 2 (k).
+> **Draft.** Slug `trade_based_ml`, version 0.1.0, tier `explainer_only`, synthetic support `low`. Definition file: [`detect/typologies/trade_based_ml.yaml`](../../detect/typologies/trade_based_ml.yaml). A typology researcher checks this page against its sources before the definition is approved. Research entry: `docs/research/2026-10-16/aml-domain.md`, section 2 (k).
 
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 

@@ -1,6 +1,6 @@
 # Exposure to politically exposed persons through ownership, control, family or associates
 
-> **Draft.** Slug `pep_exposure`, version 0.1.0, tier `extended`, synthetic support `high`. Definition file: `detect/typologies/pep_exposure.yaml`. A typology researcher checks this page against its sources before the definition is approved. Research entry: `docs/research/2026-10-16/aml-domain.md`, section 2 (i).
+> **Draft.** Slug `pep_exposure`, version 0.1.0, tier `extended`, synthetic support `high`. Definition file: [`detect/typologies/pep_exposure.yaml`](../../detect/typologies/pep_exposure.yaml). A typology researcher checks this page against its sources before the definition is approved. Research entry: `docs/research/2026-10-16/aml-domain.md`, section 2 (i).
 
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 

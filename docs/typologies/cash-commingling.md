@@ -1,6 +1,6 @@
 # Cash-intensive business commingling
 
-> **Draft.** Slug `cash_commingling`, version 0.1.0, tier `extended`, synthetic support `medium`. Definition file: `detect/typologies/cash_commingling.yaml`. A typology researcher checks this page against its sources before the definition is approved. Research entry: `docs/research/2026-10-16/aml-domain.md`, section 2 (l).
+> **Draft.** Slug `cash_commingling`, version 0.1.0, tier `extended`, synthetic support `medium`. Definition file: [`detect/typologies/cash_commingling.yaml`](../../detect/typologies/cash_commingling.yaml). A typology researcher checks this page against its sources before the definition is approved. Research entry: `docs/research/2026-10-16/aml-domain.md`, section 2 (l).
 
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows. Among the legitimate reasons, the disclaimer names cash businesses.
 

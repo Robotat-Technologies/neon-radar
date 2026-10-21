@@ -35,9 +35,18 @@ def main(
 
 
 @app.command(name="doctor")
-def doctor_command() -> None:
+def doctor_command(
+    devcontainer: Annotated[
+        bool,
+        typer.Option(
+            "--devcontainer",
+            envvar="NR_DEVCONTAINER",
+            help="Running inside the devcontainer, which has no Docker: Docker checks only warn.",
+        ),
+    ] = False,
+) -> None:
     """Check this machine: one line per check with OK, WARN or FAIL; exit 1 on any FAIL."""
-    checks = doctor.run_checks()
+    checks = doctor.run_checks(devcontainer=devcontainer)
     for check in checks:
         typer.echo(check.line())
     if any(check.status is doctor.Status.FAIL for check in checks):

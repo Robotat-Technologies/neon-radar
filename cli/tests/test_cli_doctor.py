@@ -127,3 +127,25 @@ def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     names = [check.name for check in doctor.run_checks(tmp_path)]
     ports = ["port 7474", "port 7687", "port 8000", "port 5173"]
     assert names == ["Python", "uv", "Docker", "Compose", ".env", *ports, "Docker memory", "ICU"]
+
+
+def test_devcontainer_turns_missing_docker_into_warnings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake(monkeypatch, {}, installed=("uv", "pkg-config"))
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
+    on_host = {check.name: check for check in doctor.run_checks(tmp_path)}
+    inside = {check.name: check for check in doctor.run_checks(tmp_path, devcontainer=True)}
+    for name in ("Docker", "Compose"):
+        assert on_host[name].status is Status.FAIL
+        assert inside[name] == doctor.Check(name, Status.WARN, doctor.NO_DOCKER_IN_DEVCONTAINER)
+    assert inside["Docker memory"].status is Status.WARN
+    assert {name: check for name, check in inside.items() if name not in ("Docker", "Compose")} == {
+        name: check for name, check in on_host.items() if name not in ("Docker", "Compose")
+    }
+
+
+def test_devcontainer_keeps_a_working_docker_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake(monkeypatch, {})
+    check = doctor.check_docker({"ServerVersion": "29.7.2"})
+    assert doctor.without_docker(check) is check

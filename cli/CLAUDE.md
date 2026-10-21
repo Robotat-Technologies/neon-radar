@@ -12,3 +12,5 @@
   - Output through `typer.echo`; library code logs and never prints.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
+  - Inside the devcontainer (`NR_DEVCONTAINER=1`, or `doctor --devcontainer`) a missing
+    Docker or Compose is a WARN: the container has no Docker by design (M1.5).

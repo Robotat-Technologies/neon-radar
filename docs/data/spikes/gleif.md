@@ -12,9 +12,9 @@ Milestone M1.8b ([PHASE-1.md](../../build/PHASE-1.md)). Research note checked: [
 | Network | Direct HTTPS from the build machine (macOS); nothing else about the network was measured. Requests went through `neonradar_ingest.http.HttpClient` at 1 per second (GLEIF allows 60 per minute). |
 | Output | `data/cache/spikes/gleif/gleif_lei-20261021-549300OWFMSO9NYV4H90.ftm.jsonl` with its manifest (gitignored) |
 | Validation | `uv run neonradar contracts validate-records data/cache/spikes/gleif/*.ftm.jsonl --strict`: 8 records, OK, 0 issues |
-| Maintenance window | GLEIF warned of brief interruptions from 19 October to 4 November 2026. No interruption was seen between 11:31 and 11:43 UTC: all 45 GLEIF requests answered, each in 0.3 to 2.5 s. |
+| Maintenance window | GLEIF warned of brief interruptions from 19 October to 4 November 2026. No interruption was seen between 11:31 and 11:46 UTC: all 63 GLEIF requests answered, each in 0.3 to 2.5 s. |
 
-The `@pytest.mark.network` test (`cli/tests/test_cli_spike_gleif.py::test_real_gleif_spike`) ran the same command without `--coverage`: 9 requests, 8.5 s, passed. Further measurements used the same client from one-off scripts that were not committed, 19 requests in all: response shapes (8), paging limits (3), cursor paging (2), name types (2) and synthetic LEI absence (4).
+The `@pytest.mark.network` test (`cli/tests/test_cli_spike_gleif.py::test_real_gleif_spike`) ran the same command without `--coverage`: 9 requests, 8.5 s, passed. A last change made the client build every path from the checked LEI instead of following URLs found in responses. After it, the network test and `uv run neonradar spike gleif` were run again, with the same output and validation, 9 requests each. Further measurements used the same client from one-off scripts that were not committed, 19 requests in all: response shapes (8), paging limits (3), cursor paging (2), name types (2) and synthetic LEI absence (4).
 
 ## 2. What was fetched
 
@@ -41,7 +41,7 @@ Spec checks (M1.8b step 1):
 | Topic | Research note (16 Oct) | Measured (21 Oct) |
 |---|---|---|
 | Access | No key | Confirmed |
-| Rate limit headers, 429 behaviour | UNVERIFIED | No rate limit headers on any response. No 429 at 1 request per second over 45 requests. |
+| Rate limit headers, 429 behaviour | UNVERIFIED | No rate limit headers on any response. No 429 at 1 request per second over 63 requests. |
 | Content type, redirects | not stated | `application/vnd.api+json`; no redirects |
 | `page[size]` maximum | 200; 201 rejected, error status UNVERIFIED | 201 gives **HTTP 400**, a JSON:API error with `title` "Invalid Query Parameter" and `detail` "The page.size must be between 1 and 200." |
 | Deep paging | page 50 at size 200 works, page 51 rejected; status UNVERIFIED | Page 50 works (records 9,801 to 10,000). Page 51 gives **HTTP 400**: "Deep page-based pagination is not supported beyond 10000 results ... Alternatively, you can use page[cursor]=* to start cursor-based pagination and then follow the `$.links.next` URL". |

@@ -1,0 +1,229 @@
+"""The OpenSanctions spike: `index.json`, then a slice of `entities.ftm.json` (M1.8d step 4).
+
+`run_spike` checks the licence gate before it sends anything. When access allows it, it reads
+the collection's `index.json` (the `datasets/latest/...` paths answer 307 since 17 August 2026,
+so the client must follow redirects), logs the version and the checksum of `entities.ftm.json`,
+streams the first `rows` lines, maps them to C1 in memory and counts schemata, topics and
+flags. Only `licensed` access writes the records and their manifest, to the spike cache.
+"""
+
+import logging
+import time
+from collections import Counter
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Self
+
+import httpx
+
+from neonradar_contracts.records import Source, validate_record
+from neonradar_ingest.http import HttpClient, HttpError, RateLimiter, redact
+from neonradar_ingest.sources.opensanctions.access import Access, may_write, require_access
+from neonradar_ingest.sources.opensanctions.mapping import DATASET, MappingStats, map_lines
+from neonradar_ingest.spikes import utc_timestamp, write_output
+
+logger = logging.getLogger(__name__)
+
+HOST = "https://data.opensanctions.org"
+BASE_URL = f"{HOST}/datasets/latest"
+ENTITIES_FILE = "entities.ftm.json"
+# Collections on the OpenSanctions datasets index (research note A.1). `all` is left out on
+# purpose: OpenSanctions calls it "a strictly inferior data product" and says to use `default`.
+COLLECTIONS = (
+    "default", "sanctions", "peps", "crime", "debarment", "regulatory", "maritime", "securities",
+)  # fmt: skip
+SPIKE = "opensanctions"  # output in data/cache/spikes/opensanctions/
+INVALID = "<C1 issues>"  # manifest counts.skipped key for mapped records that fail validation
+
+
+def _text(meta: Mapping[str, Any], key: str) -> str | None:
+    value = meta.get(key)
+    return value if isinstance(value, str) else None
+
+
+@dataclass(frozen=True)
+class IndexInfo:
+    """What `index.json` says about the collection and its `entities.ftm.json`."""
+
+    url: str  # the URL that answered, after redirects
+    redirects: tuple[int, ...]
+    version: str | None
+    entities_url: str
+    checksum: str | None  # SHA-1 of entities.ftm.json
+
+    @classmethod
+    def from_body(
+        cls, body: Mapping[str, Any], collection: str, url: str, redirects: tuple[int, ...]
+    ) -> Self:
+        """Parse an `index.json` body.
+
+        The metadata documentation groups `version` and `resources` under a `dataset`
+        section without saying whether that is a JSON key, so both shapes work.
+        """
+        meta = body["dataset"] if isinstance(body.get("dataset"), dict) else body
+        resources = meta.get("resources") or body.get("resources") or []
+        entry: Mapping[str, Any] = next(
+            (r for r in resources if isinstance(r, dict) and r.get("name") == ENTITIES_FILE), {}
+        )
+        return cls(
+            url=url,
+            redirects=redirects,
+            version=_text(meta, "version"),
+            entities_url=_text(entry, "url") or f"{BASE_URL}/{collection}/{ENTITIES_FILE}",
+            checksum=_text(entry, "checksum"),
+        )
+
+
+@dataclass
+class SpikeResult:
+    """Counts only: no names or other values from the data."""
+
+    access: Access
+    collection: str
+    index: IndexInfo
+    entities_url: str = ""  # the URL that answered, after redirects
+    stats: MappingStats = field(default_factory=MappingStats)
+    issues: Counter[str] = field(default_factory=Counter)  # C1 rule -> issues
+    invalid: int = 0  # mapped records with at least one C1 issue; never written
+    records_file: Path | None = None
+    seconds: float = 0.0
+
+
+def make_client(**options: Any) -> HttpClient:
+    """The shared client for data.opensanctions.org, following redirects (307 since August 2026).
+
+    OpenSanctions publishes no rate limit for bulk files; one request per second is polite.
+    """
+    return HttpClient(HOST, follow_redirects=True, limiter=RateLimiter(1.0), **options)
+
+
+def _check(response: httpx.Response) -> None:
+    """HttpError with a redacted URL for any status of 400 or more (never raise_for_status)."""
+    if response.is_error:
+        where = f"{response.request.method} {redact(response.request.url)}"
+        raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
+
+
+def index_url(collection: str) -> str:
+    """`https://data.opensanctions.org/datasets/latest/<collection>/index.json`."""
+    if collection not in COLLECTIONS:
+        raise ValueError(f"unknown collection {collection!r}; use one of {', '.join(COLLECTIONS)}")
+    return f"{BASE_URL}/{collection}/index.json"
+
+
+def read_index(
+    client: HttpClient, collection: str, *, access: object, licence_file: Path | None = None
+) -> IndexInfo:
+    """GET the collection's `index.json` and log its version and the entities checksum.
+
+    Gated like `run_spike`: LicenceRequired before any request unless `access` allows it.
+    """
+    require_access(access, licence_file)
+    url = index_url(collection)  # refuses an unknown collection before any request
+    response = client.get(url)
+    _check(response)
+    body = response.json()
+    if not isinstance(body, dict):
+        raise HttpError(f"GET {redact(response.url)}: index.json is not a JSON object")
+    redirects = tuple(step.status_code for step in response.history)
+    info = IndexInfo.from_body(body, collection, str(response.url), redirects)
+    logger.info(
+        "OpenSanctions %s version %s, %s sha1 %s", collection, info.version, ENTITIES_FILE,
+        info.checksum,
+    )  # fmt: skip
+    return info
+
+
+def run_spike(
+    client: HttpClient,
+    *,
+    access: object,
+    collection: str = "sanctions",
+    rows: int = 1000,
+    root: Path | None = None,  # default data/cache/spikes; the output goes to <root>/opensanctions/
+    licence_file: Path | None = None,
+) -> SpikeResult:
+    """Run the spike if `access` allows it; raise LicenceRequired before any request if not.
+
+    `access` is checked strictly: anything but one of the four routes refuses like `none`.
+    A failed request, or a connection that breaks while streaming, raises HttpError.
+    """
+    route = require_access(access, licence_file)
+    if rows < 1:
+        raise ValueError("rows must be at least 1")
+    started = time.monotonic()
+    index = read_index(client, collection, access=route, licence_file=licence_file)
+    result = SpikeResult(access=route, collection=collection, index=index)
+    kept: list[dict[str, Any]] = []
+    with client.stream("GET", index.entities_url) as response:
+        _check(response)
+        result.entities_url = str(response.url)
+        try:
+            for record in map_lines(response.iter_lines(), result.stats, limit=rows):
+                issues = validate_record(record)
+                result.issues.update(issue.rule for issue in issues)
+                result.invalid += bool(issues)
+                if not issues and may_write(route):
+                    kept.append(record)
+        except httpx.RequestError as exc:  # TransportError (read timeout, reset) or DecodingError
+            where = f"GET {redact(response.request.url)}"
+            problem = f"{type(exc).__name__} after {result.stats.lines} lines"
+            raise HttpError(f"{where}: {problem}") from None
+    if may_write(route):
+        result.records_file = write_output(
+            kept,
+            SPIKE,
+            dataset=DATASET,
+            part=collection,
+            source=Source(
+                urls=[result.index.url, result.entities_url],
+                retrieved_at=utc_timestamp(),
+                source_version=result.index.version,
+            ),
+            skipped=result.stats.skipped + Counter({INVALID: result.invalid}),
+            notes=[
+                f"collection {collection}; the first {result.stats.lines} lines only",
+                "a slice: references to entities outside it dangle, so validate without --strict",
+            ],
+            root=root,
+        )
+    result.seconds = time.monotonic() - started
+    return result
+
+
+def _counts(counter: Counter[str], top: int | None = None) -> str:
+    return ", ".join(f"{key} {count}" for key, count in counter.most_common(top)) or "none"
+
+
+def summary_lines(result: SpikeResult) -> list[str]:
+    """What the command prints: counts and field names only, never names or values."""
+    stats, index = result.stats, result.index
+    redirects = ", ".join(str(code) for code in index.redirects) or "none"
+    written = (
+        f"wrote {result.records_file} and its manifest"
+        if result.records_file
+        else (f"wrote nothing (access {result.access} writes nothing)")
+    )
+    return [
+        f"OpenSanctions spike: collection {result.collection}, access {result.access}",
+        f"index.json: {index.url} (redirects: {redirects}), version {index.version}",
+        f"{ENTITIES_FILE}: {result.entities_url}, sha1 {index.checksum}",
+        f"read {stats.lines} lines in {result.seconds:.1f} s: {stats.mapped.total()} C1 records,"
+        f" {stats.skipped.total()} skipped",
+        *(
+            f"  {label}: {_counts(counter, 15)}"
+            for label, counter in (
+                ("by schema", stats.mapped),
+                ("skipped", stats.skipped),
+                ("unknown to FollowTheMoney", stats.unknown_schemata),
+                ("topics (top 15)", stats.topics),
+                ("C2 flags", stats.flags),
+                ("dropped keys", stats.dropped_keys),
+                ("dropped properties", stats.dropped_properties),
+                ("dropped values", stats.dropped_values),
+                ("C1 issues", result.issues),
+            )
+        ),
+        written,
+    ]

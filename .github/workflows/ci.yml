@@ -26,7 +26,7 @@ jobs:
       - run: uv python install 3.14
       - run: uv sync --all-packages --locked
       - name: Cache pre-commit hook environments
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -57,6 +57,20 @@ jobs:
           enable-cache: true
       - run: uv python install 3.14
       - run: uv sync --all-packages --locked
+      # The GDS jar that scripts/fetch_gds.sh pins (OD-13), cached under its SHA-256; the
+      # fetch downloads it only on a cache miss and always checks the SHA-256.
+      - name: GDS jar pin
+        id: gds
+        run: |
+          sha="$(sed -n 's/^GDS_SHA256="\([0-9a-f]\{64\}\)"$/\1/p' scripts/fetch_gds.sh)"
+          test -n "$sha" || { echo "scripts/fetch_gds.sh does not pin GDS_SHA256" >&2; exit 1; }
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6.1.0
+        with:
+          path: data/cache/neo4j-plugins
+          key: neo4j-gds-${{ steps.gds.outputs.sha256 }}
+      - name: GDS jar
+        run: bash scripts/fetch_gds.sh
       - run: uv run pytest -m "integration and not network"
         env:
           NR_NEO4J_IMAGE: neo4j:5.26.32-community

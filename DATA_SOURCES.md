@@ -16,7 +16,7 @@ NeonRadar ships loaders, never data. The repository holds code and synthetic fix
 | `gb_companies_house` | UK Companies House REST API | Register data is made available under the Companies Act 2006 and approvals under section 47 of the Copyright, Designs and Patents Act 1988, with no Companies House rules on reuse; Companies House's own material is under the Open Government Licence v3.0, which does not cover personal data, so whoever loads officers and PSCs becomes a UK GDPR controller | Yes | "Contains public sector information licensed under the Open Government Licence v3.0." plus "Source: Companies House" | Spike with one company number, output in cache only |
 | `gleif_lei` | GLEIF API and Golden Copy | CC0 1.0; GLEIF's terms forbid using its logo or implying endorsement, with liquidated damages of CHF 100,000 per breach | Yes | Not required; courtesy line below | Spike with one LEI and its parents |
 | `icij_offshore_leaks` | ICIJ Offshore Leaks Database (`full-oldb.LATEST.zip`) | ODbL 1.0 (database), CC BY-SA 3.0 (contents) | Yes, with citation. A publicly used derived database must be ODbL and offered in machine-readable form (clause 4.6); produced works such as screenshots and reports need a notice that the content came from the database under ODbL (clause 4.3); internal use is not public use | "Always cite the International Consortium of Investigative Journalists when using this data." plus the ODbL notices | Spike reading a slice, cache outside the repository |
-| `opensanctions_default` | OpenSanctions bulk data | CC BY-NC 4.0; "Any use inside a for-profit business requires a data license." | Licence required | No official text; NeonRadar's proposed wording below, following CC BY-NC 4.0 section 3(a)(1) | Only if `access.opensanctions` in `docs/build/project.yaml` is `evaluation`, `licensed` or `exempt` (currently `none`, so not used) |
+| `opensanctions_default` | OpenSanctions bulk data | CC BY-NC 4.0; "Any use inside a for-profit business requires a data license." | Licence required | No official text; NeonRadar's proposed wording below, following CC BY-NC 4.0 section 3(a)(1) | Only if `access.opensanctions` in `docs/build/project.yaml` is `evaluation`, `licensed` or `exempt` (currently `none`, so not used; spike [blocked on licence decision](docs/data/spikes/opensanctions.md)) |
 | `nr_synthetic` | NeonRadar generator | Apache-2.0 (our own output) | Yes | None | Fixtures and the walking skeleton |
 
 ## UK Companies House (`gb_companies_house`)
@@ -68,6 +68,21 @@ NeonRadar ships loaders, never data. The repository holds code and synthetic fix
 
 - **Redistribution:** never. No OpenSanctions row, and nothing derived from one, is ever committed.
 - **Personal data:** the data includes people tagged with crime-related topics. Handle it with particular care; whether the rules for personal data relating to criminal convictions and offences apply is for the data steward to decide ([ADR-0006](docs/decisions/0006-data-licensing.md)).
+
+### Access decision and the spike command
+
+OpenSanctions data is licensed under CC BY-NC 4.0, and OpenSanctions states: "Any use inside a for-profit business requires a data license." The reasoning and sources are in [docs/research/2026-10-16/sources-opensanctions-ftm-icij.md](docs/research/2026-10-16/sources-opensanctions-ftm-icij.md) section A.2. NeonRadar therefore ships the OpenSanctions loader code but never OpenSanctions data, and the loader runs only when the organisation running it has decided how it may use the data.
+
+That decision is `access.opensanctions` in [docs/build/project.yaml](docs/build/project.yaml). The data steward and the project lead make it ([docs/build/PHASE-1.md](docs/build/PHASE-1.md) section 1.2) and file the request to OpenSanctions and its written answer in `docs/data/licences/opensanctions.md`. `uv run neonradar spike opensanctions` follows it:
+
+| `access.opensanctions` | When it applies | What the command does |
+|---|---|---|
+| `none` (the default, and the current value) | No decision recorded | Exits with code 3 and "OpenSanctions use inside a company needs a data licence; see DATA_SOURCES.md". It sends no request. Development and tests use synthetic fixtures only. |
+| `evaluation` | OpenSanctions has confirmed in writing that the organisation may evaluate the data. The data steward files that answer in `docs/data/licences/opensanctions.md` and adds, at the start of a line, `confirmed: <YYYY-MM-DD> <who>` (for example `confirmed: 2026-11-02 @robotat-com`). The command refuses while that line is missing. | Reads the collection's `index.json`, streams the first rows of `entities.ftm.json` (1,000 by default), maps them to C1 in memory and prints counts. It writes nothing to disk. |
+| `licensed` | The organisation holds an OpenSanctions data licence | As `evaluation`, and it also writes the C1 records and their manifest to `data/cache/spikes/opensanctions/` (gitignored), to be deleted after `access.spike_cache_days`. |
+| `exempt` | The organisation running NeonRadar itself qualifies for OpenSanctions' free programme: public-interest journalists, advocacy groups and nonprofits working on democratic governance or exposing corruption and financial crime, affiliated academics, or public institutions of Ukraine, Georgia and Moldova. Never a company team. | As `evaluation`: it streams, counts and writes nothing. |
+
+A missing file, a missing key or any other value counts as `none`. Under every route, no OpenSanctions row is ever committed (guardrail G2), OpenSanctions data is never redistributed (`redistribution: never` in `contracts/datasets.yaml`), and a database that merges it with other sources is never published (G7). Every commercial user of NeonRadar needs their own OpenSanctions licence. The spike report is [docs/data/spikes/opensanctions.md](docs/data/spikes/opensanctions.md).
 
 ## NeonRadar synthetic data (`nr_synthetic`)
 

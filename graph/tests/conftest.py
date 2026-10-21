@@ -7,7 +7,8 @@
 - Otherwise: a throwaway Testcontainers Neo4j (`NR_NEO4J_IMAGE`, default the compose image)
   with a random password, APOC Core from the image and the GDS jar that `make plugins` pinned
   (operator decision OD-13), copied into the container before it starts. Nothing is downloaded
-  when it starts, and the telemetry settings of compose.yaml apply.
+  when it starts, and the telemetry settings of compose.yaml apply. The Assignment 1 CSV is
+  copied into its `/import` folder, as compose.yaml mounts data/import/ there (M1.11a).
 """
 
 import hashlib
@@ -26,6 +27,7 @@ from neonradar_graph.client import Neo4jSettings, get_driver, wait_until_ready
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FETCH_GDS = REPO_ROOT / "scripts" / "fetch_gds.sh"
 PLUGINS_DIR = REPO_ROOT / "data" / "cache" / "neo4j-plugins"
+ONBOARDING_CSV = REPO_ROOT / "data" / "fixtures" / "onboarding" / "companies-20.csv"
 IMAGE = os.environ.get("NR_NEO4J_IMAGE", "neo4j:5.26.32-community")
 CONTAINER_ENV = {
     "NEO4J_PLUGINS": '["apoc"]',  # APOC Core is in the image's labs/ folder
@@ -81,6 +83,7 @@ def _container() -> Iterator[Neo4jTarget]:
         Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1536m")
         .with_envs(**CONTAINER_ENV)
         .with_copy_into_container(jar, f"/var/lib/neo4j/plugins/{jar.name}")
+        .with_copy_into_container(ONBOARDING_CSV, f"/import/{ONBOARDING_CSV.name}")
     )
     with container, container.get_driver(telemetry_disabled=True) as driver:
         yield Neo4jTarget(driver, "neo4j")

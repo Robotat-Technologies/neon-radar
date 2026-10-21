@@ -44,6 +44,7 @@ STRUCTURAL = "Funds returned to the originating account through 4 transfers with
 # A stand-in for a Companies House ownership relationship (an FtM interval id), as above.
 REAL_EDGE = "gbch-own-T0000001"
 FULLWIDTH_M = unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER M")
+FULLWIDTH_SYNTHETIC = unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER S") + "ynthetic scenario"
 
 
 def example() -> dict[str, Any]:
@@ -299,6 +300,20 @@ def test_structural_alert_never_says_synthetic_scenario() -> None:
     data = as_structural(example(), ["nr_synthetic", "gb_companies_house"])
     data["explanation"]["steps"][2]["text"] = "Synthetic_scenario step."
     rejects(data, "step 3")
+
+
+@pytest.mark.parametrize("where", ["headline", "explanation.summary", "step 2"])
+def test_structural_alert_never_says_synthetic_scenario_in_fullwidth(where: str) -> None:
+    """The phrase check reads NFKC-normalised text, so a fullwidth "s" does not hide it."""
+    data = as_structural(example(), ["nr_synthetic", "gb_companies_house"])
+    text = f"A {FULLWIDTH_SYNTHETIC} of four transfers."
+    if where == "headline":
+        data["headline"] = text
+    elif where == "explanation.summary":
+        data["explanation"]["summary"] = text
+    else:
+        data["explanation"]["steps"][1]["text"] = text
+    rejects(data, f"only a synthetic_scenario alert may say 'synthetic scenario'.*{where}")
 
 
 def test_synthetic_scenario_alert_may_say_so() -> None:

@@ -19,6 +19,7 @@ from neonradar_contracts.wording import (
     forbidden_patterns,
     load_disclaimer,
     parse_patterns,
+    says_synthetic_scenario,
 )
 
 pytestmark = pytest.mark.contract
@@ -126,6 +127,9 @@ def test_masked_source_values_are_not_linted() -> None:
     assert find_forbidden(step, mask=["NRSYN-FRAUD-TEST", "NRSYN0000000012", ""]) == []
 
 
+FULLWIDTH_S = unicodedata.lookup("FULLWIDTH LATIN SMALL LETTER S")
+
+
 def _fullwidth(text: str) -> str:
     return "".join(unicodedata.lookup(f"FULLWIDTH LATIN CAPITAL LETTER {c}") for c in text)
 
@@ -171,6 +175,13 @@ def test_masking_blanks_only_whole_tokens() -> None:
 )
 def test_synthetic_phrase(text: str, says_it: bool) -> None:
     assert bool(SYNTHETIC_PHRASE.search(text)) is says_it
+    assert says_synthetic_scenario(text) is says_it
+
+
+def test_synthetic_phrase_check_normalises_the_text() -> None:
+    text = FULLWIDTH_S + "ynthetic scenario"
+    assert not SYNTHETIC_PHRASE.search(text), "the bare pattern misses the fullwidth s"
+    assert says_synthetic_scenario(text)
 
 
 @pytest.mark.parametrize(

@@ -19,7 +19,11 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, mo
 
 from neonradar_contracts import versions
 from neonradar_contracts.datasets import load_registry
-from neonradar_contracts.wording import SYNTHETIC_PHRASE, find_forbidden, find_forbidden_in_name
+from neonradar_contracts.wording import (
+    find_forbidden,
+    find_forbidden_in_name,
+    says_synthetic_scenario,
+)
 
 # C1 rule R1 (records.ID_RE, as changed by OD-11) without named groups and anchors, so that it
 # also works in JSON Schema. contracts/tests/test_alert.py checks that the two agree.
@@ -307,7 +311,7 @@ class Alert(_Strict):
             return
         texts = {"headline": self.headline, "explanation.summary": self.explanation.summary}
         texts |= {f"step {step.order}": step.text for step in self.explanation.steps}
-        said = [where for where, text in texts.items() if SYNTHETIC_PHRASE.search(text)]
+        said = [where for where, text in texts.items() if says_synthetic_scenario(text)]
         if said:
             raise ValueError(
                 "only a synthetic_scenario alert may say 'synthetic scenario' (7.1): "

@@ -1,0 +1,11 @@
+[project]
+name = "neonradar-copilot"
+version = "0.1.0"
+description = "NeonRadar investigation copilot (placeholder until Phase 4)."
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"

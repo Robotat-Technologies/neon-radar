@@ -1,0 +1,14 @@
+[project]
+name = "neonradar-graph"
+version = "0.1.0"
+description = "NeonRadar graph: Neo4j client, schema migrations and the record loader."
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+dependencies = ["neonradar-contracts"]
+
+[tool.uv.sources]
+neonradar-contracts = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"

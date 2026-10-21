@@ -1,0 +1,82 @@
+[project]
+name = "neonradar-workspace"
+version = "0.1.0"
+description = "NeonRadar uv workspace root (not published)"
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+dependencies = ["neonradar-cli"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17,<0.18",
+    "mypy>=2.4,<3",
+    "pytest>=9.1,<10",
+    "pytest-cov>=7.1,<8",
+    "pre-commit>=4.7,<5",
+    "types-PyYAML>=6.0,<7",
+    "testcontainers[neo4j]>=4.15,<5",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+neonradar-cli = { workspace = true }
+
+[tool.uv.workspace]
+members = ["contracts", "ingest", "graph", "detect", "copilot", "api", "cli"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+# ruff 0.17 also formats code blocks in Markdown. Docs are reviewed by reading, research notes
+# are dated evidence, and some blocks show wrong code on purpose (PHASE-1.md 3.2).
+extend-exclude = ["*.md"]
+
+# Files run by a system Python (CI's Ubuntu python3 is 3.12, macOS can be 3.9): a 3.14 target
+# would let the formatter write syntax that older Pythons reject (PHASE-1.md 3.2).
+[tool.ruff.per-file-target-version]
+"scripts/*.py" = "py312"
+".claude/hooks/*.py" = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "S"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["neonradar_*"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]
+"scripts/*" = ["S603", "S607"]
+".claude/hooks/*" = ["S603", "S607"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = [
+    "contracts/src",
+    "ingest/src",
+    "graph/src",
+    "detect/src",
+    "copilot/src",
+    "api/src",
+    "cli/src",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "contract: contract test suite (make contracts-check)",
+    "integration: needs Neo4j through Testcontainers (make test-int)",
+    "network: uses the internet; never runs in CI",
+    "e2e: end-to-end demo test",
+]
+addopts = "-m 'not integration and not network and not e2e' --strict-markers --import-mode=importlib"
+testpaths = [
+    "contracts/tests",
+    "ingest/tests",
+    "graph/tests",
+    "detect/tests",
+    "copilot/tests",
+    "api/tests",
+    "cli/tests",
+]

@@ -52,7 +52,9 @@ def resolve_owners(roles: list[str], project: dict) -> list[str]:
             raise SystemExit(f"error: role {role!r} in {PROJECT_FILE.name} has no GitHub handles")
         for owner in found:
             if not isinstance(owner, str) or not owner.startswith("@") or "TODO" in owner:
-                raise SystemExit(f"error: role {role!r} in {PROJECT_FILE.name} is not a GitHub handle: {owner!r}")
+                raise SystemExit(
+                    f"error: role {role!r} in {PROJECT_FILE.name} is not a GitHub handle: {owner!r}"
+                )
             if owner not in owners:
                 owners.append(owner)
     return owners
@@ -69,7 +71,9 @@ def contains(broad: str, specific: str) -> bool:
 
 def ordered_rows(project: dict) -> list[tuple[str, list[str]]]:
     """Rows in table order, moving each path after every broader path that contains it."""
-    pending = [(path, resolve_owners(roles, project)) for paths, roles in OWNERSHIP_MAP for path in paths]
+    pending = [
+        (path, resolve_owners(roles, project)) for paths, roles in OWNERSHIP_MAP for path in paths
+    ]
     placed: list[tuple[str, list[str]]] = []
     while pending:
         row = next(r for r in pending if not any(contains(other[0], r[0]) for other in pending))
@@ -94,8 +98,12 @@ def render(project: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate .github/CODEOWNERS from docs/build/project.yaml.")
-    parser.add_argument("--check", action="store_true", help="exit 1 if .github/CODEOWNERS is out of date")
+    parser = argparse.ArgumentParser(
+        description="Generate .github/CODEOWNERS from docs/build/project.yaml."
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="exit 1 if .github/CODEOWNERS is out of date"
+    )
     args = parser.parse_args(argv)
 
     content = render(yaml.safe_load(PROJECT_FILE.read_text(encoding="utf-8")))

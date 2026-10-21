@@ -17,7 +17,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | 0004 | Graph schema v1 | M1.7b | not written yet | tech lead |
 | 0005 | Synthetic data policy | M1.8e | not written yet | tech lead, data steward |
 | 0006 | Data licensing | M1.10a | not written yet | data steward, project lead |
-| 0007 | Toolchain | M1.3 | not written yet | tech lead |
+| [0007](0007-toolchain.md) | Toolchain | M1.3 | proposed | tech lead |
 | 0008 | API gateway and OpenAPI snapshot | M1.7d | not written yet | tech lead |
 | 0009 | Alert object and wording | M1.7c | not written yet | tech lead, typology researchers |
 | 0010 | Copilot: local and template first | M1.10c | not written yet (decided in Phase 4) | tech lead, copilot mentor |

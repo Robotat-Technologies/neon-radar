@@ -1,0 +1,585 @@
+[
+  {
+    "id": "gbch-addr-e76e2cc3ae75b7a8c52e",
+    "schema": "Address",
+    "properties": {
+      "full": [
+        "Unit 4, 12 Example Street, London, EX1 2MP, England"
+      ],
+      "street": [
+        "Unit 4 12 Example Street"
+      ],
+      "city": [
+        "London"
+      ],
+      "postalCode": [
+        "EX1 2MP"
+      ],
+      "country": [
+        "gb"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0"
+    }
+  },
+  {
+    "id": "gbch-co-SYN00001",
+    "schema": "Company",
+    "properties": {
+      "name": [
+        "QUILLON MARSH TRADING LTD"
+      ],
+      "registrationNumber": [
+        "SYN00001"
+      ],
+      "jurisdiction": [
+        "gb"
+      ],
+      "status": [
+        "active"
+      ],
+      "legalForm": [
+        "ltd"
+      ],
+      "incorporationDate": [
+        "2019-04-02"
+      ],
+      "previousName": [
+        "QUILLON MARSH SUPPLIES LTD"
+      ],
+      "addressEntity": [
+        "gbch-addr-e76e2cc3ae75b7a8c52e"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYN00001",
+      "address_roles": {
+        "gbch-addr-e76e2cc3ae75b7a8c52e": "registered"
+      }
+    }
+  },
+  {
+    "id": "gbch-control-44d10bff87f737558948",
+    "schema": "Control",
+    "properties": {
+      "controller": [
+        "gbch-psc-SYNpsc.0001qandelouni"
+      ],
+      "controlled": [
+        "gbch-co-SYN00001"
+      ],
+      "controlType": [
+        "influence"
+      ],
+      "role": [
+        "significant-influence-or-control"
+      ],
+      "startDate": [
+        "2019-04-02"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "natures_of_control": [
+        "significant-influence-or-control"
+      ]
+    }
+  },
+  {
+    "id": "gbch-control-7555cd0bee0032be8e51",
+    "schema": "Control",
+    "properties": {
+      "controller": [
+        "gbch-psc-SYNpsc-0002example"
+      ],
+      "controlled": [
+        "gbch-co-SYN00001"
+      ],
+      "controlType": [
+        "appointment"
+      ],
+      "role": [
+        "right-to-appoint-and-remove-directors"
+      ],
+      "startDate": [
+        "2021-07-01"
+      ],
+      "endDate": [
+        "2024-03-31"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "natures_of_control": [
+        "right-to-appoint-and-remove-directors"
+      ]
+    }
+  },
+  {
+    "id": "gbch-control-a12443f240414c3e72b7",
+    "schema": "Control",
+    "properties": {
+      "controller": [
+        "gbch-psc-SYNpsc-0003authority"
+      ],
+      "controlled": [
+        "gbch-co-SYN00001"
+      ],
+      "controlType": [
+        "influence"
+      ],
+      "role": [
+        "significant-influence-or-control-as-firm"
+      ],
+      "startDate": [
+        "2024-04-01"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "natures_of_control": [
+        "significant-influence-or-control-as-firm"
+      ]
+    }
+  },
+  {
+    "id": "gbch-control-bf2bfcbba37481c6d83a",
+    "schema": "Control",
+    "properties": {
+      "controller": [
+        "gbch-psc-SYNpsc.0001qandelouni"
+      ],
+      "controlled": [
+        "gbch-co-SYN00001"
+      ],
+      "controlType": [
+        "voting"
+      ],
+      "role": [
+        "voting-rights-25-to-50-percent"
+      ],
+      "startDate": [
+        "2019-04-02"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "natures_of_control": [
+        "voting-rights-25-to-50-percent"
+      ]
+    }
+  },
+  {
+    "id": "gbch-directorship-57a8e21ba7c331af680a",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "gbch-off-SYNoff-0003juniper"
+      ],
+      "organization": [
+        "gbch-co-SYN00001"
+      ],
+      "role": [
+        "corporate-secretary"
+      ],
+      "startDate": [
+        "2023-02-01"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNapp0003",
+      "is_nominee": false
+    }
+  },
+  {
+    "id": "gbch-directorship-acbf0076abfa4e1f3952",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "gbch-off-SYNoff.0001qandelouni"
+      ],
+      "organization": [
+        "gbch-co-SYN00001"
+      ],
+      "role": [
+        "secretary"
+      ],
+      "startDate": [
+        "2023-02-01"
+      ],
+      "endDate": [
+        "2024-05-10"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNapp0005",
+      "is_nominee": false
+    }
+  },
+  {
+    "id": "gbch-directorship-dc5c423c4d4554c6083f",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "gbch-off-SYNoff.0001qandelouni"
+      ],
+      "organization": [
+        "gbch-co-SYN00001"
+      ],
+      "role": [
+        "director"
+      ],
+      "startDate": [
+        "2019-04-02"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNapp0001",
+      "is_nominee": false
+    }
+  },
+  {
+    "id": "gbch-directorship-f967a6ade237559c63d0",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "gbch-off-SYNoff-0002ulvarazi"
+      ],
+      "organization": [
+        "gbch-co-SYN00001"
+      ],
+      "role": [
+        "secretary"
+      ],
+      "startDate": [
+        "2019-04-02"
+      ],
+      "endDate": [
+        "2023-01-31"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNapp0002",
+      "is_nominee": false
+    }
+  },
+  {
+    "id": "gbch-directorship-fa50ed818987ae176ec2",
+    "schema": "Directorship",
+    "properties": {
+      "director": [
+        "gbch-off-SYNoff-0004quillfen"
+      ],
+      "organization": [
+        "gbch-co-SYN00001"
+      ],
+      "role": [
+        "nominee-director"
+      ],
+      "startDate": [
+        "2024-05-10"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNapp0004",
+      "is_nominee": true
+    }
+  },
+  {
+    "id": "gbch-off-SYNoff-0002ulvarazi",
+    "schema": "Person",
+    "properties": {
+      "name": [
+        "ULVARAZI, Nadim"
+      ],
+      "nationality": [
+        "gb",
+        "ie"
+      ],
+      "country": [
+        "gb-sct"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNoff-0002ulvarazi"
+    }
+  },
+  {
+    "id": "gbch-off-SYNoff-0003juniper",
+    "schema": "Company",
+    "properties": {
+      "name": [
+        "JUNIPER QUAY LOGISTICS LTD"
+      ],
+      "registrationNumber": [
+        "SYN00002"
+      ],
+      "legalForm": [
+        "Private Limited Company"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNoff-0003juniper"
+    }
+  },
+  {
+    "id": "gbch-off-SYNoff-0004quillfen",
+    "schema": "Person",
+    "properties": {
+      "name": [
+        "QUILLFEN, Arabella Noor, Dr"
+      ],
+      "birthDate": [
+        "1985-02"
+      ],
+      "country": [
+        "gb"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNoff-0004quillfen"
+    }
+  },
+  {
+    "id": "gbch-off-SYNoff.0001qandelouni",
+    "schema": "Person",
+    "properties": {
+      "name": [
+        "QANDELOUNI, Zafir"
+      ],
+      "birthDate": [
+        "1979-08"
+      ],
+      "nationality": [
+        "jo"
+      ],
+      "country": [
+        "gb"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNoff_0001qandelouni"
+    }
+  },
+  {
+    "id": "gbch-ownership-43f356ca96f2888c0c1e",
+    "schema": "Ownership",
+    "properties": {
+      "owner": [
+        "gbch-psc-SYNpsc.0001qandelouni"
+      ],
+      "asset": [
+        "gbch-co-SYN00001"
+      ],
+      "percentage": [
+        "25-50"
+      ],
+      "role": [
+        "ownership-of-shares-25-to-50-percent"
+      ],
+      "startDate": [
+        "2019-04-02"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "natures_of_control": [
+        "ownership-of-shares-25-to-50-percent"
+      ],
+      "share_pct_min": 25.0,
+      "share_pct_max": 50.0
+    }
+  },
+  {
+    "id": "gbch-ownership-ed38006b4b55bede4a0a",
+    "schema": "Ownership",
+    "properties": {
+      "owner": [
+        "gbch-psc-SYNpsc-0002example"
+      ],
+      "asset": [
+        "gbch-co-SYN00001"
+      ],
+      "percentage": [
+        "50-75"
+      ],
+      "role": [
+        "ownership-of-shares-50-to-75-percent-as-trust"
+      ],
+      "startDate": [
+        "2021-07-01"
+      ],
+      "endDate": [
+        "2024-03-31"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "natures_of_control": [
+        "ownership-of-shares-50-to-75-percent-as-trust"
+      ],
+      "share_pct_min": 50.0,
+      "share_pct_max": 75.0
+    }
+  },
+  {
+    "id": "gbch-psc-SYNpsc-0002example",
+    "schema": "Company",
+    "properties": {
+      "registrationNumber": [
+        "SYN00003"
+      ],
+      "legalForm": [
+        "Private Limited Company"
+      ],
+      "jurisdiction": [
+        "gb"
+      ],
+      "name": [
+        "EXAMPLE HOLDINGS LTD"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNpsc-0002example"
+    }
+  },
+  {
+    "id": "gbch-psc-SYNpsc-0003authority",
+    "schema": "LegalEntity",
+    "properties": {
+      "legalForm": [
+        "Statutory Body"
+      ],
+      "name": [
+        "SYNTHETIC REGULATORY AUTHORITY"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNpsc-0003authority"
+    }
+  },
+  {
+    "id": "gbch-psc-SYNpsc.0001qandelouni",
+    "schema": "Person",
+    "properties": {
+      "firstName": [
+        "Zafir"
+      ],
+      "lastName": [
+        "Qandelouni"
+      ],
+      "title": [
+        "Mr"
+      ],
+      "birthDate": [
+        "1979-08"
+      ],
+      "nationality": [
+        "jo"
+      ],
+      "country": [
+        "gb"
+      ],
+      "name": [
+        "Mr Zafir Qandelouni"
+      ]
+    },
+    "referents": [],
+    "datasets": [
+      "gb_companies_house"
+    ],
+    "nr": {
+      "v": "1.0",
+      "source_ref": "SYNpsc_0001qandelouni"
+    }
+  }
+]

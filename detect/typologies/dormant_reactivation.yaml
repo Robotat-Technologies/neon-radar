@@ -1,0 +1,37 @@
+slug: dormant_reactivation
+name: Dormant account reactivation followed by high velocity
+version: 0.1.0
+status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
+tier: core                    # core | extended | explainer_only
+owner: "@robotat-com"         # typology researcher
+approved_by: null
+summary: >
+  An account or company that was inactive for a long time suddenly receives and sends large
+  volumes within days, sometimes soon after a change of director, owner or account holder. The
+  company version is a company left dormant after incorporation that later starts moving large
+  sums.
+doc: docs/typologies/dormant-reactivation.md
+citations:
+  - ffiec_appendix_f
+  - fatf_egmont_concealment_2018
+  - fatf_cyber_fraud_2023
+  - fatf_tcsp_2010
+  - star_puppet_masters_2011
+graph_pattern: >
+  An Account with no PAID relationships, inbound or outbound, for a long gap, followed within
+  days by a burst of inbound and outbound PAID by count or total; often soon after a new
+  DIRECTOR_OF, OWNS or HOLDS_ACCOUNT relationship on the holder (by start_date). The company
+  variant is a Company whose incorporation_date lies long before its first payment, or a newly
+  incorporated Company that receives and passes on large sums soon after incorporation.
+parameters: {}
+metrics: []
+wording: null
+false_positives:
+  - Seasonal businesses
+  - Account holders returning from abroad or after an illness
+  - Inheritances and property sale proceeds
+  - A dormant company restarted by new owners, and other genuine acquisitions
+  - Student accounts reactivated at the start of term
+synthetic_support: high       # high | medium | low | none
+generator_scenario: null
+detector: null                # null until implemented

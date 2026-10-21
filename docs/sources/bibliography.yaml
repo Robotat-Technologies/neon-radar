@@ -1,0 +1,472 @@
+# NeonRadar bibliography: the citation keys for every factual AML statement in the docs.
+# How to cite and how to add an entry: docs/sources/README.md. Checked by scripts/check_citations.py.
+#
+# Fields: key (lowercase snake case with at least one underscore; dated sources end with the
+# year where possible), title, publisher, year (null for a living document), url, extra_urls,
+# verified (the date someone last opened the url), note (what the source supports, and any
+# caveat about how it was verified).
+#
+# Entries from PHASE-1.md 7.3 were checked by the research note
+# docs/research/2026-10-16/aml-domain.md on 15 and 16 October 2026. Milestone M1.10a re-opened
+# every url it could on 21 October 2026. fatf-gafi.org, bsaaml.ffiec.gov, eba.europa.eu,
+# justice.gov, register.openownership.org and eur-lex.europa.eu answer automated clients with a
+# bot challenge, so those entries keep the research note's date (or name the page that was read
+# instead) and say so in their note.
+version: 1
+entries:
+  # FATF
+  - key: fatf_recommendations_2026
+    title: "International Standards on Combating Money Laundering and the Financing of Terrorism and Proliferation: The FATF Recommendations"
+    publisher: FATF
+    year: 2026
+    url: https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Fatf-recommendations.html
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Updated June 2026. The global standard: Recommendations 10 (customer due diligence), 12 (PEPs), 20 (suspicious transaction reports), 24 and 25 (beneficial ownership), 29 (FIUs). fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_glossary
+    title: FATF Glossary (web version of the General Glossary)
+    publisher: FATF
+    year: null
+    url: https://www.fatf-gafi.org/glossary/
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Living document. Definitions of beneficial owner, PEP, DNFBP, TCSP and correspondent banking. The PEP text was read from the glossary index page because the N-R page failed on the day. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_faq
+    title: "Frequently asked questions: How is money laundered?"
+    publisher: FATF
+    year: null
+    url: https://www.fatf-gafi.org/en/pages/frequently-asked-questions.html
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Living document. The three stages: placement, layering and integration. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_bo_legal_persons_2023
+    title: Guidance on Beneficial Ownership of Legal Persons
+    publisher: FATF
+    year: 2023
+    url: https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Guidance-Beneficial-Ownership-Legal-Persons.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "March 2023. How to implement revised Recommendation 24: the multi-pronged approach to beneficial ownership information, nominees, indirect ownership and control. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_bo_legal_arrangements_2024
+    title: Guidance on Beneficial Ownership and Transparency of Legal Arrangements
+    publisher: FATF
+    year: 2024
+    url: https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Guidance-Beneficial-Ownership-Transparency-Legal-Arrangements.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "March 2024. Recommendation 25 on trusts and similar arrangements. Background reading. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_egmont_concealment_2018
+    title: Concealment of Beneficial Ownership
+    publisher: FATF and Egmont Group
+    year: 2018
+    url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/Concealment-beneficial-ownership.html
+    extra_urls:
+      - https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-annex-E.pdf
+      - https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-Executive-summary.pdf
+    verified: 2026-10-16
+    note: "July 2018; 106 case studies. Definitions of shell, shelf and front companies and of nominees; Annex E, Indicators of Concealed Beneficial Ownership (mass registration addresses, nominees, transit transactions). The Egmont copies of Annex E and the executive summary were re-opened on 2026-10-21. fatf-gafi.org blocks automated clients; the landing page was not re-opened by the build; re-open in a browser."
+  - key: fatf_pml_2018
+    title: Professional Money Laundering
+    publisher: FATF
+    year: 2018
+    url: https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/Professional-Money-Laundering.pdf.coredownload.pdf
+    extra_urls: []
+    verified: 2026-10-15
+    note: "July 2018. Professional launderers, mule networks, proxy networks of shell company accounts, cash controllers. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_tcsp_2010
+    title: Money Laundering Using Trust and Company Service Providers
+    publisher: FATF
+    year: 2010
+    url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/Moneylaunderingusingtrustandcompanyserviceproviders.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "October 2010. How TCSPs (formation agents, nominee services, registered offices) are misused. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_corporate_vehicles_2006
+    title: The Misuse of Corporate Vehicles, Including Trust and Company Service Providers
+    publisher: FATF
+    year: 2006
+    url: https://fatf-gafi.org/content/dam/fatf-gafi/reports/Misuse%20of%20Corporate%20Vehicles%20including%20Trusts%20and%20Company%20Services%20Providers.pdf.coredownload.inline.pdf
+    extra_urls: []
+    verified: 2026-10-16
+    note: "October 2006. Existence, title and date verified through FATF's index; the full text could not be fetched, so quote it only after a manual download. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_egmont_tbml_2020
+    title: "Trade-Based Money Laundering: Trends and Developments"
+    publisher: FATF and Egmont Group
+    year: 2020
+    url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/Trade-based-money-laundering-trends-and-developments.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "December 2020. Definition of trade-based money laundering and its techniques; why payment data alone cannot detect it. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_egmont_tbml_indicators_2021
+    title: "Trade-Based Money Laundering: Risk Indicators"
+    publisher: FATF and Egmont Group
+    year: 2021
+    url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/Trade-based-money-laundering-indicators.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "March 2021. Indicators including mass registration addresses, pay-through or transit accounts and payments routed in a circle. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_transparency_bo_2014
+    title: Guidance on Transparency and Beneficial Ownership
+    publisher: FATF
+    year: 2014
+    url: http://www.fatf-gafi.org/media/fatf/documents/reports/Guidance-transparency-beneficial-ownership.pdf
+    extra_urls:
+      - https://www.fsb.org/2014/10/guidance-on-transparency-and-beneficial-ownership/
+    verified: 2026-10-16
+    note: "October 2014. Verified only indirectly, through the Financial Stability Board index (extra URL, re-opened 2026-10-21). Background reading on the misuse of corporate vehicles. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_bo_best_practices_2019
+    title: Best Practices on Beneficial Ownership for Legal Persons
+    publisher: FATF
+    year: 2019
+    url: http://www.fatf-gafi.org/publications/methodsandtrends/documents/best-practices-beneficial-ownership-legal-persons.html
+    extra_urls:
+      - https://www.fsb.org/2019/10/best-practices-on-beneficial-ownership-for-legal-persons/
+    verified: 2026-10-16
+    note: "October 2019. Verified only indirectly, through the Financial Stability Board index (extra URL, re-opened 2026-10-21). Background reading. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_peps_2013
+    title: "FATF Guidance: Politically Exposed Persons (Recommendations 12 and 22)"
+    publisher: FATF
+    year: 2013
+    url: https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Peps-r12-r22.html
+    extra_urls: []
+    verified: 2026-10-16
+    note: "PEPs, their family members and close associates; PEP measures are preventive. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_cyber_fraud_2023
+    title: Illicit Financial Flows from Cyber-Enabled Fraud
+    publisher: FATF, INTERPOL and Egmont Group
+    year: 2023
+    url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/illicit-financial-flows-cyber-enabled-fraud.html
+    extra_urls:
+      - https://www.cbr.ru/Content/Document/File/156253/IFF.PDF
+    verified: 2026-10-15
+    note: "November 2023. Mule accounts, pass-through transactions and account hopping. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser. Mirror PDF read 2026-10-21 for paragraphs 28-29, Boxes 17 and 23 and Annex A."
+  - key: fatf_cyber_fraud_2026
+    title: Cyber-Enabled Fraud - Digitalisation and ML/TF/PF Risks
+    publisher: FATF
+    year: 2026
+    url: https://www.fatf-gafi.org/content/fatf-gafi/en/publications/Methodsandtrends/cyber-enabled-fraud-digitalisation-ml-tf-pf-risks.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "February 2026. Background reading on fraud as a money laundering risk. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_pf_sanctions_evasion_2025
+    title: Complex Proliferation Financing and Sanctions Evasion Schemes
+    publisher: FATF
+    year: 2025
+    url: https://www.fatf-gafi.org/en/publications/Financingofproliferation/complex-proliferation-financing-sanction-evasion-schemes.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "June 2025. Sanctions evasion through intermediaries and obscured beneficial ownership. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_va_update_2026
+    title: Seventh Targeted Update on Implementation of the FATF Standards on Virtual Assets/VASPs
+    publisher: FATF
+    year: 2026
+    url: https://www.fatf-gafi.org/en/publications/Fatfrecommendations/targeted-updated-virtualassets-vasps-2026.html
+    extra_urls: []
+    verified: 2026-10-15
+    note: "July 2026. Background reading on virtual assets. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  - key: fatf_cash_transport_2015
+    title: Money Laundering Through the Physical Transportation of Cash
+    publisher: FATF and MENAFATF
+    year: 2015
+    url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/Ml-through-physical-transportation-of-cash.html
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Year from the FATF catalogue; the landing page shows no date. The cash supply side of cash-intensive business typologies. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
+  # Egmont Group
+  - key: egmont_100_cases
+    title: "FIUs in Action: 100 Cases from the Egmont Group"
+    publisher: Egmont Group
+    year: 2000
+    url: https://fincen.gov/sites/default/files/shared/fiuinaction.pdf
+    extra_urls: []
+    verified: 2026-10-21
+    note: "No date printed; about 2000 (it refers to the Group's fifth anniversary). FinCEN-hosted copy. One hundred sanitised FIU cases, including concealment within business structures."
+  - key: egmont_best_cases_2024
+    title: "Best Egmont Cases: Financial Analysis Cases 2021-2023"
+    publisher: Egmont Group
+    year: 2024
+    url: https://egmontgroup.org/wp-content/uploads/2024/09/EGMONT_2021-2023-BECA-III_FINAL.pdf
+    extra_urls: []
+    verified: 2026-10-21
+    note: Case compilation, including a money mule syndicate case and shell company cases.
+  - key: egmont_fiu
+    title: Financial Intelligence Units
+    publisher: Egmont Group
+    year: null
+    url: https://egmontgroup.org/about/financial-intelligence-unit
+    extra_urls: []
+    verified: 2026-10-21
+    note: Living page. What a financial intelligence unit does.
+  # Europol
+  - key: europol_efecta_2023
+    title: "European Financial and Economic Crime Threat Assessment 2023: The Other Side of the Coin"
+    publisher: Europol
+    year: 2023
+    url: https://www.europol.europa.eu/cms/sites/default/files/documents/The%20Other%20Side%20of%20the%20Coin%20-%20Analysis%20of%20Financial%20and%20Economic%20Crime%20(EN).pdf
+    extra_urls: []
+    verified: 2026-10-21
+    note: "The three stages (pp. 10-11 of the report), smurfing, money mules, misuse of legal business structures, cash-intensive businesses."
+  - key: europol_shadow_money_2021
+    title: Shadow Money - The International Networks of Illicit Finance
+    publisher: Europol
+    year: 2021
+    url: https://www.europol.europa.eu/cms/sites/default/files/documents/Shadow%20money%20%E2%80%93%20the%20international%20networks%20of%20illicit%20finance_PUBLIC_0.pdf
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Europol Spotlight, December 2021 (not 2020). Offshore companies, nominee directors as strawmen, professional enablers."
+  - key: europol_money_muling
+    title: Money Muling
+    publisher: Europol
+    year: null
+    url: https://europol.europa.eu/operations-services-and-innovation/public-awareness-and-prevention-guides/money-muling
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Living public awareness and prevention guide. The page title was confirmed on 2026-10-21; its body is rendered by JavaScript, so the definition of a money mule was last read by the research note on 2026-10-16."
+  # Wolfsberg Group
+  - key: wolfsberg_payment_transparency_2023
+    title: Wolfsberg Group Payment Transparency Standards 2023
+    publisher: Wolfsberg Group
+    year: 2023
+    url: https://wolfsberg-group.org/news/50
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Announcement page; the PDF host blocks automated fetching. Originator and beneficiary data must travel with a payment chain."
+  - key: wolfsberg_correspondent_2022
+    title: Financial Crime Principles for Correspondent Banking
+    publisher: Wolfsberg Group
+    year: 2022
+    url: https://wolfsberg-group.org/resources/203/91
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Replaces the retired 2014 principles. Section 2 defines a Correspondent Relationship, the Correspondent and the Respondent."
+  # UNODC and StAR
+  - key: unodc_iff_2011
+    title: Estimating illicit financial flows resulting from drug trafficking and other transnational organized crimes
+    publisher: UNODC
+    year: 2011
+    url: https://unodc.org/lpomex/es/publicaciones/documentos/crimen/Illicit_financial_flows_2011_web.html
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Research report, October 2011 (the URL now serves the report as a PDF). Estimates about USD 1.6 trillion, or 2.7 percent of global GDP, laundered in 2009, and attributes the 2 to 5 percent range to the IMF in 1998 (Executive Summary)."
+  - key: star_puppet_masters_2011
+    title: "The Puppet Masters: How the Corrupt Use Legal Structures to Hide Stolen Assets and What to Do About It"
+    publisher: StAR (World Bank and UNODC)
+    year: 2011
+    url: https://star.worldbank.org/sites/star/files/puppetmastersv1.pdf
+    extra_urls: []
+    verified: 2026-10-21
+    note: "About 150 grand corruption cases; beneficial ownership as de facto control, which can be exercised through ownership, contractually or informally (Executive Summary). Typology explainers cite printed page numbers 2, 35-38, 55-56 and 156 (PDF page = printed page + 18), read 2026-10-21."
+  # United States
+  - key: fincen_fin_2014_a005
+    title: "FinCEN Advisory FIN-2014-A005: Update on U.S. Currency Restrictions in Mexico: Funnel Accounts and TBML"
+    publisher: FinCEN
+    year: 2014
+    url: https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2014-a005
+    extra_urls: []
+    verified: 2026-10-21
+    note: Definition of a funnel account and its red flags.
+  - key: fincen_fin_2006_g014
+    title: "FinCEN Guidance FIN-2006-G014: Potential Money Laundering Risks Related to Shell Companies"
+    publisher: FinCEN
+    year: 2006
+    url: https://www.fincen.gov/resources/statutes-regulations/guidance/potential-money-laundering-risks-related-shell-companies
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Shell companies, nominee incorporation services and transaction indicators. It says: \"Most shell companies are formed by individuals and businesses for legitimate purposes\" (Background section, read 2026-10-21)."
+  - key: fincen_fin_2025_a003
+    title: "FinCEN Advisory FIN-2025-A003: Use of Chinese Money Laundering Networks by Mexico-Based Transnational Criminal Organizations"
+    publisher: FinCEN
+    year: 2025
+    url: https://www.fincen.gov/system/files/2025-08/FinCEN-Advisory-CMLN-508.pdf
+    extra_urls: []
+    verified: 2026-10-21
+    note: "August 2025. Money mules, smurfs (footnote 35), mirror transactions."
+  - key: ffiec_appendix_f
+    title: "BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags"
+    publisher: FFIEC
+    year: null
+    url: https://bsaaml.ffiec.gov/manual/Appendices/07
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Living document. Red flags, which are not all-inclusive and are not evidence on their own. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
+  - key: ffiec_appendix_g
+    title: "BSA/AML Examination Manual, Appendix G: Structuring"
+    publisher: FFIEC
+    year: null
+    url: https://bsaaml.ffiec.gov/manual/Appendices/08
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Living document. Structuring under US law. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
+  - key: ffiec_cash_intensive
+    title: "BSA/AML Examination Manual: Cash-Intensive Businesses"
+    publisher: FFIEC
+    year: null
+    url: https://bsaaml.ffiec.gov/manual/RisksAssociatedWithMoneyLaunderingAndTerroristFinancing/26
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Living document. Risk factors for cash-intensive businesses. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
+  - key: cfr_31_1010_314
+    title: "31 CFR 1010.314: Structured transactions"
+    publisher: US Code of Federal Regulations
+    year: null
+    url: https://www.law.cornell.edu/cfr/text/31/1010.314
+    extra_urls: []
+    verified: 2026-10-21
+    note: Living regulation, read in the Legal Information Institute copy. The US prohibition on structuring transactions to evade reporting requirements.
+  - key: ofac_50_percent_2014
+    title: Revised Guidance on Entities Owned by Persons Whose Property and Interests in Property Are Blocked
+    publisher: OFAC, US Treasury
+    year: 2014
+    url: https://ofac.treasury.gov/media/6186/download
+    extra_urls: []
+    verified: 2026-10-21
+    note: "13 August 2014. The OFAC 50 percent rule, aggregated across blocked owners; caution about control by means other than majority ownership."
+  # Beneficial ownership thresholds
+  - key: openownership_thresholds
+    title: "Beneficial ownership in law: Definitions and thresholds (thresholds)"
+    publisher: Open Ownership
+    year: null
+    url: https://www.openownership.org/en/publications/beneficial-ownership-in-law-definitions-and-thresholds/thresholds/
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Living page. FATF does not recommend a specific threshold; 25 percent spread from early registers and the EU directive; the trend is toward lower thresholds."
+  - key: eba_qa_2022_6622
+    title: Single Rulebook Q&A 2022_6622
+    publisher: European Banking Authority
+    year: 2022
+    url: https://www.eba.europa.eu/single-rule-book-qa/qna/view/publicId/2022_6622
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Reproduces Directive (EU) 2015/849, Article 3(6), the 25 percent indication of direct ownership. eba.europa.eu answers automated clients with a bot challenge (HTTP 403 from its gateway); not re-opened by the build; re-open in a browser."
+  # Disclaimers of public data tools
+  - key: icij_faq
+    title: "Offshore Leaks Database: frequently asked questions"
+    publisher: ICIJ
+    year: null
+    url: https://offshoreleaks.icij.org/pages/faq
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Living page. Legitimate uses of offshore companies; inclusion does not imply wrongdoing; same or similar names; ICIJ answers questions about errors in the database."
+  - key: opensanctions_glossary
+    title: OpenSanctions glossary
+    publisher: OpenSanctions
+    year: null
+    url: https://www.opensanctions.org/docs/glossary
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Living page. The entry \"entity of interest\": it does not carry a specific legal meaning and does not imply wrongdoing."
+  - key: opencorporates_terms
+    title: OpenCorporates terms of use
+    publisher: OpenCorporates
+    year: null
+    url: https://opencorporates.com/terms-of-use-2/
+    extra_urls: []
+    verified: 2026-10-21
+    note: Living page. Source data can contain errors; the data is provided as is.
+  - key: openownership_register_terms
+    title: Open Ownership Register terms and conditions
+    publisher: Open Ownership
+    year: 2024
+    url: https://register.openownership.org/terms-and-conditions
+    extra_urls: []
+    verified: 2026-10-16
+    note: "Archived page: the register closed on 29 November 2024. The original source may contain errors; error reports welcome. The site answers automated clients with a bot challenge; not re-opened by the build; re-open in a browser."
+  # Real cases (used from M1.10c on)
+  - key: danske_bruun_hjejle_2018
+    title: Report on the Non-Resident Portfolio at Danske Bank's Estonian branch
+    publisher: Bruun & Hjejle for Danske Bank
+    year: 2018
+    url: https://danskebank.com/news-and-insights/news-archive/press-releases/2018/pr19092018
+    extra_urls:
+      - https://danskebank.com/-/media/danske-bank-com/file-cloud/2018/9/report-on-the-non-resident-portfolio-at-danske-banks-estonian-branch.pdf
+    verified: 2026-10-21
+    note: "19 September 2018. The url is the press release; the report PDF is the extra URL. The bank's own investigation, which states that its findings do not allow a conclusion that money laundering or other crime occurred."
+  - key: doj_danske_2022
+    title: Danske Bank Pleads Guilty to Fraud on U.S. Banks in Multi-Billion Dollar Scheme to Access the U.S. Financial System
+    publisher: US Department of Justice
+    year: 2022
+    url: https://www.justice.gov/opa/pr/danske-bank-pleads-guilty-fraud-us-banks-multi-billion-dollar-scheme-access-us-financial
+    extra_urls:
+      - https://www.justice.gov/archives/opa/pr/danske-bank-pleads-guilty-fraud-us-banks-multi-billion-dollar-scheme-access-us-financial
+    verified: 2026-10-16
+    note: "13 December 2022. Title taken from the page address; confirm when opening. On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
+  - key: occrp_azerbaijani_laundromat_2017
+    title: The Azerbaijani Laundromat
+    publisher: OCCRP
+    year: 2017
+    url: https://www.occrp.org/en/project/the-azerbaijani-laundromat
+    extra_urls:
+      - https://occrp.org/en/project/the-azerbaijani-laundromat/the-core-companies
+    verified: 2026-10-21
+    note: "Project page, 4 September 2017; \"The Core Companies\" is the extra URL. Journalistic reporting, not a court finding."
+  - key: occrp_pace_bribery_2021
+    title: Italian Court Sentences Former Council of Europe MP for Bribery
+    publisher: OCCRP
+    year: 2021
+    url: https://www.occrp.org/en/news/italian-court-sentences-former-council-of-europe-mp-for-bribery
+    extra_urls: []
+    verified: 2026-10-21
+    note: "14 January 2021. A first-instance conviction; the appeal status was not verified."
+  - key: doj_1mdb_2016
+    title: United States Seeks to Recover More Than $1 Billion Obtained from Corruption Involving Malaysian Sovereign Wealth Fund
+    publisher: US Department of Justice
+    year: 2016
+    url: https://www.justice.gov/opa/pr/united-states-seeks-recover-more-1-billion-obtained-corruption-involving-malaysian-sovereign
+    extra_urls:
+      - https://www.justice.gov/archives/opa/pr/united-states-seeks-recover-more-1-billion-obtained-corruption-involving-malaysian-sovereign
+    verified: 2026-10-16
+    note: "20 July 2016. Announces the first civil forfeiture complaints (allegations). On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
+  - key: doj_1mdb_complaint_2025
+    title: Verified complaint for forfeiture in rem, C.D. Cal. 2:25-cv-00474
+    publisher: US Department of Justice
+    year: 2025
+    url: https://www.justice.gov/opa/media/1385611/dl
+    extra_urls: []
+    verified: 2026-10-21
+    note: "Filed 17 January 2025. Allegations, not proven until a court awards judgment. The /opa/media download opened on 2026-10-21 (a 12-page PDF headed Case 2:25-cv-00474, Document 1)."
+  - key: doj_goldman_2020
+    title: Goldman Sachs Charged in Foreign Bribery Case and Agrees to Pay Over $2.9 Billion
+    publisher: US Department of Justice
+    year: 2020
+    url: https://www.justice.gov/archives/opa/pr/goldman-sachs-charged-foreign-bribery-case-and-agrees-pay-over-29-billion
+    extra_urls: []
+    verified: 2026-10-16
+    note: "22 October 2020. Guilty plea of the Malaysian subsidiary and the parent's deferred prosecution agreement. justice.gov answers automated clients with a bot challenge; not re-opened by the build; re-open in a browser."
+  - key: doj_ng_sentencing_2023
+    title: Former Goldman Sachs Investment Banker Sentenced for $2.7B Bribery and Money Laundering Scheme
+    publisher: US Department of Justice
+    year: 2023
+    url: https://www.justice.gov/opa/pr/former-goldman-sachs-investment-banker-sentenced-27b-bribery-and-money-laundering-scheme
+    extra_urls:
+      - https://www.justice.gov/archives/opa/pr/former-goldman-sachs-investment-banker-sentenced-27b-bribery-and-money-laundering-scheme
+    verified: 2026-10-16
+    note: "Title and year taken from the page address and the public record; confirm when opening. On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
+  - key: doj_1mdb_settlement_2019
+    title: U.S. Reaches Settlement to Recover More Than $700 Million in Assets Allegedly Traceable to Corruption Involving Malaysian Sovereign Wealth Fund
+    publisher: US Department of Justice
+    year: 2019
+    url: https://www.justice.gov/usao-cdca/pr/us-reaches-settlement-recover-more-700-million-assets-allegedly-traceable-corruption
+    extra_urls: []
+    verified: 2026-10-16
+    note: "30 October 2019. Title taken from the page address; confirm when opening. justice.gov answers automated clients with a bot challenge; not re-opened by the build; re-open in a browser."
+  # Data protection law (cited by ADR-0006)
+  - key: uk_gdpr
+    title: United Kingdom General Data Protection Regulation (Regulation (EU) 2016/679 as it applies in the UK)
+    publisher: The National Archives (legislation.gov.uk)
+    year: null
+    url: https://www.legislation.gov.uk/eur/2016/679/contents
+    extra_urls:
+      - https://www.legislation.gov.uk/eur/2016/679/article/4
+      - https://www.legislation.gov.uk/eur/2016/679/article/10
+    verified: 2026-10-21
+    note: "Living law. Article 4(1) defines personal data, Article 4(7) the controller, Article 10 the processing of personal data relating to criminal convictions and offences."
+  - key: eu_gdpr_2016
+    title: Regulation (EU) 2016/679 (General Data Protection Regulation)
+    publisher: European Parliament and Council of the European Union
+    year: 2016
+    url: https://www.legislation.gov.uk/eur/2016/679/article/4/adopted
+    extra_urls:
+      - https://www.legislation.gov.uk/eur/2016/679/article/10/adopted
+      - https://eur-lex.europa.eu/eli/reg/2016/679/oj
+    verified: 2026-10-21
+    note: "Articles 4(1), 4(7) and 10 in the text as adopted, read on legislation.gov.uk on 2026-10-21 (url and first extra URL). EUR-Lex (extra URL) answered with a bot challenge; re-open in a browser. The current consolidated EU text was not opened; the data steward is to confirm that these articles are unchanged."

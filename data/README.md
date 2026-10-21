@@ -5,6 +5,7 @@ This folder is mostly local working space. Git ignores everything in it except s
 ## What may be committed
 
 - `data/fixtures/`: **synthetic fixtures only.** Every entity id starts with `syn-`, every record belongs to the `nr_synthetic` dataset, and nothing in a fixture describes a real person, company, address or account.
+  - `data/fixtures/onboarding/companies-20.csv` is not a set of records: it is the invented teaching file for [Assignment 1](../docs/team/assignment-1.md), loaded only into the separate `Onb*` labels. Its ids start with `onb-`, and its first column, `synthetic`, is `true` on every row, because Neo4j `LOAD CSV` cannot skip a `# synthetic: true` comment line.
 - `data/README.md`: this file.
 - `data/import/.gitkeep`: keeps the folder that the local Neo4j stack mounts for imports.
 

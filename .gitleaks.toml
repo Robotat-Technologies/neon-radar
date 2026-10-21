@@ -1,0 +1,15 @@
+# gitleaks settings for NeonRadar: the default rules plus one narrow allowlist. gitleaks reads
+# this file from the repository root, in the pr-hygiene workflow and in the pre-commit hook.
+[extend]
+useDefault = true
+
+# Citation keys in the bibliography, such as `- key: fatf_egmont_tbml_indicators_2021`, look like
+# generic API keys ("key:" followed by a long identifier). Ignore exactly those lines of that one
+# file: a lowercase snake_case key and nothing else on the line.
+[[allowlists]]
+description = "Citation keys in docs/sources/bibliography.yaml (docs/sources/README.md)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/sources/bibliography\.yaml$''']
+regexTarget = "line"
+regexes = ['''^\s*- key: [a-z][a-z0-9]{0,15}(?:_[a-z0-9]{1,15}){1,8}\s*$''']

@@ -50,12 +50,21 @@ class Rec:
     props: dict[str, list[str]]
     nr: dict[str, Any] = field(default_factory=dict)
 
-    def to_json(self) -> str:
+    def to_dict(self) -> dict[str, Any]:
         entity = ValueEntity(model[self.schema], {"id": self.id, "datasets": [SYNTHETIC_DATASET]})
         for prop, values in self.props.items():
             entity.add(prop, [nfc(value) for value in values], cleaned=True)
         nr = {"v": "1.0", "synthetic": True, "synthetic_kind": self.kind, **self.nr}
-        return json.dumps({**entity.to_dict(), "nr": nr}, ensure_ascii=False)
+        return {**entity.to_dict(), "nr": nr}
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False)
+
+
+def ordered(records: list[Rec]) -> list[Rec]:
+    """Records sorted by schema (SCHEMA_ORDER), then id: the order every load is written in."""
+    order = {schema: index for index, schema in enumerate(SCHEMA_ORDER)}
+    return sorted(records, key=lambda rec: (order[rec.schema], rec.id))
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,10 +122,8 @@ def write_load(
 ) -> Path:
     """Write `<stem>.ftm.jsonl`, its manifest and `labels/`; return the record file's path."""
     out.mkdir(parents=True, exist_ok=True)
-    order = {schema: index for index, schema in enumerate(SCHEMA_ORDER)}
-    ordered = sorted(records, key=lambda rec: (order[rec.schema], rec.id))
     path = out / f"{stem}.ftm.jsonl"
-    _write_text(path, "".join(rec.to_json() + "\n" for rec in ordered))
+    _write_text(path, "".join(rec.to_json() + "\n" for rec in ordered(records)))
     write_labels(out / "labels", scenarios)
     producer = Producer(name=GENERATOR, version=GENERATOR_VERSION, git_sha=None)
     write_manifest(

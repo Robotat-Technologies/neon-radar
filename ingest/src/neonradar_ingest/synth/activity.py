@@ -96,13 +96,14 @@ def amount(rng: np.random.Generator, low: int, mid: int, high: int, p_low: float
 
 
 def open_accounts(
-    reg: Registry, holders: Iterable[tuple[str, str, str]], seed: int
+    reg: Registry, holders: Iterable[tuple[str, str, str]], seed: int, first_number: int = 1
 ) -> dict[tuple[str, str], Account]:
-    """Accounts for (holder, currency, kind), numbered in holder order, with holder Ownerships."""
+    """Accounts for (holder, currency, kind), numbered in holder order from `first_number`
+    (ids in `reg.ns`), each with its holder Ownership."""
     rng = stream(seed, "accounts")
     accounts: dict[tuple[str, str], Account] = {}
-    for number, (holder, currency, kind) in enumerate(sorted(holders), start=1):
-        aid = sid("acct", number)
+    for number, (holder, currency, kind) in enumerate(sorted(holders), start=first_number):
+        aid = sid("acct", number, ns=reg.ns)
         account = Account(aid, holder, currency, f"NRSYN{number:010d}", kind)
         accounts[holder, currency] = account
         if kind == "cash_ledger":
@@ -169,11 +170,11 @@ def prune(pays: list[Pay], planted: list[list[Pay]], keep: list[Pay]) -> list[Pa
         pays = [p for p in pays if p is not victim]
 
 
-def number_payments(pays: list[Pay]) -> None:
+def number_payments(pays: list[Pay], ns: str = "") -> None:
     """Ids in time order, so planted payments are spread among the background."""
     pays.sort(key=_order)
     for number, pay in enumerate(pays, start=1):
-        pay.id = sid("payment", number, width=6)
+        pay.id = sid("payment", number, width=6, ns=ns)
 
 
 def scenario_label(

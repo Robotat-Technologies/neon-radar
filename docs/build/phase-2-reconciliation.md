@@ -125,6 +125,16 @@ The review of M2.8 (#49) found places where the verbatim code of M2.8 does not d
 | F10 | The oracle test inputs (5521 to 5764) | #49 replaced only a denylisted person name and the retired "falcon ridge" words; generic names such as "SMITH, John Michael" and "Łukasz Wiśniewski" and company names such as "BACK TO BASICS LIMITED" stay as the spec gives them | Q data steward (Gate 2 list) | Do the OD-12 Companies House checks apply to strings that are only normaliser test inputs? No change until decided |
 | F11 | D6 merges `Address` records with the same non-empty `address_key` that contains a full postcode or a street line (8137) | A text that is only a postcode gives the key `N1 7GU\|` (a postcode and no tokens), so D6 would merge every postcode-only address of one postcode across datasets | Q graph mentor and tech lead (M2.10a) | Should D6 skip keys with no tokens after the postcode? `docs/er/keys.md` asks M2.10a to keep them out of Splink; no change to `address_key` or D6 until decided |
 
+### 2.7 The resolver core after the M2.10a review (2.7: the spec seems wrong)
+
+The data-guardian review of M2.10a (#77) ran the verbatim `cluster.py` on synthetic members and found that the order of 7.1.6 weakens two guarantees the spec states. `cluster.py`, `feature_schema.py` and `test_cluster.py` stay verbatim; the deciders of ADR-0015 choose at its acceptance.
+
+| # | PHASE-2.md says | Found | Class | Decision |
+|---|---|---|---|---|
+| G1 | A `same` decision whose merge would cross P1 or P2 applies only with two reviewers or a senior reviewer (7.1.2 D7, 7.1.6) | 7.1.6 applies human decisions before D1 to D6 and judges the crossing then. A one-reviewer decision between two unflagged records V and U applies; a later D5 link from U to a listed record W brings W's flag to V. With a second, confirmed decision about U and W, the result depended on which of V's and U's ids sorts first | D (orchestrator under OD-10, the stricter option) | Interim guard in `run.py` (`guard_decisions`): cluster once without the one-reviewer decisions, hold back each one whose two records then sit in clusters with different flag topics or leak status (and any whose cluster changes those once it is applied), count them in `decisions_awaiting_second_review`. For the deciders at ADR-0015's acceptance: keep the guard, or change 7.1.6 into two passes that judge D7 after D1 to D6 |
+| G2 | "No flag reaches a person or company through a similar name" (the reading of G8 and 7.1.4 in the first ADR-0015 draft) | The strict name check compares the two linked records. With D1's hub, a registry record with a similar name that joined the company record first stays in the cluster when a list entry with the exact name joins; if the list entry's link comes first, the registry record stays a possible match. Ids decide the order: UK, OFAC, UN and ICIJ entries sort after `gbch-`, EU entries before | Q deciders of ADR-0015 | Pinned by `test_strict_name_check_outcome_depends_on_id_order`; ADR-0015 states it as a property and names two order-independent rules (crossing links first, or a strict check against every record of the cluster being joined), both changes to `cluster.py` |
+| G3 | D6 links records with the same address key | Linking every pair gives n(n - 1)/2 links for a key shared by n records | M | Each record links to the smallest id of its key (synthetic and real apart); beyond the X7 cap of 30 the rest are refused. F11 (postcode-only keys) stays open |
+
 ## 3. Cypher that Phase 1 runs from Python strings
 
 From now on every Cypher statement that new or changed code runs lives in a `.cypher` file, so `make cypher-lint` checks it (M2.0 item 11). These move into files when a later milestone touches the code, not in M2.0.
@@ -163,5 +173,7 @@ The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and
 **Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors), F10 (OD-12 and normaliser test inputs).
 
 **Graph mentor, with the tech lead:** F2 (what counts as a street line) and F4 (company numbers of only zeros), decided by the orchestrator under OD-10; F11 (D6 and postcode-only address keys).
+
+**Data steward, project lead and tech lead (ADR-0015):** G1 (the interim guard for one-reviewer decisions, or a two-pass 7.1.6), decided for the build by the orchestrator under OD-10; G2 (strict name checks that depend on the order of record ids).
 
 Each question blocks only the milestone named in its row.

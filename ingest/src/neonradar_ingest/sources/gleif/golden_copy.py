@@ -412,19 +412,30 @@ class Writer:
             self.addresses[key] = {**entity.to_dict(), "nr": {"v": NR_VERSION}}
         return rid
 
-    def company(self, lei: str, row: Row) -> dict[str, Any]:
-        number = raw = text(row[ENTITY_ID])
-        if raw and row[AUTHORITY].strip().upper() in UK_AUTHORITIES:
+    def registration_number(self, row: Row) -> str | None:
+        """The Companies House form, which the D-rules join on, only for the three Companies
+        House authorities (a value `uk_company_number` rejects stays raw and is counted). Any
+        other register's number is written as `<authority id>:<number>`, which no Companies
+        House number can equal: an OSCR charity number (`SC0` and digits) looks like a
+        Scottish company number."""
+        raw = text(row[ENTITY_ID])
+        if raw is None:
+            return None
+        authority = row[AUTHORITY].strip().upper()
+        if authority in UK_AUTHORITIES:
             number = uk_company_number(raw)
-            if number is None:
-                self.counts["uk_numbers_not_ch_form"] += 1
-                number = raw
+            self.counts["uk_numbers_not_ch_form"] += number is None
+            return number or raw
+        self.counts["numbers_qualified_by_authority"] += 1
+        return f"{authority or 'NONE'}:{raw}"
+
+    def company(self, lei: str, row: Row) -> dict[str, Any]:
         values: dict[str, Any] = {
             "name": text(row["Entity.LegalName"]),
             "leiCode": lei,
             **self.other_names(row),
             "jurisdiction": text(row["Entity.LegalJurisdiction"]),
-            "registrationNumber": number,
+            "registrationNumber": self.registration_number(row),
             "status": text(row["Entity.EntityStatus"]),
             "legalForm": legal_form(row),
             "incorporationDate": iso_date(row.get(CREATION), self.counts, "creation"),

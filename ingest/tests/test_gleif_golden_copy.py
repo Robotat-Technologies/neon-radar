@@ -3,7 +3,7 @@
 Every file is built in the test as a zip of a synthetic CSV in the publish's own format (the
 dotted LEI-CDF 3.1 header of note 6.2 and the RR header of the 2019 fixture there), with
 invented values only: `SYN0` LEIs with valid ISO 17442 check digits, `99` company numbers,
-`QQ` postcodes, the invented authority `RA888888` and company names from the demo-mini
+`QQ` postcodes, the invented authority `RA0SYN01` and company names from the demo-mini
 fixture. Nothing is committed as a file (2.9).
 """
 
@@ -32,7 +32,7 @@ from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.companies_house import slice as slices
 from neonradar_ingest.sources.gleif import golden_copy as gc
 from neonradar_keys.addresses import address_key
-from neonradar_keys.ids import is_valid_lei
+from neonradar_keys.ids import is_valid_lei, uk_company_number
 
 VERSION = "20261021-1600"
 PROFILE = "gl-test"
@@ -132,7 +132,7 @@ LEI_ROWS = [
         "Entity.HeadquartersAddress.PostalCode": "QQ2 2BB"}),
     entity(OUTSIDE, "COPPER ACRE INTERIORS LTD", "99000009"),
     entity(ODD, "BASALT HOLM FOODS LTD", "XY123456", "RA000586"),
-    entity(PARENT, "TANSY TARN VENTURES LIMITED", "123", "RA888888", **{
+    entity(PARENT, "TANSY TARN VENTURES LIMITED", "123", "RA0SYN01", **{
         "Entity.LegalForm.EntityLegalFormCode": "8888",
         "Entity.LegalForm.OtherLegalForm": "LIMITED LIABILITY COMPANY",
         "Entity.LegalJurisdiction": "US-DE", "Entity.LegalAddress.Country": "US",
@@ -144,12 +144,12 @@ LEI_ROWS = [
     entity(ANNULLED, "SORREL SIKE TRADING LTD", "99000004", **{gc.REGISTRATION: "ANNULLED"}),
     entity(DUPLICATE, "SORREL SIKE TRADING LTD", "99000006", **{gc.REGISTRATION: "DUPLICATE"}),
     entity(INVALID, "TEASEL QUAY TRADING LTD", "99000007"),
-    entity(FUND, "KESTREL SCAR FINANCE LTD", "", "RA888888", **{"Entity.EntityCategory": "FUND"}),
+    entity(FUND, "KESTREL SCAR FINANCE LTD", "", "RA0SYN01", **{"Entity.EntityCategory": "FUND"}),
     entity(OTHER_A, "LINNET WOLD FOODS LTD", "99000010"),
     entity(OTHER_B, "LARCH MERE SERVICES LTD", "99000011"),
     entity(SOLE, "ALDER HOLM CATERING LTD", "99000012",
            **{"Entity.EntityCategory": "SOLE_PROPRIETOR"}),
-    entity(SOLE_PARENT, "PLOVER BRAE TEXTILES LTD", "", "RA888888",
+    entity(SOLE_PARENT, "PLOVER BRAE TEXTILES LTD", "", "RA0SYN01",
            **{"Entity.EntityCategory": "SOLE_PROPRIETOR"}),
     entity(NONAME, "", "99000013"),
     entity(ULTIMATE, "UMBER GARTH FOODS LTD", "99000003", "RA000587",
@@ -178,7 +178,7 @@ RR_ROWS = [
 
 
 def csv_bytes(
-    header: Sequence[str], rows: Sequence[dict[str, str]], quoting: int = csv.QUOTE_MINIMAL
+    header: Sequence[str], rows: Sequence[dict[str, str]], quoting: Any = csv.QUOTE_MINIMAL
 ) -> bytes:
     out = io.StringIO()
     writer = csv.writer(out, quoting=quoting, lineterminator="\r\n")
@@ -413,7 +413,8 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     assert sorted(sibling["nr"]["address_roles"].values()) == ["business", "registered"]
     assert sibling["nr"]["address_roles"][office] == "registered"  # shared with the child
     parent = found[rid(PARENT)]["properties"]
-    assert parent["jurisdiction"] == ["us"] and parent["registrationNumber"] == ["123"]  # raw
+    assert parent["jurisdiction"] == ["us"]
+    assert parent["registrationNumber"] == ["RA0SYN01:123"]  # never padded into a CH number
     assert parent["legalForm"] == ["LIMITED LIABILITY COMPANY"]  # code 8888 means "other"
     business = [a for a, role in sibling["nr"]["address_roles"].items() if role == "business"]
     assert found[business[0]]["properties"]["street"] == ["2 SAMPLE ROAD"]
@@ -546,3 +547,22 @@ def test_no_committed_profile_loads_every_lei() -> None:
     for name in profile_names():
         block = load_profile(name).sources.get(gc.DATASET)
         assert block is None or block.options.get("scope") != "all", name  # tests only
+
+
+def test_only_companies_house_authorities_give_a_companies_house_number() -> None:
+    """An OSCR-style charity number (`SC0` and digits) under another register must never
+    look like a Scottish company number to the D-rules (M2.10a)."""
+    from neonradar_keys.ids import has_ch_prefix
+
+    counts: Counter[str] = Counter()
+    writer = gc.Writer([], counts)
+    charity = entity(lei("OSCR1"), "HAZEL BRAE TEXTILES LTD", "SC012345", "RA0SYN02",
+                     **{"Entity.LegalJurisdiction": "GB-SCT"})  # fmt: skip
+    company = entity(lei("SCOT1"), "LICHEN HEATH LOGISTICS LTD", "sc 012345", "RA000587")
+    (charity_number,) = writer.company(lei("OSCR1"), charity)["properties"]["registrationNumber"]
+    (company_number,) = writer.company(lei("SCOT1"), company)["properties"]["registrationNumber"]
+    assert company_number == "SC012345"  # the Companies House form (RA000587)
+    assert charity_number == "RA0SYN02:SC012345"
+    assert uk_company_number(charity_number) is None
+    assert not (len(charity_number) == 8 and has_ch_prefix(charity_number))
+    assert counts["numbers_qualified_by_authority"] == 1 and counts["uk_numbers_not_ch_form"] == 0

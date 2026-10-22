@@ -6,8 +6,7 @@ deliverable 7) that later milestones read through it.
 tests and acceptance commands only). Other keys are allowed and ignored. Missing access keys
 fail closed: no real profile, no data protection documents, no list, no PEP source, no real
 overlay, no registry alert about a real organisation (G12's stricter option). Missing
-schedule dates are None: they are informational (OD-1). A missing held-out owner is None, and
-`heldout_owner_named` is False until the operator names one (only M4.9 needs it).
+schedule dates are None: they are informational (OD-1), and so is a missing held-out owner.
 """
 
 import hashlib
@@ -53,12 +52,6 @@ class People(BaseModel):
     er_senior_reviewers: list[str] = []
     freeze_deciders: list[str] = []  # ADR-0022 (PHASE-3.md M3.11)
     heldout_owner: str | None = None  # PHASE-4.md 1.1: outside the copilot squad (M4.9)
-
-    @property
-    def heldout_owner_named(self) -> bool:
-        """True once `heldout_owner` is a GitHub handle, not missing or a TODO placeholder."""
-        owner = self.heldout_owner or ""
-        return owner.startswith("@") and len(owner) > 1 and "TODO" not in owner.upper()
 
 
 class Schedule(BaseModel):

@@ -28,15 +28,11 @@ protected like data/cache/real, and more strictly: a command line that names it 
 it, or it as the current folder) may only run the read-only git subcommands, which see
 tracked files only; listing programs and the project's own commands are blocked too.
 neonradar eval run --split test (in any position, with = or a space) is human-only.
-Held-out questions and models (PHASE-4.md G15, G16, M4.0): data/cache/heldout, where the
-held-out owner keeps the Assignment 5 questions, is closed as data/cache/holdout is. These are
-human-only: neonradar copilot bench with --file (in any position, with = or a space), any
-neonradar copilot command with --model-router, neonradar copilot model-check unless its last
---digest is empty (--digest "": the gate then stops before it contacts any server), every
-command whose program is ollama (directly, through uv run, a launcher such as env, nohup or
-sudo, or bash -c), docker compose with the llm profile (--profile llm, --profile "*" or
-COMPOSE_PROFILES) or naming its ollama service on up, start, run, create, pull, restart or
-exec, and NR_COPILOT_MODEL_ROUTER set to anything but off on a command line.
+Held-out questions and models (PHASE-4.md G15, G16, M4.0): data/cache/heldout is closed as
+data/cache/holdout is. Human-only: copilot bench with --file, any copilot command with
+--model-router, copilot model-check unless its last --digest is empty, every ollama command
+(also through a launcher or a shell script), docker compose with the llm profile or naming
+its ollama service, and NR_COPILOT_MODEL_ROUTER set on a command line to anything but off.
 Case: macOS and Windows file systems ignore case, so data/cache/REAL is data/cache/real.
 Every path and mark is compared casefolded, and the human-only commands are matched
 without regard to case (the program name too: NeonRadar runs neonradar there).
@@ -116,11 +112,7 @@ LAUNCHERS = words(
 )
 COMPOSE_STARTS = words("up start run create pull restart exec")
 ROUTER_OFF = ("", "0", "false", "off", "no", "n", "f")
-MODEL_REASON = (
-    "the held-out run and the model are human-only (PHASE-4.md G15, G16): neonradar copilot "
-    "bench --file, any copilot command with --model-router, copilot model-check without "
-    '--digest "", ollama, the Compose profile llm and NR_COPILOT_MODEL_ROUTER; ask the operator'
-)
+MODEL_REASON = "the held-out run and models are human-only (PHASE-4.md G15, G16): ask a human"
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 WEB_DATA = (
     # (host, path prefix, mode): "all" blocks every path under the prefix, "files" only data files
@@ -459,73 +451,33 @@ def last_value(args, flag):
     return value
 
 
-def compose_profiles(args):
-    """The values of every --profile option of a docker compose command."""
-    found = []
-    for i, arg in enumerate(args):
-        if arg == "--profile" and i + 1 < len(args):
-            found.append(args[i + 1])
-        elif arg.startswith("--profile="):
-            found.append(arg.split("=", 1)[1])
-    return found
-
-
-def shell_script(name, args):
-    """The script of `bash -c SCRIPT` (or -lc and the like) and of `eval ...`, or None."""
-    if name == "eval":
-        return " ".join(args)
-    if name in SHELLS:
-        for i, arg in enumerate(args):
-            if re.match(r"^-[a-z]*c[a-z]*$", arg) and i + 1 < len(args):
-                return args[i + 1]
-    return None
-
-
-def check_models(tokens, depth=0):
+def check_models(tokens):
     """PHASE-4.md G15 and G16: the held-out run, the model router and the model runtime are
     human-only. Matched without regard to case, as the other human-only commands are."""
     tokens = [t.casefold() for t in tokens]
     name, args = program(tokens)
-    for token in tokens:
-        key, _, value = token.partition("=")
-        if key == "nr_copilot_model_router" and value.strip() not in ROUTER_OFF:
-            block(MODEL_REASON)
+    rest = copilot_args(tokens) or []
+    profiles = [b for a, b in zip(tokens, tokens[1:]) if a == "--profile"]
+    profiles += [t.partition("=")[2] for t in tokens if t.startswith("--profile=")]
+    for key, _, value in (t.partition("=") for t in tokens):
         if key == "compose_profiles" and {"llm", "*"} & set(value.split(",")):
             block(MODEL_REASON)
-    if name == "ollama" or (name == "uv" and uv_run_target(args) == "ollama"):
+        if key == "nr_copilot_model_router" and value.strip() not in ROUTER_OFF:
+            block(MODEL_REASON)
+    compose = args[1:] if name == "docker" and args[:1] == ["compose"] else None
+    compose = args if name == "docker-compose" else compose
+    sub = compose_subcommand(compose) if compose is not None else None
+    if (
+        name == "ollama"
+        or (name in LAUNCHERS and "ollama" in [os.path.basename(a) for a in args])
+        or ((name in SHELLS or name == "eval") and MODEL_SCRIPT.search("\n".join(args)))
+        or has_flag(rest, "--model-router")
+        or ("bench" in rest and has_flag(rest, "--file"))
+        or ("model-check" in rest and last_value(rest, "--digest") != "")
+        or (compose is not None and {"llm", "*"} & set(profiles))
+        or (sub in COMPOSE_STARTS and "ollama" in compose[compose.index(sub) + 1 :])
+    ):
         block(MODEL_REASON)
-    if name in LAUNCHERS and any(os.path.basename(a) == "ollama" for a in args):
-        block(MODEL_REASON)
-    rest = copilot_args(tokens)
-    if rest is not None:
-        if has_flag(rest, "--model-router"):
-            block(MODEL_REASON)
-        if "bench" in rest and has_flag(rest, "--file"):
-            block(MODEL_REASON)
-        if "model-check" in rest and last_value(rest, "--digest") != "":
-            block(MODEL_REASON)
-    compose = None
-    if name == "docker" and args[:1] == ["compose"]:
-        compose = args[1:]
-    elif name == "docker-compose":
-        compose = args
-    if compose is not None:
-        if {"llm", "*"} & set(compose_profiles(compose)):
-            block(MODEL_REASON)
-        sub = compose_subcommand(compose)
-        if sub in COMPOSE_STARTS:
-            after = compose[compose.index(sub) + 1 :]
-            if "ollama" in [a for a in after if not a.startswith("-")]:
-                block(MODEL_REASON)
-    script = shell_script(name, args)
-    if script is not None and depth < 3:
-        commands = parse(script)
-        if commands is None:
-            if MODEL_SCRIPT.search(script):
-                block(MODEL_REASON)
-            return
-        for inner in commands:
-            check_models(inner, depth + 1)
 
 
 def check_bash(command, cwd):

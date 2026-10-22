@@ -1,5 +1,7 @@
 # Spike report: GLEIF (`gleif_lei`)
 
+> **Status since C1 1.1.0:** `gleif_lei` is `status: active` in `contracts/datasets.yaml` (M2.1a, `docs/build/PHASE-2.md` 5.1): its production loader is built in Phase 2 (M2.4). This report stays the record of the Phase 1 spike.
+
 Milestone M1.8b ([PHASE-1.md](../../build/PHASE-1.md)). Research note checked: [sources-ch-gleif.md](../../research/2026-10-16/sources-ch-gleif.md) part B. This report has counts, field names and API behaviour only. The two LEIs named below are the spec's spike example and its parent.
 
 ## 1. Command, date, duration, network

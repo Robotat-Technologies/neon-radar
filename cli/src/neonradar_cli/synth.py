@@ -1,4 +1,4 @@
-"""`neonradar synth ...`: the synthetic data generator (PHASE-1.md M1.8e)."""
+"""`neonradar synth ...`: the synthetic data generator (PHASE-1.md M1.8e, PHASE-2.md M2.9)."""
 
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 
-from neonradar_ingest.synth import DEMO_SEED
+from neonradar_ingest.synth import DEMO_SEED, ER_BENCH_SEED
 
 app = typer.Typer(help="Synthetic data generator.", no_args_is_help=True)
 
@@ -20,10 +20,14 @@ def demo_mini(
 ) -> None:
     """Generate demo-mini: C1 records, their manifest and the label files."""
     # Imported here so that `neonradar --help` does not load Faker and FollowTheMoney.
-    from neonradar_contracts.records import manifest_path
     from neonradar_ingest.synth.demo import write_demo_mini
 
-    path = write_demo_mini(out, seed)
+    _summary(write_demo_mini(out, seed), seed)
+
+
+def _summary(path: Path, seed: int) -> None:
+    from neonradar_contracts.records import manifest_path
+
     manifest = json.loads(manifest_path(path).read_text(encoding="utf-8"))
     entry = manifest["files"][0]
     typer.echo(f"{entry['records']} records, seed {seed}: {path}")
@@ -31,6 +35,28 @@ def demo_mini(
         typer.echo(f"  {schema}: {count}")
     typer.echo(f"sha256 {entry['sha256']}")
     typer.echo(f"labels: {path.parent / 'labels'}")
+
+
+@app.command(name="er-bench")
+def er_bench(
+    size: Annotated[str, typer.Option(help="small (600 people, 300 organisations) or large.")] = (
+        "small"
+    ),
+    seed: Annotated[
+        int, typer.Option(min=0, help="Root seed; the same seed gives the same bytes.")
+    ] = ER_BENCH_SEED,
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Output folder [default: data/cache/synthetic/er-bench-<size>]."),
+    ] = None,
+) -> None:
+    """Generate the entity resolution benchmark: records, manifest and labels/er_truth.csv."""
+    from neonradar_ingest.data.layout import bench_dir
+    from neonradar_ingest.synth.erbench import SIZES, write_er_bench
+
+    if size not in SIZES:
+        raise typer.BadParameter(f"size must be one of {', '.join(SIZES)}", param_hint="--size")
+    _summary(write_er_bench(out or bench_dir(size), size, seed), seed)
 
 
 @app.command(name="check-names")

@@ -99,7 +99,7 @@ def test_the_synthetic_builder_validates_the_fixtures_and_copies_nothing(data_en
     assert builder is not None
     profile = load_profile("demo")
     result = build_dataset(builder, profile, load_project(), validate, run_id="build-4")
-    assert result.counts["fixture_folders"] == 1
+    assert result.counts["fixture_folders"] == 2  # demo-mini and er-bench (M2.9)
     assert result.counts["records"] == sum(result.counts["schemas_by_value"].values()) > 100
     assert not [path for path in data_env.cache.rglob("*") if path.is_file()]
 

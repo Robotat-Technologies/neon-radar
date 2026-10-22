@@ -2,6 +2,29 @@
 
 The four NeonRadar contracts and their versions (`neonradar_contracts.versions`). The tech lead tags `contracts-v<version>` when the contracts freeze (`docs/build/PHASE-1.md` 5.0); after that, every change needs an approved contract-change issue and an entry here.
 
+## 1.1.0 (unreleased)
+
+Phase 2 (`docs/build/PHASE-2.md` 5). Every change is additive: everything valid under 1.0.0 stays valid. The tech lead tags `contracts-v1.1.0` when M2.1a to M2.1c have merged (5.0).
+
+### C1: NeonRadar Record 1.1.0
+
+Contract-change issue #53 (M2.1a, PHASE-2.md 5.1). Details in [C1-record.md](C1-record.md#changes-in-110).
+
+- **Datasets:** five entries in `datasets.yaml`, with the licence fields of 5.1 verbatim: `gb_fcdo_sanctions` (OGL v3.0), `us_ofac_sdn` (CC0 1.0), `un_sc_sanctions` (`LicenseRef-UN-Terms-of-Use`, `commercial_use: permission-required`), `eu_fsf` (`LicenseRef-EC-Reuse-Decision-2011-833`) and `gb_parliament_members` (`LicenseRef-Open-Parliament-Licence-3.0`). The data steward approves each licence field and attribution line in the M2.1a review (G2-11).
+- **Dataset fields:** optional `kind` (`registry`, `list`, `leak`, `synthetic`) and `anchor_priority` (an integer, 1 first, unique; `load_registry()` refuses duplicates) on all ten entries; `commercial_use` also accepts `permission-required`. `gb_companies_house`, `gleif_lei` and `icij_offshore_leaks` move from `status: spike` to `active`; `opensanctions_default` stays `blocked`.
+- **New `nr` keys:** `ch_person_number` (string, any `LegalEntity` of `gb_companies_house` or `nr_synthetic`), `psc_statements` (list of strings, `Company`), `accounts_category` (string, `Company`), `share_pct_min_exclusive` and `share_pct_max_exclusive` (booleans, `Ownership` and `Control`).
+- **Wider `nr` keys:** `synthetic_kind` also accepts `list` and `leak`; `is_nominee` is also allowed on `Ownership`; `share_pct_min` and `share_pct_max` are also allowed on `Control`.
+- **Versions:** `nr.v` accepts `"1.0"` and `"1.1"`, and every key under both; `versions.RECORD` and `versions.CONTRACTS` are `1.1.0`, so `write_manifest()` writes `record_contract: "1.1.0"`. The manifest's `record_contract` pattern already accepted both values and is unchanged. The JSON Schema `schemas/record-nr.v1.json` is regenerated (the file name keeps the major version).
+- **Examples:** `examples/c1/demo-1.1.ftm.jsonl` (the seven lines of 5.1) and its manifest, valid in strict mode; the 1.0 example `demo.ftm.jsonl` and its manifest (`record_contract: "1.0.0"`) stay as they are and stay valid.
+- **Consumers in this change:** the demo-mini fixture manifest is regenerated (`make fixtures`; only `record_contract` and `created_at` change, the records are byte-identical); the API test of `GET /meta` reads `versions.CONTRACTS`; the OpenSanctions spike mapping derives `nr.v` from `versions.RECORD` (M1.8d), so it now writes `"1.1"` and its expected test output says so. The Companies House, GLEIF and ICIJ spike mappings and the synthetic generator keep writing `"1.0"`, which stays valid.
+
+#### Changed from `docs/build/PHASE-2.md` 5.1 (tech lead sign-off at the M2.1a review)
+
+- **Example names (OD-12):** the build agent cannot run the Companies House search, so the spec's names were replaced by names already checked: "Quarry Lane Instruments Ltd" by "Plover Brae Textiles Ltd" (a demo-mini company, checked in M1.8e); the officer "MARLOWE, Petra Anne" by "VELQASIMI, Yazan Zafer"; the list-style person "Ivo Kestrane" (alias "Iwo Kestran") by "Rakan Zubeirono" (alias "Raqan Zubeirono"); the leak-style entity "QUILLAN BRASKE" by "NADIM ULVARAZI". The surnames Velqasimi, Zubeirono and Ulvarazi were checked alone on the Companies House officer and company searches on 21 October 2026 with no result (recorded in the body of #17), so no name with them can match a live record; the given names come from the names checked there (Zafer Qandelouni, a checked given-name variant, Yazan Velqasimi, Rakan Zubeirono, Nadim Ulvarazi). The alias "Raqan Zubeirono" is a spelling variant of the given name with the surname Zubeirono, whose surname-alone check had no result. None is on the synthetic-name denylist. "Synthetic Authority A" is kept: it names no person or company.
+- **R6 for the wider keys (orchestrator decision under OD-10, for the tech lead at this review):** a synthetic `Ownership` that sets `nr.is_nominee`, or a synthetic `Control` that sets any `nr.share_pct_*` key, references only synthetic records on every entity reference (strict and non-strict mode), so C2 never calls a real owner a nominee or gives a real entity a voting band. Synthetic `Ownership` and `Control` records without these keys may still name real records.
+- **`ch_person_number` only on `gb_companies_house` and `nr_synthetic` records (orchestrator decision under OD-10):** 5.1 scopes the key to Companies House officers; the check (`NR`) keeps a list or leak record from reaching rule D3 through it.
+- **Id forms of the list loaders:** the sanctions and Parliament id forms of PHASE-2.md 4.4 without a kind segment (`uksl-g<group id>`, `uksl-<unique id>`, `ofac-<uid>`, `unsc-<ref>`, `eufsf-<logicalId>`, `ukparl-<member id>`) are allowed next to `make_id`, so the verbatim tests of M2.6 and M2.10a keep them. They pass R1 unchanged. Orchestrator decision under OD-10, `docs/build/phase-2-reconciliation.md` B6.
+
 ## 1.0.0 (unreleased)
 
 ### C1: NeonRadar Record 1.0.0

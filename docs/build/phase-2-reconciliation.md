@@ -125,6 +125,16 @@ The review of M2.8 (#49) found places where the verbatim code of M2.8 does not d
 | F10 | The oracle test inputs (5521 to 5764) | #49 replaced only a denylisted person name and the retired "falcon ridge" words; generic names such as "SMITH, John Michael" and "Łukasz Wiśniewski" and company names such as "BACK TO BASICS LIMITED" stay as the spec gives them | Q data steward (Gate 2 list) | Do the OD-12 Companies House checks apply to strings that are only normaliser test inputs? No change until decided |
 | F11 | D6 merges `Address` records with the same non-empty `address_key` that contains a full postcode or a street line (8137) | A text that is only a postcode gives the key `N1 7GU\|` (a postcode and no tokens), so D6 would merge every postcode-only address of one postcode across datasets | Q graph mentor and tech lead (M2.10a) | Should D6 skip keys with no tokens after the postcode? `docs/er/keys.md` asks M2.10a to keep them out of Splink; no change to `address_key` or D6 until decided |
 
+### 2.7 The entity resolution benchmark (M2.9, #71)
+
+The reviews of #71 found two places where the benchmark as specified would leak the right answer or put realistic names next to list and leak entities. The orchestrator decided both under OD-10; a third is a question.
+
+| # | PHASE-2.md says | Found | Class | Decision |
+|---|---|---|---|---|
+| H1 | Record ids `syn-erb-<p\|o>-<entity number>-<record number>` (M2.9 deliverable 3) | Every record id carries its true entity, so a resolver that read ids would score perfectly | M (2.7) | Opaque ids `syn-erb-r-<first 16 hex of sha1(seed\|entity id\|k)>`; the mapping is only in `labels/er_truth.csv`; relationship and `Sanction` ids keep the PHASE-1.md 4.4 edge form |
+| H2 | Invented surnames for people with a list or leak record (deliverable 2) | Officers and PSCs of list and leak organisations kept Faker surnames, and one of them carried a real person's full name (G1) | G1, decided under OD-10 | Invented surnames also for every officer or PSC of an organisation that has a list or leak record or whose near twin has one, and for the near twins of all of these people; always three syllables; screened against the Faker, curated and `variants.NOT_INVENTED` surnames, typos included |
+| H3 | Not covered | Second-degree links stay outside H2. Definitions, all read from the committed fixture: a *link* is a `Directorship` (`director` to `organization`) or an `Ownership` (`owner` to `asset`) record, mapped to entities through `labels/er_truth.csv`; an *exposed organisation* has a `list` or `leak` row in `er_truth.csv`, or is the `twin_of` of one (61); the *exposed people* E have a `list` or `leak` row, or a link to an exposed organisation, or are the `twin_of` of such a person (304; `_exposed` in `ingest/tests/test_erbench.py` computes E). Then (a) people not in E who have a link to an organisation that some person in E has a link to (co-officers and co-PSCs): 203; (b) organisations with a link (as corporate officer or PSC) to an exposed organisation: 83; (c) people not in E with a link to an organisation in (b): 93. The data-guardian delta review of #71 counted 207, 91 and 103 at head 9df6d16, before the near-twin rule of H2 | Q data steward | Should invented surnames also reach second-degree links? Until decided they keep Faker surnames, and the denylist and the OD-12 check cover them |
+
 ## 3. Cypher that Phase 1 runs from Python strings
 
 From now on every Cypher statement that new or changed code runs lives in a `.cypher` file, so `make cypher-lint` checks it (M2.0 item 11). These move into files when a later milestone touches the code, not in M2.0.
@@ -160,7 +170,7 @@ The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and
 
 **Tech lead:** A5 (`.mcp.json` and the hook, with #19), A13 (the no-op `Write` deny rule), B5 (ICIJ relationship id key), B6 (list and Parliament id forms against `make_id`), C6 (GLEIF name types and C1 R10), C8 (ICIJ address roles), C11 (D5 and repeated ICIJ node ids), D8 (`opensanctions_default` status), E1 (`POSSIBLY_SAME_AS` in C3), E2 (I11 and sub-topics), E4 (relationship upsert template), E11 (where detection runs on real data write).
 
-**Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors), F10 (OD-12 and normaliser test inputs).
+**Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors), F10 (OD-12 and normaliser test inputs), H3 (second-degree links in the ER benchmark, M2.9).
 
 **Graph mentor, with the tech lead:** F2 (what counts as a street line) and F4 (company numbers of only zeros), decided by the orchestrator under OD-10; F11 (D6 and postcode-only address keys).
 

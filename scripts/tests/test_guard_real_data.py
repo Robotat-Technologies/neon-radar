@@ -1,4 +1,5 @@
-"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0)."""
+"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0, PHASE-3.md M3.0,
+PHASE-4.md M4.0)."""
 
 import json
 import os
@@ -63,6 +64,28 @@ ALLOW = [
     "git grep -n neo4j-real",
     "docker compose --profile real config --services",
     "uv run neonradar er sample --profile demo --run latest --seed 7",
+    # PHASE-3.md M3.0: development evaluations stay allowed
+    "uv run neonradar eval run --split dev",
+    "uv run neonradar eval check",
+    "uv run neonradar eval run --split dev --seeds 1-5",
+    # the holdout folder's name in text and read-only git is fine; contents never are
+    'git grep -n "data/cache/holdout"',
+    'git commit -m "docs: the holdout run writes to data/cache/holdout"',
+    'gh pr create --title "M3.6" --body "the holdout run writes to data/cache/holdout"',
+    "ls data/cache/hold*",  # a glob lists names, never contents, as for data/cache/real
+    # PHASE-4.md M4.0: the committed sets, the empty digest and the router's tests stay allowed
+    "uv run neonradar copilot bench",
+    "uv run neonradar copilot bench --set refusals",
+    'uv run neonradar copilot model-check --digest ""',
+    "uv run pytest copilot/tests/test_llm.py",
+    # text about the model and the profile, a router switched off, and other Compose services
+    'git commit -m "docs(copilot): explain ollama serve and --profile llm"',
+    'grep -rn "ollama" docs/copilot',
+    "uv run neonradar copilot ask --no-model-router 'Who owns Calvane Holdings Ltd?'",
+    "NR_COPILOT_MODEL_ROUTER=false uv run neonradar api serve",
+    "docker compose --profile app up -d api",
+    "docker compose stop ollama",
+    'uv run neonradar copilot model-check --digest=""',
 ]
 
 BLOCK = [
@@ -143,6 +166,56 @@ BLOCK = [
     "curl -s sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv",
     "docker compose --profile real config",
     "docker inspect $(docker ps -q)",
+    # PHASE-3.md M3.0: the holdout run is human-only and its folder is closed (G11)
+    "uv run neonradar eval run --split test",
+    "neonradar eval run --split=test --engine neo4j",
+    "uv run neonradar eval run --seeds 3 --split test",
+    "ls data/cache/holdout",
+    "cat data/cache/holdout/eval-test-x/report.md",
+    "cd data/cache/holdout && ls",
+    "uv run neonradar eval report data/cache/holdout/eval-test-x",
+    "rm -rf data/cache/holdout/eval-test-x",
+    "cat data/cache/hold*/x",
+    "python3 - <<'EOF'\nprint(open('data/cache/holdout/x').read())\nEOF",
+    "NR_X=1 uv run neonradar --verbose eval run --split  test",
+    'bash -c "uv run neonradar eval run --split test"',
+    "uv run python -m neonradar_cli eval run --split='test'",
+    # file systems that ignore case (macOS, Windows): the folders in any letter case
+    "cat data/cache/REAL/x.json",
+    "head -n 5 data/cache/Real/records/x.ftm.jsonl",
+    "less data/cache/SPIKES/companies_house/out.json",
+    "cat Data/Cache/Real/x",
+    "cat data/cache/HOLDOUT/eval-test-x/report.md",
+    "ls data/cache/HoldOut",
+    "cd DATA/cache && ls",
+    "grep -rn SMITH DATA/",
+    "python3 - <<'EOF'\nprint(open('data/cache/Real/x').read())\nEOF",
+    "uv run NeonRadar er label --profile demo",
+    # PHASE-4.md M4.0: the held-out questions and the model are human-only (G15, G16)
+    "uv run neonradar copilot bench --file h1.yaml",
+    "neonradar copilot bench --engine neo4j --file=/tmp/h1.yaml",
+    "ls data/cache/heldout",
+    'uv run neonradar copilot ask --model-router "help"',
+    "uv run neonradar copilot model-check",
+    "uv run neonradar copilot model-check --digest 0f3c",
+    "ollama pull qwen3:4b-instruct-2507-q4_K_M",
+    "ollama serve",
+    "docker compose --profile llm up -d",
+    # the same, written another way
+    "cat data/cache/heldout/h1.yaml",
+    "cat data/cache/HeldOut/h1.yaml",
+    'uv run neonradar copilot model-check --digest "" --digest 0f3c',
+    "OLLAMA_NO_CLOUD=1 nohup ollama serve",
+    "/usr/local/bin/ollama run qwen3:4b-instruct-2507-q4_K_M",
+    "uv run ollama serve",
+    "uv run -- ollama pull qwen3:4b-instruct-2507-q4_K_M",
+    'bash -c "ollama pull qwen3:8b-q4_K_M"',
+    "docker compose --profile=llm up -d",
+    "COMPOSE_PROFILES=llm docker compose up -d",
+    "docker compose up -d ollama",
+    "NR_COPILOT_MODEL_ROUTER=true uv run neonradar api serve",
+    "uv run NeonRadar copilot bench --FILE h1.yaml",
+    "python3 - <<'EOF'\nimport os\nos.system('ollama serve')\nEOF",
 ]
 
 TOOL_ALLOW = [
@@ -165,6 +238,9 @@ TOOL_ALLOW = [
     ("WebFetch", {"url": EU + "rss"}),
     ("mcp__neo4j__read-cypher", {"query": "MATCH (p:Person) RETURN p.names LIMIT 3"}),
     ("mcp__neo4j__get-schema", {}),
+    ("Read", {"file_path": "{project}/data/cache/synthetic/eval/eval-dev-x/report.md"}),
+    ("Grep", {"pattern": "data/cache/holdout", "path": "docs"}),
+    ("Read", {"file_path": "{project}/copilot/bench/refusals.yaml"}),
 ]
 
 TOOL_BLOCK = [
@@ -204,6 +280,18 @@ TOOL_BLOCK = [
         {"url": "https://data.opensanctions.org/datasets/latest/default/entities.ftm.json"},
     ),
     ("WebFetch", {"url": "https://members-api.parliament.uk/api/Members/Search?House=Commons"}),
+    ("Read", {"file_path": "{project}/data/cache/holdout/eval-test-x/report.md"}),
+    ("Grep", {"pattern": "x", "path": "data/cache/holdout"}),
+    ("Glob", {"pattern": "data/cache/holdout/**"}),
+    ("Glob", {"pattern": "**/*.md", "path": "{project}/data/cache/holdout"}),
+    ("Read", {"file_path": "{project}/data/cache/REAL/records/x.jsonl"}),
+    ("Read", {"file_path": "{project}/Data/Cache/Holdout/eval-test-x/report.md"}),
+    ("Grep", {"pattern": "SMITH", "path": "data/cache/Spikes"}),
+    ("Glob", {"pattern": "data/cache/REAL/**/*.jsonl"}),
+    ("Glob", {"pattern": "*", "path": "{project}/DATA/cache/holdout"}),
+    ("Read", {"file_path": "{project}/data/cache/heldout/h1.yaml"}),
+    ("Grep", {"pattern": "x", "path": "data/cache/heldout"}),
+    ("Glob", {"pattern": "data/cache/held*/**"}),
 ]
 
 
@@ -254,6 +342,19 @@ def test_cwd_inside_real_data(tmp_path):
     inside = tmp_path / "project" / "data" / "cache" / "real" / "records"
     assert run(tmp_path, "Bash", {"command": "cat x.json"}, cwd=inside) == 2
     assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 0
+
+
+def test_cwd_inside_the_holdout_folder(tmp_path):
+    inside = tmp_path / "project" / "data" / "cache" / "holdout" / "eval-test-x"
+    assert run(tmp_path, "Bash", {"command": "cat report.md"}, cwd=inside) == 2
+    assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 2
+    assert run(tmp_path, "Bash", {"command": "git status"}, cwd=inside) == 0
+
+
+def test_cwd_inside_the_held_out_folder(tmp_path):
+    inside = tmp_path / "project" / "data" / "cache" / "heldout"
+    assert run(tmp_path, "Bash", {"command": "cat h1.yaml"}, cwd=inside) == 2
+    assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 2
 
 
 def test_mcp_server_must_use_the_default_instance(tmp_path):

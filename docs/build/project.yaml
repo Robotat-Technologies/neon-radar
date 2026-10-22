@@ -23,6 +23,8 @@ people:                               # GitHub handles, with the @. Until the te
   interns: []                          # every intern's GitHub handle (15 in the plan)
   er_labellers: ["@TODO", "@TODO", "@TODO", "@TODO"]   # every intern, plus mentors who label (PHASE-2.md 1.2)
   er_senior_reviewers: ["@TODO"]        # may confirm alone a same decision that crosses P1 or P2 (PHASE-2.md 7.1)
+  freeze_deciders: ["@TODO", "@TODO", "@TODO"]   # typology researchers, detect mentor, tech lead (ADR-0022; PHASE-3.md 1.3)
+  heldout_owner: "@TODO"                # outside the copilot squad: collects and runs the held-out questions (M4.9; PHASE-4.md 1.3, OD-25)
 squads:                               # team slugs must exist in the org (section 1.1)
   ingest:  { team: "@neonradar/nr-ingest",  dir: ingest,  mentor: "@robotat-com" }
   graph:   { team: "@neonradar/nr-graph",   dir: graph,   mentor: "@robotat-com" }
@@ -46,6 +48,9 @@ access:
   sanctions_lists: [gb_fcdo_sanctions, us_ofac_sdn, eu_fsf]   # add un_sc_sanctions only with UN permission
   pep_sources: []                     # any of gb_parliament_members, opensanctions_default
   pep_former_months: 12               # former members keep role.pep this long after leaving office
+  # Phase 3 (PHASE-3.md 1.2 and 1.3; values accepted in operator-decisions.md OD-25)
+  real_overlay_profiles: [uk-tiny]      # real profiles that may receive a synthetic overlay (C2 L18, 7.7)
+  real_registry_alerts: true            # false: withhold registry findings about real organisations too (G12)
 schedule:                             # Phase 1 shifted 3 working days on 2026-10-21; the dates in PHASE-1.md are the original plan
   phase_1_start: 2026-10-21
   assignment_1_due: 2026-10-23
@@ -55,6 +60,16 @@ schedule:                             # Phase 1 shifted 3 working days on 2026-1
   er_threshold_freeze: 2026-10-29
   labelling_start: 2026-11-02
   gate_2: 2026-11-04
+  phase_3_start: 2026-10-26            # Phase 3 dates as PHASE-3.md 1.3 gives them; informational (OD-1)
+  assignment_4_due: 2026-11-06
+  detection_freeze: 2026-11-09
+  holdout_run: 2026-11-10
+  teach_back_detection: 2026-11-12
+  phase_4_start: 2026-11-02            # Phase 4 dates as PHASE-4.md 1.3 gives them; informational (OD-1)
+  contracts_1_3_0: 2026-11-03          # the tag after M4.2 merges, for the UI squad
+  assignment_5_due: 2026-11-10
+  heldout_run: 2026-11-11
+  teach_back_copilot: 2026-11-12
   gate_3: 2026-11-13
   gate_4: 2026-11-17
   gate_5: 2026-11-20

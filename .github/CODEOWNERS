@@ -3,42 +3,64 @@
 #   uv run --no-project --with pyyaml python scripts/generate_codeowners.py
 # GitHub applies the last matching line, so broader paths come first.
 
-/contracts/                        @robotat-com @neonradar/nr-maintainers
-/ingest/                           @neonradar/nr-ingest
-/data/fixtures/                    @neonradar/nr-ingest
-/graph/                            @neonradar/nr-graph
-/graph/schema/                     @robotat-com @neonradar/nr-maintainers
-/detect/                           @neonradar/nr-detect
-/copilot/                          @neonradar/nr-copilot
-/api/                              @neonradar/nr-copilot
-/ui/                               @neonradar/nr-ui
-/cli/                              @neonradar/nr-docs
-/docs/                             @neonradar/nr-docs
-/*                                 @neonradar/nr-docs
-/.github/                          @neonradar/nr-docs
-/.devcontainer/                    @neonradar/nr-docs
-/Makefile                          @neonradar/nr-docs
-/.claude/                          @robotat-com
-/CLAUDE.md                         @robotat-com
-/docs/build/                       @robotat-com
+/contracts/                                    @robotat-com @neonradar/nr-maintainers
+/ingest/                                       @neonradar/nr-ingest
+/data/fixtures/                                @neonradar/nr-ingest
+/graph/                                        @neonradar/nr-graph
+/graph/schema/                                 @robotat-com @neonradar/nr-maintainers
+/detect/                                       @neonradar/nr-detect
+/copilot/                                      @neonradar/nr-copilot
+/api/                                          @neonradar/nr-copilot
+/ui/                                           @neonradar/nr-ui
+/cli/                                          @neonradar/nr-docs
+/docs/                                         @neonradar/nr-docs
+/*                                             @neonradar/nr-docs
+/.github/                                      @neonradar/nr-docs
+/.devcontainer/                                @neonradar/nr-docs
+/Makefile                                      @neonradar/nr-docs
+/.claude/                                      @robotat-com
+/CLAUDE.md                                     @robotat-com
+/docs/build/                                   @robotat-com
 /docs/build/PROGRESS.md
-/DATA_SOURCES.md                   @robotat-com
-/docs/data/licences/               @robotat-com
-/contracts/datasets.yaml           @robotat-com
-/docs/typologies/                  @robotat-com
-/detect/typologies/                @robotat-com
-/keys/                             @neonradar/nr-graph
-/resolve/                          @neonradar/nr-graph
-/resolve/config/er.yaml            @neonradar/nr-graph @robotat-com
-/ingest/profiles/                  @neonradar/nr-ingest @robotat-com
-/docs/er/                          @neonradar/nr-graph
-/docs/data/er/                     @neonradar/nr-graph
-/docs/data/real-data-handling.md   @robotat-com
-/docs/data/real-data-machines.md   @robotat-com
-/docs/data/dpia/                   @robotat-com
-/data/fixtures/er-bench/           @neonradar/nr-graph
-/.claude/hooks/guard_real_data.py  @robotat-com
-/.claude/agents/data-guardian.md   @robotat-com
-/.claude/rules/real-data.md        @robotat-com
-/.claude/rules/er.md               @robotat-com
-/THIRD_PARTY_NOTICES.md            @robotat-com
+/DATA_SOURCES.md                               @robotat-com
+/docs/data/licences/                           @robotat-com
+/contracts/datasets.yaml                       @robotat-com
+/docs/typologies/                              @robotat-com
+/detect/typologies/                            @robotat-com
+/keys/                                         @neonradar/nr-graph
+/resolve/                                      @neonradar/nr-graph
+/resolve/config/er.yaml                        @neonradar/nr-graph @robotat-com
+/ingest/profiles/                              @neonradar/nr-ingest @robotat-com
+/docs/er/                                      @neonradar/nr-graph
+/docs/data/er/                                 @neonradar/nr-graph
+/docs/data/real-data-handling.md               @robotat-com
+/docs/data/real-data-machines.md               @robotat-com
+/docs/data/dpia/                               @robotat-com
+/data/fixtures/er-bench/                       @neonradar/nr-graph
+/.claude/hooks/guard_real_data.py              @robotat-com
+/.claude/agents/data-guardian.md               @robotat-com
+/.claude/rules/real-data.md                    @robotat-com
+/.claude/rules/er.md                           @robotat-com
+/THIRD_PARTY_NOTICES.md                        @robotat-com
+/eval/                                         @neonradar/nr-detect @robotat-com
+/eval/freeze.json                              @robotat-com
+/eval/seeds.yaml                               @robotat-com
+/detect/tests/                                 @neonradar/nr-detect @robotat-com
+/ingest/src/neonradar_ingest/synth/scenarios/  @neonradar/nr-ingest @robotat-com
+/docs/detection/                               @neonradar/nr-detect
+/docs/data/detection/                          @neonradar/nr-detect
+/.claude/rules/detect.md                       @robotat-com
+/.claude/rules/synth.md                        @robotat-com
+/copilot/bench/                                @neonradar/nr-copilot @robotat-com
+/data/fixtures/copilot-bench/                  @neonradar/nr-copilot @robotat-com
+/docs/benchmark-questions.md                   @neonradar/nr-copilot @robotat-com
+/copilot/src/neonradar_copilot/policy.py       @neonradar/nr-copilot @robotat-com
+/copilot/src/neonradar_copilot/evidence.py     @neonradar/nr-copilot @robotat-com
+/copilot/src/neonradar_copilot/audit.py        @neonradar/nr-copilot @robotat-com
+/contracts/wording/copilot-notice-v1.txt       @neonradar/nr-copilot @robotat-com
+/graph/src/neonradar_graph/readonly.py         @neonradar/nr-graph @neonradar/nr-copilot
+/copilot/src/neonradar_copilot/queries/        @neonradar/nr-graph @neonradar/nr-copilot
+/api/src/neonradar_api/queries/                @neonradar/nr-graph @neonradar/nr-copilot
+/api/src/neonradar_api/hardening.py            @neonradar/nr-copilot @robotat-com
+/docs/copilot/                                 @neonradar/nr-docs @neonradar/nr-copilot
+/docs/team/assignment-5.md                     @neonradar/nr-docs @neonradar/nr-copilot

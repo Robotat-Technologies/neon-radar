@@ -17,13 +17,24 @@ def write(directory: Path, name: str, text: str) -> Path:
 
 
 def test_the_init_migration_has_22_constraints_and_7_indexes() -> None:
-    (init,) = discover()
+    init, _ = discover()
     assert init.id == "0001_init"
     kinds = [" ".join(s.split()[:2]) for s in init.statements]
     assert kinds.count("CREATE CONSTRAINT") == 22
     assert kinds.count("CREATE INDEX") + kinds.count("CREATE FULLTEXT") == 7
     assert len(init.statements) == 29
     assert all(" IF NOT EXISTS " in statement for statement in init.statements)
+
+
+def test_the_resolution_migration_adds_one_constraint_and_rebuilds_the_full_text_index() -> None:
+    _, resolution = discover()
+    assert resolution.id == "0002_resolution"  # C2 1.1.0 (PHASE-2.md 5.2)
+    kinds = [" ".join(s.split()[:2]) for s in resolution.statements]
+    assert kinds == [
+        "CREATE CONSTRAINT", "CREATE INDEX", "CREATE INDEX", "DROP INDEX", "CREATE FULLTEXT",
+    ]  # fmt: skip
+    assert resolution.statements[3] == "DROP INDEX entity_names IF EXISTS"
+    assert all(" IF NOT EXISTS " in s or s.endswith(" IF EXISTS") for s in resolution.statements)
 
 
 def test_parse_skips_comments_and_blank_lines_and_strips_the_semicolon() -> None:

@@ -45,7 +45,8 @@ def test_meta_answers_without_neo4j(client: TestClient) -> None:
         versions.CONTRACTS,
         versions.GRAPH_SCHEMA,
     )
-    assert meta.contracts_version == "1.1.0"  # C1 1.1.0 (M2.1a); C2 stays 1.0.0 until M2.1b
+    assert meta.contracts_version == "1.1.0"  # C1 1.1.0 (M2.1a)
+    assert meta.schema_version == "1.1.0"  # C2 1.1.0 (M2.1b)
 
 
 def test_typologies_come_from_the_catalog_sorted_by_slug(client: TestClient) -> None:

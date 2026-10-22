@@ -1,6 +1,8 @@
-"""C2 graph schema v1.0.0: how C1 records become Neo4j nodes and relationships, as data (5.2).
+"""C2 graph schema (`versions.GRAPH_SCHEMA`): how C1 records become Neo4j nodes and
+relationships, as data (PHASE-1.md 5.2; 1.1.0 adds entity resolution, PHASE-2.md 5.2).
 
-The tables of docs/build/PHASE-1.md 5.2 and contracts/C2-graph-schema.md, written as data so
+The tables of docs/build/PHASE-1.md 5.2, docs/build/PHASE-2.md 5.2 and
+contracts/C2-graph-schema.md, written as data so
 that the loader, the detectors, the API and the contract tests read one source. The code that
 applies the mapping is `neonradar_graph.mapping`; the schema itself (constraints and indexes) is
 `graph/schema/migrations/`. Property names on the left of a mapping are FtM properties, or
@@ -8,7 +10,7 @@ applies the mapping is `neonradar_graph.mapping`; the schema itself (constraints
 """
 
 from dataclasses import dataclass, field
-from typing import Final, Literal
+from typing import Final, Literal, get_args
 
 from neonradar_contracts import versions
 
@@ -33,7 +35,9 @@ class RelationshipMapping:
 
     A schema with several mappings (Ownership) takes the first whose `condition` holds; None
     always holds. `asset_is_account`: the target record in the load is a BankAccount.
-    `consolidation`: the record sets `nr.consolidation`.
+    `consolidation`: the record sets `nr.consolidation`. `defaults` are set when the record
+    has no value for them (1.1.0: on OWNS the two bound flags and `is_nominee`, on CONTROLS
+    the two bound flags, all false).
     """
 
     type: str
@@ -41,6 +45,7 @@ class RelationshipMapping:
     target_prop: str
     properties: dict[str, str]
     condition: Condition | None = None
+    defaults: dict[str, bool] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -93,6 +98,11 @@ PROPERTY_KINDS: Final[dict[str, PropertyKind]] = {
     "pattern_strength": "float", "match_probability": "float",
     "alert_count": "integer",
     "ts": "datetime",
+    # 1.1.0 (PHASE-2.md 5.2)
+    "psc_statements": "list", "names_latin": "list", "reasons": "list",
+    "share_min_exclusive": "boolean", "share_max_exclusive": "boolean",
+    "match_weight": "float",
+    "cluster_size": "integer",
 }  # fmt: skip
 
 _LEGAL_ENTITY = {
@@ -112,7 +122,18 @@ _ORGANIZATION = {
     "incorporationDate": "incorporation_date",
     "dissolutionDate": "dissolution_date",
 }
+_COMPANY = {
+    **_ORGANIZATION,
+    "nr.psc_statements": "psc_statements",  # 1.1.0
+    "nr.accounts_category": "accounts_category",  # 1.1.0
+}
 _DATES = {"startDate": "start_date", "endDate": "end_date"}
+# The open or closed bounds of a share band (1.1.0): absent flags mean a closed bound.
+_BOUND_FLAGS = {
+    "nr.share_pct_min_exclusive": "share_min_exclusive",
+    "nr.share_pct_max_exclusive": "share_max_exclusive",
+}
+_BOUND_DEFAULTS = {"share_min_exclusive": False, "share_max_exclusive": False}
 
 NODE_MAPPINGS: Final[dict[str, NodeMapping]] = {
     "Person": NodeMapping(
@@ -120,7 +141,7 @@ NODE_MAPPINGS: Final[dict[str, NodeMapping]] = {
         properties={"birthDate": "birth_date", "nationality": "nationalities", "gender": "gender"},
     ),
     "Company": NodeMapping(
-        labels=("Entity", "LegalEntity", "Organization", "Company"), properties=_ORGANIZATION
+        labels=("Entity", "LegalEntity", "Organization", "Company"), properties=_COMPANY
     ),
     "Organization": NodeMapping(
         labels=("Entity", "LegalEntity", "Organization"), properties=_ORGANIZATION
@@ -191,13 +212,16 @@ RELATIONSHIP_MAPPINGS: Final[dict[str, tuple[RelationshipMapping, ...]]] = {
             properties={
                 "nr.share_pct_min": "share_pct_min",
                 "nr.share_pct_max": "share_pct_max",
+                **_BOUND_FLAGS,
                 "percentage": "percentage_raw",
                 "ownershipType": "ownership_type",
                 "role": "role",
                 "nr.natures_of_control": "natures_of_control",
+                "nr.is_nominee": "is_nominee",  # 1.1.0
                 **_DATES,
                 "status": "status",
             },
+            defaults={**_BOUND_DEFAULTS, "is_nominee": False},
         ),
     ),
     "Control": (
@@ -209,8 +233,13 @@ RELATIONSHIP_MAPPINGS: Final[dict[str, tuple[RelationshipMapping, ...]]] = {
                 "controlType": "control_type",
                 "legalBasis": "legal_basis",
                 "nr.natures_of_control": "natures_of_control",
+                # 1.1.0: the voting-rights band, a control and never a share (not OWNS)
+                "nr.share_pct_min": "share_pct_min",
+                "nr.share_pct_max": "share_pct_max",
+                **_BOUND_FLAGS,
                 **_DATES,
             },
+            defaults=_BOUND_DEFAULTS,
         ),
     ),
     "Directorship": (
@@ -339,20 +368,34 @@ RELATIONSHIP_ENDPOINTS: Final[dict[str, tuple[str, str]]] = {
     "HOLDS_POSITION": ("Person", "Position"),
     "SUBJECT_OF": ("Entity", "Sanction"),
     "RESOLVED_TO": ("SourceRecord", "Entity"),
+    "POSSIBLY_SAME_AS": ("LegalEntity", "LegalEntity"),  # 1.1.0
     "FLAGS": ("Alert", "Entity"),
     "PRODUCED": ("DetectionRun", "Alert"),
 }
 RELATIONSHIP_TYPES: Final = tuple(RELATIONSHIP_ENDPOINTS)
-# Written by entity resolution and detection, not built from records; they carry no `id`.
+# Written by entity resolution and detection, not built from records. Only POSSIBLY_SAME_AS
+# carries an `id` (`<smaller node id>|psa|<larger node id>`, unique through migration 0002).
 SUPPORT_RELATIONSHIPS: Final[dict[str, tuple[str, ...]]] = {
-    "RESOLVED_TO": ("match_probability", "method", "resolver_version", "decided_at"),
+    "RESOLVED_TO": (
+        "match_probability", "method", "resolver_version", "decided_at",
+        "rule", "run_id", "features",  # 1.1.0
+    ),
+    "POSSIBLY_SAME_AS": (  # 1.1.0: an unconfirmed possible match, read as undirected
+        "id", "match_probability", "match_weight", "method", "rule", "reasons", "features",
+        "run_id", "resolver_version", "datasets", "synthetic",
+    ),
     "FLAGS": ("role",),
     "PRODUCED": (),
-}
+}  # fmt: skip
+POSSIBLY_SAME_AS_ID_INFIX: Final = "psa"
 
 # Support nodes (not :Entity) and their properties; the first is the unique key.
 SUPPORT_NODES: Final[dict[str, tuple[str, ...]]] = {
-    "SourceRecord": ("id",),  # the rest is defined in Phase 2
+    # 1.1.0: one per member record of an entity merged from two or more records
+    "SourceRecord": (
+        "id", "dataset", "schema", "caption", "names", "topics", "canonical_id", "synthetic",
+        "retrieved_at", "source_url", "run_id",
+    ),
     "Alert": (
         "alert_id", "typology", "typology_version", "priority", "pattern_strength", "headline",
         "created_at", "run_id", "wording_class", "involves_real_entities", "synthetic_activity",
@@ -366,6 +409,34 @@ SUPPORT_NODES: Final[dict[str, tuple[str, ...]]] = {
 
 # C2 properties no record sets in Phase 1: Phase 2 computes the normalised address key.
 RESERVED_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {"Address": ("address_key",)}
+
+# 1.1.0: properties of every :Entity that the resolution-aware loader computes (M2.11), never
+# mapped from a record property. `names_latin` is a search aid, never shown as a name.
+ENTITY_RESOLUTION_PROPERTIES: Final = (
+    "cluster_size", "resolution", "names_latin", "names_latin_text",
+)  # fmt: skip
+
+# 1.1.0: the values of the resolution properties.
+EntityResolution = Literal["identity", "deterministic", "probabilistic", "human", "mixed"]
+ResolvedToMethod = Literal["anchor", "deterministic", "probabilistic", "human"]
+PossibleMatchMethod = Literal["probabilistic", "deterministic", "source_hint"]
+ENTITY_RESOLUTIONS: Final = get_args(EntityResolution)
+RESOLVED_TO_METHODS: Final = get_args(ResolvedToMethod)
+POSSIBLY_SAME_AS_METHODS: Final = get_args(PossibleMatchMethod)
+# RESOLVED_TO.match_probability is 1.0 for these methods.
+CERTAIN_METHODS: Final = ("anchor", "deterministic", "human")
+
+# 1.1.0: the properties of the resolution nodes and relationships (:SourceRecord, RESOLVED_TO,
+# POSSIBLY_SAME_AS) that may be null (absent in Neo4j); every other property of theirs is
+# always set. POSSIBLY_SAME_AS: no probability or weight for `deterministic` and `source_hint`
+# matches, a `rule` only for `deterministic` ones. RESOLVED_TO: a `rule` only for D-rule links,
+# `features` only for probabilistic ones. :SourceRecord: the two source fields only when the
+# source provides them. Record-built nodes and relationships leave out absent values instead.
+NULLABLE_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
+    "SourceRecord": ("retrieved_at", "source_url"),
+    "RESOLVED_TO": ("rule", "features"),
+    "POSSIBLY_SAME_AS": ("match_probability", "match_weight", "rule"),
+}
 
 SYNTHETIC_LABEL: Final = "Synthetic"
 # Flags come only from source data, never from detections. :Synthetic goes on every node with

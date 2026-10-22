@@ -25,6 +25,27 @@ Contract-change issue #53 (M2.1a, PHASE-2.md 5.1). Details in [C1-record.md](C1-
 - **`ch_person_number` only on `gb_companies_house` and `nr_synthetic` records (orchestrator decision under OD-10):** 5.1 scopes the key to Companies House officers; the check (`NR`) keeps a list or leak record from reaching rule D3 through it.
 - **Id forms of the list loaders:** the sanctions and Parliament id forms of PHASE-2.md 4.4 without a kind segment (`uksl-g<group id>`, `uksl-<unique id>`, `ofac-<uid>`, `unsc-<ref>`, `eufsf-<logicalId>`, `ukparl-<member id>`) are allowed next to `make_id`, so the verbatim tests of M2.6 and M2.10a keep them. They pass R1 unchanged. Orchestrator decision under OD-10, `docs/build/phase-2-reconciliation.md` B6.
 
+### C2: Graph schema 1.1.0
+
+Additive (minor) change for entity resolution, `docs/build/PHASE-2.md` 5.2, M2.1b, contract-change issue #52. Every 1.0.0 graph stays valid; a load without a resolution run behaves as in 1.0.0 apart from the new `false` defaults and the two company properties.
+
+- **`:SourceRecord` defined:** `id`, `dataset`, `schema`, `caption`, `names`, `topics`, `canonical_id`, `synthetic`, `retrieved_at`, `source_url`, `run_id`; one per member of an entity merged from two or more records.
+- **`RESOLVED_TO` extended:** `method` is `anchor`, `deterministic`, `probabilistic` or `human` (`match_probability` 1.0 for all but `probabilistic`); new `rule`, `run_id` and `features`.
+- **`POSSIBLY_SAME_AS` added** between two `:LegalEntity` nodes, stored from the smaller id to the larger and read as undirected: `id` (`<a>|psa|<b>`), `match_probability` and `match_weight` (null for `deterministic` and `source_hint` matches), `method`, `rule`, `reasons`, `features`, `run_id`, `resolver_version`, `datasets`, `synthetic`. It is a support relationship in `neonradar_contracts.graph` (written by entity resolution, not built from records), so C3's record-built relationship types are unchanged here.
+- **Entity properties:** `cluster_size`, `resolution`, `names_latin`, `names_latin_text` on every `:Entity` (computed by the resolution-aware loader, M2.11; `ENTITY_RESOLUTION_PROPERTIES`).
+- **Company properties:** `psc_statements` and `accounts_category` from `nr.psc_statements` and `nr.accounts_category` (C1 1.1.0).
+- **`OWNS`:** `share_min_exclusive` and `share_max_exclusive` from `nr.share_pct_min_exclusive` and `nr.share_pct_max_exclusive`, and `is_nominee` from `nr.is_nominee`, each `false` when absent (`RelationshipMapping.defaults`).
+- **`CONTROLS`:** the voting-rights band `share_pct_min` and `share_pct_max` (null when absent) and `share_min_exclusive` and `share_max_exclusive` (`false` when absent). A voting-rights band is control, not a share: the ownership endpoint still traverses only `OWNS`.
+- **Migration `0002_resolution.cypher`** (verbatim from the spec): the constraint `possibly_same_as_id`, the indexes `source_record_canonical_id` and `source_record_dataset`, and the full-text index `entity_names` rebuilt under the same name over `names_text` and `names_latin_text`. After 0001 and 0002: 23 constraints and 9 own indexes.
+- **Loader rules L8 to L17 and invariants I7 to I14** written into [C2-graph-schema.md](C2-graph-schema.md); M2.11 implements them.
+- `versions.GRAPH_SCHEMA` is `1.1.0`, so `GET /api/v1/meta` reports `schema_version` 1.1.0.
+- **Consumers in this change:** the API builds its property allow-lists from this mapping, so `EntityDetail.properties` and `GraphNode.properties` of a company now carry `psc_statements` and `accounts_category`, and `GraphEdge.properties` carry the `OWNS` flags and `is_nominee` and the `CONTROLS` band with its flags, when the graph holds them: additive C3 output, the OpenAPI snapshot is unchanged. The four entity resolution properties are not in the allow-lists. `neonradar graph load` refuses a database until `neonradar graph migrate` has applied 0002. Migration 0002 changes no data: relationships loaded under 1.0.0 get the new flags when they are loaded again (read them with `coalesce(r.x, false)` meanwhile).
+
+#### Clarifications of PHASE-2.md 5.2 (tech lead review in M2.1b)
+
+- **`DIRECTOR_OF.is_nominee`** keeps the 1.0.0 rule (no default when the record has no value); only `OWNS.is_nominee` defaults to `false`, as 5.2 says.
+- **Value sets and nullable properties as data:** `ENTITY_RESOLUTIONS`, `RESOLVED_TO_METHODS`, `POSSIBLY_SAME_AS_METHODS`, `CERTAIN_METHODS` and `NULLABLE_PROPERTIES` (`POSSIBLY_SAME_AS.match_probability`, `match_weight` and `rule`; `RESOLVED_TO.rule` and `features`), so M2.11's loader and verifier read one source.
+
 ## 1.0.0 (unreleased)
 
 ### C1: NeonRadar Record 1.0.0

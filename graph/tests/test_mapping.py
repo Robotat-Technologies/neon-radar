@@ -437,3 +437,25 @@ def test_booleans_are_never_read_from_a_string() -> None:
 def test_mapping_is_deterministic() -> None:
     assert to_node_rows(RECORDS) == to_node_rows(RECORDS)
     assert relationships() == relationships()
+
+
+def test_the_c1_1_1_example_maps_to_the_c2_1_1_properties() -> None:
+    """The committed C1 1.1.0 example (strict-valid) gives every new C2 1.1.0 property."""
+    example = Path(__file__).resolve().parents[2] / "contracts/examples/c1/demo-1.1.ftm.jsonl"
+    _, issues = validate_files([example], strict=True)
+    assert issues == []
+    records = list(iter_records(example))
+    company = {row.id: row for row in to_node_rows(records).rows}["syn-co-0101"].props
+    assert company["psc_statements"] == ["no-individual-or-entity-with-signficant-control"]
+    assert company["accounts_category"] == "DORMANT"
+    result = relationships(records)
+    assert result.skipped == []
+    rows = by_id(result)
+    owns, controls = rows["syn-ownership-0101"], rows["syn-control-0101"]
+    assert owns.type == "OWNS"
+    assert (owns.props["share_pct_min"], owns.props["share_pct_max"]) == (25.0, 50.0)
+    flags = ("share_min_exclusive", "share_max_exclusive", "is_nominee")
+    assert tuple(owns.props[name] for name in flags) == (True, False, False)  # (25, 50]
+    assert controls.type == "CONTROLS"
+    assert (controls.props["share_pct_min"], controls.props["share_pct_max"]) == (50.0, 75.0)
+    assert tuple(controls.props[name] for name in flags[:2]) == (True, True)  # (50, 75)

@@ -2,9 +2,9 @@
 
 Open-source, local-first graph investigation toolkit for anti-money-laundering and
 anti-corruption work. Python 3.14 (uv workspace), Neo4j 5.26 LTS Community with APOC and
-GDS, FastAPI, Vue 3. Licence Apache-2.0. The build spec for the current phase is
-docs/build/PHASE-2.md (PHASE-1.md section 5 still defines the frozen contracts); project
-facts are in docs/build/project.yaml.
+GDS, FastAPI, Vue 3. Licence Apache-2.0. The build specs for the current phases are
+docs/build/PHASE-2.md and docs/build/PHASE-3.md (PHASE-1.md section 5 still defines the
+frozen contracts); project facts are in docs/build/project.yaml.
 Operator decisions in docs/build/operator-decisions.md override the spec.
 
 ## Non-negotiable rules
@@ -101,6 +101,16 @@ Each Python package: <dir>/src/neonradar_<dir>/, tests in <dir>/tests/, notes in
     run er label, er review or api serve --real, and never tune thresholds, rules or models
     on evaluation labels (G10).
 
+## Non-negotiable rules (Phase 3 additions)
+
+- G11: never run `neonradar eval run --split test`, never choose holdout seeds, never generate
+  or open a holdout world or anything under data/cache/holdout/; never edit a verbatim test,
+  `eval/baselines/ci.json` or `eval/freeze.json` to make a check pass.
+- G12 (R-REAL): no payment-based alert involves a real entity, and no alert names a real
+  person as subject or in evidence; such findings are withheld and counted only.
+- Verbatim files come from docs/build/PHASE-3-CODE.md through scripts/spec_extract.py.
+- No scenario touches a base entity, and base people never get accounts or payments (G1).
+
 ## Commands (Phase 2 additions; each works once the milestone in brackets has merged)
 - `make cypher-lint`              lint every .cypher file (Cypher 5 rules) [M2.0]
 - `make up-real`, `make down-real` start or stop the real-data instance (approved machines) [M2.0]
@@ -110,10 +120,27 @@ Each Python package: <dir>/src/neonradar_<dir>/, tests in <dir>/tests/, notes in
 - `uv run neonradar graph verify` graph invariants I1 to I14 [M2.11]
 - `make load PROFILE=demo`        synthetic profile end to end: build, resolve, load, verify [M2.13]
 
+## Commands (Phase 3 additions; each works once the milestone in brackets has merged)
+
+- `uv run python scripts/spec_extract.py check --milestone M3.x` and `update --path FILE` (M3.0)
+- `uv run neonradar synth world --profile synth-eval --seed 1` and `synth overlay` (M3.3)
+- `uv run neonradar graph load --profile synth-eval --overlay latest` (M3.4)
+- `uv run neonradar detect run --profile synth-eval` (M3.2; synthetic profiles from M3.3, real ones from M3.4)
+- `NR_DETECT_SOURCE=neo4j uv run pytest detect/tests -m "not integration"` (M3.2)
+- `uv run neonradar eval check` and `uv run neonradar eval run --split dev --seeds 1-5` (M3.6)
+- `make load PROFILE=synth-demo` (M3.7) and `make demo` (M3.8)
+
 ## Layout (Phase 2 additions)
 keys/ (matching keys, pure functions), resolve/ (entity resolution), ingest/profiles/,
 data/cache/real/ (real data: never read), data/cache/synthetic/ (synthetic runs: free to read),
 data/cache/reports/ (counts-only summaries)
+
+## Layout (Phase 3 additions)
+
+- detect/src/neonradar_detect/: source.py (candidate steps), memsource.py (the oracle),
+  neo4jsource.py and queries/ (one file per step), detectors/, evaluation/
+- ingest/src/neonradar_ingest/synth/: generator v1 (world.py, overlay.py, scenarios/)
+- eval/: seeds.yaml, baselines/ci.json, freeze.json
 
 ## Known traps (Phase 2, verified 18 Oct 2026)
 - Splink 5 only: `sdf = db_api.register(table, ...)`, then `Linker(sdf, settings)`; results
@@ -129,3 +156,12 @@ data/cache/reports/ (counts-only summaries)
 - `CALL { } IN TRANSACTIONS` only through `session.run()`; Neo4j 5.26 has no ON ERROR RETRY.
 - `from rigour.text.scripts import text_scripts`; never fuzzy country lookups; keys come
   from neonradar_keys only.
+
+## Known traps (Phase 3, verified 18 Oct 2026)
+
+- A Cypher 5 path pattern cannot compare a hop with the previous one: expand one hop per query.
+- ORDER BY a C2 id before every LIMIT; durations do not compare; name :Entity in id lookups.
+- GDS: stream only, concurrency 4, drop projections in finally; no graphdatascience client.
+- Detector queries run as session.run(neo4j.Query(text, timeout)), never in execute_read.
+- numpy streams change between numpy minor versions: a numpy bump must pass eval check.
+- Generator payments are C1 lines (Ctx.payments); read one with Ctx.record(id).

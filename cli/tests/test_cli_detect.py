@@ -17,7 +17,7 @@ from typer.testing import CliRunner
 
 from neonradar_cli import detect, graph
 from neonradar_cli.main import app
-from neonradar_detect import runs
+from neonradar_detect import catalog, runs
 from neonradar_detect.source import Window
 from neonradar_ingest.data import profiles
 from neonradar_ingest.data.project import load_project
@@ -164,3 +164,43 @@ def test_verify_alert_refuses_a_memory_run(tmp_path: Path) -> None:
     assert invoke("run", "--engine", "memory").exit_code == 0
     result = invoke("verify-alert", "--run", "latest")
     assert result.exit_code == 2 and "ran in memory" in result.output
+
+
+def test_a_failed_run_exits_1_with_one_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failing(*args: Any, **kwargs: Any) -> runs.RunRecord:
+        raise runs.RunError("run run-20261021T101500-7f3a failed: the reason")
+
+    monkeypatch.setattr(runs, "run", failing)
+    result = invoke("run", "--engine", "memory")
+    assert result.exit_code == 1
+    assert result.output == "FAIL  run run-20261021T101500-7f3a failed: the reason\n"
+
+
+@pytest.mark.parametrize(
+    ("target", "error", "line"),
+    [
+        (
+            "catalog",
+            catalog.CatalogError("circular_flow.yaml: not valid"),
+            "FAIL  cannot read the typology catalog: circular_flow.yaml: not valid\n",
+        ),
+        ("run", PermissionError("data/runs: denied"), "FAIL  data/runs: denied\n"),
+    ],
+)
+def test_catalog_and_file_errors_print_a_fail_line(
+    monkeypatch: pytest.MonkeyPatch, target: str, error: Exception, line: str
+) -> None:
+    def failing(*args: Any, **kwargs: Any) -> Any:
+        raise error
+
+    if target == "catalog":
+        monkeypatch.setattr(catalog, "load", failing)
+    else:
+        monkeypatch.setattr(runs, "run", failing)
+    result = invoke("run", "--engine", "memory")
+    assert result.exit_code == 1
+    assert result.output == line
+
+
+def test_run_help_explains_a_reused_run_id() -> None:
+    assert "Given again" in invoke("run", "--help").output

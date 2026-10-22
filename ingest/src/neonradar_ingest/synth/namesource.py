@@ -6,10 +6,10 @@ never Faker's `ar_SA` surnames), the denylist, and the neutral word lists of `wo
 method draws only from the generator it is given (Faker is seeded per call from it), so a name
 never moves a structural draw (PHASE-3.md 7.2.1).
 
-`invented_person` gives a person an invented surname: two or three syllables in the person's
-script, redrawn while the result is a surname of the three Faker locales or of the curated
-lists, or the full name is on the denylist. PHASE-2.md M2.9's `variants.py` does not exist yet,
-so the syllable table is the code book reference's (recorded in the Phase 3 reconciliation).
+`invented_person` gives a person an invented surname: three syllables in the person's script,
+redrawn while the result is a surname of the three Faker locales or of the curated lists, or
+the full name is on the denylist. PHASE-2.md M2.9's `variants.py` has not merged, so the
+syllable table is the code book reference's (recorded in the Phase 3 reconciliation).
 
 Company names are "<word> <word> <qualifier> <activity> <legal form>". The extra words below
 widen Phase 1's lists to more than four million names before the legal form (the scale world
@@ -89,6 +89,7 @@ SYLLABLES = (
     ("mesh", "меш", "مش"),
 )
 SCRIPT = {"en_GB": 0, "ru_RU": 1, "ar_SA": 2}
+SURNAME_SYLLABLES = 3
 
 
 def _pick(rng: np.random.Generator, items: tuple[str, ...]) -> str:
@@ -135,12 +136,14 @@ class PhaseOneNames:
         return fake.last_name()
 
     def invented_surname(self, rng: np.random.Generator, locale: str) -> str:
-        """Two or three invented syllables in the locale's script, redrawn while the result is a
-        surname of the Faker locales or of Phase 1's curated lists."""
+        """Three invented syllables in the locale's script, redrawn while the result is a surname
+        of the Faker locales or of Phase 1's curated lists (orchestrator decision on the #71
+        review: list, leak and PEP personas and the people linked to them carry only invented
+        three-syllable surnames)."""
         script = SCRIPT[locale]
         for _ in range(MAX_TRIES):
-            n = 2 + int(rng.integers(2))
-            name = "".join(SYLLABLES[int(rng.integers(len(SYLLABLES)))][script] for _ in range(n))
+            picks = [int(rng.integers(len(SYLLABLES))) for _ in range(SURNAME_SYLLABLES)]
+            name = "".join(SYLLABLES[i][script] for i in picks)
             name = name if script == 2 else name.capitalize()
             if fold(name) not in self.real_surnames and not is_denied(name):
                 return name

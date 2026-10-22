@@ -10,7 +10,9 @@
   `neonradar_contracts.graph`), `migrate` (the migration runner), `client`, `smoke`,
   `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of C2), `loader`
   (`neonradar graph load|stats|wipe`: C1 files to the graph; `load_files`, `load_records`,
-  `plan_load` without a database, `wipe`, `stats`).
+  `plan_load` without a database, `wipe`, `stats`), `wording` (the resolution and
+  possible-match texts of PHASE-2.md 7.2, verbatim; pure, no Splink, so the API and
+  `er review` share them; `scripts/check_wording.py` scans it).
 - Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
   a pytest plugin the root `conftest.py` registers once; fixtures `neo4j`, `empty_neo4j`,
   `graph_db`): a Testcontainers container with the GDS jar from `make plugins` copied in, or

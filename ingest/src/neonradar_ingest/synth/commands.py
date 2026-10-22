@@ -42,7 +42,6 @@ from neonradar_ingest.synth.namesource import default_names
 
 SEEDS_FILE = REPO_ROOT / "eval" / "seeds.yaml"  # looked up per call, so tests can patch it
 MISSING = re.compile(r"points to '([^']+)', which is not in this load")
-SHOWN_ISSUES = 20
 CHUNK = 20_000  # lines per validation task
 WORKERS = 4  # validation processes at most (validate_record is pure, and the slow part)
 
@@ -126,9 +125,10 @@ def refuse_holdout_base(files: Iterable[Path]) -> None:
 
 
 def _failed(issues: list[RecordIssue]) -> SynthError:
-    shown = "\n".join(f"  {issue}" for issue in issues[:SHOWN_ISSUES])
-    more = f"\n  ... and {len(issues) - SHOWN_ISSUES} more" if len(issues) > SHOWN_ISSUES else ""
-    return SynthError(f"{len(issues)} C1 issues in the generated records:\n{shown}{more}", 1)
+    """Rule codes and counts only: an issue's text can quote a base record's id (R4)."""
+    by_rule = Counter(issue.rule for issue in issues)
+    counts = ", ".join(f"{rule}: {n}" for rule, n in sorted(by_rule.items()))
+    return SynthError(f"{len(issues)} C1 issues in the generated records ({counts})", 1)
 
 
 def _target(folder: Path, name: str) -> Path:

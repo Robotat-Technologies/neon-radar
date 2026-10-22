@@ -141,3 +141,28 @@ def test_overlay_generate_refuses_an_unknown_registry_itself() -> None:
     config = overlay.OverlayConfig(3, illicit=0, lookalikes=0, typologies=())
     ov = overlay.generate(base, {"zz_new_register": "registry"}, config, SimpleNames())
     assert (ov.stats["eligible"], ov.stats["skipped"]) == (0, {"unknown_dataset_kind": 1})
+
+
+def test_overlay_generate_asks_registry_records_for_a_status() -> None:
+    """Delta check of #78: overlay.generate sets registry_status_required."""
+    from names_simple import SimpleNames
+
+    from neonradar_ingest.synth import overlay
+
+    base = [record("gbch-co-T0000602", "gb_companies_house")]
+    config = overlay.OverlayConfig(3, illicit=0, lookalikes=0, typologies=())
+    ov = overlay.generate(base, {"gb_companies_house": "registry"}, config, SimpleNames())
+    assert ov.stats["skipped"] == {"status_unknown": 1}
+
+
+def test_a_synthetic_record_needs_a_syn_id() -> None:
+    view = BaseView.from_records([record("gbch-co-T0000701", "nr_synthetic")], KINDS)
+    assert view.eligible == [] and view.skipped == {"synthetic_id_prefix": 1}
+
+
+def test_validation_failures_name_rules_and_counts_only() -> None:
+    from neonradar_contracts.records import RecordIssue
+
+    issue = RecordIssue("R4", "syn-ov-own-1", "owner points to 'gbch-co-T0000801', which is not")
+    message = str(commands._failed([issue, issue]))
+    assert "R4: 2" in message and "T0000801" not in message and "syn-ov-own-1" not in message

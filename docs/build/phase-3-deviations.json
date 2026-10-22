@@ -11,8 +11,8 @@
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links), and label_payment and label refuse anything the scenario did not make (relationships included); created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person",
-    "sha256": "438c3ca1846dbab4c6d8fd60cdc88dd94561ffd2bc3ff83784a5a00c002865f6"
+    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links), and label_payment and label refuse anything the scenario did not make (relationships included); created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person; #78 review notes: the collision key also strips the namesource legal forms (B.V., S.a r.l., GmbH), and the organisation-name error carries no name",
+    "sha256": "08400eea21d27e276dbe7adffc64a93a5c8997dbb859bdaf89e6e11731f03a5a"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",

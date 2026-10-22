@@ -112,6 +112,7 @@ def test_foreign_street_words_restore_keys_the_spec_gave(raw: str, key: str) -> 
         "Calle Ejemplo",
         "Rose Cottage, Example Village, Example County",  # a house name: the spec gave a key
         "Rue, Paris, France",  # a street word with no name after it
+        "Strasse, Berlin, Germany",  # STRASSE alone starts its segment: no compound, no name
     ],
 )
 def test_texts_still_without_a_street_line(raw: str) -> None:

@@ -36,9 +36,9 @@ class NameSource(Protocol):
         ...
 
     def invented_person(self, rng: np.random.Generator, locale: str) -> tuple[list[str], str]:
-        """The same with an invented surname, for people on synthetic lists, PEP personas and
-        their relatives and associates, so that no realistic full name is ever put on a
-        synthetic list (PHASE-2.md M2.9)."""
+        """The same with an invented surname, for every person a scenario creates and for
+        people on synthetic lists, PEP personas and their relatives and associates, so that no
+        realistic full name is ever flagged or put in a scenario role (PHASE-2.md M2.9)."""
         ...
 
     def company(self, rng: np.random.Generator, jurisdiction: str) -> str: ...

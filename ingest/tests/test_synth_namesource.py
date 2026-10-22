@@ -1,5 +1,6 @@
 """The generator v1 name source (PHASE-3.md M3.3 deliverable 5, 7.2.3; OD-12)."""
 
+import itertools
 import re
 
 import numpy as np
@@ -154,3 +155,42 @@ def test_invented_surnames_never_spell_known_real_ones(names: namesource.PhaseOn
     for surname in ("Takata", "Takaki", "Moroka"):
         assert not names.surname_allowed(surname)
     assert len(namesource.all_faker_surnames()) > 10_000
+
+    for surname in ("Takita", "Kakita", "Morota"):  # the #78 review's examples
+        assert not names.surname_allowed(surname)
+
+
+# Every three-syllable combination with a closed syllable that the filter refuses, by script
+# (Latin syllables of the table). A change to the table, Faker or the denylist shows up here.
+REFUSED = {
+    "en_GB": set(),
+    "ru_RU": set(),
+    "ar_SA": {  # Arabic ka + nor spells the denylisted family name
+        "brin-ka-nor", "dra-ka-nor", "du-ka-nor", "ka-ka-nor", "ka-nor-brin", "ka-nor-dra",
+        "ka-nor-du", "ka-nor-ka", "ka-nor-ki", "ka-nor-lan", "ka-nor-mesh", "ka-nor-mo",
+        "ka-nor-nor", "ka-nor-ro", "ka-nor-sar", "ka-nor-ske", "ka-nor-ta", "ka-nor-ve",
+        "ka-nor-vel", "ka-nor-zo", "ki-ka-nor", "lan-ka-nor", "mesh-ka-nor", "mo-ka-nor",
+        "nor-ka-nor", "ro-ka-nor", "sar-ka-nor", "ske-ka-nor", "ta-ka-nor", "ve-ka-nor",
+        "vel-ka-nor", "zo-ka-nor",
+    },
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("locale", namesource.LOCALES)
+def test_the_refused_invented_surnames_are_pinned(
+    names: namesource.PhaseOneNames, locale: str
+) -> None:
+    script, table = namesource.SCRIPT[locale], namesource.SYLLABLES
+    refused = set()
+    for picks in itertools.product(range(len(table)), repeat=3):
+        if namesource.CLOSED.isdisjoint(picks):
+            continue  # never drawn: open syllables alone spell real surnames (Takita)
+        name = "".join(table[i][script] for i in picks)
+        if not names.surname_allowed(name if script == 2 else name.capitalize()):
+            refused.add("-".join(table[i][0] for i in picks))
+    assert refused == REFUSED[locale]
+    rng = stream(9, "closed", locale)
+    for _ in range(500):
+        surname = names.invented_surname(rng, locale)
+        closed = {table[i][script] for i in namesource.CLOSED}
+        assert any(syllable in surname.casefold() for syllable in closed), surname

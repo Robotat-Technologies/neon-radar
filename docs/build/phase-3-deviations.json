@@ -6,18 +6,18 @@
   },
   "ingest/src/neonradar_ingest/synth/base.py": {
     "milestone": "M3.3",
-    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics); M3.3 review S3, S5, N1, N2: GLEIF records ineligible until C1 carries EntityCategory (category_unknown), a merged entity with a member missing from the base is ineligible (member_not_in_base), statuses are an allowlist checked on every member (not_active), docstring corrected and the unused flag_topics removed",
-    "sha256": "5288fe43640cac744b3513e1f2248304a0892842bf74ddc6d72ac4c8d9541187"
+    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics); M3.3 review S3, S5, N1, N2: GLEIF records ineligible until C1 carries EntityCategory (category_unknown), a merged entity with a member missing from the base is ineligible (member_not_in_base), statuses are an allowlist checked on every member (not_active), docstring corrected and the unused flag_topics removed; #78 review: a registry record without a status is not eligible when the caller asks (overlay.generate does; the default stays off only for the verbatim merged-entity test), and a record the resolution run omits is not eligible (not_in_resolution)",
+    "sha256": "209b8c33fea49d2d09c8fafe3be067ede61e8ba7113b2fcffacf843d84e90f39"
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key)",
-    "sha256": "5333f28273adaa7752e9f9c925b7892c1e98d0b5580b4faa9aba3f2d31a59c43"
+    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person",
+    "sha256": "a5de74e0bcbdc07953541801970f8b6386daf93178747c97a4535d935f403488"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S2: check_bridge takes the eligible organisation ids and requires every base holder of an account holding to be one, and refuses a payment whose payerAccount or beneficiaryAccount is a base id",
-    "sha256": "9d61c53d50c648029bfdbe70cedf2b8300bdd85db6b43ad2b704aaa0e5d39673"
+    "reason": "M3.3 review S2: check_bridge takes the eligible organisation ids and requires every base holder of an account holding to be one, and refuses a payment whose payerAccount or beneficiaryAccount is a base id; #78 review: overlay.generate leaves out a registry without a company-record rule (fail closed for any caller) and asks BaseView for registry statuses",
+    "sha256": "f2236dca92892e0cba4bff8d449ca62fd099b238c7d29fad660602229995cee6"
   },
   "ingest/src/neonradar_ingest/synth/world.py": {
     "milestone": "M3.3",

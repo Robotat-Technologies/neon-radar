@@ -3,16 +3,32 @@
 For every case in expected.json, the rules of the typology definition are checked here in
 plain Python on the C1 records: cases A and B pass all of them, and cases C, D and E each fail
 exactly the one rule they were built to break, so the detector's integration test cannot pass
-by excluding them for another reason. The records stay synthetic (guardrail G1)."""
+by excluding them for another reason. The records stay synthetic (guardrail G1).
 
-from datetime import timedelta
+Case F (a real-looking holder of case A's origin account) runs in memory since M3.2: C2 L17
+refuses to load it beside synthetic accounts, and under R-REAL its cycle is withheld (PHASE-3.md
+M3.2 deliverable 6, decision 3)."""
+
+from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 
 import pytest
 
 from neonradar_contracts.records import validate_batch, validate_record
+from neonradar_detect import catalog, runner, runs
+from neonradar_detect.detectors import circular_flow
+from neonradar_detect.graphrows import from_records
+from neonradar_detect.memsource import MemSource
 
-from .conftest import CIRCULAR_FLOW, EXPECTED, case_f_records, fixture_records, paid_ts
+from .conftest import (
+    CASE_A_ORIGIN,
+    CIRCULAR_FLOW,
+    EXPECTED,
+    REAL_HOLDER,
+    case_f_records,
+    fixture_records,
+    paid_ts,
+)
 
 
 def broken_rules(edge_ids: list[str]) -> set[str]:
@@ -40,8 +56,10 @@ def broken_rules(edge_ids: list[str]) -> set[str]:
 
 
 def test_expected_parameters_are_the_catalog_defaults() -> None:
+    """circular_flow 0.2.0 has more parameters; the four the fixture was built under keep their
+    defaults (M3.2 deliverable 6: cases A to E keep their expectations)."""
     defaults = {name: spec.default for name, spec in CIRCULAR_FLOW.parameters.items()}
-    assert EXPECTED["parameters"] == defaults
+    assert EXPECTED["parameters"] == {name: defaults[name] for name in EXPECTED["parameters"]}
 
 
 @pytest.mark.parametrize("case", sorted(EXPECTED["cases"]))
@@ -70,3 +88,31 @@ def test_case_f_is_a_valid_load_with_one_real_holder() -> None:
     assert [r["id"] for r in records if not r["id"].startswith("syn-")] == ["gbch-co-T0000001"]
     issues = [issue for record in records for issue in validate_record(record)]
     assert issues + validate_batch(records, strict=True) == []
+
+
+def test_case_f_in_memory_is_withheld_under_r_real() -> None:
+    """Case A's cycle through the real-looking holder is found and withheld (`activity_on_real`);
+    case B and the same-holder return inside case A's accounts are all synthetic and emitted."""
+    records = case_f_records()
+    source = MemSource(from_records(records))
+    found = source.paid_time_range()
+    assert found is not None
+    result = runner.run_detection(
+        source,
+        {"circular_flow": circular_flow.Params()},
+        runs.day_window(*found),
+        catalog.load(),
+        run_id="run-20261021T101500-0f0f",
+        created_at=datetime(2026, 10, 21, 10, 15, tzinfo=UTC),
+        query_sha256={"circular_flow": runs.EVIDENCE_SHA256},
+    )
+    assert result.summary["withheld"]["activity_on_real"] == 1
+    assert result.summary["typologies"]["circular_flow"]["findings"] == 3
+    alerts = runs.validate(result.alerts)
+    assert sorted(a.evidence.edge_ids for a in alerts) == sorted(
+        [EXPECTED["cases"]["B"]["edge_ids"], ["syn-payment-cfa2", "syn-payment-cfa3"]]
+    )
+    named = {s.entity_id for a in alerts for s in a.subjects} | {
+        n for a in alerts for n in a.evidence.node_ids
+    }
+    assert REAL_HOLDER["id"] not in named and CASE_A_ORIGIN not in named

@@ -545,7 +545,8 @@ def _check_holders(driver: Driver, plan: LoadPlan, report: LoadReport, database:
     unheld = sorted(a for a, owners in plan.held_outside.items() if not found & set(owners))
     message = "BankAccount has no holder in this load or in the graph"
     report.rejected.extend(RecordIssue("R8", account, message) for account in unheld)
-    plan.nodes = [row for row in plan.nodes if row.id not in set(unheld)]
+    dropped = frozenset(unheld)
+    plan.nodes = [row for row in plan.nodes if row.id not in dropped]
 
 
 def _write_nodes(

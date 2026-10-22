@@ -575,6 +575,7 @@ def to_relationship_rows(
     result: MappingResult[RelationshipRow] = MappingResult()
     usable = list(_first_records(records, result.skipped))
     index = _landing_schemas(usable, resolution)
+    loaded = frozenset(loaded_ids) if loaded_ids is not None else None
     built: list[RelationshipRow] = []
     for record, schema, synthetic in usable:
         mappings = RELATIONSHIP_MAPPINGS.get(schema.name)
@@ -596,8 +597,8 @@ def to_relationship_rows(
         if row.source == row.target and resolution is not None:
             result.counts["self_loops_dropped"] += 1
             continue
-        if loaded_ids is not None and row.endpoint_keys[1] == "Entity":
-            row = replace(row, resolving=not {row.source, row.target} <= set(loaded_ids))
+        if loaded is not None and row.endpoint_keys[1] == "Entity":
+            row = replace(row, resolving=row.source not in loaded or row.target not in loaded)
         key = (row.type, row.source, row.target)
         if row.type in DERIVED_TYPES and key in seen:
             position = seen[key]

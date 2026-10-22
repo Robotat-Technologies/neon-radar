@@ -55,7 +55,7 @@ uv run neonradar er label --profile uk-sample --run <run id> --labeller @your-ha
 
 The graph mentor gives you the run id. For each pair, read both cards completely, decide as the [labelling guide](../er/labelling-guide.md#how-to-judge-from-partial-information) says, and answer `s` (same), `d` (different) or `u` (unsure), with a note in features only when the decision was close or you answered `unsure`. Aim for at least 20 pairs; label more if your session allows. Some of your pairs are also labelled by another person, to measure agreement; you will not know which.
 
-The [privacy rules](../er/labelling-guide.md#privacy-rules-for-labelling-sessions) hold for the whole session: approved machine, no screenshots, no names outside the session, no web searches about the people on the cards, no AI tools, labels never copied anywhere.
+The [privacy rules](../er/labelling-guide.md#privacy-rules-for-labelling-sessions) hold for the whole session: approved machine, no screenshots, no names outside the session, no web searches about the people on the cards and no opening their source links, no AI tools, labels never copied anywhere.
 
 ## 4. Write five hard cases in your learning log
 

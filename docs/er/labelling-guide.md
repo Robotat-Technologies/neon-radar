@@ -16,7 +16,7 @@ The run id and the session times come from the graph mentor. The command shows t
 
 | On each card | Not shown anywhere |
 |---|---|
-| the source dataset and the kind of record; the names in their original scripts; birth dates; nationalities and countries; postcodes and towns; linked companies (names and numbers); identifiers; a link to the source record | the match probability; the rule or method that joined the records, if any; which sample the pair comes from; anyone else's label |
+| the source dataset and the kind of record; the names in their original scripts; birth dates; nationalities and countries; postcodes and towns; linked companies (names and numbers); identifiers; a link to the source record (leave it closed, privacy rule 7) | the match probability; the rule or method that joined the records, if any; which sample the pair comes from; anyone else's label |
 
 The pairs mix merges NeonRadar made with possible matches it did not make, in one random order, so neither the order nor the screen tells you what NeonRadar thought. Do not try to guess it: judge the two cards. Answer `s` (same), `d` (different) or `u` (unsure), and add a note if you like (see [Notes](#notes)). Each answer is saved at once, nothing is pre-selected, and you can stop and resume where you left off.
 
@@ -106,7 +106,7 @@ Labelling shows real records about real people. These rules hold in every sessio
 4. **No real names outside the session.** Not in chat, email, notes, learning logs, issues, pull requests, slides or teach-backs. When you talk about a case, describe it by its features only ("same surname, birth years one apart, different nationality"), never by a name, a date, an address or an identifier ([Assignment 3](../team/assignment-3.md)).
 5. **Labels stay where they are.** Your labels live in `data/cache/real/labels/<profile>/<run id>/` on that machine. Never copy, email or commit them; they are deleted after `access.label_days` (30 days by default, [project.yaml](../build/project.yaml)).
 6. **No AI tools for labelling.** AI help is fine for understanding the method, never for deciding a label, and never paste a card or any part of it into an AI tool (G10, G9).
-7. **Judge from the cards only.** Do not search the web or other sources for the people and companies on the cards: a search sends the name off the machine, and the other labellers judge from the same cards as you.
+7. **Judge from the cards only.** Do not search the web or other sources for the people and companies on the cards, and do not open a card's source link while you label: a search sends the name off the machine, a source page leaves real records in the browser's history and cache, and the other labellers judge from the same cards as you.
 8. **If something is wrong, stop.** If real data shows up anywhere it should not be, stop and tell the data steward and the tech lead at once; do not try to fix it yourself ([PHASE-2.md](../build/PHASE-2.md) 7.4 rule 10).
 
 ## How adjudication works

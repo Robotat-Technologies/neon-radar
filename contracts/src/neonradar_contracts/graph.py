@@ -36,7 +36,8 @@ class RelationshipMapping:
     A schema with several mappings (Ownership) takes the first whose `condition` holds; None
     always holds. `asset_is_account`: the target record in the load is a BankAccount.
     `consolidation`: the record sets `nr.consolidation`. `defaults` are set when the record
-    has no value for them (the bound flags and `is_nominee` of OWNS and CONTROLS: false).
+    has no value for them (1.1.0: on OWNS the two bound flags and `is_nominee`, on CONTROLS
+    the two bound flags, all false).
     """
 
     type: str
@@ -425,13 +426,16 @@ POSSIBLY_SAME_AS_METHODS: Final = get_args(PossibleMatchMethod)
 # RESOLVED_TO.match_probability is 1.0 for these methods.
 CERTAIN_METHODS: Final = ("anchor", "deterministic", "human")
 
-# 1.1.0: properties of the resolution relationships that may be null (absent in Neo4j).
-# POSSIBLY_SAME_AS: no probability or weight for `deterministic` and `source_hint` matches, a
-# `rule` only for `deterministic` ones. RESOLVED_TO: a `rule` only for D-rule links, `features`
-# only for probabilistic ones.
+# 1.1.0: the properties of the resolution nodes and relationships (:SourceRecord, RESOLVED_TO,
+# POSSIBLY_SAME_AS) that may be null (absent in Neo4j); every other property of theirs is
+# always set. POSSIBLY_SAME_AS: no probability or weight for `deterministic` and `source_hint`
+# matches, a `rule` only for `deterministic` ones. RESOLVED_TO: a `rule` only for D-rule links,
+# `features` only for probabilistic ones. :SourceRecord: the two source fields only when the
+# source provides them. Record-built nodes and relationships leave out absent values instead.
 NULLABLE_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
-    "POSSIBLY_SAME_AS": ("match_probability", "match_weight", "rule"),
+    "SourceRecord": ("retrieved_at", "source_url"),
     "RESOLVED_TO": ("rule", "features"),
+    "POSSIBLY_SAME_AS": ("match_probability", "match_weight", "rule"),
 }
 
 SYNTHETIC_LABEL: Final = "Synthetic"

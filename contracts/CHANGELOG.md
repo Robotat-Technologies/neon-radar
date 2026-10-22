@@ -39,6 +39,7 @@ Additive (minor) change for entity resolution, `docs/build/PHASE-2.md` 5.2, M2.1
 - **Migration `0002_resolution.cypher`** (verbatim from the spec): the constraint `possibly_same_as_id`, the indexes `source_record_canonical_id` and `source_record_dataset`, and the full-text index `entity_names` rebuilt under the same name over `names_text` and `names_latin_text`. After 0001 and 0002: 23 constraints and 9 own indexes.
 - **Loader rules L8 to L17 and invariants I7 to I14** written into [C2-graph-schema.md](C2-graph-schema.md); M2.11 implements them.
 - `versions.GRAPH_SCHEMA` is `1.1.0`, so `GET /api/v1/meta` reports `schema_version` 1.1.0.
+- **Consumers in this change:** the API builds its property allow-lists from this mapping, so `EntityDetail.properties` and `GraphNode.properties` of a company now carry `psc_statements` and `accounts_category`, and `GraphEdge.properties` carry the `OWNS` flags and `is_nominee` and the `CONTROLS` band with its flags, when the graph holds them: additive C3 output, the OpenAPI snapshot is unchanged. The four entity resolution properties are not in the allow-lists. `neonradar graph load` refuses a database until `neonradar graph migrate` has applied 0002. Migration 0002 changes no data: relationships loaded under 1.0.0 get the new flags when they are loaded again (read them with `coalesce(r.x, false)` meanwhile).
 
 #### Clarifications of PHASE-2.md 5.2 (tech lead review in M2.1b)
 

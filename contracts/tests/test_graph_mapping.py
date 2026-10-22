@@ -358,9 +358,13 @@ def test_resolution_nodes_and_relationships_as_data() -> None:
     assert graph.RELATIONSHIP_ENDPOINTS["POSSIBLY_SAME_AS"] == ("LegalEntity", "LegalEntity")
     assert graph.POSSIBLY_SAME_AS_ID_INFIX == "psa"
     nullable = graph.NULLABLE_PROPERTIES
+    assert set(nullable) == {"SourceRecord", "RESOLVED_TO", "POSSIBLY_SAME_AS"}
     assert {"match_probability", "rule"} <= set(nullable["POSSIBLY_SAME_AS"])
-    for type_, props in nullable.items():
-        assert set(props) <= set(graph.SUPPORT_RELATIONSHIPS[type_]), type_
+    assert nullable["SourceRecord"] == ("retrieved_at", "source_url")
+    for owner, props in nullable.items():
+        declared = graph.SUPPORT_RELATIONSHIPS.get(owner) or graph.SUPPORT_NODES[owner]
+        assert set(props) <= set(declared), owner
+        assert declared[0] not in props, owner  # a key or first property is always set
     assert graph.RESOLVED_TO_METHODS == ("anchor", "deterministic", "probabilistic", "human")
     assert graph.POSSIBLY_SAME_AS_METHODS == ("probabilistic", "deterministic", "source_hint")
     assert graph.ENTITY_RESOLUTIONS == (

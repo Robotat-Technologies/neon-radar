@@ -1,4 +1,8 @@
-"""Dataset registry: `contracts/datasets.yaml`, the licence terms every loader follows (5.1, G7)."""
+"""Dataset registry: `contracts/datasets.yaml`, the licence terms every loader follows (5.1, G7).
+
+C1 1.1.0 (PHASE-2.md 5.1) adds the optional `kind` and `anchor_priority` and the commercial-use
+term `permission-required`.
+"""
 
 from collections import Counter
 from functools import cache
@@ -7,6 +11,8 @@ from typing import Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+DatasetKind = Literal["registry", "list", "leak", "synthetic"]
 
 # The workspace installs members editable, so the file sits next to this package's src/.
 REGISTRY_PATH = Path(__file__).resolve().parents[2] / "datasets.yaml"
@@ -29,12 +35,16 @@ class Dataset(BaseModel):
 
     slug: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     id_prefix: str = Field(pattern=r"^[a-z][a-z0-9]{1,15}$")
+    # C1 1.1.0: what the source is (the resolver's policies read it, PHASE-2.md 7.1.1) and its
+    # place in the anchor order of canonical entities (7.1.6; 1 is first, unique in the registry).
+    kind: DatasetKind | None = None
+    anchor_priority: int | None = Field(default=None, ge=1)
     title: str = Field(min_length=1)
     publisher: str = Field(min_length=1)
     url: str = Field(min_length=1)
     licence: Licence
     attribution: str | None  # the key is required; null means no attribution is needed
-    commercial_use: Literal["allowed", "licence-required"]
+    commercial_use: Literal["allowed", "licence-required", "permission-required"]
     redistribution: Literal["allowed", "loaders-only", "never"]
     personal_data: bool
     synthetic: bool
@@ -44,7 +54,7 @@ class Dataset(BaseModel):
 
 
 class Registry(BaseModel):
-    """The whole registry: unique slugs and prefixes, none of them reserved."""
+    """The whole registry: unique slugs, prefixes and anchor priorities, no reserved prefix."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -54,9 +64,10 @@ class Registry(BaseModel):
 
     @model_validator(mode="after")
     def _unique_and_unreserved(self) -> Self:
-        for field in ("slug", "id_prefix"):
-            counts = Counter(getattr(dataset, field) for dataset in self.datasets)
-            duplicates = sorted(value for value, n in counts.items() if n > 1)
+        for field in ("slug", "id_prefix", "anchor_priority"):
+            values = (getattr(dataset, field) for dataset in self.datasets)
+            counts = Counter(value for value in values if value is not None)
+            duplicates = sorted(str(value) for value, n in counts.items() if n > 1)
             if duplicates:
                 raise ValueError(f"duplicate {field}: {', '.join(duplicates)}")
         used = {dataset.id_prefix for dataset in self.datasets} & set(self.reserved_prefixes)

@@ -1,4 +1,4 @@
-"""C1 NeonRadar Record v1.0.0: the `nr` extension, the validator and the manifest (5.1).
+"""C1 NeonRadar Record v1.1.0: the `nr` extension, the validator and the manifest (5.1).
 
 `validate_record` checks one record; `validate_batch` checks the rules that need the whole
 load (R4 references and duplicate ids, R8 account holders). Issue codes are R1 to R10, plus
@@ -78,10 +78,15 @@ NR_USED_ON: dict[str, tuple[str, ...]] = {
     "account_kind": ("BankAccount",),
     "address_roles": ("LegalEntity",),
     "natures_of_control": ("Ownership", "Control"),
-    "share_pct_min": ("Ownership",),
-    "share_pct_max": ("Ownership",),
-    "is_nominee": ("Directorship",),
+    "share_pct_min": ("Ownership", "Control"),  # Control since 1.1.0 (voting-rights bands)
+    "share_pct_max": ("Ownership", "Control"),
+    "share_pct_min_exclusive": ("Ownership", "Control"),  # 1.1.0
+    "share_pct_max_exclusive": ("Ownership", "Control"),  # 1.1.0
+    "is_nominee": ("Directorship", "Ownership"),  # Ownership since 1.1.0 (nominee shareholders)
     "consolidation": ("Ownership",),
+    "ch_person_number": ("LegalEntity",),  # 1.1.0; Person is a LegalEntity in FtM
+    "psc_statements": ("Company",),  # 1.1.0
+    "accounts_category": ("Company",),  # 1.1.0
 }
 # R4 in strict mode: a reference points to a record of its property's FtM range, except that
 # an Ownership asset may also be any LegalEntity (C2 builds OWNS between legal entities).
@@ -99,15 +104,17 @@ AddressRole = Literal["registered", "service", "residential", "business", "unkno
 class NrExtension(BaseModel):
     """The closed `nr` extension object (5.1). Unknown keys fail validation.
 
-    `v` is the record contract's major.minor. It is "1.0" for every 1.0.x release; a minor
-    release (for example 1.1.0, a new optional key) adds "1.1" here and keeps accepting "1.0".
+    `v` is the record contract's major.minor: "1.0" for every 1.0.x release, and "1.1" since
+    1.1.0, which keeps accepting "1.0" (PHASE-2.md 5.1). Every key, including those added in
+    1.1.0, is accepted under both values, so a 1.0 file stays valid.
     """
 
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
-    v: Literal["1.0"]
+    v: Literal["1.0", "1.1"]
     synthetic: bool | None = None
-    synthetic_kind: Literal["registry", "activity"] | None = None
+    # "list" and "leak" (1.1.0): a synthetic record in the style of a list entry or a leak record.
+    synthetic_kind: Literal["registry", "activity", "list", "leak"] | None = None
     channel: Literal["wire", "card", "cash_deposit", "cash_withdrawal", "internal"] | None = None
     account_kind: Literal["customer", "cash_ledger"] | None = None
     address_roles: dict[str, AddressRole] | None = None
@@ -117,6 +124,13 @@ class NrExtension(BaseModel):
     share_pct_max: float | None = Field(default=None, ge=0, le=100)
     is_nominee: bool | None = None
     consolidation: Literal["direct", "ultimate"] | None = None
+    # Added in 1.1.0 (PHASE-2.md 5.1). The exclusive flags say a share bound is open ("more
+    # than 25%"); absent means the bound is included.
+    ch_person_number: str | None = None
+    psc_statements: list[str] | None = None
+    accounts_category: str | None = None
+    share_pct_min_exclusive: bool | None = None
+    share_pct_max_exclusive: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)

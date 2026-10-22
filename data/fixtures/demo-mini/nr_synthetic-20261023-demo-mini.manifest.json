@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0",
-  "record_contract": "1.0.0",
+  "record_contract": "1.1.0",
   "dataset": "nr_synthetic",
   "files": [
     {
@@ -9,7 +9,7 @@
       "records": 454
     }
   ],
-  "created_at": "2026-10-21T20:48:03Z",
+  "created_at": "2026-10-22T00:05:20Z",
   "producer": {
     "name": "neonradar_ingest.synth",
     "version": "0.1.0",

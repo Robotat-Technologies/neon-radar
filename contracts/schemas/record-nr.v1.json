@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "The closed `nr` extension object (5.1). Unknown keys fail validation.\n\n`v` is the record contract's major.minor. It is \"1.0\" for every 1.0.x release; a minor\nrelease (for example 1.1.0, a new optional key) adds \"1.1\" here and keeps accepting \"1.0\".",
+  "description": "The closed `nr` extension object (5.1). Unknown keys fail validation.\n\n`v` is the record contract's major.minor: \"1.0\" for every 1.0.x release, and \"1.1\" since\n1.1.0, which keeps accepting \"1.0\" (PHASE-2.md 5.1). Every key, including those added in\n1.1.0, is accepted under both values, so a 1.0 file stays valid.",
   "properties": {
     "account_kind": {
       "anyOf": [
@@ -17,6 +17,18 @@
       ],
       "default": null,
       "title": "Account Kind"
+    },
+    "accounts_category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Accounts Category"
     },
     "address_roles": {
       "anyOf": [
@@ -39,6 +51,18 @@
       ],
       "default": null,
       "title": "Address Roles"
+    },
+    "ch_person_number": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ch Person Number"
     },
     "channel": {
       "anyOf": [
@@ -102,6 +126,21 @@
       "default": null,
       "title": "Natures Of Control"
     },
+    "psc_statements": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Psc Statements"
+    },
     "share_pct_max": {
       "anyOf": [
         {
@@ -116,6 +155,18 @@
       "default": null,
       "title": "Share Pct Max"
     },
+    "share_pct_max_exclusive": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Share Pct Max Exclusive"
+    },
     "share_pct_min": {
       "anyOf": [
         {
@@ -129,6 +180,18 @@
       ],
       "default": null,
       "title": "Share Pct Min"
+    },
+    "share_pct_min_exclusive": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Share Pct Min Exclusive"
     },
     "source_ref": {
       "anyOf": [
@@ -159,7 +222,9 @@
         {
           "enum": [
             "registry",
-            "activity"
+            "activity",
+            "list",
+            "leak"
           ],
           "type": "string"
         },
@@ -171,7 +236,10 @@
       "title": "Synthetic Kind"
     },
     "v": {
-      "const": "1.0",
+      "enum": [
+        "1.0",
+        "1.1"
+      ],
       "title": "V",
       "type": "string"
     }

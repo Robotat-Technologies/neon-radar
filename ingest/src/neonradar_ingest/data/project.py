@@ -48,6 +48,8 @@ class Access(BaseModel):
 class People(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True)
 
+    project_lead: str | None = None  # adjudicates labels by default (PHASE-2.md 7.3 rule 4)
+    tech_lead: str | None = None  # sets the thresholds (ADR-0014): never adjudicates labels
     er_labellers: list[str] = []
     er_senior_reviewers: list[str] = []
     freeze_deciders: list[str] = []  # ADR-0022 (PHASE-3.md M3.11)
@@ -73,6 +75,15 @@ class Schedule(BaseModel):
     teach_back_copilot: date | None = None
 
 
+class Squad(BaseModel):
+    """`squads.<name>`: only the mentor is read (the graph mentor sets the thresholds with the
+    tech lead and never adjudicates labels, PHASE-2.md 7.3 rule 4)."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    mentor: str | None = None
+
+
 class Project(BaseModel):
     """The keys Phases 2 to 4 read, plus the file they came from and its SHA-256."""
 
@@ -80,6 +91,7 @@ class Project(BaseModel):
 
     access: Access = Access()
     people: People = People()
+    squads: dict[str, Squad] = {}
     schedule: Schedule = Schedule()
     path: Path
     sha256: str
@@ -135,7 +147,7 @@ def load_project(path: Path | None = None) -> Project:
     data = yaml.safe_load(raw)
     if not isinstance(data, dict):
         raise ValueError(f"{path.name} is not a YAML mapping")
-    fields = {key: data.get(key) or {} for key in ("access", "people", "schedule")}
+    fields = {key: data.get(key) or {} for key in ("access", "people", "schedule", "squads")}
     return Project.model_validate(
         {**fields, "path": path, "sha256": hashlib.sha256(raw).hexdigest()}
     )

@@ -158,6 +158,7 @@ class Decisions:
     same: list[Link]  # D7 links, each with the handles whose newest line says same
     different: list[tuple[str, str]]  # X8 pairs
     on_file: int  # pairs with at least one decision
+    not_applicable: int = 0  # decisions.load_decisions: pairs with a record outside the run
 
 
 def read_decisions(path: Path | None, reviewers: frozenset[str] | None = None) -> Decisions:

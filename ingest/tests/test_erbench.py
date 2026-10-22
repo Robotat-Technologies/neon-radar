@@ -4,6 +4,7 @@ import ast
 import csv
 import hashlib
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -90,7 +91,7 @@ def test_every_resolvable_record_has_exactly_one_truth_row(
     orgs = {row["entity_id"] for row in truth if row["class"] == "org"}
     assert (len(people), len(orgs)) == erbench.SIZES["small"]
     for row in truth:
-        assert row["record_id"].startswith(f"{row['entity_id']}-")
+        assert re.fullmatch(r"syn-erb-r-[0-9a-f]{16}", row["record_id"])  # opaque (2.7)
         assert row["style"] in KIND
 
 
@@ -205,30 +206,68 @@ def test_invented_surnames_avoid_the_known_real_ones(large: erbench.Bench) -> No
             assert not {fold(form) for form in person.surname.latin} & real
 
 
-def test_listed_and_leaked_people_have_invented_surnames(
-    records: list[dict[str, Any]], truth: list[dict[str, str]], large: erbench.Bench
-) -> None:
+def _faker_surnames() -> set[str]:
     faker = {fold(n) for n in en_GB.Provider.last_names}
     faker |= {fold(n) for n in (*ru_RU.Provider.last_names, *ar_SA.Provider.last_names)}
     faker |= {fold(n.removeprefix("آل ")) for n in ar_SA.Provider.last_names}
-    exposed = {
-        row["entity_id"]
-        for row in truth
-        if row["class"] == "person" and row["style"] in ("list", "leak")
-    }
+    return faker | {fold(n) for n in variants.NOT_INVENTED}
+
+
+def _exposed(truth: list[tuple[str, str, str, str, str]], links: list[tuple[str, str]]) -> set[str]:
+    """People with a list or leak record, officers and PSCs of an organisation with one, and
+    the near twins of any of them: worked out from the output, not from the generator."""
+    entity = {row[0]: row[1] for row in truth}
+    styles: dict[str, set[str]] = defaultdict(set)
+    for _, entity_id, _, style, _ in truth:
+        styles[entity_id].add(style)
+    exposed = {e for e, s in styles.items() if s & {"list", "leak"}}
+    people = {e for e in exposed if "-p-" in e}
+    people |= {entity[a] for a, b in links if "-p-" in entity[a] and entity[b] in exposed}
+    twins = {row[1]: row[4] for row in truth if row[4]}
+    return people | {twins[e] for e in people if e in twins}
+
+
+def _links(records: list[tuple[str, dict[str, list[str]]]]) -> list[tuple[str, str]]:
+    links = []
+    for schema, props in records:
+        if schema in ("Directorship", "Ownership"):
+            source = (props.get("director") or props["owner"])[0]
+            links.append((source, (props.get("organization") or props["asset"])[0]))
+    return links
+
+
+def test_people_on_or_linked_to_list_and_leak_entities_have_invented_surnames(
+    records: list[dict[str, Any]], truth: list[dict[str, str]], large: erbench.Bench
+) -> None:
+    """G1: Faker surnames only for registry-only people with no link to a list or leak entity."""
+    faker = _faker_surnames()
+    rows = [tuple(row.values()) for row in truth]
+    exposed = _exposed(rows, _links([(r["schema"], r["properties"]) for r in records]))  # type: ignore[arg-type]
     by_id = {r["id"]: r for r in records}
-    surnames = [
-        by_id[row["record_id"]]["properties"].get("lastName", [""])[0]
-        for row in truth
-        if row["entity_id"] in exposed
-    ]
-    assert surnames and not {fold(s) for s in surnames if s} & faker
+    checked = 0
+    for row in truth:
+        if row["entity_id"] in exposed:
+            for value in by_id[row["record_id"]]["properties"].get("lastName", []):
+                assert fold(value) not in faker, row["record_id"]
+                checked += 1
+    assert checked > 100
+    exposed = _exposed(large.truth, _links([(r.schema, r.props) for r in large.records]))
+    entity = {row[0]: row[1] for row in large.truth}
+    people = {p.entity_id: p for p in large.people}
+    for record_id, shown in large.shown.items():  # every person record, as it shows the name
+        person = people[entity[record_id]]
+        # Every exposed person is invented; the generator may invent more (a person whose
+        # possible organisations include an exposed one, even if no record links them).
+        assert person.invented or person.entity_id not in exposed, person.entity_id
+        if person.invented:
+            assert fold(shown.surname) not in faker, record_id
+            assert erbench.surname_ok(shown.surname), record_id
+            assert not is_denied(f"{shown.given} {shown.surname}"), record_id
     for person in large.people:
-        if person.authorities or person.leaked:
-            assert person.invented
-            forms = [fold(form) for form in person.surname.latin]
-            assert not set(forms) & faker
+        if person.invented:
+            assert not {fold(form) for form in person.surname.latin} & faker
             assert person.surname.native is None or fold(person.surname.native) not in faker
+    assert sum(p.invented for p in large.people) > len(large.people) // 4
 
 
 def test_entity_shares_meet_the_targets(large: erbench.Bench) -> None:
@@ -299,12 +338,16 @@ def test_the_generator_does_not_import_the_keys() -> None:
         assert not [name for name in imported if name and name.startswith("neonradar_keys")]
 
 
-def test_relationships_point_at_registry_records(records: list[dict[str, Any]]) -> None:
+def test_relationships_point_at_registry_records(
+    records: list[dict[str, Any]], truth: list[dict[str, str]]
+) -> None:
     by_id = {r["id"]: r for r in records}
+    style = {row["record_id"]: row["style"] for row in truth}
     groups: dict[str, list[str]] = defaultdict(list)
     for record in records:
         if record["schema"] in ("Directorship", "Ownership"):
             target = record["properties"].get("organization") or record["properties"]["asset"]
-            assert target[0].endswith("-01") and by_id[target[0]]["schema"] == "Company"
+            assert style[target[0]] == "registry" and by_id[target[0]]["schema"] == "Company"
+            assert "incorporationDate" in by_id[target[0]]["properties"]  # the register record
             groups[record["schema"]].append(record["id"])
     assert all(model[s] for s in groups) and len(groups) == 2

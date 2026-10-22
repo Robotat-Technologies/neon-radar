@@ -287,9 +287,11 @@ SYLLABLES: tuple[tuple[tuple[str, ...], str, str], ...] = (
     (("mun", "moun"), "مون", "мун"), (("vosk", "wosk"), "فوسك", "воск"),
     (("ira",), "يرا", "ира"),
 )  # fmt: skip
-# Joins of the syllables above that are real surnames or read as one (M2.9 data-guardian
-# review): an invented surname is redrawn when any of its spellings is here.
+# Joins of the syllables above that are real surnames or read as one, and the spec's own
+# examples (M2.9 reviews): an invented surname, or a typo of one, is redrawn when it is here.
 NOT_INVENTED = (
     "Garvin", "Quillan", "Toros", "Khatra", "Voskos", "Kestra", "Torrud", "Dorfen", "Zelos",
-    "Ostra", "Pelzar", "Ullan", "Traske",
+    "Ostra", "Pelzar", "Ullan", "Traske", "Dorne", "Zelvin", "Selwin", "Selvin", "Rudvin",
+    "Braske", "Vinkes", "Winkes", "Lanzar", "Sezar", "Tharos", "Taros", "Trazel", "Trasel",
+    "Drovin", "Kestrane",
 )  # fmt: skip

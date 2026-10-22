@@ -16,7 +16,7 @@ from typer.testing import CliRunner
 from neonradar_cli.main import app
 from neonradar_contracts.records import make_id
 from neonradar_ingest.data import sources
-from neonradar_ingest.data.project import REPO_ROOT
+from neonradar_ingest.data.gate import RealDataRefused
 from neonradar_ingest.data.sources import BuildError
 from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.lists import shared, un_sc
@@ -31,6 +31,7 @@ SIGNED = (
     "?sv=2099-01-01&se=2099-01-01T01%3A00%3A00Z&sr=b&sp=r&sig=SYNTHETICSIGNATURE"
 )
 P1, P2, ORG = "unsc-ZZI.001", "unsc-ZZI.002", "unsc-ZZE.001"
+PERMISSION = "# Synthetic\n\n- Grantor: Synthetic grantor\n- Date: 2099-01-01\n- Scope: tests\n"
 runner = CliRunner()
 
 
@@ -55,19 +56,19 @@ class Server:
         )
 
 
-def serve(monkeypatch: pytest.MonkeyPatch, body: bytes) -> Server:
+def serve(monkeypatch: pytest.MonkeyPatch, body: bytes, dataset: str = un_sc.DATASET) -> Server:
     server = Server(body)
-    spec = dataclasses.replace(sources._SOURCES[un_sc.DATASET], client=server.client)
-    monkeypatch.setitem(sources._SOURCES, un_sc.DATASET, spec)
+    spec = dataclasses.replace(sources._SOURCES[dataset], client=server.client)
+    monkeypatch.setitem(sources._SOURCES, dataset, spec)
     return server
 
 
 @pytest.fixture(autouse=True)
 def permitted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A stand-in for the data steward's permission file (the real one does not exist)."""
+    """A stand-in for the data steward's permission file, whatever the repository holds."""
     path = tmp_path / "licences" / "un_sc_sanctions.md"
     path.parent.mkdir()
-    path.write_text("Synthetic stand-in for a test.\n", encoding="utf-8")
+    path.write_text(PERMISSION, encoding="utf-8")
     monkeypatch.setattr(un_sc, "PERMISSION_FILE", path)
     return path
 
@@ -136,22 +137,37 @@ def test_gate_refuses_a_list_left_out_of_access_sanctions_lists(
 def test_permission_gate_refuses_without_the_written_permission(
     data_env: Any, monkeypatch: pytest.MonkeyPatch, permitted: Path
 ) -> None:
-    """Even when access.sanctions_lists names the list, no request and no build without the
-    UN's written permission in docs/data/licences/un_sc_sanctions.md (PHASE-2.md 3.3)."""
-    assert not (REPO_ROOT / "docs" / "data" / "licences" / "un_sc_sanctions.md").exists()
-    use_profile(data_env)
-    server = serve(monkeypatch, FIXTURE.read_bytes())
-    assert runner.invoke(app, ["data", "fetch", "--profile", PROFILE]).exit_code == 0
+    """Even when access.sanctions_lists names the list, nothing is fetched or built without the
+    UN's written permission (PHASE-2.md 3.3). The check runs in the gate pass, so the UK list
+    enabled next to it is not fetched either, and the summary records the refusal."""
+    blocks = {un_sc.DATASET: {"enabled": True}, "gb_fcdo_sanctions": {"enabled": True}}
+    data_env.write_profile(PROFILE, real_data=True, sources=blocks)
+    data_env.allow_real(PROFILE, sanctions_lists=LISTS)
+    servers = [serve(monkeypatch, b"<x/>", slug) for slug in blocks]
     permitted.unlink()
-    requests = len(server.requests)
     for command in (["data", "fetch"], ["ingest", "build", "--accept-size"]):
         result = runner.invoke(app, [*command, "--profile", PROFILE])
         assert result.exit_code == 3, result.output
-        assert "rule un_written_permission" in result.output
-        assert "un_sc_sanctions needs the UN's written permission" in result.output
-        assert "docs/data/licences/un_sc_sanctions.md" in result.output
-    assert len(server.requests) == requests  # nothing sent after the permission went
-    assert not records_dir(data_env).exists()
+        assert "un_sc_sanctions: refused (rule un_written_permission)" in result.output
+        assert "docs/data/licences/un_sc_sanctions.md with grantor:, date: and scope:" in (
+            result.output
+        )
+        name = "-".join(command[:2])
+        report = sorted((data_env.cache / "reports" / PROFILE).glob(f"{name}-*.json"))[-1]
+        datasets = json.loads(report.read_text(encoding="utf-8"))["datasets"]
+        assert datasets == {un_sc.DATASET: {"status": "refused", "rule": "un_written_permission"}}
+    assert [server.requests for server in servers] == [[], []]
+    assert not (data_env.cache / "real" / "sources").exists()
+    assert not (data_env.cache / "real" / "records").exists()
+
+
+def test_permission_file_needs_grantor_date_and_scope(permitted: Path) -> None:
+    un_sc.require_permission()
+    permitted.write_text("- Grantor: Synthetic grantor\n- Date: 2099-01-01\n", encoding="utf-8")
+    with pytest.raises(RealDataRefused, match="grantor:, date: and scope:"):
+        un_sc.require_permission()
+    with pytest.raises(RealDataRefused):  # discover checks again, before any request
+        un_sc.discover(Server(b"").client())
 
 
 def test_fetch_follows_the_redirect_and_never_keeps_its_query(
@@ -185,13 +201,13 @@ def test_first_person(built: dict[str, dict[str, Any]]) -> None:
     assert person["nr"] == {"v": "1.1", "source_ref": "ZZI.001"}
     p = props(person)
     assert p["topics"] == ["sanction"]
-    assert p["name"] == ["Yazan Zafer Velqasimi"]  # FOURTH_NAME "na" is missing
-    assert (p["firstName"], p["lastName"]) == (["Yazan"], ["Velqasimi"])
+    assert p["name"] == ["Zafir Yazan Qandelouni"]  # FOURTH_NAME "na" is missing
+    assert (p["firstName"], p["lastName"]) == (["Zafir"], ["Qandelouni"])
     # Good quality split on "; ", empty quality with two words, the original script.
     assert sorted(p["alias"]) == sorted(
-        ["Yazan Zafir Velqasimi", "Yazan Velqasimy", "Yazen Velqasimi", "يزن ظافر فلقاسمي"]
+        ["Zafer Qandelouni", "Zafir Kandelouni", "Zafer Kandelouni", "ظافر قنديلوني"]
     )
-    assert sorted(p["weakAlias"]) == ["Velqasimi", "Yazan Z. Velqasimi"]  # low; empty, one word
+    assert sorted(p["weakAlias"]) == ["Qandelouni", "Zafir Y. Qandelouni"]  # low; empty, one word
     # EXACT, EXACT with an offset, APPROXIMATELY and a BETWEEN range of three years.
     assert sorted(p["birthDate"]) == ["1970", "1971-06-04", "1972-02-09", "1975", "1976", "1977"]
     assert p["nationality"] == ["cy"]  # "Possibly Cyprus" is counted, not guessed

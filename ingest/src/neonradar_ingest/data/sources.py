@@ -62,12 +62,16 @@ def default_client() -> HttpClient:
 class SourceSpec:
     """`discover(client)` lists the files of the current version of each product.
 
-    `client` builds the source's HTTP client (its rate limit and redirect rule).
+    `client` builds the source's HTTP client (its rate limit and redirect rule). `precheck()`,
+    when given, raises `gate.RealDataRefused` for a condition of the dataset's own (the UN
+    list's written permission, M2.6c); `data fetch` and `ingest build` run it in their gate
+    pass, after the gate and before any request or build.
     """
 
     dataset: str
     discover: Callable[[HttpClient], list[RemoteFile]]
     client: Callable[[], HttpClient] = default_client
+    precheck: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -46,7 +46,7 @@ The repository holds no copy of the jar. If NeonRadar ever publishes an image or
 | Copyright | Copyright (c) 2023-2025: OpenSanctions Datenbanken GmbH |
 | Source | https://github.com/opensanctions/rigour |
 | How it is made | `uv run python keys/scripts/build_ar_symbol_index.py --tag v2.5.0 --sha256 be47a435969da3fa7311d8c682e462d6d20e6cf27cf90ad1473ce213c9a91c79` downloads the file from `raw.githubusercontent.com/opensanctions/rigour`, checks its SHA-256 and writes 17,798 keys. The gzip header carries no timestamp, so a rebuild gives the same file (SHA-256 `7712414a8eb9b07cf7e2814ffd8d1460ae1c35a834a17a5ce39099f41f56f7e8`). It is rebuilt whenever the locked rigour version changes (`docs/build/PHASE-2.md` M2.8) |
-| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel. The project publishes no wheel yet; a published wheel or image that contains the file must also carry this notice |
+| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel, together with `ar_symbols.LICENSE.txt` (where the file comes from, and rigour's licence text), which `keys/tests/test_keys_fixes.py` checks is in the wheel. An image or bundle that contains the file must carry that licence file too |
 
 The file holds name forms and Wikidata ids of name groups (for example محمد maps to `Q5837762`, the name group that rigour also gives Mohammed and Мухаммед), not records about people. rigour's licence:
 
@@ -83,7 +83,7 @@ SOFTWARE.
 | Licence | Open Government Licence v3.0 (both sources): https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/ |
 | Attribution | "Contains public sector information licensed under the Open Government Licence v3.0." |
 | How it is made | `keys/scripts/build_nationalities.py` maps the two lists to codes with rigour (no fuzzy matching) and its own overrides (UK nations to `gb`, and values rigour maps wrongly or not at all). The two inputs are not in the repository; the committed file is the one in `docs/build/PHASE-2.md` M2.8, and the script is run again only when either list changes |
-| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel |
+| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel, together with `nationalities.LICENSE.txt` (the attribution statement and the text of the Open Government Licence v3.0, read on 22 October 2026), which `keys/tests/test_keys_fixes.py` checks is in the wheel |
 
 Contains public sector information licensed under the Open Government Licence v3.0.
 
@@ -97,3 +97,13 @@ Contains public sector information licensed under the Open Government Licence v3
 | Licence position | Not covered by the repository's Apache-2.0 licence: the file keeps its publisher's notice and terms above, and anyone who copies it is bound by them |
 | How it is used | Test input only: `ingest/tests/test_lists_gb_fcdo_sanctions.py` validates the synthetic fixture against it, offline (`xmlschema`, `allow="sandbox"`). It is committed unchanged (`.gitattributes` keeps its bytes) and is not part of any package |
 | Where it goes | Committed in the repository under `ingest/tests/fixtures/`; never shipped in a wheel or image. The data steward confirms in the M2.6a review that these terms suit the repository |
+
+## OFAC advanced sanctions list schema (`ingest/tests/fixtures/lists/us_ofac_sdn/sdn_advanced.xsd`)
+
+| | |
+|---|---|
+| What | The XML Schema of OFAC's advanced sanctions list format (`sdn_advanced.xsd`, target namespace `http://www.un.org/sanctions/1.0`); it describes the file's structure and holds no personal data |
+| Source | http://www.treasury.gov/ofac/downloads/sanctions/1.0/sdn_advanced.xsd (answered from https://www.treasury.gov/...), the address PHASE-2.md M2.6b names (downloaded on 22 October 2026, SHA-256 `8ee987957c6a51cfc9c5c436af4659544cb10f6a943f574fc9b5c2dc7e894428`) |
+| Terms | The file carries no copyright or licence notice. It is published by the US Department of the Treasury, whose data catalogue marks the OFAC list files CC0 1.0; the research note adds, unchecked, that works of the US federal government are not subject to US copyright (17 U.S.C. 105) (`docs/research/2026-10-18/sanctions-peps.md` 2.7) |
+| How it is used | Test input only: `ingest/tests/test_lists_us_ofac_sdn.py` validates the synthetic fixture against it, offline (`xmlschema`, `allow="sandbox"`). It is committed unchanged (`.gitattributes` keeps its bytes) and is not part of any package |
+| Where it goes | Committed in the repository under `ingest/tests/fixtures/`; never shipped in a wheel or image. The data steward confirms in the M2.6b review that these terms suit the repository |

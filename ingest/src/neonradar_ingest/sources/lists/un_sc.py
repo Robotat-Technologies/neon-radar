@@ -11,9 +11,12 @@ and numbers in the comments are never read.
 
 The UN website terms allow download "for the User's personal, non-commercial use" (note 3.5),
 so the loader refuses to fetch or build, besides the gate's `access.sanctions_lists` check, until
-the data steward has filed the UN's written permission in `docs/data/licences/un_sc_sanctions.md`.
+the data steward has filed the UN's written permission in `docs/data/licences/un_sc_sanctions.md`
+with `grantor:`, `date:` and `scope:` lines. `data fetch` and `ingest build` run that check in
+their gate pass (`SourceSpec.precheck`); `discover` and `build` run it again.
 """
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -59,10 +62,13 @@ AUTHORITY = "United Nations Security Council"
 # Looked up per call, so tests can point it at a temporary file. Never created by an agent.
 PERMISSION_FILE = REPO_ROOT / "docs" / "data" / "licences" / f"{DATASET}.md"
 PERMISSION_RULE = "un_written_permission"
+# The lines the permission file must hold: who granted it, when, and for what use.
+PERMISSION_LINE = re.compile(r"^\W*(grantor|date|scope)\W*:\s*\S", re.I | re.M)
 SCHEMATA = {"INDIVIDUAL": "Person", "ENTITY": "Organization"}
 NOT_AVAILABLE = "na"
 GENDERS = {"male": "male", "female": "female"}
 PASSPORTS = frozenset({"passport", "numéro de passeport", "número de pasaporte"})
+# The English form is in note 3.4; the French and Spanish forms are UNVERIFIED (not in the note).
 NATIONAL_IDS = frozenset(
     {
         "national identification number",
@@ -86,14 +92,24 @@ ADDRESS_PARTS = ("STREET", "CITY", "STATE_PROVINCE", "ZIP_CODE", "COUNTRY")
 MAX_ID = 120  # PHASE-1.md 4.4
 
 
+def permission_filed() -> bool:
+    """True when the permission file exists and names its grantor, date and scope."""
+    try:
+        text = PERMISSION_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    found = {match.group(1).casefold() for match in PERMISSION_LINE.finditer(text)}
+    return found == {"grantor", "date", "scope"}
+
+
 def require_permission() -> None:
     """Refuse (exit code 3) unless the UN's written permission is filed (PHASE-2.md 3.3)."""
-    if not PERMISSION_FILE.is_file():
+    if not permission_filed():
         raise RealDataRefused(
             PERMISSION_RULE,
             f"{DATASET} needs the UN's written permission, filed by the data steward in"
-            f" docs/data/licences/{DATASET}.md (PHASE-2.md 3.3); without it the UK and EU lists"
-            " carry the UN listings",
+            f" docs/data/licences/{DATASET}.md with grantor:, date: and scope: lines"
+            " (PHASE-2.md 3.3); without it the UK and EU lists carry the UN listings",
         )
 
 
@@ -375,5 +391,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
 
 
 register_source_model(DATASET, shared.ListOptions)
-register_source(SourceSpec(DATASET, discover, client=shared.list_client))
+register_source(
+    SourceSpec(DATASET, discover, client=shared.list_client, precheck=require_permission)
+)
 register_builder(Builder(DATASET, build, string_keys=("list_generated",)))

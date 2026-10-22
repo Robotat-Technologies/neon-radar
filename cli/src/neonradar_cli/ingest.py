@@ -38,7 +38,7 @@ def build_command(
 ) -> None:
     """Run the gate, then each enabled dataset's builder; print and write the summary."""
     from neonradar_cli import redact, summary
-    from neonradar_cli.data import profile_or_exit, project_or_exit, selected
+    from neonradar_cli.data import profile_or_exit, project_or_exit, run_prechecks, selected
     from neonradar_ingest.data import gate, layout, sources
     from neonradar_ingest.data.build import build_dataset
 
@@ -76,9 +76,11 @@ def build_command(
             # The gate for every dataset and every step that will run, before any builder:
             # the officers step's access rule (access.companies_house_key) is checked here.
             where.dataset = slug
-            for name in chosen_steps or builder.steps or (None,):
+            for name in builder.planned(chosen, chosen_steps) or (None,):
                 gate.check_real_data(project, chosen, slug, step=name)
             plan.append((slug, builder, chosen_steps))
+        where.dataset = None
+        run_prechecks(chosen, "ingest build", report, [slug for slug, _, _ in plan])
         for slug, builder, chosen_steps in plan:
             where.step, where.dataset = "build", slug
             result = build_dataset(

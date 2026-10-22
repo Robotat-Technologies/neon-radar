@@ -3,8 +3,10 @@
 httpx with a 10 s connect and 60 s read timeout, an explicit `follow_redirects`, the NeonRadar
 User-Agent, a per-source rate limiter, and retries with exponential backoff after a 429, a
 500, 502, 503 or 504 or a transport error that honour `Retry-After`. Logs never show headers,
-keys or credentials; a client built with `log_query=False` logs its URLs without their query
-string (PHASE-2.md M2.6 rule 4: the UN redirect carries a signature, the EU URL a token).
+keys or credentials. `logged_url` shows a URL in logs and errors under two rules a client
+can set: `log_query=False` drops the query string (PHASE-2.md M2.6 rule 4: the UN redirect
+carries a signature, the EU URL a token), and `hide_paths=True` keeps only the scheme and the
+host (M2.3c: the officers step's paths hold company numbers).
 """
 
 import logging
@@ -50,23 +52,32 @@ def redact(url: httpx.URL | str) -> str:
     return str(url.copy_with(userinfo=b"", params=params))
 
 
-def logged_url(url: httpx.URL | str, *, query: bool = True) -> str:
-    """`redact(url)`, or without user info, query string and fragment when `query` is false."""
-    if query:
-        return redact(url)
-    return str(httpx.URL(url).copy_with(userinfo=b"", query=None, fragment=None))
+def logged_url(url: httpx.URL | str, *, query: bool = True, path: bool = True) -> str:
+    """How logs and errors show `url`: `redact(url)`; without user info, query string and
+    fragment when `query` is false; only scheme and host when `path` is false, which hides the
+    query string too, whatever `query` says."""
+    url = httpx.URL(url)
+    if not path:
+        return f"{url.scheme}://{url.host}/…"
+    if not query:
+        return str(url.copy_with(userinfo=b"", query=None, fragment=None))
+    return redact(url)
 
 
-# Whether the request being sent may show its query string in logs (`HttpClient.log_query`).
+# The rules of the client sending now (`HttpClient.log_query` and `hide_paths`), for the filter
+# on httpx's own request log, which also logs each redirect the client follows.
 _LOG_QUERY: ContextVar[bool] = ContextVar("neonradar_log_query", default=True)
+_HIDE_PATHS: ContextVar[bool] = ContextVar("neonradar_hide_paths", default=False)
+
+
+def shown(url: httpx.URL | str) -> str:
+    """How logs show a URL: `logged_url` under the rules of the client sending now."""
+    return logged_url(url, query=_LOG_QUERY.get(), path=not _HIDE_PATHS.get())
 
 
 def _redact_urls(record: logging.LogRecord) -> bool:
     if isinstance(record.args, tuple):
-        query = _LOG_QUERY.get()
-        record.args = tuple(
-            logged_url(a, query=query) if isinstance(a, httpx.URL) else a for a in record.args
-        )
+        record.args = tuple(shown(a) if isinstance(a, httpx.URL) else a for a in record.args)
     return True
 
 
@@ -123,8 +134,10 @@ class HttpClient(httpx.Client):
     `X-Ratelimit-Reset`), or else `backoff` times 1, 2, 4 ... seconds (at most 60). A hint
     over `max_hint` seconds raises HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
-    `log_query=False` keeps every query string out of the logs and errors, also those of the
-    redirects it follows (a signed storage URL).
+    With `hide_paths`, errors and logs name only the method and the host, for paths that hold
+    a value from a record (the officers step's company numbers, M2.3c). `log_query=False` keeps
+    every query string out of the logs and errors, also those of the redirects it follows (a
+    signed storage URL). `describe` applies both rules.
     """
 
     def __init__(
@@ -138,6 +151,7 @@ class HttpClient(httpx.Client):
         retry_hint: RetryHint = retry_after_seconds,
         max_hint: float = 300.0,
         sleep: Sleep = time.sleep,
+        hide_paths: bool = False,
         log_query: bool = True,
         **options: Any,
     ) -> None:
@@ -150,20 +164,28 @@ class HttpClient(httpx.Client):
         self.limiter, self.retries, self.max_hint = limiter, retries, max_hint
         self.backoff = backoff
         self._retry_hint, self._sleep = retry_hint, sleep
-        self.log_query = log_query
+        self.hide_paths, self.log_query = hide_paths, log_query
         self.requests = self.retried = self.throttled = 0
+
+    def describe(self, request: httpx.Request) -> str:
+        """The request as errors and logs name it: its method and `logged_url` under this
+        client's rules (only the host with `hide_paths`, no query string without `log_query`)."""
+        url = logged_url(request.url, query=self.log_query, path=not self.hide_paths)
+        return f"{request.method} {url}"
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
-        token = _LOG_QUERY.set(self.log_query)  # read by the filter on httpx's request log
+        query = _LOG_QUERY.set(self.log_query)  # read by the filter on httpx's request log
+        paths = _HIDE_PATHS.set(self.hide_paths)
         try:
             return self._send(request, **kwargs)
         finally:
-            _LOG_QUERY.reset(token)
+            _HIDE_PATHS.reset(paths)
+            _LOG_QUERY.reset(query)
 
     def _send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
-        where = f"{request.method} {logged_url(request.url, query=self.log_query)}"
+        where = self.describe(request)
         retries = self.retries if request.method in RETRY_METHODS else 0
         for attempt in range(retries + 1):
             self.limiter.wait()
@@ -201,6 +223,6 @@ class HttpClient(httpx.Client):
         if response.status_code == 404:
             return None
         if response.is_error:
-            where = f"GET {logged_url(response.request.url, query=self.log_query)}"
+            where = self.describe(response.request)
             raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
         return response.json()

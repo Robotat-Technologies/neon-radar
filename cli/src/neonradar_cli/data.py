@@ -58,6 +58,33 @@ def selected(project: Project, profile: Profile, dataset: str | None) -> list[st
     return [dataset]
 
 
+def run_prechecks(
+    profile: Profile, command: str, report: dict[str, object], datasets: list[str]
+) -> None:
+    """Each dataset's `SourceSpec.precheck` (the UN list's written permission), after the gate
+    and before any request or build. A refusal prints the dataset, the rule and the message,
+    writes the summary with the refused datasets and exits 3: nothing is fetched or built."""
+    from neonradar_cli import summary
+    from neonradar_ingest.data import sources
+    from neonradar_ingest.data.gate import RealDataRefused
+
+    refused: dict[str, RealDataRefused] = {}
+    for slug in datasets:
+        spec = sources.source_spec(slug)
+        if spec is not None and spec.precheck is not None:
+            try:
+                spec.precheck()
+            except RealDataRefused as refusal:
+                refused[slug] = refusal
+    if not refused:
+        return
+    for slug, error in refused.items():
+        typer.echo(f"{slug}: refused (rule {error.rule}): {error.message}", err=True)
+    datasets_report = {slug: {"status": "refused", "rule": e.rule} for slug, e in refused.items()}
+    summary.emit(profile, command, {**report, "datasets": datasets_report})
+    raise typer.Exit(code=RealDataRefused.exit_code)
+
+
 @app.command(name="profiles")
 def profiles_command() -> None:
     """The profiles, whether each may run on this machine, and the datasets each enables."""
@@ -98,6 +125,7 @@ def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None
             gate.check_real_data(project, chosen, slug)
         where.dataset = None
         report: dict[str, object] = {"profile": chosen.profile, **project.summary_fields()}
+        run_prechecks(chosen, "data fetch", report, datasets)
         results: dict[str, object] = {}
         for slug in datasets:
             where.step, where.dataset = "fetch", slug
@@ -109,7 +137,14 @@ def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None
                 continue
             try:
                 with spec.client() as client:
-                    results[slug] = {"status": "ok", **download.fetch(spec, client)}
+                    fetched = download.fetch(spec, client, profile=chosen)
+                if fetched.get("products_stopped"):  # the other products downloaded
+                    typer.echo(
+                        f"{slug}: {fetched['products_stopped']} product(s) stopped", err=True
+                    )
+                    failed += 1
+                results[slug] = {"status": "partial" if fetched.get("products_stopped") else "ok",
+                                 **fetched}  # fmt: skip
             except download.DownloadError as exc:  # stop this dataset, keep what it downloaded
                 typer.echo(f"{slug}: stopped: {exc}", err=True)
                 results[slug] = {"status": "stopped", "rule": exc.rule}

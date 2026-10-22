@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Iterable, Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +20,12 @@ import duckdb
 import pyarrow as pa
 
 from neonradar_keys.addresses import address_key, address_key_from_parts
-from neonradar_keys.companies_house import ch_same_as_key
+from neonradar_keys.companies_house import ch_same_as_key as _ch_same_as_key
 from neonradar_keys.countries import country_code
 from neonradar_keys.ids import has_ch_prefix, is_valid_lei, uk_company_number, un_reference
-from neonradar_keys.names import PersonKey, org_key, person_key
+from neonradar_keys.names import OrgKey, PersonKey
+from neonradar_keys.names import org_key as _org_key
+from neonradar_keys.names import person_key as _person_key
 from neonradar_keys.postcodes import find_uk_postcode, normalise_uk_postcode
 from neonradar_resolve import policy
 from neonradar_resolve.cluster import Member
@@ -36,6 +39,22 @@ UK_REGISTERS = ("gbch-co-",)  # a Companies House number whatever the company's 
 UK_PARTY_PREFIX = "uksl-g"  # UK designations grouped by OFSI Group ID (M2.6a): whole parties
 SYNTHETIC_DATASET = "nr_synthetic"
 FEATURES_FILE = "features.duckdb"
+
+
+# The keys are pure functions; members and feature rows key the same names, so cache them.
+@lru_cache(maxsize=200_000)
+def person_key(name: str, given: str | None = None, family: str | None = None) -> PersonKey:
+    return _person_key(name, given, family)
+
+
+@lru_cache(maxsize=200_000)
+def org_key(name: str) -> OrgKey:
+    return _org_key(name)
+
+
+@lru_cache(maxsize=200_000)
+def ch_same_as_key(name: str) -> str:
+    return _ch_same_as_key(name)
 
 
 def _is_gb(record: Record) -> bool:

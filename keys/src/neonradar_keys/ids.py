@@ -6,7 +6,8 @@ import re
 
 from rigour.ids import LEI
 
-_COMPANY_NUMBER = re.compile(r"^([A-Z]{0,2})(\d+)$")
+# ASCII digits only: \d would also accept Arabic-Indic and fullwidth digits (RULES_VERSION 2).
+_COMPANY_NUMBER = re.compile(r"^([A-Z]{0,2})([0-9]+)$")
 
 # Companies House company number prefixes (bulk-sources-loading.md 2.6): the official list of
 # May 2012 plus the newer prefixes named by the community. "R0" is a prefix followed by six digits.
@@ -26,7 +27,8 @@ def uk_company_number(value: str | None, *, synthetic: bool = False) -> str | No
     letters followed by digits keep the letters and pad the digits to 8 characters in all. The
     result must be all digits or start with a Companies House prefix. The synthetic prefix "SY"
     counts only when `synthetic` is true (records of a synthetic dataset). Anything else is not a
-    UK company number.
+    UK company number, and so are numbers with non-ASCII digits or only zeros (a placeholder
+    such as "0" would link unrelated records under D1 and separate them under X3).
     """
     if not value:
         return None
@@ -36,7 +38,7 @@ def uk_company_number(value: str | None, *, synthetic: bool = False) -> str | No
         return None
     prefix, digits = match.groups()
     width = 8 - len(prefix)
-    if len(digits) > width:
+    if len(digits) > width or not digits.strip("0"):
         return None
     number = prefix + digits.zfill(width)
     if has_ch_prefix(number) or (synthetic and number.startswith(SYNTHETIC_PREFIX)):
@@ -45,8 +47,8 @@ def uk_company_number(value: str | None, *, synthetic: bool = False) -> str | No
 
 
 def has_ch_prefix(number: str) -> bool:
-    """True for an all-digit number or one that starts with a Companies House prefix."""
-    return number.isdigit() or number[:2] in CH_PREFIXES
+    """True for an all-digit (ASCII) number or one that starts with a Companies House prefix."""
+    return (number.isascii() and number.isdigit()) or number[:2] in CH_PREFIXES
 
 
 def is_valid_lei(value: str | None) -> bool:

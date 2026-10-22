@@ -56,3 +56,9 @@ def test_names_that_differ_only_by_legal_form_collide() -> None:
     ctx = Ctx(5, PERIOD, SimpleNames(), base_names={"Sorrel Tarn Freight LIMITED"})
     draws = iter(["Sorrel Tarn Freight Ltd", "Teasel Wold Freight Ltd"])
     assert ctx._unique(lambda: next(draws)) == "Teasel Wold Freight Ltd"
+
+
+def test_names_with_other_legal_forms_collide() -> None:
+    """#78 review: the namesource forms (B.V., S.a r.l., GmbH ...) count too."""
+    assert name_key("Teasel Wold Freight B.V.") == name_key("TEASEL WOLD FREIGHT LTD")
+    assert name_key("Teasel Wold Freight S.a r.l.") == name_key("Teasel Wold Freight GmbH")

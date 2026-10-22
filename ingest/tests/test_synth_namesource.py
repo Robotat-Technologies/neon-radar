@@ -2,6 +2,7 @@
 
 import itertools
 import re
+from typing import Any
 
 import numpy as np
 import pytest
@@ -194,3 +195,49 @@ def test_the_refused_invented_surnames_are_pinned(
         surname = names.invented_surname(rng, locale)
         closed = {table[i][script] for i in namesource.CLOSED}
         assert any(syllable in surname.casefold() for syllable in closed), surname
+
+
+def test_every_person_a_scenario_creates_has_an_invented_surname(
+    names: namesource.PhaseOneNames, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#78 review: over `ScenarioCtx.created`, so unlabelled donors, buyers and payers count."""
+    from neonradar_ingest.synth import ctx as ctx_module
+    from neonradar_ingest.synth import overlay, world
+
+    made: list[ctx_module.ScenarioCtx] = []
+
+    class Recording(ctx_module.ScenarioCtx):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            made.append(self)
+
+    monkeypatch.setattr(overlay, "ScenarioCtx", Recording)
+    small = world.WorldConfig(companies=40, people=60, agent_every=20, professional_every=20)
+    base = world.generate(4, small, names)
+    config = overlay.OverlayConfig(4, illicit=1, lookalikes=1)
+    records = overlay.generate(base, {"nr_synthetic": "synthetic"}, config, names).other_records
+    people = {i for s in made for i in s.created if records.get(i, {}).get("schema") == "Person"}
+    assert len(made) == 28 and len(people) > 100
+    for pid in people:
+        surname = records[pid]["properties"]["name"][0].split()[-1]
+        assert fold(surname) not in names.real_surnames, pid
+        assert any(three_syllables(loc).fullmatch(surname) for loc in namesource.LOCALES), pid
+
+
+def test_a_missing_required_faker_locale_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#78 review: a locale dropped from the surname filter is counted, a required one fails."""
+    real_import = namesource.importlib.import_module
+
+    def without_japanese(name: str) -> Any:
+        if name.endswith(".ja_JP"):
+            raise ImportError(name)
+        return real_import(name)
+
+    namesource.all_faker_surnames.cache_clear()
+    monkeypatch.setattr(namesource.importlib, "import_module", without_japanese)
+    try:
+        with pytest.raises(RuntimeError, match="ja_JP"):
+            namesource.all_faker_surnames()
+        assert "ja_JP" in namesource.DROPPED
+    finally:
+        namesource.all_faker_surnames.cache_clear()

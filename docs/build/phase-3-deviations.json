@@ -11,8 +11,8 @@
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person",
-    "sha256": "a5de74e0bcbdc07953541801970f8b6386daf93178747c97a4535d935f403488"
+    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person; #78 review notes: the collision key also strips the namesource legal forms (B.V., S.a r.l., GmbH), and the organisation-name error carries no name",
+    "sha256": "a2bb786980c2c3e74b89129c67759c514f4e34abb0160fdd122c3864d62b8c63"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",

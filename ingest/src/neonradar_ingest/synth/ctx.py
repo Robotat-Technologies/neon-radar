@@ -22,6 +22,8 @@ import numpy as np
 from neonradar_ingest.synth import records as rec
 from neonradar_ingest.synth.companies import name_key as company_name_key
 from neonradar_ingest.synth.dates import Period
+from neonradar_ingest.synth.names import fold
+from neonradar_ingest.synth.namesource import FORMS
 from neonradar_ingest.synth.streams import stream
 from neonradar_ingest.synth.writer import line
 
@@ -58,9 +60,13 @@ def letter(rng: np.random.Generator) -> str:
 
 def name_key(name: str) -> str:
     """The comparison form for name collisions: NFC, case-folded, punctuation and spaces
-    collapsed, and legal forms at either end removed, so "X Ltd" collides with "X LIMITED"
-    (Phase 1's `companies.name_key`; M3.3 review)."""
-    return company_name_key(name)
+    collapsed, and legal forms at either end removed (Phase 1's `companies.name_key`, then the
+    forms of `namesource.FORMS` such as B.V. or GmbH), so "X Ltd", "X LIMITED" and "X B.V."
+    collide (the #72 and #78 reviews; Phase 1's key, and so demo-mini, stay as they are)."""
+    key = company_name_key(name)
+    for form in sorted({fold(f) for f in FORMS.values()}, key=len, reverse=True):
+        key = key.removesuffix(f" {form}").removeprefix(f"{form} ")
+    return key
 
 
 @dataclass(slots=True)
@@ -202,7 +208,7 @@ class Ctx:
         self, key: str, name: str, *, country: str = "gb", topics: tuple[str, ...] = ()
     ) -> str:
         if name_key(name) in self.used_names:
-            raise ValueError(f"name already used: {name}")
+            raise ValueError("an organisation name is already used")  # no name in errors
         self.used_names.add(name_key(name))
         return self.add(
             rec.organization(self.rid("org", key), name, country=country, topics=list(topics))

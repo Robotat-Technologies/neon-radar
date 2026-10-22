@@ -14,7 +14,6 @@ so the loader refuses to fetch or build, besides the gate's `access.sanctions_li
 the data steward has filed the UN's written permission in `docs/data/licences/un_sc_sanctions.md`.
 """
 
-import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,7 +23,7 @@ from xml.etree.ElementTree import Element, ParseError
 from defusedxml import DefusedXmlException
 from defusedxml.ElementTree import iterparse
 
-from neonradar_contracts.records import ID_RE
+from neonradar_contracts.records import ID_RE, make_id
 from neonradar_ingest.data.gate import RealDataRefused
 from neonradar_ingest.data.profiles import Profile, register_source_model
 from neonradar_ingest.data.project import REPO_ROOT
@@ -84,6 +83,7 @@ KNOWN = frozenset(
     }
 )  # fmt: skip
 ADDRESS_PARTS = ("STREET", "CITY", "STATE_PROVINCE", "ZIP_CODE", "COUNTRY")
+MAX_ID = 120  # PHASE-1.md 4.4
 
 
 def require_permission() -> None:
@@ -208,12 +208,12 @@ def parse(path: Path) -> tuple[str | None, list[Entry], Counter[str]]:
 
 
 def party_id(reference: str) -> str:
-    """`unsc-<reference>`, or a hash when the reference breaks the C1 id alphabet (OD-11)."""
+    """`unsc-<UN reference>` (PHASE-2.md 4.4); a reference outside the C1 id alphabet goes
+    through `make_id` (C1-record.md, OD-11)."""
     candidate = f"{PREFIX}-{reference}"
-    if ID_RE.fullmatch(candidate) and len(candidate) <= 120:
+    if ID_RE.fullmatch(candidate) and len(candidate) <= MAX_ID:
         return candidate
-    digest = hashlib.sha1(reference.encode("utf-8"), usedforsecurity=False).hexdigest()[:20]
-    return f"{PREFIX}-x{digest}"
+    return make_id(PREFIX, "ref", reference)
 
 
 def _country(text: str | None, counts: Counter[str]) -> str | None:
@@ -254,16 +254,8 @@ def _birth_dates(entry: Entry, counts: Counter[str]) -> list[str]:
 def _names(entry: Entry, person: bool, props: dict[str, list[str]], counts: Counter[str]) -> None:
     """Person: the four names joined, `firstName` the first, `lastName` the last of the others;
     Organization: FIRST_NAME. QUALITY Good to alias, Low to weakAlias, empty: two or more words
-    to alias; any other quality is counted and treated as weak (never a match alone)."""
-    first = entry.names[0] if entry.names else None
-    full = join_name(entry.names) if person else first
-    if full is None:
-        return
-    props["name"] = [full]
-    if person:
-        rest = [part for part in entry.names[1:] if part]
-        props["firstName"] = [first or ""]
-        props["lastName"] = rest[-1:]
+    to alias; any other quality is counted and treated as weak (never a match alone). Without
+    name fields the first strong alias stands in; a weak alias never becomes the name."""
     aliases, weak = [entry.original or ""], []
     for quality, alias in entry.aliases:
         if quality == "good" or (not quality and len(alias.split()) >= 2):
@@ -271,6 +263,18 @@ def _names(entry: Entry, person: bool, props: dict[str, list[str]], counts: Coun
         else:
             counts["unknown_alias_qualities"] += quality not in ("", "low")
             weak.append(alias)
+    first = entry.names[0] if entry.names else None
+    full = join_name(entry.names) if person else first
+    if full is None:
+        counts["entries_without_name_fields"] += 1
+        full = next((alias for alias in aliases if alias), None)
+        if full is None:
+            return
+    elif person:
+        rest = [part for part in entry.names[1:] if part]
+        props["firstName"] = [first or ""]
+        props["lastName"] = rest[-1:]
+    props["name"] = [full]
     props["alias"] = [a for a in dict.fromkeys(aliases) if a and a != full]
     taken = {full, *props["alias"]}
     props["weakAlias"] = [w for w in dict.fromkeys(weak) if w not in taken]
@@ -313,7 +317,7 @@ def entry_records(
     props["topics"] = ["sanction"]
     _names(entry, person, props, counts)
     if not props["name"]:
-        counts["entries_without_name"] += 1
+        counts["no_strong_name"] += 1
         return []
     if person:
         _person(entry, props, counts)

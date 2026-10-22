@@ -14,6 +14,7 @@ import pytest
 from typer.testing import CliRunner
 
 from neonradar_cli.main import app
+from neonradar_contracts.records import make_id
 from neonradar_ingest.data import sources
 from neonradar_ingest.data.project import REPO_ROOT
 from neonradar_ingest.data.sources import BuildError
@@ -356,6 +357,15 @@ def test_parse_skips_duplicates_and_entries_without_reference(tmp_path: Path) ->
     records = un_sc.entry_records(entries[0], options, counts)
     assert props(records[0])["name"] == ["Nadim"]
     assert "lastName" not in props(records[0])  # one name part: no last name
+    entry = un_sc.Entry("ENTITY", "ZZE.010", aliases=[("good", "Sorrel Sike Trading Ltd")])
+    assert props(un_sc.entry_records(entry, options, counts)[0])["name"] == [
+        "Sorrel Sike Trading Ltd"
+    ]
+    weak_only = un_sc.Entry("ENTITY", "ZZE.011", aliases=[("low", "STL"), ("", "Sorrel")])
+    assert un_sc.entry_records(weak_only, options, counts) == []  # a weak alias is never a name
+    assert (counts["entries_without_name_fields"], counts["no_strong_name"]) == (2, 1)
+    assert un_sc.party_id("ZZI.010") == "unsc-ZZI.010"
+    assert un_sc.party_id("ZZ/I 10") == make_id("unsc", "ref", "ZZ/I 10")  # outside R1
 
 
 def test_parse_refuses_bad_xml(tmp_path: Path) -> None:

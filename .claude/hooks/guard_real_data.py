@@ -17,8 +17,8 @@ terminal wrappers script, expect, unbuffer and faketty are always blocked. Shell
 (curl, wget, http, https, xh, aria2c) follow the WebFetch rule below, and docker compose
 config (without --quiet or a listing flag) and docker inspect are blocked, because they
 print passwords from .env.
-Read, Grep and Glob: no path, glob or pattern may name data/cache/real, data/cache/spikes
-or data/cache/holdout.
+Read, Grep and Glob: no path, glob or pattern may name data/cache/real, data/cache/spikes,
+data/cache/holdout or data/cache/heldout.
 WebFetch: list, register and leak data files and pages about real people are blocked;
 schemas (.xsd), API descriptions (swagger, openapi) and documentation pass.
 Neo4j MCP: allowed, because the default instance holds synthetic data only (PHASE-2.md
@@ -28,6 +28,11 @@ protected like data/cache/real, and more strictly: a command line that names it 
 it, or it as the current folder) may only run the read-only git subcommands, which see
 tracked files only; listing programs and the project's own commands are blocked too.
 neonradar eval run --split test (in any position, with = or a space) is human-only.
+Held-out questions and models (PHASE-4.md G15, G16, M4.0): data/cache/heldout is closed as
+data/cache/holdout is. Human-only: copilot bench with --file, any copilot command with
+--model-router, copilot model-check unless its last --digest is empty, every ollama command
+(also through a launcher or a shell script), docker compose with the llm profile or naming
+its ollama service, and NR_COPILOT_MODEL_ROUTER set on a command line to anything but off.
 Case: macOS and Windows file systems ignore case, so data/cache/REAL is data/cache/real.
 Every path and mark is compared casefolded, and the human-only commands are matched
 without regard to case (the program name too: NeonRadar runs neonradar there).
@@ -44,11 +49,12 @@ import shlex
 import sys
 from urllib.parse import urlsplit
 
-PROTECTED = ("data/cache/real", "data/cache/spikes", "data/cache/holdout")
-MARKS = ("cache/real", "cache/spikes", "cache/holdout")
-# The human holdout run's output (PHASE-3.md G11): closed even to listing programs.
-HOLDOUT = "data/cache/holdout"
-HOLDOUT_MARK = "cache/holdout"
+PROTECTED = ("data/cache/real", "data/cache/spikes", "data/cache/holdout", "data/cache/heldout")
+MARKS = ("cache/real", "cache/spikes", "cache/holdout", "cache/heldout")
+# The human holdout run's output (PHASE-3.md G11) and the held-out questions (PHASE-4.md G16):
+# closed even to listing programs.
+CLOSED = ("data/cache/holdout", "data/cache/heldout")
+CLOSED_MARKS = ("cache/holdout", "cache/heldout")
 ANCESTORS = (".", "data", "data/cache")
 
 
@@ -91,6 +97,22 @@ HUMAN_ONLY = re.compile(
     r"|eval\s+(?:-\S+\s+)*run\b[^;&|]*?\s--split(?:=|\s+)test\b)",
     re.IGNORECASE,
 )
+# PHASE-4.md G15 and G16: the held-out run and the model are human-only (check_models)
+MODEL_SCRIPT = re.compile(
+    r"(?m)(?:^|[;&|(`'\"]|\b(?:exec|sudo|nohup|env|command)\s)[ \t]*ollama\s"
+    r"|\bneonradar(?:_cli)?\b(?:[ \t]+-\S+)*[ \t]+copilot\b[^\n;&|]*?"
+    r"(?:\s--file\b|\s--model-router\b|\smodel-check\b)"
+    r"|--profile(?:=|[ \t]+)['\"]?(?:llm|\*)|COMPOSE_PROFILES=\S*(?:llm|\*)"
+    r"|NR_COPILOT_MODEL_ROUTER=(?!['\"]?(?:0|false|off|no|n|f)?['\"]?(?:\s|$))",
+    re.IGNORECASE,
+)
+SHELLS = words("bash sh zsh dash ksh")
+LAUNCHERS = words(
+    "env nohup exec sudo doas timeout nice time xargs command watch caffeinate stdbuf"
+)
+COMPOSE_STARTS = words("up start run create pull restart exec")
+ROUTER_OFF = ("", "0", "false", "off", "no", "n", "f")
+MODEL_REASON = "the held-out run and models are human-only (PHASE-4.md G15, G16): ask a human"
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 WEB_DATA = (
     # (host, path prefix, mode): "all" blocks every path under the prefix, "files" only data files
@@ -155,10 +177,15 @@ def strip_heredocs(command):
         tokens = re.findall(r"[A-Za-z0-9_.\-/]+", before.split("|")[-1])
         names = {os.path.basename(w) for w in tokens} & INTERPRETERS
         text = "\n".join(body)
-        if names and (marked(text) or REAL_INSTANCE.search(text) or HUMAN_ONLY.search(text)):
+        if names and (
+            marked(text)
+            or REAL_INSTANCE.search(text)
+            or HUMAN_ONLY.search(text)
+            or MODEL_SCRIPT.search(text)
+        ):
             block(
                 "a script fed to " + ", ".join(sorted(names)) + " names real data, the real "
-                "Neo4j instance or a human-only command"
+                "Neo4j instance, the held-out questions, a model command or a human-only command"
             )
     return "\n".join(kept)
 
@@ -168,7 +195,8 @@ def split_commands(command):
     lexer.whitespace_split = True
     commands, current = [], []
     for token in lexer:
-        if token in OPERATORS or set(token) <= set("&|;()"):
+        # an empty argument ("") is a token, not an operator (PHASE-4.md M4.0: --digest "")
+        if token in OPERATORS or (token and set(token) <= set("&|;()")):
             if current:
                 commands.append(current)
             current = []
@@ -225,8 +253,10 @@ def inside(rel, folders=PROTECTED):
 
 
 def names_holdout(token, cwd):
-    """True when a token names data/cache/holdout or something inside it (PHASE-3.md G11)."""
-    return HOLDOUT_MARK in token.casefold() or inside(relative(token, cwd), (HOLDOUT,))
+    """True when a token names data/cache/holdout or data/cache/heldout, or something inside
+    either (PHASE-3.md G11, PHASE-4.md G16)."""
+    folded = token.casefold()
+    return any(m in folded for m in CLOSED_MARKS) or inside(relative(token, cwd), CLOSED)
 
 
 def glob_reaches(pattern, protected, double_star=True):
@@ -393,10 +423,70 @@ def walk(commands, cwd):
     return out
 
 
+def copilot_args(tokens):
+    """The arguments after `neonradar [options] copilot` on a command (casefolded), or None."""
+    for i, token in enumerate(tokens):
+        if os.path.basename(token) not in ("neonradar", "neonradar_cli"):
+            continue
+        j = i + 1
+        while j < len(tokens) and tokens[j].startswith("-"):
+            j += 1
+        if j < len(tokens) and tokens[j] == "copilot":
+            return tokens[j + 1 :]
+    return None
+
+
+def has_flag(args, flag):
+    return any(a == flag or a.startswith(flag + "=") for a in args)
+
+
+def last_value(args, flag):
+    """The value of the last `flag VALUE` or `flag=VALUE` in args, or None."""
+    value = None
+    for i, arg in enumerate(args):
+        if arg == flag:
+            value = args[i + 1] if i + 1 < len(args) else None
+        elif arg.startswith(flag + "="):
+            value = arg.split("=", 1)[1]
+    return value
+
+
+def check_models(tokens):
+    """PHASE-4.md G15 and G16: the held-out run, the model router and the model runtime are
+    human-only. Matched without regard to case, as the other human-only commands are."""
+    tokens = [t.casefold() for t in tokens]
+    name, args = program(tokens)
+    rest = copilot_args(tokens) or []
+    profiles = [b for a, b in zip(tokens, tokens[1:]) if a == "--profile"]
+    profiles += [t.partition("=")[2] for t in tokens if t.startswith("--profile=")]
+    for key, _, value in (t.partition("=") for t in tokens):
+        if key == "compose_profiles" and {"llm", "*"} & set(value.split(",")):
+            block(MODEL_REASON)
+        if key == "nr_copilot_model_router" and value.strip() not in ROUTER_OFF:
+            block(MODEL_REASON)
+    compose = args[1:] if name == "docker" and args[:1] == ["compose"] else None
+    compose = args if name == "docker-compose" else compose
+    sub = compose_subcommand(compose) if compose is not None else None
+    if (
+        name == "ollama"
+        or (name == "uv" and uv_run_target(args) == "ollama")
+        or (name in LAUNCHERS and "ollama" in [os.path.basename(a) for a in args])
+        or ((name in SHELLS or name == "eval") and MODEL_SCRIPT.search("\n".join(args)))
+        or has_flag(rest, "--model-router")
+        or ("bench" in rest and has_flag(rest, "--file"))
+        or ("model-check" in rest and last_value(rest, "--digest") != "")
+        or (compose is not None and {"llm", "*"} & set(profiles))
+        or (sub in COMPOSE_STARTS and "ollama" in compose[compose.index(sub) + 1 :])
+    ):
+        block(MODEL_REASON)
+
+
 def check_bash(command, cwd):
     command = strip_heredocs(command)
     commands = parse(command)
     if commands is None:
+        if MODEL_SCRIPT.search(command):
+            block(MODEL_REASON)
         if marked(command) or REAL_INSTANCE.search(command):
             block(
                 "could not parse a command that names real data or the real Neo4j instance; "
@@ -410,7 +500,7 @@ def check_bash(command, cwd):
             line_touches = True
         if any(touches(t, here) for t in checked_tokens(tokens)):
             line_touches = True
-        if inside(relative(here, None), (HOLDOUT,)) or any(
+        if inside(relative(here, None), CLOSED) or any(
             names_holdout(t, here) for t in checked_tokens(tokens)
         ):
             line_holdout = True
@@ -427,6 +517,7 @@ def check_bash(command, cwd):
                 "human-only commands; ask the operator to run them in a terminal "
                 "(PHASE-2.md G10, PHASE-3.md G11)"
             )
+        check_models(checked_tokens(tokens))
         if name in FETCHERS:
             for arg in args:
                 if "://" in arg:
@@ -471,9 +562,9 @@ def check_bash(command, cwd):
                 paths.append(".")
             if any(relative(a, here) in ANCESTORS or touches(a, here) for a in paths):
                 block(
-                    name + " would read into data/cache/real, data/cache/spikes or "
-                    "data/cache/holdout; use `git grep`, or name a folder that does not "
-                    "contain them"
+                    name + " would read into data/cache/real, data/cache/spikes, "
+                    "data/cache/holdout or data/cache/heldout; use `git grep`, or name a "
+                    "folder that does not contain them"
                 )
         if REAL_INSTANCE.search(text) and not allowed_on_real_instance(name, args):
             block(
@@ -485,8 +576,10 @@ def check_bash(command, cwd):
         if line_holdout and not allowed_on_holdout(name, args):
             block(
                 "'" + name + "' on a command line that names data/cache/holdout, where the "
-                "human holdout run writes (PHASE-3.md G11). Nothing but read-only git "
-                "subcommands may name it; never generate, list or read a holdout world"
+                "human holdout run writes (PHASE-3.md G11), or data/cache/heldout, where the "
+                "held-out questions live (PHASE-4.md G16). Nothing but read-only git "
+                "subcommands may name them; never generate, list or read a holdout world or a "
+                "held-out question"
             )
         if line_touches and not allowed_on_real(name, args):
             block(
@@ -511,8 +604,8 @@ def check_paths(tool, tool_input, cwd):
         value = value.replace("\\", "/")
         if marked(value):
             block(
-                tool + " may not name data/cache/real, data/cache/spikes or data/cache/holdout "
-                "(PHASE-2.md G9, PHASE-3.md G11)"
+                tool + " may not name data/cache/real, data/cache/spikes, data/cache/holdout or "
+                "data/cache/heldout (PHASE-2.md G9, PHASE-3.md G11, PHASE-4.md G16)"
             )
         if key == "glob":
             continue
@@ -520,8 +613,8 @@ def check_paths(tool, tool_input, cwd):
         rel = relative(full, None)
         if marked(full) or inside(rel):
             block(
-                tool + " may not read data/cache/real, data/cache/spikes or data/cache/holdout "
-                "(PHASE-2.md G9, PHASE-3.md G11)"
+                tool + " may not read data/cache/real, data/cache/spikes, data/cache/holdout or "
+                "data/cache/heldout (PHASE-2.md G9, PHASE-3.md G11, PHASE-4.md G16)"
             )
         if tool == "Grep" and key == "path" and rel in ANCESTORS[1:]:
             block("Grep over data/ or data/cache/ could reach real data; name another folder")
@@ -531,8 +624,8 @@ def check_paths(tool, tool_input, cwd):
             and any(glob_reaches(rel, p, double_star=False) for p in PROTECTED)
         ):
             block(
-                tool + " pattern can reach data/cache/real, data/cache/spikes or "
-                "data/cache/holdout (PHASE-2.md G9, PHASE-3.md G11)"
+                tool + " pattern can reach data/cache/real, data/cache/spikes, data/cache/holdout "
+                "or data/cache/heldout (PHASE-2.md G9, PHASE-3.md G11, PHASE-4.md G16)"
             )
 
 

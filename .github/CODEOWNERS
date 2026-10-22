@@ -51,3 +51,16 @@
 /docs/data/detection/                          @neonradar/nr-detect
 /.claude/rules/detect.md                       @robotat-com
 /.claude/rules/synth.md                        @robotat-com
+/copilot/bench/                                @neonradar/nr-copilot @robotat-com
+/data/fixtures/copilot-bench/                  @neonradar/nr-copilot @robotat-com
+/docs/benchmark-questions.md                   @neonradar/nr-copilot @robotat-com
+/copilot/src/neonradar_copilot/policy.py       @neonradar/nr-copilot @robotat-com
+/copilot/src/neonradar_copilot/evidence.py     @neonradar/nr-copilot @robotat-com
+/copilot/src/neonradar_copilot/audit.py        @neonradar/nr-copilot @robotat-com
+/contracts/wording/copilot-notice-v1.txt       @neonradar/nr-copilot @robotat-com
+/graph/src/neonradar_graph/readonly.py         @neonradar/nr-graph @neonradar/nr-copilot
+/copilot/src/neonradar_copilot/queries/        @neonradar/nr-graph @neonradar/nr-copilot
+/api/src/neonradar_api/queries/                @neonradar/nr-graph @neonradar/nr-copilot
+/api/src/neonradar_api/hardening.py            @neonradar/nr-copilot @robotat-com
+/docs/copilot/                                 @neonradar/nr-docs @neonradar/nr-copilot
+/docs/team/assignment-5.md                     @neonradar/nr-docs @neonradar/nr-copilot

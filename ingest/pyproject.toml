@@ -5,6 +5,7 @@ description = "NeonRadar ingestion: source loaders, spikes and the synthetic gen
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
 dependencies = [
+    "defusedxml==0.7.*",
     "faker>=40.43,<41",
     "followthemoney>=4.11,<5",
     "httpx>=0.28,<0.29",

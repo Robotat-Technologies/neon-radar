@@ -439,6 +439,9 @@ class ScenarioCtx:
         self.typology = typology
         self.lookalike = lookalike
         self.created: set[str] = set()
+        # Payments and relationships it made: kept apart from `created`, which a scenario module
+        # may read (cash_commingling keys a stream on its size), so owning them moves no draw.
+        self.links: set[str] = set()
         self.core_payments: list[tuple[str, str, bool]] = []  # (payment id, role, is_core)
         self.roles: dict[str, tuple[str, bool]] = {}  # object id -> (role, is_core)
         self._n = 0
@@ -452,11 +455,15 @@ class ScenarioCtx:
 
     def _check(self, *ids: str) -> None:
         for i in ids:
-            if i not in self.created and i not in self.ctx.branches:
+            if i not in self.created and i not in self.links and i not in self.ctx.branches:
                 raise PermissionError(f"scenario {self.scenario_id} may not use {i}")
 
     def _own(self, rid: str) -> str:
         self.created.add(rid)
+        return rid
+
+    def _link(self, rid: str) -> str:
+        self.links.add(rid)
         return rid
 
     @property
@@ -488,48 +495,48 @@ class ScenarioCtx:
 
     def pay(self, src: str, dst: str, amount: float, moment: datetime, **kw: Any) -> str:
         self._check(src, dst)
-        return self._own(self.ctx.pay(self._key("pay"), src, dst, amount, moment, **kw))
+        return self._link(self.ctx.pay(self._key("pay"), src, dst, amount, moment, **kw))
 
     def owns(self, owner: str, asset: str, **kw: Any) -> str:
         self._check(owner, asset)
-        return self._own(self.ctx.owns(self._key("own"), owner, asset, **kw))
+        return self._link(self.ctx.owns(self._key("own"), owner, asset, **kw))
 
     def director(self, person: str, org: str, **kw: Any) -> str:
         self._check(person, org)
-        return self._own(self.ctx.director(self._key("dir"), person, org, **kw))
+        return self._link(self.ctx.director(self._key("dir"), person, org, **kw))
 
     def represents(self, agent: str, client: str) -> str:
         self._check(agent, client)
-        return self._own(self.ctx.represents(self._key("rep"), agent, client))
+        return self._link(self.ctx.represents(self._key("rep"), agent, client))
 
     def family(self, person: str, relative: str, relationship: str = "sibling") -> str:
         self._check(person, relative)
-        return self._own(self.ctx.family(self._key("fam"), person, relative, relationship))
+        return self._link(self.ctx.family(self._key("fam"), person, relative, relationship))
 
     def control(self, controller: str, controlled: str, **kw: Any) -> str:
         self._check(controller, controlled)
-        return self._own(self.ctx.control(self._key("ctl"), controller, controlled, **kw))
+        return self._link(self.ctx.control(self._key("ctl"), controller, controlled, **kw))
 
     def associate(self, person: str, other: str, relationship: str = "business partner") -> str:
         self._check(person, other)
-        return self._own(self.ctx.associate(self._key("assoc"), person, other, relationship))
+        return self._link(self.ctx.associate(self._key("assoc"), person, other, relationship))
 
     def position(self, name: str, *, country: str) -> str:
         return self._own(self.ctx.position(self._key("pos"), name, country=country))
 
     def occupancy(self, person: str, position: str, *, start: date, end: date | None = None) -> str:
         self._check(person, position)
-        return self._own(
+        return self._link(
             self.ctx.occupancy(self._key("occ"), person, position, start=start, end=end)
         )
 
     def consolidates(self, parent: str, child: str) -> str:
         self._check(parent, child)
-        return self._own(self.ctx.consolidates(self._key("cons"), parent, child))
+        return self._link(self.ctx.consolidates(self._key("cons"), parent, child))
 
     def sanction(self, entity: str, *, start: date) -> str:
         self._check(entity)
-        return self._own(self.ctx.sanction(self._key("san"), entity, start=start))
+        return self._link(self.ctx.sanction(self._key("san"), entity, start=start))
 
     # labels ------------------------------------------------------------------------------------
 

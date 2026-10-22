@@ -33,7 +33,7 @@ The validator rejects other schemata (rule R3). A loader that meets one skips it
 | R3 | The schema is one of the v1 schemata; `followthemoney.model[schema].validate(record)` passes; every property in `schema.required` is present and non-empty (FtM's own validator does not check missing required properties); every property name exists on the schema (FtM would drop unknown ones without a word). |
 | R4 | Entity-typed properties hold record ids (a value FtM cannot store fails here too). Ids are unique within a load; a duplicate fails in every mode and never replaces the first record. References may point to records in other files of the same load. The graph loader reports dangling references; in strict mode (fixtures, CI) any dangling reference fails, and so does a reference to a record of the wrong schema: each must point to the FtM range of its property (for example `payerAccount` to a `BankAccount`, `payer` and `owner` to a `LegalEntity`, `addressEntity` to an `Address`), except that an `Ownership` asset may be an `Asset` or any `LegalEntity`. |
 | R5 | `Payment.date` is a full UTC timestamp `YYYY-MM-DDTHH:MM:SS` without an offset. All other dates (date-typed properties and `first_seen`, `last_seen`, `last_change`) are ISO 8601 and may be partial (`1979`, `1979-08`). |
-| R6 | Synthetic consistency: dataset `nr_synthetic` if and only if id prefix `syn` if and only if `nr.synthetic` is `true`. Synthetic records must carry `nr`. Non-synthetic records must not set `nr.synthetic` (and `nr.synthetic_kind` is only used on synthetic records, an `NR` placement rule). A synthetic `Sanction`, `Family`, `Associate` or `Occupancy` references only synthetic records (prefix `syn`) on every entity reference, because C2 would otherwise mark a real entity as sanctioned (`SUBJECT_OF`), make a real person a relative or close associate of someone, such as a politically exposed person (`FAMILY_OF`, `ASSOCIATE_OF`), or give a real person a post (`HOLDS_POSITION`) (guardrail G1). The prefix decides, so the check runs per record in strict and non-strict mode. Other synthetic records may reference real ones (an `Ownership`, `Directorship`, `Representation`, `Membership` or `BankAccount` holding: background activity, G1). |
+| R6 | Synthetic consistency: dataset `nr_synthetic` if and only if id prefix `syn` if and only if `nr.synthetic` is `true`. Synthetic records must carry `nr`. Non-synthetic records must not set `nr.synthetic` (and `nr.synthetic_kind` is only used on synthetic records, an `NR` placement rule). A synthetic `Sanction`, `Family`, `Associate` or `Occupancy` references only synthetic records (prefix `syn`) on every entity reference, because C2 would otherwise mark a real entity as sanctioned (`SUBJECT_OF`), make a real person a relative or close associate of someone, such as a politically exposed person (`FAMILY_OF`, `ASSOCIATE_OF`), or give a real person a post (`HOLDS_POSITION`) (guardrail G1). The prefix decides, so the check runs per record in strict and non-strict mode. Other synthetic records may reference real ones (an `Ownership`, `Directorship`, `Representation`, `Membership` or `BankAccount` holding: background activity, G1). Since 1.1.0 the same holds for a synthetic `Ownership` that sets `nr.is_nominee` and a synthetic `Control` that sets any `nr.share_pct_*` key: `OWNS.is_nominee` would call a real owner a nominee, and a `CONTROLS` voting band would describe a real entity's control. |
 | R7 | `Payment` records (synthetic only in v1) have exactly one each of `payer`, `beneficiary`, `payerAccount`, `beneficiaryAccount`, `amount` (decimal string, at most two decimals, greater than zero), `currency` (an ISO 4217 code in upper case, checked against Babel's CLDR list) and `date` (format in R5), plus `nr.channel`. |
 | R8 | Every `BankAccount` is the `asset` of at least one `Ownership` whose `owner` is a `LegalEntity` in the same load (this becomes `HOLDS_ACCOUNT`). Synthetic account numbers use the form `NRSYN` plus 10 digits, and synthetic records never set `iban` or `bic`, so no synthetic account can collide with a real one. |
 | R9 | No ground-truth labels anywhere in records, including `nr`: no typology, scenario, role-in-scenario or "illicit" field. Labels live in separate label files (Phase 3). The validator rejects any top-level key, `nr` key or property name that contains `typolog`, `scenario`, `illicit`, `lookalike`, `ground truth` or `label`, and any `topics` value on a synthetic record other than the three that set C2 flags (`sanction`, `role.pep`, `role.rca`). |
@@ -44,7 +44,7 @@ Two more issue codes cover the envelope and the extension:
 | Code | Meaning |
 |---|---|
 | `FORMAT` | A line is not one JSON object (reported with file and line number), a top-level key is unknown, or `caption` or `referents` has the wrong type. |
-| `NR` | The `nr` object is malformed: not an object, an unknown key, a wrong value type, a missing `v`, a key on a schema the table below does not list (or `synthetic_kind` on a non-synthetic record), an `address_roles` key that is not in `addressEntity`, or `share_pct_min` greater than `share_pct_max`. |
+| `NR` | The `nr` object is malformed: not an object, an unknown key, a wrong value type, a missing `v`, a key on a schema the table below does not list (or `synthetic_kind` on a non-synthetic record, or `ch_person_number` on a record of a dataset other than `gb_companies_house` or `nr_synthetic`), an `address_roles` key that is not in `addressEntity`, or `share_pct_min` greater than `share_pct_max`. |
 
 The validator reports each problem once. It does not report a rule whose input already failed another rule: for example, an id whose prefix does not fit its dataset fails R1 only, not R6 as well, and a Payment date FtM cannot parse fails R5 once. Python `re` patterns end with `\Z`; pydantic field patterns end with `$`, which pydantic's engine matches only at the very end. Either way, a value with a trailing newline fails. Digits are ASCII: patterns use `[0-9]`, never `\d`, which Python reads as any Unicode digit (an amount or account number in Arabic-Indic digits once passed R7 and R8). In the exported JSON Schemas only the fixed-length fields also reject it under Python's jsonschema (see the manifest below); fields with a pattern but no fixed length rely on the model there.
 
@@ -52,7 +52,7 @@ The validator reports each problem once. It does not report a rule whose input a
 
 FtM stores a reference only if it matches `^[0-9a-zA-Z]([0-9a-zA-Z.-]*[0-9a-zA-Z])?$`. Its `add()` drops any other value without a word, and its validator rejects it. The spec's first R1 allowed `_` and `:` in the `rest` of an id, so some valid ids could never be referenced. R1 now allows letters, digits, dots and hyphens in `rest`, ending in a letter or digit, so every valid id can be referenced. The decision was taken by the orchestrating session on the operator's standing instruction, pending tech lead sign-off at Gate 1 (`docs/build/operator-decisions.md` OD-10, OD-11; [CHANGELOG.md](CHANGELOG.md)).
 
-**Loaders build every id from a source identifier with one rule, `neonradar_contracts.records.make_id(prefix, kind, native)`:**
+**Loaders build every id from a source identifier with one rule, `neonradar_contracts.records.make_id(prefix, kind, native)`, except the list-loader forms listed in [Changes in 1.1.0](#changes-in-110):**
 
 1. `<prefix>-<kind>-<native>`, where `prefix` is the dataset's `id_prefix`, `kind` is a short lower-case word for the record type (for example `co`, `off`, `psc`), and each `_` in `native` becomes `.`.
 2. If that still breaks R1 (another character outside `[A-Za-z0-9.-]`, a last character that is not a letter or digit, or more than 100 characters after the prefix), the id is `<prefix>-<kind>-<first 20 hex characters of SHA-1(native)>` instead.
@@ -77,7 +77,7 @@ A closed set of keys; unknown keys fail validation (`NR`, or `R9` if the key loo
 | `share_pct_min_exclusive`, `share_pct_max_exclusive` | boolean (1.1.0) | `Ownership`, `Control` | `true` when that bound is excluded ("more than 25%", "less than 75%"); absent means included |
 | `is_nominee` | boolean | `Directorship`, `Ownership` (1.1.0) | True for nominee roles (for example Companies House `nominee-director`); on `Ownership`, the source names the owner as a nominee shareholder |
 | `consolidation` | `"direct"` or `"ultimate"` | `Ownership` | GLEIF accounting consolidation parent; becomes `CONSOLIDATES`, not `OWNS` |
-| `ch_person_number` | string (1.1.0) | any `LegalEntity` (`Person` included) | The Companies House officer resource's `person_number`, unchanged |
+| `ch_person_number` | string (1.1.0) | any `LegalEntity` (`Person` included) of dataset `gb_companies_house` or `nr_synthetic` | The Companies House officer resource's `person_number`, unchanged |
 | `psc_statements` | list of strings (1.1.0) | `Company` | Raw PSC statement values, exemption keys and super-secure kinds, sorted, unchanged |
 | `accounts_category` | string (1.1.0) | `Company` | The raw accounts category from the Free Company Data Product (for example `DORMANT`) |
 
@@ -124,7 +124,7 @@ Three lines of `contracts/examples/c1/demo.ftm.jsonl` (all synthetic; the file h
 - `kind` (optional, 1.1.0): `registry`, `list`, `leak` or `synthetic`. The resolver's policies read it (`docs/build/PHASE-2.md` 7.1.1).
 - `anchor_priority` (optional, 1.1.0): an integer, 1 first, unique in the registry (`load_registry()` refuses a duplicate): the order in which a canonical entity picks its anchor record (7.1.6).
 - `commercial_use`: `allowed`, `licence-required` or, since 1.1.0, `permission-required` (the UN list: load only with the publisher's written permission).
-- `status` says whether a production loader exists (`active`), only a Phase 1 spike (`spike`), or a contract change must come first (`blocked`). Whether a source runs is decided by `access.*` in `docs/build/project.yaml` and the profile, never by `status`.
+- `status` says whether a production loader exists or is built in the current phase (`active`), only a Phase 1 spike exists (`spike`), or the status must change through a contract change before the dataset may run (`blocked`). Whether a source runs is decided by `access.*` in `docs/build/project.yaml` and the profile, never by `status`.
 
 ## How to write a loader that emits C1
 
@@ -133,11 +133,13 @@ Three lines of `contracts/examples/c1/demo.ftm.jsonl` (all synthetic; the file h
    ```python
    import json
    from followthemoney import ValueEntity, model
+   from neonradar_contracts import versions
 
    entity = ValueEntity(model["Company"], {"id": "gbch-co-T0000001", "datasets": ["gb_companies_house"]})
    entity.add("name", "...")                       # values are cleaned; invalid ones are dropped
    entity.add("incorporationDate", "...")          # from the source record
-   line = json.dumps({**entity.to_dict(), "nr": {"v": "1.0", "source_ref": "T0000001"}}, ensure_ascii=False)
+   nr_v = ".".join(versions.RECORD.split(".")[:2])  # nr.v is the major.minor: "1.1" since 1.1.0
+   line = json.dumps({**entity.to_dict(), "nr": {"v": nr_v, "source_ref": "T0000001"}}, ensure_ascii=False)
    ```
 
 2. Build ids with `make_id(prefix, kind, native)` (above), and use the same ids in references.
@@ -172,7 +174,7 @@ Additive (a minor version under `docs/build/PHASE-1.md` 5.0): no key is renamed 
 
 | Key | Type | Used on | Meaning |
 |---|---|---|---|
-| `ch_person_number` | string | `Person` and `LegalEntity` records from the Companies House officers API (the validator allows it on any `LegalEntity`) | The officer resource's `person_number`, unchanged (rule D3 uses its first 8 characters) |
+| `ch_person_number` | string | `Person` and `LegalEntity` records from the Companies House officers API (the validator allows it on any `LegalEntity` of `gb_companies_house` or `nr_synthetic`, so no list or leak record can reach rule D3 through it) | The officer resource's `person_number`, unchanged (rule D3 uses its first 8 characters) |
 | `psc_statements` | list of strings | `Company` | Raw PSC statement values, exemption keys and super-secure kinds from the PSC snapshot, sorted, unchanged (including the source's own spelling, for example `no-individual-or-entity-with-signficant-control`) |
 | `accounts_category` | string | `Company` | The raw accounts category from the Free Company Data Product (for example `DORMANT`) |
 | `share_pct_min_exclusive` | boolean | `Ownership`, `Control` | `true` when the lower bound `share_pct_min` is excluded ("more than 25%"); absent means included |
@@ -189,6 +191,8 @@ Additive (a minor version under `docs/build/PHASE-1.md` 5.0): no key is renamed 
 The statutory Companies House bands are `(25, 50]`, `(50, 75)` and `[75, 100]`, and `(25, 100]` for overseas entities ("more than 25% but not more than 50%", "more than 50% but less than 75%", "75% or more"). The Companies House loader sets the bounds and the two flags from the band, on `Ownership` for shares and surplus assets and on `Control` for voting rights; the synthetic generators set them the same way; other sources leave the flags absent. The validator still checks only that `share_pct_min` is not greater than `share_pct_max`.
 
 **Version fields.** `nr.v` accepts `"1.0"` and `"1.1"`; Phase 2 loaders write `"1.1"`. The manifest's `record_contract` accepts `"1.0.0"` and `"1.1.0"` (the pattern `MAJOR.MINOR.PATCH` already did); `write_manifest()` writes `versions.RECORD`, now `"1.1.0"`.
+
+**R6 for the wider keys.** A synthetic `Ownership` that sets `nr.is_nominee`, or a synthetic `Control` that sets any of `share_pct_min`, `share_pct_max`, `share_pct_min_exclusive` and `share_pct_max_exclusive`, references only synthetic records (prefix `syn`) on every entity reference, like a synthetic `Sanction`, `Family`, `Associate` or `Occupancy`: C2 would otherwise call a real owner a nominee or give a real entity a voting band. Without these keys, synthetic `Ownership` and `Control` records may still name real records (background activity). Orchestrator decision under OD-10, for the tech lead at the M2.1a review.
 
 **Id forms of the list loaders.** R1 needs only `<prefix>-<rest>`. The sanctions and Parliament loaders (M2.6) use the id forms of `docs/build/PHASE-2.md` 4.4, some of which have no kind segment (`uksl-g<OFSI group id>`, `uksl-<unique id>`, `ofac-<uid>`, `unsc-<UN reference number>`, `eufsf-<logicalId>`, `ukparl-<member id>`); every other id, and any native id outside the R1 alphabet, goes through `make_id`. These forms are allowed alongside `make_id` (orchestrator decision under operator decision OD-10, `docs/build/phase-2-reconciliation.md` B6; tech lead sign-off at the M2.1a review).
 

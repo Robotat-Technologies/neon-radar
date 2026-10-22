@@ -469,6 +469,7 @@ def check_models(tokens):
     sub = compose_subcommand(compose) if compose is not None else None
     if (
         name == "ollama"
+        or (name == "uv" and uv_run_target(args) == "ollama")
         or (name in LAUNCHERS and "ollama" in [os.path.basename(a) for a in args])
         or ((name in SHELLS or name == "eval") and MODEL_SCRIPT.search("\n".join(args)))
         or has_flag(rest, "--model-router")

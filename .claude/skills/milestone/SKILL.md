@@ -13,7 +13,7 @@ Current state:
 1. The spec is docs/build/PHASE-<n>.md where <n> is the number after "M". If you have not
    read its sections 0, 2, 3, 4 and 5 in this session, read them now. Then read only the
    section for $ARGUMENTS and whatever it links to, plus the parent section of a
-   sub-milestone (M2.1, M2.3, M2.6, M2.10 and M3.5 hold shared rules and build steps; 2.2
+   sub-milestone (M2.1, M2.3, M2.6, M2.10, M3.5 and M4.3 hold shared rules and build steps; 2.2
    step 2). For an M3.x id, also read the milestone's section of the code book,
    docs/build/PHASE-3-CODE.md (`## M3.x ...`; both parts of M3.4 use `## M3.4`), and
    docs/build/phase-3-reconciliation.md for every seam the milestone adapts (PHASE-3.md 2.10).

@@ -85,7 +85,7 @@ Each Python package: <dir>/src/neonradar_<dir>/, tests in <dir>/tests/, notes in
 ## Non-negotiable rules (Phase 2 additions)
 9. No inferred flags (G8): flags and topics come only from a node's own source records;
    listed and leaked records merge only as PHASE-2.md 7.1.4 allows, otherwise by a
-   POSSIBLY_SAME_AS link, always described as "not confirmed" (.claude/rules/er.md).
+   POSSIBLY_SAME_AS link, always described as "not confirmed" (PHASE-2.md G8, 7.1.4).
 10. Never read real data (G9): never open, print, grep, fetch or query data/cache/real/,
     data/cache/spikes/ or the neo4j-real instance (ports 7475, 7688); real-data commands
     print counts only (.claude/rules/real-data.md; guard_real_data.py enforces it).

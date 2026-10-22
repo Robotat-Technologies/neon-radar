@@ -207,6 +207,8 @@ BLOCK = [
     'uv run neonradar copilot model-check --digest "" --digest 0f3c',
     "OLLAMA_NO_CLOUD=1 nohup ollama serve",
     "/usr/local/bin/ollama run qwen3:4b-instruct-2507-q4_K_M",
+    "uv run ollama serve",
+    "uv run -- ollama pull qwen3:4b-instruct-2507-q4_K_M",
     'bash -c "ollama pull qwen3:8b-q4_K_M"',
     "docker compose --profile=llm up -d",
     "COMPOSE_PROFILES=llm docker compose up -d",

@@ -7,8 +7,9 @@ orjson; a line without `company_number` is a totals record, used as a completene
 (note 3.2). Pass 1 (`psc-index`) writes `corporate_pscs.sqlite`; pass 2 (`psc`) writes the
 PSC, `Ownership` and `Control` records of the slice companies. Unknown kinds and natures of
 control are counted by value, never dropped silently. Only the fields in the M2.3b table are
-read: the title, a usual residential address and any day of birth never are. Messages and
-counts name parts, kinds and enumeration values, never a value from a record.
+read: a usual residential address and any day of birth never are, and the title is removed
+from the front of an individual's `name`. Messages and counts name parts, kinds and
+enumeration values, never a value from a record.
 """
 
 import hashlib
@@ -65,6 +66,24 @@ ADDRESS = (
     "postal_code",
     "country",
 )
+# Counters the summary always shows, also when zero (as M2.3a's `records.COUNTED`).
+INDEX_COUNTED = ("ceased_skipped", "statements_ceased_skipped", "super_secure_ceased_skipped")
+READ_COUNTED = ("lines_read", "lines_malformed", "totals_lines")
+PSC_COUNTED = (
+    "beneficial_owners_sanctioned",
+    "ceased_skipped",
+    "duplicate_pscs",
+    "lines_not_psc",
+    "lines_other_companies",
+    "nationalities_unmapped",
+    "natures_unknown",
+    "psc_address_country_unmapped",
+    "pscs_without_address_key",
+    "pscs_without_id",
+    "pscs_without_known_nature",
+    "pscs_without_name",
+    "titles_removed",
+)
 VALUE_RE = re.compile(r"[a-z0-9][a-z0-9 ._#:/()&,'-]{0,79}\Z")  # a `_by_value` key (M2.2)
 BATCH = 10_000
 
@@ -116,7 +135,7 @@ class Reader:
 
     def __init__(self, parts: Sequence[Path]) -> None:
         self.parts = parts
-        self.stats: Counter[str] = Counter()
+        self.stats: Counter[str] = Counter(dict.fromkeys(READ_COUNTED, 0))
         self.totals: int | None = None
 
     def __iter__(self) -> Iterator[Line]:
@@ -184,28 +203,36 @@ def _read_only(path: Path) -> sqlite3.Connection:
 
 
 def build_index(
-    parts: Sequence[Path], path: Path, company_index: Path, include_ceased: bool
+    parts: Sequence[Path], path: Path, company_index: Path, include_ceased: bool, version: str
 ) -> tuple[dict[str, Any], str]:
     """The `psc-index` step (deliverable 6): counts and the totals check.
 
     Table `corporate_psc` gets every corporate and legal-person PSC (a ceased one only with
     `include_ceased`, as the `psc` step loads them) with its outcome and normalised number;
     table `statement` every statement value without `ceased_on`, super-secure kind and
-    exemption key. Indexes are created before the inserts and temporary storage stays in
-    memory, so SQLite never sorts values into a file outside the work folder.
+    exemption key; table `meta` the snapshot `version`. Indexes are created before the inserts
+    and temporary storage stays in memory, so SQLite never sorts values into a file outside
+    the work folder.
     """
     reader = Reader(parts)
     stats = reader.stats
+    stats.update(dict.fromkeys(INDEX_COUNTED, 0))
     names_of = ("kinds", "unknown_kinds", "unknown_natures", "countries")
     by: dict[str, Counter[str]] = {name: Counter() for name in names_of}
     outcomes: Counter[str] = Counter()
     temporary = path.with_name(path.name + ".tmp")
     temporary.unlink(missing_ok=True)
     index = _read_only(company_index)
-    connection = sqlite3.connect(temporary)
+    try:
+        connection = sqlite3.connect(temporary)
+    except BaseException:
+        index.close()
+        raise
     try:
         for pragma in ("journal_mode=OFF", "synchronous=OFF", "temp_store=MEMORY"):
             connection.execute(f"PRAGMA {pragma}")
+        connection.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)")
+        connection.execute("INSERT INTO meta VALUES ('version', ?)", (version,))
         connection.execute(
             "CREATE TABLE corporate_psc(company_number TEXT, psc_id TEXT, outcome TEXT,"
             " number TEXT)"
@@ -259,14 +286,14 @@ def build_index(
         ).fetchone()[0]
         stats["statement_rows"] = connection.execute("SELECT count(*) FROM statement").fetchone()[0]
         connection.commit()
+        connection.close()
+        temporary.replace(path)
     except BaseException:
         connection.close()
         temporary.unlink(missing_ok=True)  # it holds the rows read so far
         raise
     finally:
         index.close()
-    connection.close()
-    temporary.replace(path)
     unmapped = by["countries"].pop("", 0)
     counts: dict[str, Any] = {
         "parts": len(parts),
@@ -348,6 +375,7 @@ class PscWriter(records.Writer):
 
     def __init__(self, known_addresses: set[str]) -> None:
         super().__init__(None)
+        self.stats = Counter(dict.fromkeys(PSC_COUNTED, 0))
         self.known_addresses = known_addresses
 
     def psc_address(self, address: Mapping[str, Any], role: str) -> dict[str, str]:
@@ -356,22 +384,34 @@ class PscWriter(records.Writer):
         premises = _str(address.get("premises"))
         if premises:
             part["address_line_1"] = f"{premises} {part['address_line_1'] or ''}"
-        found = self.add_address([bulk.address_part(part[name]) for name in ADDRESS])
+        cleaned = [bulk.address_part(part[name]) for name in ADDRESS]
+        found = self.add_address(cleaned, default_country=None)  # no country is assumed
         if found is None:
             self.stats["pscs_without_address_key"] += 1
             return {}
+        self.stats["psc_address_country_unmapped"] += country_code(cleaned[6]) is None
         return {found[1]: role}
 
     def psc(self, kind: str, data: Mapping[str, Any], segment: str) -> dict[str, Any] | None:
         """The PSC's `Person`, `Company` or `Organization` record (rules 3 and 5)."""
         schema, stats = SCHEMAS[kind], self.stats
         values: dict[str, Any] = {"name": bulk.text(_str(data.get("name")))}
-        address = _address(data)
+        address, elements = _address(data), _dict(data.get("name_elements"))
+        title = bulk.text(_str(elements.get("title")))
+        name, size = values["name"], len(title or "")
+        if (
+            schema == "Person"
+            and name
+            and title
+            and name[:size].casefold() == title.casefold()
+            and name[size : size + 1] == " "
+        ):
+            values["name"] = bulk.text(name[size:])  # the title is not loaded
+            stats["titles_removed"] += 1
         if values["name"] is None:
             stats["pscs_without_name"] += 1  # FtM needs a name (R3)
             return None
         if schema == "Person":
-            elements = _dict(data.get("name_elements"))
             demonyms = (_str(data.get("nationality")) or "").split(",")
             nationality = [country_code(d) for d in demonyms if d.strip()]
             stats["nationalities_unmapped"] += nationality.count(None)
@@ -517,6 +557,6 @@ def write_pscs(
         "slice_companies": len(numbers),
         "records": dict(sorted(schemas.items())),
         "loaded_by_kind_by_value": dict(sorted(loaded.items())),
-        **dict(sorted((reader.stats | stats).items())),
+        **dict(sorted({**reader.stats, **stats}.items())),
     }
     return counts, reader.totals_check

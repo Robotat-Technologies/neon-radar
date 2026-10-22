@@ -193,19 +193,27 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
         version, parts, urls = latest_download(bulk.PRODUCT)
         strings["version"] = version
     if block is not None and ("psc-index" in steps or "psc" in steps):
-        strings["snapshot_date"], psc_parts, psc_urls = latest_download(psc.PRODUCT)
+        psc_version, psc_parts, psc_urls = latest_download(psc.PRODUCT)
+        strings["snapshot_date"] = psc_version
     if "index" in steps:
         counts["index"] = bulk.build_index(parts, work / INDEX, version)
     if block is not None and "psc-index" in steps:
         counts["psc-index"], strings["totals_check"] = psc.build_index(
-            psc_parts, work / PSC_INDEX, _need(work / INDEX, "index"), block.include_ceased
+            psc_parts,
+            work / PSC_INDEX,
+            _need(work / INDEX, "index"),
+            block.include_ceased,
+            psc_version,
         )
     if "slice" in steps and options.companies is not None:
         index = _need(work / INDEX, "index")
-        expansion = None
+        expansion, psc_snapshot = None, None
         if block is not None:
+            psc_snapshot = bulk.index_version(_need(work / PSC_INDEX, "psc-index"))
+            if psc_snapshot is not None:
+                strings.setdefault("snapshot_date", psc_snapshot)
             expansion = psc.expansion(
-                _need(work / PSC_INDEX, "psc-index"),
+                work / PSC_INDEX,
                 index,
                 block.parent_depth,
                 block.child_depth,
@@ -214,9 +222,13 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
         counts["slice"], strings["slice_sha256"] = slices.build_slice(
             index, options.companies, work / SLICE, expansion
         )
-        slices.write_meta(work / SLICE_META, version=bulk.index_version(index),
-                          sample_seed=options.companies.sample_seed,
-                          sha256=strings["slice_sha256"])  # fmt: skip
+        slices.write_meta(
+            work / SLICE_META,
+            version=bulk.index_version(index),
+            sample_seed=options.companies.sample_seed,
+            sha256=strings["slice_sha256"],
+            psc_snapshot=psc_snapshot,
+        )
     if "companies" in steps:
         meta = slices.read_meta(_need(work / SLICE_META, "slice"))
         if meta.get("version") != version:
@@ -242,7 +254,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             _carry(profile, context.out_dir, "companies"),
             context.out_dir,
             include_ceased=block.include_ceased,
-            version=strings["snapshot_date"],
+            version=psc_version,
             urls=psc_urls,
         )
     return BuildResult(counts=counts, strings=strings)

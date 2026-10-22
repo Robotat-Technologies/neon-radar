@@ -46,8 +46,10 @@ more with `--step`):
 
 The work indexes are deleted after a successful build (records validated and swapped in)
 that ran the `companies` or `psc` step, unless `--keep-work` is given; `slice.csv` and
-`slice.json` stay. A `psc` step run on its own keeps the previous company records, which its
-links point to. A PSC's address gets the same key rule as a registered office, so a PSC at a
+`slice.json` stay (with the PSC snapshot date when the expansion ran, since the daily PSC
+snapshot changes the slice too). A `psc` step run on its own keeps the previous company
+records, which its links point to; a `companies` step run without the `psc` step writes the
+company records only, so run both after a new slice. A PSC's address gets the same key rule as a registered office, so a PSC at a
 slice company's registered office links to that company's `Address` record.
 
 Reading follows note 2.2 to 2.4: header cells are stripped (14 start with a space) and
@@ -143,8 +145,11 @@ summary, with the ISO codes of non-UK registrations (unmapped values counted, ne
 and only `resolved` PSCs drive the slice expansion. The outcome decides no merge: the resolver
 applies its own rule (PHASE-2.md 7.1.2, D1).
 
-**Not loaded.** The title, any usual residential address and any day of birth are never read,
-and neither are the `etag` or the links other than the PSC's own id.
+**Not loaded.** Any usual residential address and any day of birth are never read, and
+neither are the `etag` or the links other than the PSC's own id. The source writes an
+individual's title in front of `name`; the loader removes it (when it equals
+`name_elements.title`), so no title is loaded. A PSC's address gets the country the source
+names; unlike a registered office, it is never assumed to be `gb`.
 
 ## Personal data
 

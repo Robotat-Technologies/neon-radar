@@ -99,10 +99,14 @@ class Writer:
         self.office_keys[found[0]] += 1
         return found[1]
 
-    def add_address(self, part: list[str | None]) -> tuple[str, str] | None:
+    def add_address(
+        self, part: list[str | None], default_country: str | None = "gb"
+    ) -> tuple[str, str] | None:
         """Key and id of the `Address` of cleaned parts (PO box, two street lines, town, county,
         postcode, country): one record per key, and none for an id in `known_addresses` (an
-        earlier step's record file has it). None when the parts give no key (M2.3a rule 7)."""
+        earlier step's record file has it). None when the parts give no key (M2.3a rule 7).
+        `default_country` is the country when the given one does not map (a registered office
+        is in the UK; a PSC's address may not be)."""
         raw_postcode = part[5]
         postcode = normalise_uk_postcode(raw_postcode) if raw_postcode else None
         parts = [*part[:5], postcode or raw_postcode, part[6]]
@@ -122,7 +126,7 @@ class Writer:
                 "city": part[3],
                 "region": part[4],
                 "postalCode": postcode or raw_postcode,
-                "country": country_code(part[6]) or "gb",
+                "country": country_code(part[6]) or default_country,
             }
             entity = self._entity("Address", rid, values)
             self.addresses[key] = {**entity.to_dict(), "nr": {"v": NR_VERSION}}

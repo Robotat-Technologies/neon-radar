@@ -156,9 +156,19 @@ def build_slice(
     return counts, sha256
 
 
-def write_meta(path: Path, *, version: str | None, sample_seed: int, sha256: str) -> None:
-    """`slice.json` next to `slice.csv`: the snapshot the slice came from, its seed and hash."""
-    meta = {"version": version, "sample_seed": sample_seed, "slice_sha256": sha256}
+def write_meta(
+    path: Path,
+    *,
+    version: str | None,
+    sample_seed: int,
+    sha256: str,
+    psc_snapshot: str | None = None,
+) -> None:
+    """`slice.json` next to `slice.csv`: the snapshot the slice came from, its seed and hash,
+    and, when the PSC expansion ran, the PSC snapshot date (M2.3b)."""
+    meta: dict[str, Any] = {"version": version, "sample_seed": sample_seed, "slice_sha256": sha256}
+    if psc_snapshot is not None:
+        meta["psc_snapshot"] = psc_snapshot
     path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
 

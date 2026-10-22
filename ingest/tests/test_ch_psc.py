@@ -7,6 +7,7 @@ fixture. Nothing is committed as a file (2.9).
 """
 
 import csv
+import hashlib
 import io
 import json
 import re
@@ -46,7 +47,7 @@ NAMES = {
     "99000040": "HAZEL BRAE TEXTILES LTD",
     "99000050": "KESTREL SCAR FINANCE LTD",
     "99000060": "SORREL SIKE TRADING LTD",
-    "OE000070": "UMBER GARTH FOODS LTD",
+    "OE990070": "UMBER GARTH FOODS LTD",
 }
 
 
@@ -112,7 +113,7 @@ def line(number: str, kind: str, ident: str, **data: Any) -> dict[str, Any]:
 
 def person(number: str, ident: str, natures: list[str], **data: Any) -> dict[str, Any]:
     values = {
-        "name": "Mr Zafer Velqasimi",
+        "name": "Mr Zafer Velqasimi",  # the source puts the title in front
         "nationality": "British,Syrian",
         "name_elements": {"title": "Mr", "forename": "Zafer", "surname": "Velqasimi"},
         "date_of_birth": {"month": 3, "year": 1981},
@@ -237,10 +238,23 @@ def test_discover_takes_the_newest_psc_snapshot_with_every_part() -> None:
     ]
     spec = sources.source_spec(DATASET)
     assert spec is not None and spec.discover is ch_build.discover
+    companies = "BasicCompanyData-2026-10-01-part1_1.zip"
+    pages = {bulk.PAGE_URL: f'<a href="{companies}">x</a>', psc.PAGE_URL: page}
+    both = HttpClient(
+        "",
+        follow_redirects=True,
+        limiter=RateLimiter(1000.0),
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, text=pages[str(r.url)])),
+    )
+    assert [(f.product, f.name) for f in ch_build.discover(both)] == [
+        ("companies", companies),
+        ("psc", names[0]),
+        ("psc", names[1]),
+    ]
 
 
 def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
-    profile(data_env, ["99000010", "OE000070"], parent_depth=0, child_depth=0)
+    profile(data_env, ["99000010", "OE990070"], parent_depth=0, child_depth=0)
     oe_address = {
         "principal_office_address": {
             "address_line_1": "1 Rue d'Essai",
@@ -251,9 +265,11 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     download(
         [
             lines(
-                person("99000010", "P1", ["ownership-of-shares-25-to-50-percent"]),
+                person(
+                    "99000010", "P1", ["ownership-of-shares-25-to-50-percent"], is_sanctioned=True
+                ),
                 line(
-                    "OE000070",
+                    "OE990070",
                     "individual-beneficial-owner",
                     "P2",
                     name="Yazan Ulvarazi",
@@ -267,9 +283,9 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
                 ),
                 corporate("99000010", "C1", "TANSY STRAND SUPPLIES LIMITED", uk("99000020")),
                 corporate(
-                    "OE000070",
+                    "OE990070",
                     "C2",
-                    "LINNET WOLD FOODS SARL",
+                    "LINNET WOLD FOODS LTD",
                     {
                         "country_registered": "France",
                         "legal_form": "Sarl",
@@ -294,14 +310,19 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
                     "99000010",
                     "legal-person-with-significant-control",
                     "L2",
-                    name="SYNTHETIC BODY B",
+                    name="SYNTHETIC AUTHORITY B",
                     natures_of_control=["right-to-appoint-and-remove-directors"],
                 ),
                 line(
-                    "OE000070",
+                    "OE990070",
                     "legal-person-beneficial-owner",
                     "L3",
-                    name="SYNTHETIC BODY C",
+                    name="SYNTHETIC AUTHORITY C",
+                    address={
+                        "address_line_1": "3 Test Road",
+                        "locality": "Testtown",
+                        "country": "Atlantis",
+                    },
                     natures_of_control=[
                         "significant-influence-or-control-registered-overseas-entity"
                     ],
@@ -322,7 +343,7 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
                     ceased_on="2020-01-01",
                 ),
                 line(
-                    "OE000070",
+                    "OE990070",
                     "exemptions",
                     "E1",
                     exemptions={
@@ -350,7 +371,7 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     }
     zafer = found["gbch-psc-SYNP1"]
     assert zafer["properties"] | {"addressEntity": []} == {
-        "name": ["Mr Zafer Velqasimi"],
+        "name": ["Zafer Velqasimi"],  # the title is not loaded
         "firstName": ["Zafer"],
         "lastName": ["Velqasimi"],
         "birthDate": ["1981-03"],
@@ -362,7 +383,10 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     assert zafer["nr"] == {"v": "1.1", "source_ref": "SYNP1", "address_roles": {office: "service"}}
     # The PSC's office has the key of the companies' registered office: one Address record.
     assert found["gbch-co-99000010"]["properties"]["addressEntity"] == [office]
-    assert sum(r["schema"] == "Address" for r in found.values()) == 2
+    assert sum(r["schema"] == "Address" for r in found.values()) == 3
+    # A PSC's address gets no assumed country: `gb` only when the source says so.
+    unknown = found[found["gbch-psc-SYNL3"]["properties"]["addressEntity"][0]]["properties"]
+    assert "country" not in unknown
     company = found["gbch-psc-SYNC1"]["properties"]
     assert company["registrationNumber"] == ["99000020"] and company["jurisdiction"] == ["gb"]
     assert company["legalForm"] == ["Private Limited Company"]
@@ -372,13 +396,13 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     assert list(foreign["nr"]["address_roles"].values()) == ["registered"]
     assert found["gbch-psc-SYNP2"]["properties"]["topics"] == ["sanction"]  # is_sanctioned
     assert "topics" not in foreign["properties"]  # is_sanctioned false
-    assert "topics" not in zafer["properties"]
+    assert "topics" not in zafer["properties"]  # is_sanctioned on a PSC that is not an owner
     assert found["gbch-psc-SYNL1"]["properties"]["legalForm"] == ["Public Body"]
     assert found["gbch-co-99000010"]["nr"]["psc_statements"] == [
         "psc-details-not-confirmed",
         "super-secure-person-with-significant-control",
     ]
-    assert found["gbch-co-OE000070"]["nr"]["psc_statements"] == [
+    assert found["gbch-co-OE990070"]["nr"]["psc_statements"] == [
         "disclosure_transparency_rules_chapter_five_applies",
         "psc_exempt_as_trading_on_regulated_market",
     ]
@@ -389,7 +413,7 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     assert index["statement_rows"] == 4 and index["corporate_psc_rows"] == 5
     counts = result.counts["psc"]
     assert counts["records"] == {
-        "address": 1,
+        "address": 2,
         "company": 2,
         "control": 4,
         "organization": 3,
@@ -397,6 +421,8 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
         "person": 2,
     }
     assert counts["beneficial_owners_sanctioned"] == 1 and counts["lines_not_psc"] == 4
+    assert counts["psc_address_country_unmapped"] == 1 and counts["pscs_without_address_key"] == 1
+    assert counts["titles_removed"] == 1 and counts["duplicate_pscs"] == 0
     assert result.strings["snapshot_date"] == SNAPSHOT
 
 
@@ -406,14 +432,14 @@ def test_the_five_outcomes_and_the_non_uk_countries(data_env: Any) -> None:
         [
             lines(
                 corporate("99000010", "A", "Tansy Strand Supplies Ltd", uk("9900 0020")),
-                corporate("99000010", "B", "HARBOUR TEST FOODS LTD", uk("99000030")),
+                corporate("99000010", "B", "MARRAM RIGG ENGINEERING LTD", uk("99000030")),
                 corporate("99000010", "C", "TANSY STRAND SUPPLIES LTD", uk("99000999")),
                 corporate("99000010", "D", "TANSY STRAND SUPPLIES LTD", uk("N/A")),
                 corporate(
-                    "99000010", "E", "TANSY STRAND SUPPLIES SARL", {"country_registered": "France"}
+                    "99000010", "E", "FENNEL WEALD FOODS LTD", {"country_registered": "France"}
                 ),
                 corporate(
-                    "99000010", "F", "TANSY STRAND SUPPLIES SA", {"country_registered": "Atlantis"}
+                    "99000010", "F", "COPPER ACRE INTERIORS LTD", {"country_registered": "Atlantis"}
                 ),
             )
         ]
@@ -453,7 +479,7 @@ def test_expansion_two_levels_up_and_one_down_and_the_cap(data_env: Any) -> None
                 owns("99000030", "99000040", "C"),
                 owns("99000050", "99000020", "D"),
                 owns("99000060", "99000050", "E"),
-                owns("99000010", "OE000070", "F", "OTHER NAME LTD"),
+                owns("99000010", "OE990070", "F", "PLOVER BRAE TEXTILES LTD"),
             )
         ]
     )
@@ -467,6 +493,7 @@ def test_expansion_two_levels_up_and_one_down_and_the_cap(data_env: Any) -> None
         ("99000050", "child", 1),
     ]
     assert counts["expansion_before_cap"] == {"parent": 2, "child": 1}
+    assert slices.read_meta(work / ch_build.SLICE_META)["psc_snapshot"] == SNAPSHOT
     profile(data_env, ["99000010"], child_depth=0)
     build(("slice",), keep_work=True)
     assert [n for n, _, _ in slices.read(work / ch_build.SLICE)] == [
@@ -481,7 +508,7 @@ def test_expansion_two_levels_up_and_one_down_and_the_cap(data_env: Any) -> None
 
 
 def test_bands_interests_and_record_ids(data_env: Any) -> None:
-    profile(data_env, ["99000010", "OE000070"], parent_depth=0, child_depth=0)
+    profile(data_env, ["99000010", "OE990070"], parent_depth=0, child_depth=0)
     download(
         [
             lines(
@@ -514,7 +541,7 @@ def test_bands_interests_and_record_ids(data_env: Any) -> None:
                     name="Nadim Qandelouni",
                 ),
                 person(
-                    "OE000070",
+                    "OE990070",
                     "P4",
                     [
                         "ownership-of-shares-more-than-25-percent-as-trust"
@@ -531,7 +558,8 @@ def test_bands_interests_and_record_ids(data_env: Any) -> None:
     one = links(found, "gbch-psc-SYNP1")
     assert len(one) == 1  # two ownership values of one interest: one band
     [shares] = one.values()
-    assert shares["id"] == psc.interest_id("ownership", "gbch-psc-SYNP1", "99000010", "shares")
+    digest = hashlib.sha1(b"gbch-psc-SYNP1|99000010|shares", usedforsecurity=False).hexdigest()
+    assert shares["id"] == f"gbch-ownership-{digest[:20]}"  # PHASE-2.md 4.4
     assert shares["properties"]["percentage"] == ["25-100"]
     assert shares["properties"]["ownershipType"] == ["shares"]
     assert shares["properties"]["startDate"] == ["2016-04-06"]
@@ -567,7 +595,7 @@ def test_bands_interests_and_record_ids(data_env: Any) -> None:
     [trustee] = links(found, "gbch-psc-SYNP4").values()
     assert trustee["properties"]["ownershipType"] == ["shares (as trustee)"]
     assert trustee["id"] == psc.interest_id(
-        "ownership", "gbch-psc-SYNP4", "OE000070", "shares-as-trust"
+        "ownership", "gbch-psc-SYNP4", "OE990070", "shares-as-trust"
     )
     assert (trustee["nr"]["share_pct_min"], trustee["nr"]["share_pct_max"]) == (25.0, 100.0)
 
@@ -633,6 +661,10 @@ def test_steps_inputs_work_files_and_the_psc_block(data_env: Any) -> None:
     for name in ("uk-tiny", "uk-sample"):
         block = load_profile(name).options(DATASET).psc
         assert block is not None and block.enabled and block.parent_depth == 4
+    profile(data_env, ["99000010"], enabled=False)
+    for step in ch_build.PSC_STEPS:
+        with pytest.raises(BuildError, match="psc block is not enabled"):
+            build((step,))
 
 
 def test_unmapped_personal_fields_never_reach_records_index_or_summary(data_env: Any) -> None:
@@ -643,6 +675,7 @@ def test_unmapped_personal_fields_never_reach_records_index_or_summary(data_env:
         "usual_residential_address": {"premises": "SENTINELHOME", "postal_code": "QQ9 9ZZ"},
         "date_of_birth": {"day": 17, "month": 3, "year": 1981},
         "name_elements": {"title": "SENTINELTITLE", "forename": "Zafer", "surname": "Velqasimi"},
+        "name": "SENTINELTITLE Zafer Velqasimi",
     }
     download(
         [lines(person("99000010", "P1", ["voting-rights-25-to-50-percent"], **sentinel), totals(1))]

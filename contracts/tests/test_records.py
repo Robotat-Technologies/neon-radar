@@ -335,6 +335,87 @@ def test_exclusive_flags_are_booleans(value: Any) -> None:
     assert _rules(record) == ["NR"]
 
 
+@pytest.mark.parametrize(
+    ("record_id", "key", "value", "real"),
+    [
+        ("syn-ownership-0101", "is_nominee", True, {"owner": "gbch-psc-T0000001"}),
+        ("syn-ownership-0101", "is_nominee", False, {"asset": "gbch-co-T0000001"}),
+        ("syn-control-0101", "share_pct_min", 50.0, {"controller": "gbch-psc-T0000001"}),
+        ("syn-control-0101", "share_pct_max_exclusive", True, {"controlled": "gbch-co-T0000001"}),
+    ],
+)
+def test_synthetic_nominee_ownership_and_control_band_name_only_synthetic_records(
+    record_id: str, key: str, value: Any, real: dict[str, str]
+) -> None:
+    record = _demo(record_id, DEMO_1_1)
+    record["nr"] = {
+        k: v
+        for k, v in record["nr"].items()
+        if k
+        not in {
+            "share_pct_min",
+            "share_pct_max",
+            "share_pct_min_exclusive",
+            "share_pct_max_exclusive",
+        }
+    }
+    record["nr"][key] = value
+    if key == "share_pct_min":
+        record["nr"]["share_pct_max"] = 75.0
+    assert _rules(record) == []  # every reference is synthetic
+    [(prop, ref)] = real.items()
+    record["properties"][prop] = [ref]
+    issues = validate_record(record)  # the prefix decides, so non-strict mode fails too
+    assert [issue.rule for issue in issues] == ["R6"], [str(i) for i in issues]
+    assert f"with nr.{key} references only synthetic records" in issues[0].message
+    assert ref in issues[0].message
+
+
+def test_synthetic_ownership_and_control_without_the_1_1_keys_may_name_real_records() -> None:
+    ownership = _demo("syn-ownership-0101", DEMO_1_1)
+    ownership["nr"] = {k: v for k, v in ownership["nr"].items() if not k.startswith("share")}
+    ownership["properties"]["owner"] = ["gbch-psc-T0000001"]
+    assert _rules(ownership) == []  # background activity, as in 1.0
+    control = _demo("syn-control-0101", DEMO_1_1)
+    control["nr"] = {k: v for k, v in control["nr"].items() if not k.startswith("share")}
+    control["properties"]["controlled"] = ["gbch-co-T0000001"]
+    assert _rules(control) == []
+
+
+@pytest.mark.parametrize(
+    ("record_id", "dataset", "allowed"),
+    [
+        ("gbch-off-T0000001", "gb_companies_house", True),
+        ("syn-off-0102", "nr_synthetic", True),
+        ("uksl-g0001", "gb_fcdo_sanctions", False),
+        ("icij-node-1", "icij_offshore_leaks", False),
+        ("gleif-lei-SYN0000000000000001", "gleif_lei", False),
+    ],
+)
+def test_ch_person_number_only_on_companies_house_and_synthetic_records(
+    record_id: str, dataset: str, allowed: bool
+) -> None:
+    synthetic = dataset == "nr_synthetic"
+    nr: dict[str, Any] = {"v": "1.1", "ch_person_number": "SYN00101A0001"}
+    if synthetic:
+        nr.update(synthetic=True, synthetic_kind="registry")
+    record = {
+        "id": record_id,
+        "schema": "Person",
+        "datasets": [dataset],
+        "properties": {"name": ["Test Person"]},
+        "nr": nr,
+    }
+    issues = validate_record(record)
+    if allowed:
+        assert issues == []
+    else:
+        assert [issue.rule for issue in issues] == ["NR"], [str(i) for i in issues]
+        assert "nr.ch_person_number is only used on records of gb_companies_house" in (
+            issues[0].message
+        )
+
+
 def test_unknown_keys_still_fail_under_1_1() -> None:
     [issue] = validate_record(_company(nr={**NR, "v": "1.1", "person_number": "x"}))
     assert (issue.rule, "nr.person_number" in issue.message) == ("NR", True)

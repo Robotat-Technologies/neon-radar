@@ -28,8 +28,10 @@ One person or entity can have several designations, one Unique ID per sanctions 
 
 1. Designations with the same OFSI Group ID form one party: `uksl-g<OFSI Group ID>`.
 2. A designation without a group id whose UN reference number is also on a grouped designation joins that group: one UN listing is one party. If two groups carry that reference, or the group is of another type, it joins neither and is counted as a group conflict.
-3. The remaining designations that share a UN reference number form one party: `uksl-un-<reference>`.
+3. The remaining designations with a UN reference number form one party per reference: `uksl-un-<reference>`, also when only one designation carries it (the id form of PHASE-2.md 4.4), so the id stays the same when the UK adds a second designation for that listing.
 4. Every other designation is its own party: `uksl-<Unique ID>`.
+
+The designations of a party are taken in Unique ID order: the first primary name of the smallest Unique ID becomes the name (with `firstName` from Name1 and `lastName` from Name6 for a person), and further primary names become aliases. A party without a primary name takes its first strong alias as the name; a weak alias never becomes the name, and a party with none is skipped and counted (`no_strong_name`). A native id outside the C1 id alphabet goes through `make_id` (`uksl-g-...`, `uksl-un-...`, `uksl-uid-...`).
 
 Designations of one group that disagree on individual, entity or ship stay separate parties under their Unique IDs and are counted as group conflicts. A record of the last two forms may be one of several designations of one person under different regimes, so the resolver may still merge it with other UK records (cannot-link rule X6 applies only to `uksl-g` records, PHASE-2.md 7.1.3).
 
@@ -53,6 +55,13 @@ The profile block is `gb_fcdo_sanctions: { enabled: true, keep_reasons: false, k
 ## Checks
 
 The build fails with exit code 4 when the number of persons or organisations is outside the range in `ingest/src/neonradar_ingest/sources/lists/bounds.yaml` (3,000 to 7,200 persons, 900 to 3,000 organisations), unless a person who has read the publication page passes `--accept-size`. A fill rate of zero for persons with a birth date or for designations with a programme always fails with exit code 4: the format has changed or the parser is broken. The summary reports counts only: records per schema, parties of each form, group conflicts, skipped types, counts of values not loaded, fill rates and the list's `DateGenerated`.
+
+## For developers
+
+- `ingest/src/neonradar_ingest/sources/lists/common.py` is verbatim from PHASE-2.md M2.6a: pure functions, no I/O. Change it only through the spec.
+- `shared.py` holds the builder plumbing every list loader uses: the profile block model `ListOptions`, `latest_download`, `check_size` (exit code 4), `write_records`, `list_stamp` and namespace-agnostic XML helpers.
+- Parse with `defusedxml` one record element at a time and clear it; compare tags without their namespace.
+- Fixtures under `ingest/tests/fixtures/lists/<slug>/` are hand-written with invented values (PHASE-2.md 2.9) and validated against the publisher's committed XSD, which `.gitattributes` keeps byte for byte.
 
 ## Commands
 

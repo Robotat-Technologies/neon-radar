@@ -10,7 +10,6 @@ information, crypto wallet addresses, parent companies and subsidiaries are neve
 statements of reasons, titles and positions only when the profile block asks for them.
 """
 
-import hashlib
 import html
 import re
 from collections import Counter, defaultdict
@@ -23,7 +22,7 @@ from xml.etree.ElementTree import Element, ParseError
 from defusedxml import DefusedXmlException
 from defusedxml.ElementTree import iterparse
 
-from neonradar_contracts.records import ID_RE
+from neonradar_contracts.records import ID_RE, make_id
 from neonradar_ingest.data.profiles import Profile, register_source_model
 from neonradar_ingest.data.sources import (
     BuildContext,
@@ -68,6 +67,7 @@ KNOWN = frozenset(
     }
 )  # fmt: skip
 NUMBER_TOKEN = re.compile(r"[A-Za-z0-9]*\d[A-Za-z0-9]*")
+MAX_ID = 120  # PHASE-1.md 4.4
 MIN_NUMBER = 5  # shorter digit runs in a registration string are not counted as numbers
 INDIVIDUAL = ("IndividualDetails", "Individual")
 ENTITY = ("EntityDetails", "Entity")
@@ -168,7 +168,7 @@ def _designation(element: Element, counts: Counter[str]) -> Designation | None:
             d.births.append(births)
     stubs = t(element, *ENTITY, "ParentCompanies", "ParentCompany")
     stubs += t(element, *ENTITY, "Subsidiaries", "Subsidiary")
-    counts["stub_names_skipped"] += len(stubs)
+    counts["stub_names_skipped"] += sum(len(split_values(value)) for value in stubs)
     counts["crypto_wallets_skipped"] += len(
         t(element, "CryptoWalletAddresses", "CryptoWalletAddress")
     )
@@ -203,18 +203,29 @@ def parse(path: Path) -> tuple[str | None, list[Designation], Counter[str]]:
     return stamp, found, counts
 
 
-def party_id(native: str) -> str:
-    """`uksl-<native>`, or a hash when the native id breaks the C1 id alphabet (OD-11)."""
-    candidate = f"{PREFIX}-{native}"
-    if ID_RE.fullmatch(candidate) and len(candidate) <= 120:
+# The id kinds of PHASE-2.md 4.4 and the `make_id` kind used when a native id breaks R1.
+ID_FORMS = {"group": ("g", "g"), "un_reference": ("un-", "un"), "unique_id": ("", "uid")}
+
+
+def party_id(form: str, native: str) -> str:
+    """`uksl-g<group id>`, `uksl-un-<UN reference>` or `uksl-<Unique ID>` (PHASE-2.md 4.4); a
+    native id outside the C1 id alphabet goes through `make_id` (C1-record.md, OD-11)."""
+    marker, kind = ID_FORMS[form]
+    candidate = f"{PREFIX}-{marker}{native}"
+    if ID_RE.fullmatch(candidate) and len(candidate) <= MAX_ID:
         return candidate
-    digest = hashlib.sha1(native.encode("utf-8"), usedforsecurity=False).hexdigest()[:20]
-    return f"{PREFIX}-x{digest}"
+    return make_id(PREFIX, kind, native)
+
+
+def _party(form: str, native: str, members: Iterable[Designation]) -> Party:
+    """A party, its designations ordered by Unique ID: the smallest gives the name."""
+    ordered = tuple(sorted(members, key=lambda member: member.unique_id))
+    marker = ID_FORMS[form][0]
+    return Party(party_id(form, native), f"{marker}{native}", form, ordered)
 
 
 def _single(designation: Designation) -> Party:
-    native = designation.unique_id
-    return Party(party_id(native), native, "unique_id", (designation,))
+    return _party("unique_id", designation.unique_id, (designation,))
 
 
 def _kinds(members: Iterable[Designation]) -> int:
@@ -226,7 +237,9 @@ def group(designations: list[Designation], counts: Counter[str]) -> list[Party]:
 
     A group whose designations disagree on `IndividualEntityShip` is split into its Unique IDs,
     and a designation whose UN reference sits on two groups (or on a group of another type)
-    joins none; each such case counts as a `group_conflict`.
+    joins none; each such case counts as a `group_conflict`. An ungrouped designation with a
+    UN reference is `uksl-un-<reference>` even alone (PHASE-2.md 4.4), so its id stays the
+    same when the UK adds a second designation for that listing.
     """
     parties: list[Party] = []
     by_group: dict[str, list[Designation]] = defaultdict(list)
@@ -263,21 +276,16 @@ def group(designations: list[Designation], counts: Counter[str]) -> list[Party]:
     for designation in remaining:
         if designation.un_ref:
             by_un[designation.un_ref].append(designation)
-    for designation in remaining:
-        if len(by_un.get(designation.un_ref or "", ())) < 2:
+        else:
             parties.append(_single(designation))
     for ref, members in by_un.items():
-        if len(members) < 2:
-            continue
         if _kinds(members) > 1:
             counts["group_conflicts"] += 1
             parties.extend(_single(member) for member in members)
         else:
-            parties.append(
-                Party(party_id(f"un-{ref}"), f"un-{ref}", "un_reference", tuple(members))
-            )
+            parties.append(_party("un_reference", ref, members))
     for gid, members in groups.items():
-        parties.append(Party(party_id(f"g{gid}"), f"g{gid}", "group", tuple(members)))
+        parties.append(_party("group", gid, members))
     return sorted(parties, key=lambda party: party.id)
 
 
@@ -336,9 +344,9 @@ def _names(party: Party, person: bool, props: dict[str, list[str]], counts: Coun
             else:
                 counts["unknown_name_types"] += 1
         aliases.extend(designation.non_latin)
-    if not primary:
+    if not primary:  # a strong alias may stand in; a weak alias never becomes the name
         counts["parties_without_primary_name"] += 1
-        primary = (aliases or weak)[:1]
+        primary = aliases[:1]
     taken = set(primary)
     props["name"] = primary
     props["alias"] = [a for a in dict.fromkeys(aliases) if a not in taken]
@@ -393,7 +401,7 @@ def party_records(
     props["topics"] = ["sanction"]
     _names(party, person, props, counts)
     if not props["name"]:
-        counts["parties_without_name"] += 1
+        counts["no_strong_name"] += 1
         return []
     for d in party.members:
         if person:

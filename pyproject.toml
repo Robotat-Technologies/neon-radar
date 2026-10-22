@@ -100,8 +100,9 @@ testpaths = [
     "cli/tests",
     "scripts/tests",
 ]
-# scripts: the hygiene scripts; graph/tests/support: the shared Neo4j plugin (conftest.py).
-pythonpath = ["scripts", "graph/tests/support"]
+# scripts: the hygiene scripts; graph/tests/support: the shared Neo4j plugin (conftest.py);
+# resolve/tests/support: records built in the resolver's test code.
+pythonpath = ["scripts", "graph/tests/support", "resolve/tests/support"]
 filterwarnings = [
     # Starlette 1.9's TestClient asks for httpx2; httpx2 is published from github.com/pydantic,
     # not by encode, so the tests keep httpx 0.28 (M1.7d, decision D13).

@@ -8,10 +8,13 @@ license = "Apache-2.0"
 # change: re-run `er bench` and say so in the pull request.
 dependencies = [
     "duckdb==1.5.*",
+    "followthemoney>=4.11,<5",
     "neonradar-contracts",
     "neonradar-graph",
     "neonradar-keys",
     "pyarrow>=26,<27",
+    "pydantic>=2.14,<3",
+    "pyyaml>=6,<7",
     "splink==5.0.*",
 ]
 

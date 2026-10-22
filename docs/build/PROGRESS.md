@@ -56,6 +56,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.6e | todo | - | - | 2026-10-22 | - | - |
 | M2.7 | todo | - | - | 2026-10-22 | - | - |
 | M2.8 | pr-open | p2/m2-8-keys | #49 | 2026-10-22 | acceptance after merging main at bbed6e5: pytest keys/tests: 106 passed; mypy: no issues (93 files); wheel lists nationalities.csv and ar_symbols.json.gz (2); make check pass (1504 passed, contracts 381, cypher-lint 0 problems, UI 56); make hygiene with size-exception: pass, size warns (1,529 own counted lines); ar_symbols.json.gz rebuilt at rigour v2.5.0: 17,798 keys, SHA-256 7712414a...f7e8 as the spec says, a rebuild leaves no diff; verbatim blocks byte-identical (script) except two test assertions; the wheel installs alone (offline venv) | Size exception per the milestone header (OD-15); commit scope er; typing-extensions>=4.12 added as the spec says (PSF-2.0, already locked); deviations: test_keys.py latin_forms uses the surname Haddad/Хаддад because the spec's person name is on the synthetic-name denylist (OD-12), and name_similarity uses the C1 replacement words quillon marsh for the retired falcon ridge (OD-12); no new person or company name, so no Companies House search; THIRD_PARTY_NOTICES.md M2.8 sections (rigour MIT with full text, OGL v3.0); open for the graph mentor: a test that proves the Arabic index is used; for the data steward: whether OD-12 covers normaliser test strings; built in a worktree, stacked on M2.0 until #45 merged; own reviewer and data-guardian reviews applied; other deviations in PR #49 |
+| M2.8-fixes | pr-open | p2/m2-8-keys-fixes | #68 | 2026-10-22 | after merging main at 43a8a3e and the data-guardian fixes: new tests failed first (21, then 7 and 1 more for the review cases) and pass after the fixes; pytest keys/tests: 142 passed; the spec's original test_keys.py: 105 passed; mypy clean (111 files); wheel holds both data files and both LICENSE.txt files; make check pass (1757 passed, contracts 382, cypher-lint 0 problems, UI 56); make hygiene: pass (381 counted lines) | Follow-up to #49 from its review; RULES_VERSION 2; each change a 'spec seems wrong' item (2.7) in phase-2-reconciliation.md 2.6 (F1 to F11): S1 index test, S2 street lines on top of the spec's three-token floor (D, OD-10), ST at segment start, ASCII company-number digits and no all-zero numbers (D for zeros, OD-10), find_uk_postcode cut, NFKC name symbols, FtM country-code docstring, licence texts in the wheel; docs/er/keys.md: ch_same_as_key gaps, empty keys NULL note for M2.10a, failing-test list for the graph mentor; questions F10 (data steward: OD-12 and normaliser test inputs) and F11 (graph mentor and tech lead: D6 and postcode-only keys); data-guardian review applied; built in a worktree |
 | M2.9 | todo | - | - | 2026-10-22 | - | - |
 | M2.10a | todo | - | - | 2026-10-22 | - | - |
 | M2.10b | todo | - | - | 2026-10-22 | - | - |
@@ -66,3 +67,35 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.14 | todo | - | - | 2026-10-22 | - | - |
 | M2.15 | todo | - | - | 2026-10-22 | - | - |
 | M2.16 | todo | - | - | 2026-10-22 | - | - |
+| M3.0 | pr-open | p3/m3-0-handover | #48 | 2026-10-22 | after merging main at eaa01ee (#47, #49, #50) and the review fixes: spec_extract check --milestone M3.0: 4 of 4 verbatim files match, 0 recorded deviations; test_spec_extract.py: 8 passed; test_hooks.sh: 174 passed, 0 failed (guard_real_data.py 213 cases, case variants included); sync_labels: 31 of 31, freeze-change listed; make check: pass (1721 passed); make hygiene: pass (size-exception) | Built before Gate 1 (OD-23) in a worktree; project model keys added after M2.2 merged; security fix to M2.0's hook: protected paths compared without regard to case (macOS); the reconciliation finds that C4 1.0.0 refuses the code book's alerts (A1 query hash, A2 window key: stop-and-ask for M3.2; A3 boolean metrics answered by #50); other deviations listed in PR #48 |
+| M3.1 | todo | - | - | 2026-10-22 | - | - |
+| M3.2 | todo | - | - | 2026-10-22 | - | - |
+| M3.3 | todo | - | - | 2026-10-22 | - | - |
+| M3.4-1 | todo | - | - | 2026-10-22 | - | - |
+| M3.4-2 | todo | - | - | 2026-10-22 | - | - |
+| M3.5a | todo | - | - | 2026-10-22 | - | - |
+| M3.5b | todo | - | - | 2026-10-22 | - | - |
+| M3.5c | todo | - | - | 2026-10-22 | - | - |
+| M3.5d | todo | - | - | 2026-10-22 | - | - |
+| M3.5e | todo | - | - | 2026-10-22 | - | - |
+| M3.5f | todo | - | - | 2026-10-22 | - | - |
+| M3.6 | todo | - | - | 2026-10-22 | - | - |
+| M3.7 | todo | - | - | 2026-10-22 | - | - |
+| M3.8 | todo | - | - | 2026-10-22 | - | - |
+| M3.9 | todo | - | - | 2026-10-22 | - | - |
+| M3.10 | todo | - | - | 2026-10-22 | - | - |
+| M3.11 | todo | - | - | 2026-10-22 | - | - |
+| M3.12 | todo | - | - | 2026-10-22 | - | - |
+| M3.13 | todo | - | - | 2026-10-22 | - | - |
+| M4.0 | pr-open | p4/m4-0-handover | #64 | 2026-10-22 | after merging main at 43a8a3e (M3.0 #48): make spec-check M=M4.0: 2 of 2 verbatim files match, 0 recorded deviations; spec_extract list: 114 entries (110 verbatim, 4 reference); test_guard_real_data.py: 252 passed; test_hooks.sh: 174 passed, 0 failed (guard_real_data.py 252 cases); make spec-check M=M3.0: 4 of 4; ruff check and make check: pass (after the review fixes, contracts 382, UI 56, cypher-lint 0 problems); make hygiene: pass (358 counted lines); sync_labels: 34 of 34; CLAUDE.md 198 lines | Built before Gate 1 (OD-23) in a worktree; reconciliation questions for the tech lead (A1 context ids, A2 the 1.0.0 CopilotAnswer validator, A3 evidence nodes with the data steward, X4 Starlette pin) block only M4.1 and M4.2; deviations: CLAUDE.md names PHASE-2 to PHASE-4 and shortens rules 9 to 11 (G8 to G10) and two repeated traps to stay under 200 lines, ruff ignores in pyproject.toml, project-root deny rule, guard covers bypass forms and fixes the empty-argument split, mentor role in generate_codeowners.py; heldout_owner stays @TODO (OD-25); other deviations in PR #64 |
+| M4.1 | todo | - | - | 2026-10-22 | - | - |
+| M4.2 | todo | - | - | 2026-10-22 | - | - |
+| M4.3a | todo | - | - | 2026-10-22 | - | - |
+| M4.3b | todo | - | - | 2026-10-22 | - | - |
+| M4.4 | todo | - | - | 2026-10-22 | - | - |
+| M4.5 | todo | - | - | 2026-10-22 | - | - |
+| M4.6 | todo | - | - | 2026-10-22 | - | - |
+| M4.7 | todo | - | - | 2026-10-22 | - | - |
+| M4.8 | todo | - | - | 2026-10-22 | - | - |
+| M4.9 | todo | - | - | 2026-10-22 | - | - |
+| M4.10 | todo | - | - | 2026-10-22 | - | - |

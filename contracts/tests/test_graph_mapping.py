@@ -370,7 +370,11 @@ def test_detection_run_and_alert_properties_from_c2_1_2() -> None:
     kinds = graph.PROPERTY_KINDS
     assert kinds["evidence_node_ids"] == kinds["evidence_edge_ids"] == "list"
     assert not set(new_run) & set(kinds)  # STRING
-    assert graph.NULLABLE_PROPERTIES["DetectionRun"] == ("profile",)
+    # Absent for a run without a profile, a failed run, a graph with no window to read, and a
+    # run written under 1.1.0; `summary` is always set by a 1.2.0 detection load.
+    nullable = graph.NULLABLE_PROPERTIES["DetectionRun"]
+    assert nullable == ("profile", "params_sha256", "window_start", "window_end")
+    assert "summary" not in nullable and set(nullable) <= set(new_run)
     # The C2 document's tables name every new property (PHASE-3.md 5.4).
     text = C2_DOC.read_text(encoding="utf-8")
     for prop in (*new_run, "evidence_node_ids", "evidence_edge_ids", "provisions"):

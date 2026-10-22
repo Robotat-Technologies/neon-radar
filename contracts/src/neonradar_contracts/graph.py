@@ -446,7 +446,9 @@ NULLABLE_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
     "SourceRecord": ("retrieved_at", "source_url"),
     "RESOLVED_TO": ("rule", "features"),
     "POSSIBLY_SAME_AS": ("match_probability", "match_weight", "rule"),
-    "DetectionRun": ("profile",),  # 1.2.0: null for a run without a profile
+    # 1.2.0: no profile for a run without one; no parameters hash or window for a failed run,
+    # a graph with no window to read, or a run written under 1.1.0.
+    "DetectionRun": ("profile", "params_sha256", "window_start", "window_end"),
 }
 
 # 1.2.0 (L18): every record of an overlay load has an id with this prefix and this dataset.

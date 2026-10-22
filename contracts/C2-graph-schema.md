@@ -317,13 +317,15 @@ Synthetic payments now sit next to real companies: an overlay attaches synthetic
 | Label | Property | Type | Rule |
 |---|---|---|---|
 | `:Sanction` | `provisions` | LIST<STRING> | every value of FtM `Sanction.provisions`, as published (for example `Asset freeze`, `Travel ban`); the UK sanctions test counts only asset-freeze designations (PHASE-3.md 7.3.10). Empty when the source gives none |
-| `:DetectionRun` | `profile` | STRING | the profile the run belongs to, or null for a run without one (`NULLABLE_PROPERTIES`) |
-| `:DetectionRun` | `params_sha256` | STRING | SHA-256 of the parameters every detector actually used, as canonical JSON (`runner.params_sha256`) |
-| `:DetectionRun` | `window_start`, `window_end` | STRING | the detection window, UTC ISO datetimes |
+| `:DetectionRun` | `profile` | STRING | the profile the run belongs to, or null for a run without one |
+| `:DetectionRun` | `params_sha256` | STRING | SHA-256 of the parameters every detector actually used, as canonical JSON (`runner.params_sha256`); may be absent (below) |
+| `:DetectionRun` | `window_start`, `window_end` | STRING | the detection window, UTC ISO datetimes; may be absent (below) |
 | `:DetectionRun` | `summary` | STRING | the run summary as JSON (PHASE-3.md 7.5.3): per typology the findings, alerts, duplicates, withheld counts by reason and the detector's own counts; the totals. Counts only, on every profile |
 | `:Alert` | `evidence_node_ids`, `evidence_edge_ids` | LIST<STRING> | the alert's `evidence.node_ids` and `evidence.edge_ids` (C4), so that I17 can check the evidence of every alert without parsing `payload` |
 
-A query that may meet a graph loaded or detected under 1.1.0 reads the new lists with `coalesce(x, [])`.
+`profile`, `params_sha256`, `window_start` and `window_end` may be absent (null in Neo4j; `NULLABLE_PROPERTIES["DetectionRun"]`): a run without a profile, a failed run, a run on a graph with no window to read (for example a registry-only graph without `PAID`), and every `:DetectionRun` written under 1.1.0. `summary` is set by every 1.2.0 detection load.
+
+No migration and no data change: `:Sanction` nodes loaded under 1.1.0 get `provisions` only when they are loaded again, so a query that may meet a graph loaded under 1.1.0 reads it with `coalesce(s.provisions, [])`. Likewise `:Alert` nodes written under 1.1.0 have no evidence lists until detection runs again: read them with `coalesce(a.evidence_node_ids, [])` and `coalesce(a.evidence_edge_ids, [])`, as I17 does.
 
 **Loader rules added** (numbered after L8 to L17):
 
@@ -331,7 +333,7 @@ A query that may meet a graph loaded or detected under 1.1.0 reads the new lists
   1. Before connecting: every record's id starts with `syn-ov-` and its dataset is `nr_synthetic`; `overlay.json` names the profile; and the bridge check passes on the records: the only records that name a non-overlay id are `Ownership` records with role `account holder` whose asset is an overlay `BankAccount`, and `Payment` records whose `payer` or `beneficiary` is the holder of the account the payment names (C1 R7; `PAID` joins the accounts, so these names create no relationship); and no `Payment` joins two accounts whose holders are both non-overlay ids. Otherwise exit 2, nothing written.
   2. The target is the base's instance: the default instance for synthetic profiles, `neo4j-real` for real profiles. This is the one exception to L17's rule that the real-data instance refuses synthetic records, and it holds only for profiles in `access.real_overlay_profiles` (exit 3 otherwise, before connecting) and after the real-data gate of PHASE-2.md M2.2.
   3. Every reference to a non-overlay id (account holders, and the payers and beneficiaries that are those holders) must resolve in the target, directly or through `:SourceRecord` (L13): `overlay_unresolved.cypher` counts the ones that do not, and a non-zero count stops the load (exit 1) before anything is written. For C1 R4 and R8 the base counts as part of the same load.
-  4. `overlay_purge.cypher` then removes the previous overlay (every `:Entity` and `:Sanction` whose id starts with `syn-ov-`, with its relationships) and every `:Alert` and `:DetectionRun`.
+  4. `overlay_purge.cypher` then removes the previous overlay (every `:Entity` and `:Sanction` whose id starts with `syn-ov-`, with its relationships) and every `:Alert` and `:DetectionRun`. This purge takes the place of L9's removal: an overlay load never runs L9 and never removes a base node (L9's `--no-replace` note).
   5. Nodes, then relationships, through the Phase 2 queries; the account holdings go through the resolving query of L13, so a holding of a merged record lands on its canonical node.
   6. After the load, I15 and I16 hold, and loading the same overlay twice leaves every count unchanged.
   7. A base load invalidates the overlay: on the real-data instance L9 removes every `:Entity`, the overlay's included; on the default instance a superseded base node takes its account holdings with it. `make load` therefore always loads the overlay after the base, and an overlay is reloaded, never patched.
@@ -347,7 +349,7 @@ The overlay purge seeks `syn-ov-` ids through the existing uniqueness constraint
 | I16 | No `PAID` joins two accounts that are both held by non-synthetic entities |
 | I17 | No `:Alert` names a non-synthetic person (a `:LegalEntity` that is not an `:Organization`) through `FLAGS` or among its `evidence_node_ids`, and no `:Alert` with `involves_real_entities` has a `PAID` among its `evidence_edge_ids` (PHASE-3.md G12, rule R-REAL) |
 
-A person, for I17, is any `:LegalEntity` that is not an `:Organization`, because some sources do not state what kind of entity a record is. I15 makes a `POSSIBLY_SAME_AS` between a synthetic and a non-synthetic node a violation, which I10 already excludes.
+A person, for I17, is any `:LegalEntity` that is not an `:Organization`, because some sources do not state what kind of entity a record is. I15 makes a `POSSIBLY_SAME_AS` between a synthetic and a non-synthetic node a violation, which I10 already excludes. Of the support nodes, `:Alert` and `:DetectionRun` have no `synthetic` property, so `FLAGS` and `PRODUCED` never count for I15. `:SourceRecord` carries `synthetic` (1.1.0); `RESOLVED_TO` never crosses because I9 keeps a record's `synthetic` equal to its entity's.
 
 **What the detectors read.** Detection queries read only labels, types and properties defined in C2. Of the ones they read, all exist in 1.1.0 except `:Sanction.provisions`.
 

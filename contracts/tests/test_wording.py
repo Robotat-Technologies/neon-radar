@@ -174,7 +174,9 @@ def wording_texts(wording: dict[str, Any]) -> list[str]:
             assert isinstance(value, dict), "wording.variants maps a variant to its templates"
             for variant in value.values():
                 assert isinstance(variant, dict), variant
-                texts += [str(text) for text in variant.values()]
+                for text in variant.values():
+                    assert isinstance(text, str), variant
+                    texts.append(text)
         else:
             assert isinstance(value, str), key
             texts.append(value)

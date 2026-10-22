@@ -1,11 +1,13 @@
 """The `project.yaml` keys the data manager reads (PHASE-2.md 1.3, M2.2 deliverable 1), and
-the Phase 3 keys (PHASE-3.md 1.3, M3.0 deliverable 7) that later milestones read through it.
+the Phase 3 and Phase 4 keys (PHASE-3.md 1.3, M3.0 deliverable 7; PHASE-4.md 1.3, M4.0
+deliverable 7) that later milestones read through it.
 
 `load_project()` reads docs/build/project.yaml, or the file named in `NR_PROJECT_FILE` (for
 tests and acceptance commands only). Other keys are allowed and ignored. Missing access keys
 fail closed: no real profile, no data protection documents, no list, no PEP source, no real
 overlay, no registry alert about a real organisation (G12's stricter option). Missing
-schedule dates are None: they are informational (OD-1).
+schedule dates are None: they are informational (OD-1). A missing held-out owner is None, and
+`heldout_owner_named` is False until the operator names one (only M4.9 needs it).
 """
 
 import hashlib
@@ -50,10 +52,18 @@ class People(BaseModel):
     er_labellers: list[str] = []
     er_senior_reviewers: list[str] = []
     freeze_deciders: list[str] = []  # ADR-0022 (PHASE-3.md M3.11)
+    heldout_owner: str | None = None  # PHASE-4.md 1.1: outside the copilot squad (M4.9)
+
+    @property
+    def heldout_owner_named(self) -> bool:
+        """True once `heldout_owner` is a GitHub handle, not missing or a TODO placeholder."""
+        owner = self.heldout_owner or ""
+        return owner.startswith("@") and len(owner) > 1 and "TODO" not in owner.upper()
 
 
 class Schedule(BaseModel):
-    """`schedule`: the Phase 3 dates (PHASE-3.md 1.3), informational (OD-1)."""
+    """`schedule`: the Phase 3 and Phase 4 dates (PHASE-3.md and PHASE-4.md 1.3), informational
+    (OD-1)."""
 
     model_config = ConfigDict(extra="ignore", frozen=True)
 
@@ -62,10 +72,16 @@ class Schedule(BaseModel):
     detection_freeze: date | None = None
     holdout_run: date | None = None
     teach_back_detection: date | None = None
+    # Phase 4 (PHASE-4.md 1.3)
+    phase_4_start: date | None = None
+    contracts_1_3_0: date | None = None
+    assignment_5_due: date | None = None
+    heldout_run: date | None = None
+    teach_back_copilot: date | None = None
 
 
 class Project(BaseModel):
-    """The keys Phases 2 and 3 read, plus the file they came from and its SHA-256."""
+    """The keys Phases 2 to 4 read, plus the file they came from and its SHA-256."""
 
     model_config = ConfigDict(extra="ignore", frozen=True)
 

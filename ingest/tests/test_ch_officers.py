@@ -80,11 +80,30 @@ class Api:
         start = int(request.url.params["start_index"])
         size = min(int(request.url.params["items_per_page"]), self.cap)
         total = self.totals.get(match[1], len(items))
-        body = {"items": items[start : start + size], "total_results": total, "kind": "x"}
+        page = [here(item, match[1]) for item in items[start : start + size]]
+        body = {"items": page, "total_results": total, "kind": "x"}
         return httpx.Response(200, json=body)
 
     def asked(self) -> list[tuple[str, int]]:
         return [(r.url.path.split("/")[2], int(r.url.params["start_index"])) for r in self.requests]
+
+
+def here(item: dict[str, Any], number: str) -> dict[str, Any]:
+    """The item as the API serves it for `number`: `links.self` names the company."""
+    links = item.get("links", {})
+    own = str(links.get("self", "")).replace("/company/x/", f"/company/{number}/")
+    return item | {"links": links | {"self": own}} if "self" in links else item
+
+
+def cache_texts() -> list[str]:
+    return [p.read_text() for p in layout.officer_cache_dir().rglob("*") if p.is_file()]
+
+
+def secrets_absent(texts: list[str]) -> None:
+    """No form of the key in any text: the key, its Basic auth value, the header word."""
+    basic = base64.b64encode(f"{KEY}:".encode()).decode()
+    for text in texts:
+        assert KEY not in text and basic not in text and "Basic " not in text
 
 
 def officer(ident: str, name: str = "VELQASIMI, Zafer Nadim", **data: Any) -> dict[str, Any]:
@@ -293,6 +312,8 @@ def test_budget_stops_mid_company_and_the_rerun_finishes_from_the_cache(
     assert second.strings["stopped_by"] == "done"
     assert counts["records"]["directorship"] == 43
     assert sorted(p.name for p in (cache / digest["99000020"]).iterdir()) == ["0.json", "35.json"]
+    for text in cache_texts():  # links.self names the company: only the appointment id is kept
+        assert not any(number in text for number, _, _ in SLICE) and "SYNAPPT" in text
 
     api.requests.clear()
     assert run().counts["officers"]["cache_hits"] == 5 and api.requests == []  # all cached
@@ -326,6 +347,7 @@ def test_429_waits_for_the_reset_or_300_seconds(
     assert any("HTTP 429; retry 1" in m for m in messages)
     assert any(m.startswith("HTTP Request: GET https://api.") for m in messages)
     assert not any("99000010" in m or "/company/" in m for m in messages)  # no company number
+    secrets_absent(messages)
 
 
 def test_5xx_retries_with_backoff_then_the_fetch_stops_and_reports(data_env: Any, api: Api) -> None:
@@ -341,6 +363,15 @@ def test_5xx_retries_with_backoff_then_the_fetch_stops_and_reports(data_env: Any
     again = run()  # a re-run continues
     assert again.counts["officers"]["companies"]["complete"] == 2
     assert again.strings["stopped_by"] == "done"
+    previous([("99000030", "seed", 0)])
+    api.officers["99000030"] = [officer("00030")]
+    api.requests.clear()
+    api.script = [httpx.Response(301, headers={"Location": "https://elsewhere.example/x"})]
+    moved = run()  # a redirect is not followed: a hop would pass the limiter and the budget
+    assert (moved.strings["stopped_by"], moved.counts["officers"]["http_error_status"]) == (
+        "http_error", 301
+    )  # fmt: skip
+    assert len(api.requests) == 1 and moved.counts["officers"]["requests"] == 1
 
 
 def test_records_officers_directorships_corporates_nominees_and_person_numbers(
@@ -428,11 +459,17 @@ def test_records_officers_directorships_corporates_nominees_and_person_numbers(
     assert (counts["person_numbers"], counts["person_numbers_not_12_digits"]) == (2, 2)
     assert (counts["person_number_conflicts"], counts["corporate_uk_numbers_invalid"]) == (1, 1)
     assert counts["roles_by_value"]["director"] == 1
+    cached = json.loads((officers.Cache(30, False, officers.NETWORK, counts).path("99000010", 0)
+                         ).read_text())["body"]["items"]  # fmt: skip
+    roles = {item["officer_role"]: item.get("address") for item in cached}
+    assert roles["corporate-director"] == {"country": "England"}  # a corporate address: country
+    assert roles["director"]["postal_code"] == "QQ2 2BB"
 
 
 def test_unmapped_personal_fields_never_reach_records_or_the_summary(
-    data_env: Any, api: Api
+    data_env: Any, api: Api, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.DEBUG)
     sentinel = {
         "usual_residential_address": {"premises": "SENTINELHOME", "postal_code": "QQ9 9ZZ"},
         "date_of_birth": {"day": 17, "month": 3, "year": 1981},
@@ -467,6 +504,12 @@ def test_unmapped_personal_fields_never_reach_records_or_the_summary(
         assert "SENTINEL" not in text and "QQ9" not in text and "1981-03-17" not in text
     for text in (summary, result.output):
         assert not re.search(r"Velqasimi|VELQASIMI|Zafer|SYNOFF|SYN0|99000010|BRACKEN", text)
+    for text in cache_texts():
+        assert not any(number in text for number, _, _ in SLICE)
+        for item in (json.loads(text)["body"] or {"items": []})["items"]:
+            assert set(item.get("date_of_birth", {})) <= {"month", "year"}  # never the day
+    secrets_absent([*texts, *(record.getMessage() for record in caplog.records)])
+    secrets_absent([p.read_text() for p in layout.reports_dir(PROFILE).iterdir()])
     ch = json.loads(summary)["datasets"][DATASET]
     assert ch["stopped_by"] == "done" and ch["officers"]["companies"]["complete"] == 1
     assert records()["gbch-off-SYNOFF00010"]["properties"]["birthDate"] == ["1981-03"]

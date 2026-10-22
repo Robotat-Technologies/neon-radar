@@ -64,12 +64,15 @@ class CompaniesHouseClient:
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.time,
         hide_paths: bool = False,
+        follow_redirects: bool = True,
     ) -> None:
         self.log = RequestLog()
         self._page_size, self._clock = page_size, clock
         self._http = HttpClient(
             BASE_URL,
-            follow_redirects=True,  # httpx drops the Authorization header on another host
+            # httpx drops the Authorization header on another host. Its redirect hops bypass
+            # `HttpClient.send` (the limiter), so a budgeted caller turns them off (M2.3c).
+            follow_redirects=follow_redirects,
             limiter=limiter or RateLimiter(REQUESTS_PER_SECOND, sleep=sleep),
             retry_hint=self._retry_hint,
             max_hint=WINDOW_SECONDS,
@@ -116,7 +119,7 @@ class CompaniesHouseClient:
         where = self._http.describe(response.request)
         if response.status_code == 404:
             return None
-        if response.is_error:
+        if response.is_error or response.is_redirect:
             raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
         body = response.json()
         if not isinstance(body, dict):

@@ -16,8 +16,8 @@ then the fetch stops, keeps what it has and reports it (2.7 rule 4).
 included) have gone out in this run. Every answer, reduced to the fields the records use
 (`minimal`), is cached in
 `officer_cache_dir()/<first 20 hex of sha1(company number)>/<start_index>.json` with the time
-it was fetched and the query it answered, so folder names never show which companies a slice
-holds; an entry younger than `cache_days` for the same query is a hit and costs no request.
+it was fetched and the query it answered, so folder names do not name the company numbers
+directly; an entry younger than `cache_days` for the same query is a hit and costs no request.
 After the budget runs out or the fetch stops, the remaining companies are read from the cache
 only, so a re-run finishes what an earlier one left.
 
@@ -200,10 +200,15 @@ def minimal(body: Mapping[str, Any] | None) -> dict[str, Any] | None:
         ):
             if part := _pick(_dict(item).get(name), fields):
                 kept[name] = part
+        corporate = (_str(_dict(item).get("officer_role")) or "").startswith("corporate-")
+        if corporate and (country := _pick(kept.pop("address", None), ("country",))):
+            kept["address"] = country  # a corporate officer's address: its country, for `is_uk`
         links = _dict(_dict(item).get("links"))
-        officer = _pick(links.get("officer"), ("appointments",))
-        if picked := _pick(links, ("self",)) | ({"officer": officer} if officer else {}):
-            kept["links"] = picked
+        # `links.self` holds the company number: only its last segment, the appointment id
+        if appointment := last_segment(links.get("self")):
+            kept["appointment_id"] = appointment
+        if officer := _pick(links.get("officer"), ("appointments",)):
+            kept["links"] = {"officer": officer}
         items.append(kept)
     return {"items": items, "total_results": body.get("total_results")}
 
@@ -393,7 +398,7 @@ class OfficerWriter(records.Writer):
             "endDate": _str(item.get("resigned_on")),
         }
         link_nr: dict[str, Any] = {"v": records.NR_VERSION, "is_nominee": role.startswith(NOMINEE)}
-        if appointment := last_segment(_dict(item.get("links")).get("self")):
+        if appointment := _str(item.get("appointment_id")):
             link_nr["source_ref"] = appointment
         entity = self._entity("Directorship", link, link_values)
         self.links[link] = {**entity.to_dict(), "nr": link_nr}
@@ -462,6 +467,7 @@ def write_officers(
         sleep=network.sleep,
         clock=network.clock,
         hide_paths=True,
+        follow_redirects=False,  # a redirect hop would pass the limiter and the budget
     ) as client:
         fetcher = Fetcher(client, Cache(block.cache_days, block.active_only, network, stats), stats)
         for number in numbers:

@@ -51,6 +51,10 @@ more with `--step`):
   `access.companies_house_key: available` and `CH_API_KEY`, so a build without `--step` of a
   profile that enables it needs them too. An `officers` step run on its own keeps the
   previous company records, and the previous PSC records while the `psc` block is enabled.
+  A build that runs `companies` or `psc` without `officers` writes no officer records: the
+  three files share their `Address` records, so officer records written against an earlier
+  PSC file could repeat or lose one. Run `--step officers` after it; within `cache_days` it
+  rebuilds them from the cache without a request.
 
 The work indexes are deleted after a successful build (records validated and swapped in)
 that ran the `companies` or `psc` step, unless `--keep-work` is given; `slice.csv` and
@@ -180,14 +184,18 @@ With `active_only: true` the step adds `filter=active`.
 **Rate, budget and cache.** Two requests per second, Companies House's 600 per 5 minutes
 (note 5); after a 429 it waits until `X-Ratelimit-Reset` or 300 seconds, and after a 5xx it
 backs off 1, 2 and 4 seconds; after three retries it stops fetching, keeps what it has and
-reports `stopped_by: http_error` with the status. No request goes out once
+reports `stopped_by: http_error` with the status. Redirects are not followed (a redirect hop
+would pass the limiter and the budget): a 3xx answer stops the fetch the same way. No
+request goes out once
 `request_budget` requests (retries included) have gone out in the run (`stopped_by:
 budget`; 20,000 for `uk-sample`, about three hours, operator decision OD-22). Every answer,
-including a 404, is cached, reduced to the fields the records use (below, plus the links
-that give the officer and appointment ids), in
+including a 404, is cached, reduced to the fields the records use (below; a corporate
+officer's address only by its country), the officer link and the appointment id (never
+`links.self`, which holds the company number), in
 `data/cache/real/api/gb_companies_house/officers/<first 20 hex of sha1(company number)>/<start_index>.json`
-with the time it was fetched and the query it answered, so folder names never show which
-companies a slice holds. An answer younger than `cache_days` for the same query costs no
+with the time it was fetched and the query it answered, so folder names do not name the
+company numbers directly (the hash of an 8-character number can be reversed by trying them
+all). An answer younger than `cache_days` for the same query costs no
 request. After the budget runs out or the fetch stops, the remaining companies are read from
 the cache only, so a re-run finishes what an earlier one left; the records hold every
 appointment in hand, also those of a company only partly fetched. The cache is personal data:

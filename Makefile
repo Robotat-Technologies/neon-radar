@@ -129,8 +129,9 @@ smoke: ## print the Neo4j, APOC and GDS versions; exit 1 if any is missing
 logs: ## follow the Neo4j logs
 	docker compose logs --follow --tail=200 neo4j
 
-fixtures: ## regenerate data/fixtures/demo-mini (then check new names against Companies House, OD-12)
+fixtures: ## regenerate data/fixtures/demo-mini and er-bench (then check new names, OD-12)
 	uv run neonradar synth demo-mini --seed 20261023 --out data/fixtures/demo-mini/
+	uv run neonradar synth er-bench --size small --seed 20261026 --out data/fixtures/er-bench/
 
 onboarding-check: ## Assignment 1: load the onboarding CSV, run docs/team/first-queries.md read-only
 	uv run neonradar onboarding check

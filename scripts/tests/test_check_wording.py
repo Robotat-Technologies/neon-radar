@@ -120,3 +120,14 @@ def test_invalid_pattern_fails(root: Path, capsys: pytest.CaptureFixture[str]) -
     write(root, "contracts/wording/forbidden-terms.txt", "\\bok\n(unclosed\n")
     assert run(root) == 1
     assert "invalid pattern" in capsys.readouterr().out
+
+
+def test_graph_wording_py_is_checked(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # The resolution texts of PHASE-2.md 7.2 live in graph/src/neonradar_graph/wording.py.
+    (root / "graph/src/neonradar_graph").mkdir(parents=True)
+    write(root, "graph/src/neonradar_graph/wording.py", 'TEXT = "Possible match, not confirmed."\n')
+    assert run(root) == 0
+    assert "1 wording.py files" in capsys.readouterr().out
+    write(root, "graph/src/neonradar_graph/wording.py", 'TEXT = "a suspicious match"\n')
+    assert run(root) == 1
+    assert "graph/src/neonradar_graph/wording.py:1:" in capsys.readouterr().out

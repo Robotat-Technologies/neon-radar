@@ -279,7 +279,7 @@ def test_stats_and_wipe(graph_db: Neo4jTarget) -> None:
     load_records(graph_db.driver, list(fixture().values()), database=graph_db.database)
     nodes, relationships = snapshot(graph_db)
     counted = stats(graph_db.driver, graph_db.database)
-    assert counted.nodes == len(nodes) + 1  # and the :SchemaMigration node
+    assert counted.nodes == len(nodes) + len(discover())  # and the :SchemaMigration nodes
     assert counted.relationships == len(relationships)
     assert counted.relationship_types == dict(Counter(row["type"] for row in relationships))
     assert counted.labels["Entity"] == sum("Entity" in row["labels"] for row in nodes)

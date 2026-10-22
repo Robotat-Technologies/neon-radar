@@ -11,7 +11,7 @@ are deleted unless `--keep-work` is given; `slice.csv` and `slice.json` stay unt
 `slice` step. The `companies` step refuses (exit 2) a slice built from another snapshot than
 the newest download. A `psc` step run without the `companies` step keeps the previous company
 records, which its links point to; an `officers` step run on its own keeps the previous
-company and PSC records.
+company records, and the previous PSC records while the `psc` block is enabled.
 """
 
 import json
@@ -302,7 +302,10 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
         )
     if officer_block is not None and key is not None:
         companies = _carry(profile, context.out_dir, "companies")
-        pscs = _carried(profile, context.out_dir, "psc")  # kept when this build did not run psc
+        # PSC records of this build, or kept from the last one when the psc block is enabled
+        # and the company records are not new (their links would point at missing companies)
+        keep = block is not None and ("psc" in steps or "companies" not in steps)
+        pscs = _carried(profile, context.out_dir, "psc") if keep else None
         counts["officers"], strings["stopped_by"] = officers.write_officers(
             key,
             officer_block,

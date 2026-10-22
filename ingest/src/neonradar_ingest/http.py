@@ -11,6 +11,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -48,9 +49,18 @@ def redact(url: httpx.URL | str) -> str:
     return str(url.copy_with(userinfo=b"", params=params))
 
 
+# True while a `hide_paths` client sends: httpx's own request log then shows only the host.
+_HIDE_PATHS: ContextVar[bool] = ContextVar("neonradar_hide_paths", default=False)
+
+
+def shown(url: httpx.URL) -> str:
+    """How logs show a URL: redacted, and only scheme and host while paths are hidden."""
+    return f"{url.scheme}://{url.host}/…" if _HIDE_PATHS.get() else redact(url)
+
+
 def _redact_urls(record: logging.LogRecord) -> bool:
     if isinstance(record.args, tuple):
-        record.args = tuple(redact(a) if isinstance(a, httpx.URL) else a for a in record.args)
+        record.args = tuple(shown(a) if isinstance(a, httpx.URL) else a for a in record.args)
     return True
 
 
@@ -145,6 +155,13 @@ class HttpClient(httpx.Client):
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
+        token = _HIDE_PATHS.set(self.hide_paths)
+        try:
+            return self._send(request, **kwargs)
+        finally:
+            _HIDE_PATHS.reset(token)
+
+    def _send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
         where = self.describe(request)
         retries = self.retries if request.method in RETRY_METHODS else 0

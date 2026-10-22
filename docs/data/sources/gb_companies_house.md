@@ -48,8 +48,9 @@ more with `--step`):
   counted, not loaded.
 - `officers` (when the `officers` block is enabled): the directors and secretaries of the
   slice companies through the REST API, within a request budget (below). It needs
-  `access.companies_house_key: available` and `CH_API_KEY`; an `officers` step run on its own
-  keeps the previous company and PSC records.
+  `access.companies_house_key: available` and `CH_API_KEY`, so a build without `--step` of a
+  profile that enables it needs them too. An `officers` step run on its own keeps the
+  previous company records, and the previous PSC records while the `psc` block is enabled.
 
 The work indexes are deleted after a successful build (records validated and swapped in)
 that ran the `companies` or `psc` step, unless `--keep-work` is given; `slice.csv` and
@@ -167,7 +168,7 @@ names; unlike a registered office, it is never assumed to be `gb`.
 
 The officers step runs the real-data gate first (`access.companies_house_key` before the
 other conditions; exit 3), then reads `CH_API_KEY` from the environment or `.env` through
-the settings object (missing: exit 2), both before any request or file write. For each
+the settings object (missing: exit 2), both before any request or cache write. For each
 company of `slice.csv` that has a `Company` record, in the file's order (seeds, then parents
 and children by level, then the district sample in hash order), it reads
 `GET /company/{number}/officers?items_per_page=100&start_index=<k>`, advancing `k` by the
@@ -182,7 +183,8 @@ backs off 1, 2 and 4 seconds; after three retries it stops fetching, keeps what 
 reports `stopped_by: http_error` with the status. No request goes out once
 `request_budget` requests (retries included) have gone out in the run (`stopped_by:
 budget`; 20,000 for `uk-sample`, about three hours, operator decision OD-22). Every answer,
-including a 404, is cached in
+including a 404, is cached, reduced to the fields the records use (below, plus the links
+that give the officer and appointment ids), in
 `data/cache/real/api/gb_companies_house/officers/<first 20 hex of sha1(company number)>/<start_index>.json`
 with the time it was fetched and the query it answered, so folder names never show which
 companies a slice holds. An answer younger than `cache_days` for the same query costs no
@@ -202,7 +204,7 @@ two slice companies is one record with two directorships:
 | Officer | Record |
 |---|---|
 | a natural person | `Person`: `name` as given (`SURNAME, Forenames`), `firstName` and `lastName` from `neonradar_keys.names.split_ch_name`, month and year of birth (`yyyy-mm`), nationalities (each demonym through `country_code`), country of residence, the service address (role `service`), and `nr.ch_person_number`, the item's `person_number` unchanged |
-| a role starting `corporate-` | `Company` when `identification.registration_number` is present, else `LegalEntity`: name, legal form, and the registration number and jurisdiction by the corporate PSC rule (below) |
+| a role starting `corporate-` | `Company` when `identification.registration_number` is present, else `LegalEntity`: name, legal form, and the registration number and jurisdiction by the rule for corporate PSCs (above) |
 
 Each appointment is a `Directorship` (`gbch-directorship-<first 20 hex of sha1 of officer id,
 company number, role, appointed_on>`): `director` the officer, `organization` the company,
@@ -215,8 +217,9 @@ never shortens or merges on it; the summary counts the person numbers that are n
 and the officer ids seen with two numbers (the first is kept).
 
 **Not loaded.** The usual residential address, any day of birth, the occupation, former
-names, contact and identity verification details and the care-of line are never read; a
-corporate officer's address is read only for its country, which the registry rule may need.
+names, the name elements (other forenames, title, honours), contact and identity verification
+details and the care-of line are never read and never cached; a corporate officer's address
+is read only for its country, which the registry rule may need.
 
 ## Personal data
 

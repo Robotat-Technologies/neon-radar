@@ -13,7 +13,8 @@ auth with the key, 2 requests per second (600 per 5 minutes), after a 429 a wait
 then the fetch stops, keeps what it has and reports it (2.7 rule 4).
 
 **Budget, cache and resume.** No request goes out once `request_budget` requests (retries
-included) have gone out in this run. Every answer is cached in
+included) have gone out in this run. Every answer, reduced to the fields the records use
+(`minimal`), is cached in
 `officer_cache_dir()/<first 20 hex of sha1(company number)>/<start_index>.json` with the time
 it was fetched and the query it answered, so folder names never show which companies a slice
 holds; an entry younger than `cache_days` for the same query is a hit and costs no request.
@@ -70,6 +71,12 @@ DAY = 86_400.0
 STOPPED = ("done", "budget", "http_error")
 COMPANY_STATUSES = ("complete", "partial", "not_reached", "not_found")
 NOMINEE = ("nominee-", "corporate-nominee-")
+# The only item fields the step reads, so the only ones the cache keeps (`minimal`).
+ITEM_FIELDS = ("name", "officer_role", "appointed_on", "resigned_on", "nationality",
+               "country_of_residence", "person_number")  # fmt: skip
+ADDRESS_FIELDS = ("premises", *psc.ADDRESS)  # never care_of
+IDENTIFICATION_FIELDS = ("identification_type", "legal_authority", "legal_form", "place_registered",
+                         "registration_number", "country_registered")  # fmt: skip
 # Counters the summary always shows, also when zero (as M2.3a's `records.COUNTED`).
 COUNTED = (
     "appointments_duplicate",
@@ -171,6 +178,36 @@ def _str(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _pick(value: object, names: Sequence[str]) -> dict[str, Any]:
+    return {name: item for name, item in _dict(value).items() if name in names}
+
+
+def minimal(body: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """An answer with only the fields the step reads: no usual residential address, day of
+    birth, occupation, former names, name elements, contact or identity verification details
+    or care-of line ever reaches the cache. Items stay in place, so paging is unchanged."""
+    if body is None:
+        return None
+    raw = body.get("items")
+    items = []
+    for item in raw if isinstance(raw, list) else []:
+        kept = _pick(item, ITEM_FIELDS)
+        if birth := _pick(_dict(item).get("date_of_birth"), ("month", "year")):
+            kept["date_of_birth"] = birth
+        for name, fields in (
+            ("address", ADDRESS_FIELDS),
+            ("identification", IDENTIFICATION_FIELDS),
+        ):
+            if part := _pick(_dict(item).get(name), fields):
+                kept[name] = part
+        links = _dict(_dict(item).get("links"))
+        officer = _pick(links.get("officer"), ("appointments",))
+        if picked := _pick(links, ("self",)) | ({"officer": officer} if officer else {}):
+            kept["links"] = picked
+        items.append(kept)
+    return {"items": items, "total_results": body.get("total_results")}
+
+
 class Cache:
     """Answers by company and start index; a hit is fresh (`cache_days`) and for one query."""
 
@@ -234,7 +271,9 @@ class Fetcher:
                 break  # after the budget or an error: the cache only
             else:
                 try:
-                    body = self.client.get_json(PATH.format(number), self.cache.query(start))
+                    body = minimal(
+                        self.client.get_json(PATH.format(number), self.cache.query(start))
+                    )
                 except BudgetExhausted:
                     self.stopped_by = "budget"
                     break

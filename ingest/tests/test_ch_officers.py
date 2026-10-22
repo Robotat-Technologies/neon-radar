@@ -8,6 +8,7 @@ company names from the demo-mini fixture. The clock is fake, so no test sleeps.
 import base64
 import hashlib
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -116,11 +117,12 @@ def many(count: int, first: int = 100) -> list[dict[str, Any]]:
     return [officer(f"{n:05d}", surnames[n % 3]) for n in range(first, first + count)]
 
 
-def profile(env: Any, **block: Any) -> None:
+def profile(env: Any, psc: bool | None = None, **block: Any) -> None:
     officers_block = {"enabled": True, "request_budget": 100, "cache_days": 30} | block
-    env.write_profile(
-        PROFILE, real_data=True, sources={DATASET: {"enabled": True, "officers": officers_block}}
-    )
+    source: dict[str, Any] = {"enabled": True, "officers": officers_block}
+    if psc is not None:
+        source["psc"] = {"enabled": psc}
+    env.write_profile(PROFILE, real_data=True, sources={DATASET: source})
 
 
 def write(path: Path, lines: list[dict[str, Any]]) -> None:
@@ -168,10 +170,12 @@ def run(steps: tuple[str, ...] = ("officers",)) -> BuildResult:
     return build_dataset(builder, chosen, project, strict, run_id="build-1", steps=steps)
 
 
-def cli() -> Any:
+def cli(*steps: str) -> Any:
+    """`ingest build ... --step officers`, or the given steps (none: every planned step)."""
     from neonradar_cli.main import app
 
-    command = ["ingest", "build", "--profile", PROFILE, "--dataset", DATASET, "--step", "officers"]
+    chosen = [f"--step={step}" for step in (steps or ("officers",)) if step]
+    command = ["ingest", "build", "--profile", PROFILE, "--dataset", DATASET, *chosen]
     return CliRunner().invoke(app, command)
 
 
@@ -200,6 +204,11 @@ def test_gate_refuses_the_officers_step_before_any_request(data_env: Any, api: A
         assert message in result.output
         with pytest.raises(RealDataRefused, match=re.escape(message)):
             run()  # the step's own gate, without the CLI's
+    whole = cli("")  # without --step the planned steps include officers: gated too
+    assert whole.exit_code == 3 and cases[1][1] in whole.output
+    profile(data_env, enabled=False)  # not planned: past the gate, the build's own check
+    without = cli("")
+    assert without.exit_code == 1 and "no companies block" in without.output, without.output
     assert api.requests == []
     assert not layout.officer_cache_dir().exists()
 
@@ -301,6 +310,7 @@ def test_budget_stops_mid_company_and_the_rerun_finishes_from_the_cache(
 def test_429_waits_for_the_reset_or_300_seconds(
     data_env: Any, api: Api, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.DEBUG)  # httpx logs each request at INFO
     previous([("99000010", "seed", 0), ("99000020", "seed", 0)])
     api.officers = {"99000010": [officer("00010")], "99000020": [officer("00020")]}
     reset = str(int(api.clock.now) + 42)
@@ -314,6 +324,7 @@ def test_429_waits_for_the_reset_or_300_seconds(
     assert counts["companies"]["complete"] == 2
     messages = [record.getMessage() for record in caplog.records]
     assert any("HTTP 429; retry 1" in m for m in messages)
+    assert any(m.startswith("HTTP Request: GET https://api.") for m in messages)
     assert not any("99000010" in m or "/company/" in m for m in messages)  # no company number
 
 
@@ -430,6 +441,18 @@ def test_unmapped_personal_fields_never_reach_records_or_the_summary(
         "identity_verification_details": {"SENTINELIDV": "x"},
         "contact_details": {"contact_name": "SENTINELCONTACT"},
         "address": SERVICE | {"care_of": "SENTINELCARE"},
+        "name_elements": {
+            "forename": "Zafer",
+            "other_forenames": "SENTINELOTHER",
+            "surname": "VELQASIMI",
+            "title": "SENTINELTITLE",
+            "honours": "SENTINELHONOURS",
+        },
+        "links": {
+            "self": "/company/x/appointments/SYNAPPT00010",
+            "SENTINELLINK": "/x",
+            "officer": {"appointments": "/officers/SYNOFF00010/appointments"},
+        },
     }
     api.officers = {"99000010": [officer("00010", **sentinel)]}
     result = cli()
@@ -437,6 +460,9 @@ def test_unmapped_personal_fields_never_reach_records_or_the_summary(
     summary = next(layout.reports_dir(PROFILE).glob("ingest-build-*.json")).read_text()
     folder = layout.records_dir(PROFILE, DATASET)
     texts = [summary, result.output, *(p.read_text() for p in folder.iterdir())]
+    kept = [layout.work_dir(PROFILE, DATASET), layout.officer_cache_dir()]  # the cache too
+    texts += [p.read_text() for root in kept for p in root.rglob("*") if p.is_file()]
+    assert len(list(layout.officer_cache_dir().rglob("*.json"))) == 4  # three answered 404
     for text in texts:
         assert "SENTINEL" not in text and "QQ9" not in text and "1981-03-17" not in text
     for text in (summary, result.output):
@@ -464,13 +490,14 @@ def test_profile_block_steps_and_the_records_an_officers_step_keeps(
     assert ch_build.plan(load_profile(PROFILE), ())[-1] == "officers"
     psc = ValueEntity(model["Person"], {"id": "gbch-psc-SYNP1", "datasets": [DATASET]})
     psc.add("name", "Rakan Zubeirono")
-    write(layout.records_dir(PROFILE, DATASET) / "psc.ftm.jsonl", [{**psc.to_dict()}])
-    api.officers = {"99000010": [officer("00010")]}
-    run()
     folder = layout.records_dir(PROFILE, DATASET)
-    assert sorted(p.name for p in folder.glob("*.ftm.jsonl")) == [
-        "companies.ftm.jsonl", "officers.ftm.jsonl", "psc.ftm.jsonl"
-    ]  # fmt: skip
+    api.officers = {"99000010": [officer("00010")]}
+    names = ["companies.ftm.jsonl", "officers.ftm.jsonl", "psc.ftm.jsonl"]
+    for psc_enabled, kept in ((True, names), (False, names[:2]), (None, names[:2])):
+        write(folder / "psc.ftm.jsonl", [{**psc.to_dict()}])
+        profile(data_env, psc=psc_enabled)  # PSC records stay only while the block is enabled
+        run()
+        assert sorted(p.name for p in folder.glob("*.ftm.jsonl")) == kept
     (layout.work_dir(PROFILE, DATASET) / "slice.csv").unlink()
     with pytest.raises(BuildError, match="run --step slice first"):
         run()

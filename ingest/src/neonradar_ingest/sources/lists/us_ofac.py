@@ -80,6 +80,9 @@ FEATURES = {
     "organization established date": "incorporationDate",
 }
 GENDERS = {"male": "male", "female": "female"}
+# Company properties: loaded on an Organization only, counted on a Person (a company number or
+# an LEI on a person would feed the identifier rules D1 and D2 with a person's record).
+ORGANIZATION_ONLY = frozenset({"incorporationDate", "registrationNumber", "leiCode"})
 LOCATION_PARTS = (
     "ADDRESS1", "ADDRESS2", "ADDRESS3", "CITY", "STATE/PROVINCE", "REGION", "POSTAL CODE",
 )  # fmt: skip
@@ -237,7 +240,7 @@ def _elements(path: Path) -> Iterator[tuple[str, Element]]:
 
 def _int(element: Element | None, name: str) -> int | None:
     value = shared.text(element, name)
-    return int(value) if value and value.isdigit() else None
+    return int(value) if value and value.isascii() and value.isdigit() else None
 
 
 def _point(element: Element | None) -> tuple[int | None, int | None, int | None]:
@@ -510,7 +513,10 @@ def _period(period: Element, counts: Counter[str]) -> list[str]:
     if end is None:
         last = first
     approximate = any(b is not None and b.get("Approximate") == "true" for b in (start, end))
-    dates = year_range(first[0], last[0]) if approximate else period_dates(first, last)
+    try:
+        dates = year_range(first[0], last[0]) if approximate else period_dates(first, last)
+    except ValueError:  # an impossible month (calendar.IllegalMonthError): counted, not raised
+        dates = []
     counts["unparseable_dates"] += not dates
     return dates
 
@@ -542,7 +548,11 @@ def _feature(
 ) -> None:
     kind = tables.value("FeatureType", feature.get("FeatureTypeID")) or "unknown"
     prop = FEATURES.get(kind.casefold())
-    if prop is None or model[schema].get(prop) is None:
+    if (
+        prop is None
+        or model[schema].get(prop) is None
+        or (prop in ORGANIZATION_ONLY and schema != "Organization")
+    ):
         skipped_types[_vocabulary(kind)] += 1
         counts["crypto_wallets_skipped"] += kind.casefold().startswith("digital currency address")
         return
@@ -553,7 +563,8 @@ def _feature(
         elif prop == "address":
             for place in _locations(version, tables):
                 if place.parts:
-                    props["address"].append(", ".join([*place.parts, place.country or ""]))
+                    parts = (*place.parts, place.country)
+                    props["address"].append(", ".join(part for part in parts if part))
                 props["country"].append(_country(place.country, place.iso2, counts) or "")
         elif prop in ("nationality", "citizenship"):
             places = _locations(version, tables)
@@ -578,10 +589,14 @@ def _documents(
     skipped_types: Counter[str],
 ) -> None:
     """Deliverable 6. A number from a typed field goes through `uk_company_number`, which accepts
-    only Companies House forms (M2.6 rule 6)."""
+    only Companies House forms (M2.6 rule 6); company numbers and LEIs load on an Organization
+    only."""
     has = model[schema].get
     for doc in documents:
         kind = doc.kind.casefold()
+        company = kind == "uk company number" or (
+            kind in UK_IF_ISSUED_IN_GB and doc.issued_by == "gb"
+        )
         if doc.fraudulent:
             counts["fraudulent_documents_skipped"] += 1
         elif not doc.number:
@@ -590,16 +605,18 @@ def _documents(
             props["passportNumber"].append("".join(doc.number.split()))
         elif kind in ID_NUMBERS and has("idNumber"):
             props["idNumber"].append("".join(doc.number.split()))
-        elif kind == "uk company number" or (kind in UK_IF_ISSUED_IN_GB and doc.issued_by == "gb"):
+        elif (company or kind in LEI_TYPES) and schema != "Organization":
+            counts["registration_numbers_on_persons"] += 1
+        elif company:
             number = uk_company_number(doc.number)
-            if number and has("registrationNumber"):
+            if number:
                 props["registrationNumber"].append(number)
                 props["jurisdiction"].append("gb")
             else:
                 counts["uk_company_numbers_rejected"] += 1
         elif kind in LEI_TYPES:
             lei = "".join(doc.number.split()).upper()
-            if is_valid_lei(lei) and has("leiCode"):
+            if is_valid_lei(lei):
                 props["leiCode"].append(lei)
             else:
                 counts["leis_rejected"] += 1
@@ -677,40 +694,62 @@ def party_records(
             return
 
 
+@dataclass(frozen=True, slots=True)
+class Link:
+    schema: str
+    ends: tuple[tuple[str, str], tuple[str, str]]  # (property, party id) of From, then To
+    relation: Relation
+    flipped: bool
+
+
+def _link(relation: Relation, tables: Tables, counts: Counter[str]) -> Link | None:
+    source, target = tables.parties.get(relation.source), tables.parties.get(relation.target)
+    if source is None or target is None:
+        counts["relationships_to_skipped_parties"] += 1
+        return None
+    (a, a_schema), (b, b_schema) = source, target
+    known = RELATIONS.get(relation.kind.casefold())
+    counts["unknown_relation_types"] += known is None
+    schema, a_prop, b_prop = known or UNKNOWN_LINK
+    persons = a_schema == b_schema == "Person"
+    flipped = False
+    if (schema in PERSONS_ONLY and not persons) or (schema in TARGETED and persons):
+        schema, a_prop, b_prop = UNKNOWN_LINK
+    elif schema in TARGETED:
+        target_schema = a_schema if a_prop == TARGETED[schema] else b_schema
+        if target_schema == "Person":  # note 2.9: a link in a reversed direction
+            a_prop, b_prop, flipped = b_prop, a_prop, True
+    return Link(schema, ((a_prop, a), (b_prop, b)), relation, flipped)
+
+
 def relationship_records(tables: Tables, counts: Counter[str]) -> Iterator[dict[str, Any]]:
-    """Deliverable 8: links between two loaded parties of the list; never `Ownership`."""
-    seen: set[str] = set()
+    """Deliverable 8: links between two loaded parties of the list; never `Ownership`. Two
+    relationships with the same ends and type give one record: the current one if either is
+    current, else the first."""
+    chosen: dict[str, Link] = {}
     for relation in tables.relations:
-        source, target = tables.parties.get(relation.source), tables.parties.get(relation.target)
-        if source is None or target is None:
-            counts["relationships_to_skipped_parties"] += 1
+        link = _link(relation, tables, counts)
+        if link is None:
             continue
-        (a, a_schema), (b, b_schema) = source, target
-        known = RELATIONS.get(relation.kind.casefold())
-        counts["unknown_relation_types"] += known is None
-        schema, a_prop, b_prop = known or UNKNOWN_LINK
-        persons = a_schema == b_schema == "Person"
-        if (schema in PERSONS_ONLY and not persons) or (schema in TARGETED and persons):
-            schema, a_prop, b_prop = UNKNOWN_LINK
-        elif schema in TARGETED:
-            target_schema = a_schema if a_prop == TARGETED[schema] else b_schema
-            if target_schema == "Person":  # note 2.9: a link in a reversed direction
-                a_prop, b_prop = b_prop, a_prop
-                counts["relationships_flipped"] += 1
-        key = f"{a}|{b}|{relation.kind}".encode()
-        digest = hashlib.sha1(key, usedforsecurity=False).hexdigest()[:20]
-        record_id = f"{PREFIX}-{schema.lower()}-{digest}"
-        if record_id in seen:
+        (_, a), (_, b) = link.ends
+        digest = hashlib.sha1(f"{a}|{b}|{relation.kind}".encode(), usedforsecurity=False)
+        record_id = f"{PREFIX}-{link.schema.lower()}-{digest.hexdigest()[:20]}"
+        earlier = chosen.get(record_id)
+        if earlier is not None:
             counts["duplicate_relationships"] += 1
-            continue
-        seen.add(record_id)
-        props: dict[str, list[str]] = {a_prop: [a], b_prop: [b]}
-        if schema in PERSONS_ONLY:
+            if not (earlier.relation.former and not relation.former):
+                continue
+        chosen[record_id] = link
+    for record_id, link in chosen.items():
+        counts["relationships_flipped"] += link.flipped
+        relation = link.relation
+        props: dict[str, list[str]] = {prop: [party] for prop, party in link.ends}
+        if link.schema in PERSONS_ONLY:
             props["relationship"] = [relation.kind + (" (former)" if relation.former else "")]
         else:
             props["role"] = [relation.kind]
             props["status"] = ["former"] if relation.former else []
-        yield _record(schema, record_id, props, relation.id)
+        yield _record(link.schema, record_id, props, relation.id)
 
 
 def build(profile: Profile, context: BuildContext) -> BuildResult:
@@ -726,7 +765,8 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     def records() -> Iterator[dict[str, Any]]:
         yield from party_records(download.path, tables, counts, skipped)
         yield from relationship_records(tables, counts)
-        # write_records reads `skipped` after it has written the last record.
+        # Coupled to shared.write_records, which writes the manifest, and so reads `skipped`,
+        # only after it has consumed this stream; the counts are final only here.
         manifest_skipped.update(
             Vessel=counts["skipped_vessel"],
             Airplane=counts["skipped_airplane"],
@@ -762,5 +802,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
 
 
 register_source_model(DATASET, shared.ListOptions)
-register_source(SourceSpec(DATASET, shared.discover_static(FILE_NAME, URL)))
+register_source(
+    SourceSpec(DATASET, shared.discover_static(FILE_NAME, URL), client=shared.list_client)
+)
 register_builder(Builder(DATASET, build, string_keys=("list_generated",)))

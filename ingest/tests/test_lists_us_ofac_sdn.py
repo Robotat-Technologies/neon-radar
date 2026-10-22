@@ -18,7 +18,7 @@ from neonradar_cli.main import app
 from neonradar_ingest.data import sources
 from neonradar_ingest.data.sources import BuildError
 from neonradar_ingest.http import HttpClient, RateLimiter
-from neonradar_ingest.sources.lists import us_ofac
+from neonradar_ingest.sources.lists import shared, us_ofac
 from neonradar_ingest.sources.lists.common import sanction_id
 
 FIXTURES = Path(__file__).parent / "fixtures" / "lists" / "us_ofac_sdn"
@@ -107,29 +107,47 @@ def parse(path: Path) -> tuple[us_ofac.Tables, list[dict[str, Any]], Counter[str
     return tables, records + list(us_ofac.relationship_records(tables, counts)), counts
 
 
-def test_fixture_validates_against_the_committed_xsd() -> None:
+def _broken_keyrefs(path: Path, text: str) -> dict[str, set[str | None]]:
+    """The XSD's keyrefs that `path` breaks: attribute name to the ids that point nowhere."""
+    from defusedxml.ElementTree import parse as parse_xml
+
+    keys = {name: (tag, field) for name, tag, field in KEY.findall(text)}
+    root = parse_xml(path).getroot()
+    assert root is not None
+    elements = list(root.iter())
+    broken = {}
+    for refer, attribute in KEYREF.findall(text):
+        tag, field = keys[refer]
+        known = {e.get(field) for e in elements if e.tag.rsplit("}", 1)[-1] == tag}
+        used = {e.get(attribute) for e in elements if attribute in e.attrib}
+        if used - known:
+            broken[attribute] = used - known
+    return broken
+
+
+def test_fixture_validates_against_the_committed_xsd(tmp_path: Path) -> None:
     if not XSD.is_file():
         pytest.skip("the publisher's XSD is not committed (see the pull request)")
     import xmlschema
-    from defusedxml.ElementTree import parse as parse_xml
 
     text = XSD.read_text(encoding="utf-8")
-    keys = {name: (tag, field) for name, tag, field in KEY.findall(text)}
     keyrefs = KEYREF.findall(text)
-    assert len(keyrefs) == 48 and {refer for refer, _ in keyrefs} <= set(keys)
+    key_names = {name for name, _tag, _field in KEY.findall(text)}
+    assert len(keyrefs) == 48 and {refer for refer, _ in keyrefs} <= key_names
     # Everything but the keyrefs through xmlschema (sandboxed: never fetches anything). Their
     # `.//un:*` selectors take xmlschema 15 s on this small file, so they are checked below.
     base = str(FIXTURES.resolve())
     schema = xmlschema.XMLSchema(KEYREF.sub("", text), base_url=base, allow="sandbox")
     schema.validate(str(FIXTURE.resolve()))
-    root = parse_xml(FIXTURE).getroot()
-    assert root is not None
-    elements = list(root.iter())
-    for refer, attribute in keyrefs:
-        tag, field = keys[refer]
-        known = {e.get(field) for e in elements if e.tag.rsplit("}", 1)[-1] == tag}
-        used = {e.get(attribute) for e in elements if attribute in e.attrib}
-        assert used <= known, (attribute, used - known)
+    assert _broken_keyrefs(FIXTURE, text) == {}
+    # The keyref check fails on a reference that points nowhere.
+    broken = tmp_path / "broken.xml"
+    fixture = FIXTURE.read_text(encoding="utf-8")
+    broken.write_text(
+        fixture.replace('<LocationCountry CountryID="3"', '<LocationCountry CountryID="77"'),
+        encoding="utf-8",
+    )
+    assert _broken_keyrefs(broken, text) == {"CountryID": {"77"}}
 
 
 def test_gate_refuses_a_list_left_out_of_access_sanctions_lists(
@@ -186,7 +204,7 @@ def test_reference_value_lookups() -> None:
     assert tables.entries["990001"][0] == us_ofac.Entry(
         "8001", "2019-05-01", ("SYN-ALPHA", "SYN-BETA"), ("Block",)
     )
-    assert len(tables.relations) == 14
+    assert len(tables.relations) == 15
     # Subtype "Unknown" falls back to the party type; vessels and aircraft are not loadable.
     assert tables.parties["990001"] == ("ofac-990001", "Person")
     assert tables.parties["990011"] == ("ofac-990011", "Organization")
@@ -211,15 +229,15 @@ def test_person_names_in_two_scripts_and_a_weak_alias(built: dict[str, dict[str,
 
 def test_maiden_name_nickname_and_name_parts(built: dict[str, dict[str, Any]]) -> None:
     p = props(built["ofac-990002"])
-    assert p["name"] == ["Yazan Zafer Raqan VELQASIMI"]  # first, patronymic, matronymic, last
+    assert p["name"] == ["Yazan Zafer Raqan ULVARAZI"]  # first, patronymic, matronymic, last
     assert (p["firstName"], p["fatherName"], p["motherName"], p["lastName"]) == (
         ["Yazan"],
         ["Zafer"],
         ["Raqan"],
-        ["VELQASIMI"],
+        ["ULVARAZI"],
     )
-    assert sorted(p["alias"]) == ["Yazan VELQASEMI", "Yazan ZUBEIRONO"]  # N.K.A.; maiden name
-    assert p["previousName"] == ["Yazan VELQASIMY"]  # F.K.A.
+    assert sorted(p["alias"]) == ["Yazan ULVARASI", "Yazan ZUBEIRONO"]  # N.K.A.; maiden name
+    assert p["previousName"] == ["Yazan ULVARAZY"]  # F.K.A.
     assert p["weakAlias"] == ["Nadim"]  # the nickname
 
 
@@ -244,8 +262,12 @@ def test_person_features_and_documents(built: dict[str, dict[str, Any]], data_en
     assert (q["gender"], q["passportNumber"]) == (["female"], ["SYNP000201"])  # diplomatic
     assert q["idNumber"] == ["SYNC000201", "SYNI000201"]  # cedula, identification number
     assert "nationality" not in q  # "Atlantis" is counted, never guessed
+    # A company number and an established date on a person: counted, never loaded.
+    r = props(built["ofac-990004"])
+    assert not {"registrationNumber", "jurisdiction", "leiCode", "incorporationDate"} & set(r)
     counts = summary(data_env)
     assert (counts["unmapped_countries"], counts["fraudulent_documents_skipped"]) == (1, 1)
+    assert counts["registration_numbers_on_persons"] == 1
 
 
 def test_organization_numbers(built: dict[str, dict[str, Any]], data_env: Any) -> None:
@@ -280,6 +302,7 @@ def test_skipped_parties_and_values_never_loaded(
         "SYNT000101",  # tax id: counted by type
         "SYNP000102",  # fraudulent
         "SY000113",  # registration number issued in Cyprus
+        "99000141",  # a company number on a person
         "Synthetic location note",
         "Lemesos",  # not the primary location part value
     ):
@@ -288,7 +311,7 @@ def test_skipped_parties_and_values_never_loaded(
     assert (counts["skipped_vessel"], counts["skipped_airplane"]) == (1, 1)
     assert counts["crypto_wallets_skipped"] == 1
     # Fewer than 10 of each type: folded into the _rare count (the summary guard).
-    assert counts["feature_types_not_loaded_by_value_rare"] == 5
+    assert counts["feature_types_not_loaded_by_value_rare"] == 6
     assert counts["document_types_not_loaded_by_value_rare"] == 2
 
 
@@ -303,6 +326,7 @@ def test_type_names_counted_by_value() -> None:
         "digital currency address - xbt": 1,
         "title": 1,  # titles are not loaded, whatever keep_positions says
         "nationality country": 1,  # on an Organization
+        "organization established date": 1,  # on a Person
     }
     assert skipped.documents == {"tax id no.": 1, "registration number": 1}
     assert us_ofac._vocabulary("Russian State Number (OGRNIP) — X") == (
@@ -347,7 +371,8 @@ def test_relationships(built: dict[str, dict[str, Any]], data_env: Any) -> None:
                  "Principal Executive Officer"),
         "9007": ("Membership", "member", "02", "organization", "13",
                  "playing a significant role in"),
-        "9008": ("Associate", "person", "01", "associate", "03", "Associate Of (former)"),
+        # 9015 repeats 9008's ends and type but is current: the current one is kept.
+        "9015": ("Associate", "person", "01", "associate", "03", "Associate Of"),
         "9009": ("Family", "person", "02", "relative", "04", "Family member of"),
         "9010": ("UnknownLink", "subject", "03", "object", "14", "Associate Of"),  # not two persons
         "9011": ("UnknownLink", "subject", "14", "object", "11", "Providing support to"),
@@ -364,7 +389,7 @@ def test_relationships(built: dict[str, dict[str, Any]], data_env: Any) -> None:
     assert any(re.fullmatch(r"ofac-control-[0-9a-f]{20}", key) for key in built)
     counts = summary(data_env)
     assert (counts["relationships_flipped"], counts["relationships_to_skipped_parties"]) == (1, 1)
-    assert counts["unknown_relation_types"] == 1
+    assert (counts["unknown_relation_types"], counts["duplicate_relationships"]) == (1, 1)
 
 
 def test_parsing_ignores_the_namespace(tmp_path: Path) -> None:
@@ -523,3 +548,36 @@ def test_a_weak_alias_never_becomes_the_name(tmp_path: Path) -> None:
     assert (counts["no_strong_name"], counts["relationships_to_skipped_parties"]) == (1, 4)
     assert us_ofac.party_id("990004") == "ofac-990004"
     assert re.fullmatch(r"ofac-uid-[0-9a-f]{20}", us_ofac.party_id("SYN 0001"))  # make_id
+
+
+def test_the_client_logs_no_query_string() -> None:
+    """M2.6 rule 4: the shared list client, which keeps every query string out of the logs."""
+    assert sources._SOURCES[us_ofac.DATASET].client is shared.list_client
+    with shared.list_client() as client:
+        assert client.log_query is False
+
+
+def test_address_without_a_country_and_an_impossible_month(tmp_path: Path) -> None:
+    text = FIXTURE.read_text(encoding="utf-8")
+    country = '<Location ID="105">\n      <LocationCountry CountryID="1" CountryRelevanceID="1"/>'
+    birth = "<Year>1979</Year><Month>8</Month><Day>14</Day>"
+    assert country in text and text.count(birth) == 4
+    path = tmp_path / "edited.xml"
+    edited = text.replace(country, '<Location ID="105">')
+    # Start 1979-13-01, end 1979-13-31: period_dates would look up month 13 and raise.
+    edited = edited.replace(birth, "<Year>1979</Year><Month>13</Month><Day>1</Day>", 2)
+    edited = edited.replace(birth, "<Year>1979</Year><Month>13</Month><Day>31</Day>")
+    path.write_text(edited, encoding="utf-8")
+    _, records, counts = parse(path)
+    found = {record["id"]: record for record in records}
+    address = props(found["ofac-990011"])["address"]
+    assert address == ["2 Marram Row, Unit 3, Leeds, Sorrel Shire, North, QQ2 2QQ"]  # no ", "
+    assert props(found["ofac-990001"])["birthDate"] == ["1980"]  # month 13: counted, not raised
+    assert counts["unparseable_dates"] == 1
+
+
+def test_streamed_fill_rates_match_the_shared_ones() -> None:
+    _, records, _ = parse(FIXTURE)
+    tally = us_ofac.Tally()
+    assert list(tally.observe(records)) == records
+    assert tally.rates() == shared.fill_rates(records)

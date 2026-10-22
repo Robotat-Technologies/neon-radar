@@ -251,6 +251,10 @@
     <IDRegDocument ID="324" IDRegDocTypeID="12" IdentityID="2012" IssuedBy-CountryID="1" ValidityID="1">
       <IDRegistrationNo>99000122</IDRegistrationNo>
     </IDRegDocument>
+    <!-- A company number on a person: counted, never loaded. -->
+    <IDRegDocument ID="341" IDRegDocTypeID="6" IdentityID="2004" IssuedBy-CountryID="1" ValidityID="1">
+      <IDRegistrationNo>99000141</IDRegistrationNo>
+    </IDRegDocument>
   </IDRegDocuments>
   <DistinctParties>
     <!-- A person: Latin and Arabic script, a weak alias, every person feature. -->
@@ -353,7 +357,7 @@
               <DocumentedNamePart><NamePartValue NamePartGroupID="40101" ScriptID="1" ScriptStatusID="1" Acronym="false">Yazan</NamePartValue></DocumentedNamePart>
               <DocumentedNamePart><NamePartValue NamePartGroupID="40102" ScriptID="1" ScriptStatusID="1" Acronym="false">Zafer</NamePartValue></DocumentedNamePart>
               <DocumentedNamePart><NamePartValue NamePartGroupID="40103" ScriptID="1" ScriptStatusID="1" Acronym="false">Raqan</NamePartValue></DocumentedNamePart>
-              <DocumentedNamePart><NamePartValue NamePartGroupID="40104" ScriptID="1" ScriptStatusID="1" Acronym="false">VELQASIMI</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40104" ScriptID="1" ScriptStatusID="1" Acronym="false">ULVARAZI</NamePartValue></DocumentedNamePart>
               <DocumentedNamePart><NamePartValue NamePartGroupID="40105" ScriptID="1" ScriptStatusID="1" Acronym="false">ZUBEIRONO</NamePartValue></DocumentedNamePart>
               <DocumentedNamePart><NamePartValue NamePartGroupID="40106" ScriptID="1" ScriptStatusID="1" Acronym="false">Nadim</NamePartValue></DocumentedNamePart>
             </DocumentedName>
@@ -361,13 +365,13 @@
           <Alias FixedRef="990002" AliasTypeID="2" Primary="false" LowQuality="false">
             <DocumentedName ID="5012" FixedRef="990002" DocNameStatusID="2">
               <DocumentedNamePart><NamePartValue NamePartGroupID="40107" ScriptID="1" ScriptStatusID="1" Acronym="false">Yazan</NamePartValue></DocumentedNamePart>
-              <DocumentedNamePart><NamePartValue NamePartGroupID="40108" ScriptID="1" ScriptStatusID="1" Acronym="false">VELQASIMY</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40108" ScriptID="1" ScriptStatusID="1" Acronym="false">ULVARAZY</NamePartValue></DocumentedNamePart>
             </DocumentedName>
           </Alias>
           <Alias FixedRef="990002" AliasTypeID="3" Primary="false" LowQuality="false">
             <DocumentedName ID="5013" FixedRef="990002" DocNameStatusID="2">
               <DocumentedNamePart><NamePartValue NamePartGroupID="40109" ScriptID="1" ScriptStatusID="1" Acronym="false">Yazan</NamePartValue></DocumentedNamePart>
-              <DocumentedNamePart><NamePartValue NamePartGroupID="40110" ScriptID="1" ScriptStatusID="1" Acronym="false">VELQASEMI</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40110" ScriptID="1" ScriptStatusID="1" Acronym="false">ULVARASI</NamePartValue></DocumentedNamePart>
             </DocumentedName>
           </Alias>
           <NamePartGroups>
@@ -456,6 +460,16 @@
             <MasterNamePartGroup><NamePartGroup ID="40302" NamePartTypeID="1"/></MasterNamePartGroup>
           </NamePartGroups>
         </Identity>
+        <!-- A company feature on a person: counted, never loaded. -->
+        <Feature ID="6501" FeatureTypeID="7">
+          <FeatureVersion ID="7501" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>2016</Year><Month>1</Month><Day>1</Day></From></Start>
+              <End Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><To><Year>2016</Year><Month>1</Month><Day>1</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2004" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
         <SanctionsEntryReference SanctionsEntryID="8005"/>
       </Profile>
     </DistinctParty>
@@ -603,6 +617,8 @@
     <ProfileRelationship ID="9012" From-ProfileID="990003" To-ProfileID="990004" RelationTypeID="4" RelationQualityID="1" Former="false" SanctionsEntryID="8004"/>
     <ProfileRelationship ID="9013" From-ProfileID="990011" To-ProfileID="990021" RelationTypeID="9" RelationQualityID="1" Former="false" SanctionsEntryID="8011"/>
     <ProfileRelationship ID="9014" From-ProfileID="990013" To-ProfileID="990014" RelationTypeID="11" RelationQualityID="1" Former="false" SanctionsEntryID="8013"/>
+    <!-- The same ends and type as 9008, but current: the current one is kept. -->
+    <ProfileRelationship ID="9015" From-ProfileID="990001" To-ProfileID="990003" RelationTypeID="1" RelationQualityID="1" Former="false" SanctionsEntryID="8001"/>
   </ProfileRelationships>
   <SanctionsEntries>
     <SanctionsEntry ID="8001" ProfileID="990001" ListID="1">

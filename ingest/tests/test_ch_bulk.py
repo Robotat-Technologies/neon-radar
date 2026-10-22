@@ -56,7 +56,7 @@ DATASET = bulk.DATASET
 
 
 def company(number: str, postcode: str = "QQ1 1AA", **values: str) -> dict[str, str]:
-    row = {"CompanyName": "TEST HOLDER LTD", "CompanyNumber": number,
+    row = {"CompanyName": "MYRTLE LEAT FORMATIONS LTD", "CompanyNumber": number,
            "RegAddress.AddressLine1": "1 TEST STREET", "RegAddress.PostTown": "TESTTOWN",
            "RegAddress.PostCode": postcode, "CompanyCategory": "Private Limited Company",
            "CompanyStatus": "Active", "CountryOfOrigin": "United Kingdom",
@@ -150,16 +150,16 @@ def test_a_56_field_row_and_an_empty_row_are_skipped_and_counted(tmp_path: Path)
 
 
 def test_a_mis_encoded_byte_stops_the_build_with_the_part_name(tmp_path: Path) -> None:
-    data = csv_bytes([company("T0000001", CompanyName="TEST HOLDER LTD")])
+    data = csv_bytes([company("T0000001")])
     with pytest.raises(BuildError, match=r"part1_1\.zip: not valid UTF-8") as stopped:
-        rows_of(tmp_path, data.replace(b"HOLDER", b"HOLD\xe9R"))
+        rows_of(tmp_path, data.replace(b"LEAT", b"LE\xe9T"))
     assert stopped.value.rule == "encoding"
 
 
 def test_only_complete_html_references_are_decoded() -> None:
-    assert bulk.text("TEST&#032;HOLDER&#039;S &AMP; CO LTD") == "TEST HOLDER'S & CO LTD"
-    assert bulk.text("TEST &#x1F4A9; LTD") == "TEST \U0001f4a9 LTD"
-    assert bulk.text("TEST A&B LTD") == "TEST A&B LTD"
+    assert bulk.text("X&#032;Y&#039;Z &AMP; W") == "X Y'Z & W"
+    assert bulk.text("X &#x1F4A9; Y") == "X \U0001f4a9 Y"
+    assert bulk.text("A&B X") == "A&B X"  # a literal ampersand stays
     assert bulk.text("A&B; &#39") == "A&B; &#39"  # `&B;` is not a reference; `&#39` is cut
 
 
@@ -266,10 +266,10 @@ def test_company_and_address_records(data_env: Any) -> None:
     shared = {"RegAddress.AddressLine1": "1 Test St.", "RegAddress.PostTown": "TESTTOWN"}
     download(
         csv_bytes([
-            company("T0000001", CompanyName="TEST&#032;HOLDER LTD", **shared,
-                    **{"PreviousName_1.CompanyName": "OLD &AMP; TEST LTD",
+            company("99000001", CompanyName="MYRTLE&#032;LEAT FORMATIONS LTD", **shared,
+                    **{"PreviousName_1.CompanyName": "TANSY STRAND SUPPLIES &#076;TD",
                        "SICCode.SicText_2": "None Supplied", "DissolutionDate": "31/02/2020"}),
-            company("T0000002", "qq1  1aa", CompanyName="TEST A&B LTD", **shared,
+            company("99000002", "qq1  1aa", CompanyName="BRACKEN DALE FREIGHT LTD", **shared,
                     **{"RegAddress.Country": "UNITED KINGDOM", "RegAddress.AddressLine2": "."}),
             company("FCT00001", "", CountryOfOrigin="FRANCE",
                     **{"RegAddress.AddressLine1": "-", "RegAddress.PostTown": ""}),
@@ -280,30 +280,30 @@ def test_company_and_address_records(data_env: Any) -> None:
     )  # fmt: skip
     work = layout.work_dir("ch-test", DATASET)
     work.mkdir(parents=True)
-    statement_table(work / ch_build.PSC_INDEX, [("T0000001", "psc-exists-but-not-identified"),
-                    ("T0000001", "no-individual-or-entity-with-signficant-control"),
-                    ("T0000009", "psc-details-not-confirmed")])  # fmt: skip
+    statement_table(work / ch_build.PSC_INDEX, [("99000001", "psc-exists-but-not-identified"),
+                    ("99000001", "no-individual-or-entity-with-signficant-control"),
+                    ("99000009", "psc-details-not-confirmed")])  # fmt: skip
     result = build()
     found = records()
-    first = found["gbch-co-T0000001"]
-    assert first["properties"]["name"] == ["TEST HOLDER LTD"]
-    assert first["properties"]["previousName"] == ["OLD & TEST LTD"]
+    first = found["gbch-co-99000001"]
+    assert first["properties"]["name"] == ["MYRTLE LEAT FORMATIONS LTD"]
+    assert first["properties"]["previousName"] == ["TANSY STRAND SUPPLIES LTD"]
     assert first["properties"]["sector"] == ["70100"]
     assert first["properties"]["incorporationDate"] == ["2021-06-11"]
     assert "dissolutionDate" not in first["properties"]
     assert first["properties"]["sourceUrl"] == [
-        "https://find-and-update.company-information.service.gov.uk/company/T0000001"
+        "https://find-and-update.company-information.service.gov.uk/company/99000001"
     ]
     assert first["nr"]["accounts_category"] == "DORMANT"
     assert first["nr"]["psc_statements"] == [
         "no-individual-or-entity-with-signficant-control",
         "psc-exists-but-not-identified",
     ]
-    assert found["gbch-co-T0000002"]["properties"]["name"] == ["TEST A&B LTD"]
+    assert found["gbch-co-99000002"]["properties"]["name"] == ["BRACKEN DALE FREIGHT LTD"]
     # One Address for the two offices with the same key; its full text gives that key back.
     addresses = [r for r in found.values() if r["schema"] == "Address"]
     office = first["properties"]["addressEntity"]
-    assert found["gbch-co-T0000002"]["properties"]["addressEntity"] == office
+    assert found["gbch-co-99000002"]["properties"]["addressEntity"] == office
     assert first["nr"]["address_roles"] == {office[0]: "registered"}
     shared_office = found[office[0]]["properties"]
     assert address_key(shared_office["full"][0]) == "QQ1 1AA|1 TEST STREET TESTTOWN"
@@ -311,7 +311,7 @@ def test_company_and_address_records(data_env: Any) -> None:
     assert shared_office["postalCode"] == ["QQ1 1AA"] and shared_office["country"] == ["gb"]
     assert len(addresses) == 1  # the FC office has no key: no street line, no postcode
     jurisdictions = {rid: r["properties"].get("jurisdiction") for rid, r in found.items()}
-    assert jurisdictions["gbch-co-T0000001"] == ["gb"]
+    assert jurisdictions["gbch-co-99000001"] == ["gb"]
     assert jurisdictions["gbch-co-FCT00001"] == ["fr"]
     assert jurisdictions["gbch-co-SFT00001"] == ["de"]
     assert jurisdictions["gbch-co-NFT00001"] == ["ie"]
@@ -365,7 +365,7 @@ def test_ingest_build_emits_a_counts_only_summary(data_env: Any) -> None:
     assert ch["slice"]["seeds_missing_from_index"] == 1 and len(ch["slice_sha256"]) == 64
     assert ch["companies"]["records"] == {"company": 1, "address": 1}
     for text in (json.dumps(summary), result.output):
-        assert "TEST" not in text and "QQ" not in text
+        assert "MYRTLE" not in text and "LEAT" not in text and "QQ" not in text
         assert not re.search(r"(?<![0-9])T000000[1-3]", text)
 
 
@@ -373,11 +373,11 @@ def test_a_failed_real_build_prints_the_rule_and_the_part_only(data_env: Any) ->
     from neonradar_cli.main import app
 
     profile(data_env)
-    data = csv_bytes([company("T0000001", CompanyName="TEST HOLDER LTD")])
-    download(data.replace(b"HOLDER", b"HOLD\xe9R"))
+    data = csv_bytes([company("T0000001")])
+    download(data.replace(b"LEAT", b"LE\xe9T"))
     data_env.allow_real("ch-test")
     command = ["ingest", "build", "--profile", "ch-test", "--dataset", DATASET]
     result = CliRunner().invoke(app, command)
     assert result.exit_code == 1
     assert "rule encoding" in result.output and "part1_1.zip: not valid UTF-8" in result.output
-    assert "TEST" not in result.output and "T0000001" not in result.output
+    assert "MYRTLE" not in result.output and "T0000001" not in result.output

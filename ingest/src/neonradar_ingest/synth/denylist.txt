@@ -96,7 +96,8 @@ David Cameron
 Михаил Прохоров
 Андрей Костин
 Вячеслав Лебедев
-# Added in M2.9 (review).
+# Added in M2.9 (reviews): full names of real people that the benchmark's name lists produced;
+# names to avoid, whatever the context.
 Darren Jones
 Brian Johnson
 Terry Davis

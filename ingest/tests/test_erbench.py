@@ -55,6 +55,11 @@ def truth() -> list[dict[str, str]]:
 
 
 @pytest.fixture(scope="module")
+def small() -> erbench.Bench:
+    return build("small", ER_BENCH_SEED)
+
+
+@pytest.fixture(scope="module")
 def large() -> erbench.Bench:
     return build("large", ER_BENCH_SEED)
 
@@ -214,16 +219,19 @@ def _faker_surnames() -> set[str]:
 
 
 def _exposed(truth: list[tuple[str, str, str, str, str]], links: list[tuple[str, str]]) -> set[str]:
-    """People with a list or leak record, officers and PSCs of an organisation with one, and
-    the near twins of any of them: worked out from the output, not from the generator."""
+    """People with a list or leak record, officers and PSCs of an organisation that has one or
+    whose near twin has one, and the near twins of any of these people: worked out from the
+    output (styles, links and the truth file's `twin_of`), not from the generator."""
     entity = {row[0]: row[1] for row in truth}
     styles: dict[str, set[str]] = defaultdict(set)
     for _, entity_id, _, style, _ in truth:
         styles[entity_id].add(style)
-    exposed = {e for e, s in styles.items() if s & {"list", "leak"}}
-    people = {e for e in exposed if "-p-" in e}
-    people |= {entity[a] for a, b in links if "-p-" in entity[a] and entity[b] in exposed}
-    twins = {row[1]: row[4] for row in truth if row[4]}
+    twins = {row[1]: row[4] for row in truth if row[4]}  # set on both sides
+    flagged = {e for e, s in styles.items() if s & {"list", "leak"}}
+    orgs = {e for e in flagged if "-o-" in e}
+    orgs |= {twins[e] for e in orgs if e in twins}
+    people = {e for e in flagged if "-p-" in e}
+    people |= {entity[a] for a, b in links if "-p-" in entity[a] and entity[b] in orgs}
     return people | {twins[e] for e in people if e in twins}
 
 
@@ -236,25 +244,19 @@ def _links(records: list[tuple[str, dict[str, list[str]]]]) -> list[tuple[str, s
     return links
 
 
+@pytest.mark.parametrize("size", ["small", "large"])
 def test_people_on_or_linked_to_list_and_leak_entities_have_invented_surnames(
-    records: list[dict[str, Any]], truth: list[dict[str, str]], large: erbench.Bench
+    size: str, request: pytest.FixtureRequest
 ) -> None:
-    """G1: Faker surnames only for registry-only people with no link to a list or leak entity."""
+    """G1: Faker surnames only for registry-only people with no link to a list or leak entity
+    (or to the near twin of one); checked on every person record as it shows the name."""
+    bench: erbench.Bench = request.getfixturevalue(size)
     faker = _faker_surnames()
-    rows = [tuple(row.values()) for row in truth]
-    exposed = _exposed(rows, _links([(r["schema"], r["properties"]) for r in records]))  # type: ignore[arg-type]
-    by_id = {r["id"]: r for r in records}
-    checked = 0
-    for row in truth:
-        if row["entity_id"] in exposed:
-            for value in by_id[row["record_id"]]["properties"].get("lastName", []):
-                assert fold(value) not in faker, row["record_id"]
-                checked += 1
-    assert checked > 100
-    exposed = _exposed(large.truth, _links([(r.schema, r.props) for r in large.records]))
-    entity = {row[0]: row[1] for row in large.truth}
-    people = {p.entity_id: p for p in large.people}
-    for record_id, shown in large.shown.items():  # every person record, as it shows the name
+    exposed = _exposed(bench.truth, _links([(r.schema, r.props) for r in bench.records]))
+    entity = {row[0]: row[1] for row in bench.truth}
+    people = {p.entity_id: p for p in bench.people}
+    assert len(bench.shown) == sum(row[2] == "person" for row in bench.truth)
+    for record_id, shown in bench.shown.items():
         person = people[entity[record_id]]
         # Every exposed person is invented; the generator may invent more (a person whose
         # possible organisations include an exposed one, even if no record links them).
@@ -263,11 +265,45 @@ def test_people_on_or_linked_to_list_and_leak_entities_have_invented_surnames(
             assert fold(shown.surname) not in faker, record_id
             assert erbench.surname_ok(shown.surname), record_id
             assert not is_denied(f"{shown.given} {shown.surname}"), record_id
-    for person in large.people:
+    for person in bench.people:
         if person.invented:
             assert not {fold(form) for form in person.surname.latin} & faker
             assert person.surname.native is None or fold(person.surname.native) not in faker
-    assert sum(p.invented for p in large.people) > len(large.people) // 4
+    assert sum(p.invented for p in bench.people) > len(bench.people) // 4
+
+
+def test_the_fixture_shows_no_real_surname_for_exposed_people(
+    records: list[dict[str, Any]], truth: list[dict[str, str]], small: erbench.Bench
+) -> None:
+    """The committed records themselves: every lastName of an exposed person, and every token
+    of the names and aliases of list and leak records other than given and middle names,
+    passes `surname_ok`."""
+    rows = [(r["record_id"], r["entity_id"], r["class"], r["style"], r["twin_of"]) for r in truth]
+    exposed = _exposed(rows, _links([(r["schema"], r["properties"]) for r in records]))
+    people = {p.entity_id: p for p in small.people}
+    by_id = {r["id"]: r for r in records}
+    checked = 0
+    for record_id, entity_id, cls, style, _ in rows:
+        if cls != "person" or entity_id not in exposed:
+            continue
+        props = by_id[record_id]["properties"]
+        for value in props.get("lastName", []):
+            assert erbench.surname_ok(value), record_id
+            checked += 1
+        if style not in ("list", "leak"):
+            continue
+        person, shown = people[entity_id], small.shown[record_id]
+        forenames = [*person.given.latin, person.given.native or "", shown.given]
+        if person.middle:
+            forenames += [*person.middle.latin, person.middle.native or ""]
+            forenames += [form[0] for form in person.middle.latin]
+        skip = {token for name in forenames for token in fold(name).split()}
+        for text in (*props.get("name", []), *props.get("alias", [])):
+            for token in fold(text).split():
+                if token not in skip:
+                    assert erbench.surname_ok(token), (record_id, token)
+                    checked += 1
+    assert checked > 500
 
 
 def test_entity_shares_meet_the_targets(large: erbench.Bench) -> None:

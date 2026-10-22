@@ -13,10 +13,10 @@ request as it is:
 Queries (`kind`):
 - `name`: every entity's canonical name (people: given name and surname; organisations: name
   and legal form), on the company search and the officer search.
-- `spelling`: for list and leak entities and the people linked to them (officers and PSCs of a
-  list or leak organisation, and near twins of any of these), every other Latin given name and
-  surname pair, alias and organisation name their records show (variants and typos), on both
-  searches.
+- `spelling`: for list and leak entities, their near twins and the people linked to them
+  (officers and PSCs of any of these organisations, and near twins of any of these people),
+  every other Latin given name and surname pair, alias and organisation name their records
+  show (variants and typos), on both searches.
 - `surname`: every distinct Latin surname those people's records show, alone on the officer
   search (`officer=1` when an officer has that surname).
 
@@ -44,7 +44,7 @@ from neonradar_ingest.settings import IngestSettings
 from neonradar_ingest.sources.companies_house.client import CompaniesHouseClient
 from neonradar_ingest.synth import ER_BENCH_SEED
 from neonradar_ingest.synth.companies import name_key
-from neonradar_ingest.synth.erbench import SIZES, Bench, build
+from neonradar_ingest.synth.erbench import SIZES, Bench, build, exposed_orgs
 from neonradar_ingest.synth.names import fold
 
 OTHER_SCRIPT = re.compile("[\u0400-\u04ff\u0600-\u06ff]")  # Cyrillic, Arabic
@@ -54,7 +54,7 @@ OTHER_SCRIPT = re.compile("[\u0400-\u04ff\u0600-\u06ff]")  # Cyrillic, Arabic
 class Query:
     cls: str  # person or org
     styles: str  # the entity's record styles
-    exposure: str  # list, leak, linked, twin (named like a twin that is one of these), registry
+    exposure: str  # list, leak, linked, twin (the near twin of one of these), registry
     kind: str  # name, spelling or surname
     entity: str  # the id REDRAW reads: a near twin's original
     text: str
@@ -68,9 +68,11 @@ def _exposures(bench: Bench) -> tuple[dict[str, str], dict[str, str]]:
         parts = [part for part, on in (("list", person.authorities), ("leak", person.leaked),
                                        ("linked", person.linked)) if on]  # fmt: skip
         exposure[person.entity_id] = "+".join(parts) or ("twin" if person.invented else "registry")
+    exposed = exposed_orgs(bench.orgs)
     for org in bench.orgs:
         parts = [part for part, on in (("list", org.listed), ("leak", org.leaked)) if on]
-        exposure[org.entity_id] = "+".join(parts) or "registry"
+        twin = "twin" if org.number in exposed else "registry"  # the near twin of one
+        exposure[org.entity_id] = "+".join(parts) or twin
     return exposure, {entity: ",".join(sorted(s)) for entity, s in styles.items()}
 
 

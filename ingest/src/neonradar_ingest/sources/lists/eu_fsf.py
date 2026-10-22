@@ -10,7 +10,6 @@ loaded; remarks only as `Sanction:reason` with `keep_reasons`, titles and functi
 `keep_positions`.
 """
 
-import hashlib
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -23,7 +22,7 @@ from defusedxml import DefusedXmlException
 from defusedxml.ElementTree import iterparse
 from followthemoney.types import registry
 
-from neonradar_contracts.records import ID_RE
+from neonradar_contracts.records import ID_RE, make_id
 from neonradar_ingest.data import gate
 from neonradar_ingest.data.profiles import Profile, register_source_model
 from neonradar_ingest.data.sources import (
@@ -57,6 +56,7 @@ GENDERS = {"M": "male", "F": "female"}
 TIMEOUT = httpx.Timeout(60.0, connect=10.0, read=300.0)
 RETRIES, BACKOFF = 5, 3.0
 FATAL_RATES = ("person_birth_date", "sanction_program")  # zero means a broken parser
+MAX_ID = 120  # PHASE-1.md 4.4
 ADDRESS_PARTS = ("street", "poBox", "city", "zipCode", "region", "place")
 BIRTH_PARTS = (
     "birthdate", "year", "monthOfYear", "dayOfMonth", "yearRangeFrom", "yearRangeTo", "circa",
@@ -253,12 +253,12 @@ def parse(path: Path) -> tuple[str | None, str | None, list[Entry], Counter[str]
 
 
 def party_id(native: str) -> str:
-    """`eufsf-<logicalId>`, or a hash when the native id breaks the C1 id alphabet (OD-11)."""
+    """`eufsf-<logicalId>` (PHASE-2.md 4.4); a logical id outside the C1 id alphabet goes
+    through `make_id` (`eufsf-lid-...`, C1-record.md, OD-11)."""
     candidate = f"{PREFIX}-{native}"
-    if ID_RE.fullmatch(candidate) and len(candidate) <= 120:
+    if ID_RE.fullmatch(candidate) and len(candidate) <= MAX_ID:
         return candidate
-    digest = hashlib.sha1(native.encode("utf-8"), usedforsecurity=False).hexdigest()[:20]
-    return f"{PREFIX}-x{digest}"
+    return make_id(PREFIX, "lid", native)
 
 
 def _country(value: str | None, counts: Counter[str]) -> str | None:
@@ -296,15 +296,15 @@ def _birth_dates(birth: dict[str, str], counts: Counter[str]) -> list[str]:
 
 def _names(entry: Entry, person: bool, props: dict[str, list[str]], counts: Counter[str]) -> None:
     """Weak names to `weakAlias`; of the strong ones, the first without a language or in
-    English is `name` (and gives the name parts of a person), the rest `alias`."""
+    English is `name` (and gives the name parts of a person), the rest `alias`. Without one,
+    the first strong name in another language; a weak name never becomes the name."""
     strong = [a for a in entry.names if a.strong]
     chosen = next((a for a in strong if a.language in ("", "EN")), None)
     if chosen is None:
-        pool = strong or entry.names
-        if not pool:
+        if not strong:
             return
         counts["parties_without_primary_name"] += 1
-        chosen = pool[0]
+        chosen = strong[0]
     props["name"] = [chosen.whole]
     if person:
         props["firstName"].append(chosen.first or "")
@@ -381,7 +381,7 @@ def party_records(
     props["topics"] = ["sanction"]
     _names(entry, schema == "Person", props, counts)
     if not props["name"]:
-        counts["parties_without_name"] += 1
+        counts["no_strong_name"] += 1
         return []
     if schema == "Person":
         _person(entry, props, counts, options.keep_positions)

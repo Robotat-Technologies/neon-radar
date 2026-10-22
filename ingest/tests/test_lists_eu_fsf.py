@@ -17,7 +17,7 @@ from neonradar_cli.main import app
 from neonradar_ingest.data import sources
 from neonradar_ingest.data.sources import BuildError
 from neonradar_ingest.http import HttpClient, RateLimiter
-from neonradar_ingest.sources.lists import eu_fsf
+from neonradar_ingest.sources.lists import eu_fsf, shared
 from neonradar_ingest.sources.lists.common import sanction_id
 
 FIXTURE = Path(__file__).parent / "fixtures" / "lists" / "eu_fsf" / "eu-fsf-1-1.xml"
@@ -392,3 +392,15 @@ def test_parse_ignores_namespaces_and_refuses_bad_xml(tmp_path: Path) -> None:
     _, _, entries, counts = eu_fsf.parse(duplicate)
     assert len(entries) == 1
     assert (counts["duplicate_logical_ids"], counts["entities_without_logical_id"]) == (1, 1)
+
+
+def test_ids_and_a_party_with_weak_names_only() -> None:
+    from collections import Counter
+
+    assert eu_fsf.party_id("990001") == "eufsf-990001"
+    assert re.fullmatch(r"eufsf-lid-[0-9a-f]{20}", eu_fsf.party_id("99 0001"))  # make_id
+    counts: Counter[str] = Counter()
+    weak = eu_fsf.Alias("Zafo", None, None, None, "", False, None, None, None)
+    entry = eu_fsf.Entry(logical_id="990010", subject="person", names=[weak])
+    assert eu_fsf.party_records(entry, shared.ListOptions(enabled=True), counts) == []
+    assert counts["no_strong_name"] == 1  # a weak name never becomes the name

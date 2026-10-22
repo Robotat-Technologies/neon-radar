@@ -40,7 +40,7 @@
       <publicationUrl>https://example.invalid/oj/zz-9903-2023</publicationUrl>
     </regulation>
     <subjectType code="person" classificationCode="P"/>
-    <nameAlias firstName="Rakan" middleName="" lastName="Velqasimi" wholeName="Rakan Velqasimi" function="" gender="F" title="" nameLanguage="EN" strong="true" regulationLanguage="en" logicalId="992201"/>
+    <nameAlias firstName="Rakan" middleName="" lastName="Zubeirono" wholeName="Rakan Zubeirono" function="" gender="F" title="" nameLanguage="EN" strong="true" regulationLanguage="en" logicalId="992201"/>
     <nameAlias firstName="" middleName="" lastName="" wholeName="Raqan" function="" gender="F" title="" nameLanguage="" strong="false" regulationLanguage="en" logicalId="992202"/>
     <citizenship region="" countryIso2Code="GB" countryDescription="UNITED KINGDOM" regulationLanguage="en" logicalId="992203"/>
     <birthdate circa="true" calendarType="GREGORIAN" city="" zipCode="" birthdate="1975-06-01" dayOfMonth="1" monthOfYear="6" year="1975" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992204"/>
@@ -54,6 +54,7 @@
     <nameAlias firstName="Nadim" middleName="" lastName="Ulvarazi" wholeName="Nadim Ulvarazi" function="" gender="X" title="" nameLanguage="FR" strong="true" regulationLanguage="en" logicalId="992302"/>
     <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" yearRangeFrom="1958" yearRangeTo="1960" region="" place="Synthetic Place" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992303"/>
     <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" yearRangeFrom="1930" yearRangeTo="1970" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992304"/>
+    <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" yearRangeFrom="19x0" yearRangeTo="1960" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992308"/>
     <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" monthOfYear="5" year="1957" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992305"/>
     <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" birthdate="circa 1950" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992306"/>
     <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SY000301" region="" countryIso2Code="CY" countryDescription="CYPRUS" identificationTypeCode="tradelic" identificationTypeDescription="Trade licence" regulationLanguage="en" logicalId="992307"/>

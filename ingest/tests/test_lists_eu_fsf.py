@@ -149,7 +149,10 @@ def test_the_token_is_sent_but_never_stored_or_logged(
     assert any(p.parent.name == PROFILE and "ingest-build" in p.name for p in written)
     for path in written:  # download.json, the manifests, the summaries, the records
         assert INVENTED not in path.read_text(encoding="utf-8", errors="replace"), path.name
-    assert "token=REDACTED" in caplog.text  # httpx logged the request, without the token
+    logged = [record.getMessage() for record in caplog.records]
+    assert any(line.startswith("HTTP Request: GET ") for line in logged)
+    for line in logged:  # the list client logs every URL without its query string
+        assert "token=" not in line and "?" not in line, line
     assert INVENTED not in caplog.text + fetched.output + built.output
 
 
@@ -215,19 +218,20 @@ def test_person_mapping(built: dict[str, dict[str, Any]], data_env: Any) -> None
     assert p["country"] == ["cy"]
     assert "title" not in p and "position" not in p  # keep_positions is off by default
     second = props(built["eufsf-990002"])
-    assert (second["name"], second["weakAlias"]) == (["Rakan Velqasimi"], ["Raqan"])
+    assert (second["name"], second["weakAlias"]) == (["Rakan Zubeirono"], ["Raqan"])
     assert (second["gender"], second["nationality"]) == (["female"], ["gb"])
     assert second["birthDate"] == ["1975"]  # circa: the year only
     third = props(built["eufsf-990003"])
     assert (third["name"], third["alias"]) == (["Nadim Ulvarasi"], ["Nadim Ulvarazi"])
-    # A 1958 to 1960 range gives each year, a 41-year range nothing, a year and month both.
+    # A 1958 to 1960 range gives each year, a 41-year range nothing, a range with one end that
+    # is not a year its other end, and a year and month both.
     assert sorted(third["birthDate"]) == ["1957-05", "1958", "1959", "1960"]
     assert third["birthPlace"] == ["Synthetic Place"]  # from @place when @city is empty
     assert "gender" not in third and "passportNumber" not in third
     counts = summary(data_env)
     assert counts["parties_without_primary_name"] == 1  # only German and French names
     assert (counts["unmapped_countries"], counts["unknown_genders"]) == (1, 1)
-    assert (counts["wide_year_ranges"], counts["unparseable_dates"]) == (1, 1)
+    assert (counts["wide_year_ranges"], counts["unparseable_dates"]) == (1, 2)
     assert (counts["false_documents_skipped"], counts["weak_aliases"]) == (1, 3)
 
 
@@ -363,7 +367,7 @@ def test_profile_block_rejects_unknown_keys(data_env: Any) -> None:
     )
     data_env.allow_real(PROFILE)
     result = runner.invoke(app, ["data", "fetch", "--profile", PROFILE])
-    assert result.exit_code != 0
+    assert result.exit_code == 2, result.output
     assert "keep_notes" in result.output
 
 

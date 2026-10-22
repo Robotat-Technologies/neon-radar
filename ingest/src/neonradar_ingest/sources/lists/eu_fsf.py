@@ -121,7 +121,8 @@ def discover(client: HttpClient) -> list[RemoteFile]:
 def make_client(
     transport: httpx.BaseTransport | None = None, sleep: Sleep = time.sleep
 ) -> HttpClient:
-    """The shared client with the read timeout and retries the slow EU server needs."""
+    """The list client (`shared.list_client`: no query string, so no token, in any log line or
+    error) with the read timeout and retries the slow EU server needs."""
     client = HttpClient(
         "",
         follow_redirects=True,
@@ -129,6 +130,7 @@ def make_client(
         retries=RETRIES,
         backoff=BACKOFF,
         sleep=sleep,
+        log_query=False,
         transport=transport,
     )
     client.timeout = TIMEOUT
@@ -283,8 +285,11 @@ def _birth_dates(birth: dict[str, str], counts: Counter[str]) -> list[str]:
         part = partial_date(birth["year"], birth.get("monthOfYear"), birth.get("dayOfMonth"))
         dates = [part] if part else []
     elif "yearRangeFrom" in birth or "yearRangeTo" in birth:
-        dates = year_range(birth.get("yearRangeFrom"), birth.get("yearRangeTo"))
-        counts["wide_year_ranges"] += not dates
+        ends = [birth[key] for key in ("yearRangeFrom", "yearRangeTo") if key in birth]
+        years = [year for year in (partial_date(end) for end in ends) if year]
+        counts["unparseable_dates"] += len(years) < len(ends)  # an end that is not a year
+        dates = year_range(years[0], years[1]) if len(years) == 2 else years
+        counts["wide_year_ranges"] += len(years) == 2 and not dates
         return dates
     has_date = any(key in birth for key in ("birthdate", "year"))
     if has_date and not dates:
@@ -412,25 +417,14 @@ def party_records(
     return records
 
 
-def _filled(records: list[dict[str, Any]], schema: str, *names: str) -> tuple[int, int]:
-    chosen = [r for r in records if r["schema"] == schema]
-    return sum(any(r["properties"].get(n) for n in names) for r in chosen), len(chosen)
-
-
 def fill_rates(records: list[dict[str, Any]]) -> dict[str, float]:
     """The shares of M2.6 rule 10, plus `unscId` (empty in every record the note read)."""
-    pairs = {
-        "person_birth_date": _filled(records, "Person", "birthDate"),
-        "person_nationality": _filled(records, "Person", "nationality"),
-        "person_passport_or_id": _filled(records, "Person", "passportNumber", "idNumber"),
-        "sanction_program": _filled(records, "Sanction", "program"),
-        "sanction_start_date": _filled(records, "Sanction", "startDate"),
-        "sanction_unsc_id": _filled(records, "Sanction", "unscId"),
-        "organization_registration_or_lei": _filled(
-            records, "Organization", "registrationNumber", "leiCode"
-        ),
+    sanctions = [r for r in records if r["schema"] == "Sanction"]
+    with_unsc = sum(bool(r["properties"].get("unscId")) for r in sanctions)
+    return {
+        **shared.fill_rates(records),
+        "sanction_unsc_id": shared.rate(with_unsc, len(sanctions)),
     }
-    return {name: shared.rate(*pair) for name, pair in pairs.items()}
 
 
 def build(profile: Profile, context: BuildContext) -> BuildResult:

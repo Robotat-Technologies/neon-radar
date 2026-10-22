@@ -28,6 +28,9 @@ ENTITY_SCHEMAS = frozenset(
 ELIGIBLE_SCHEMAS = frozenset({"Company", "Organization"})
 DESCRIPTIVE = frozenset({"corp.public", "fin", "gov", "pol.party", "pol.union", "rel", "mil"})
 CLOSED = frozenset({"dissolved", "closed", "inactive", "liquidation", "struck off", "removed"})
+# G1 (orchestrator decision, M3.3): a registry record holds an account only as the registry's
+# own company record, never a PSC, officer, relationship or other record of the same dataset.
+REGISTRY_ID_PREFIXES = {"gb_companies_house": "gbch-co-", "gleif_lei": "gleif-lei-"}
 
 
 def flag_topics(topics: Iterable[str]) -> set[str]:
@@ -120,8 +123,11 @@ def _ineligible(
             return "list_or_leak_record"
         if kind not in ("registry", "synthetic"):
             return "unknown_dataset_kind"
-        if flag_topics(m.get("properties", {}).get("topics", [])):
+        if m.get("properties", {}).get("topics"):  # any topic, not only flag topics (G1)
             return "flagged"
+        prefix = REGISTRY_ID_PREFIXES.get(m["datasets"][0], "")
+        if not str(m["id"]).startswith(prefix) or m["schema"] not in ELIGIBLE_SCHEMAS:
+            return "not_a_registry_company"
     props = anchor.get("properties", {})
     status = " ".join(props.get("status", [])).casefold()
     if props.get("dissolutionDate") or any(word in status for word in CLOSED):

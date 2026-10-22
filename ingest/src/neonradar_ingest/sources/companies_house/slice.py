@@ -9,6 +9,7 @@ hash first), never a seed. `slice.csv` is written in the order the officers step
 
 import csv
 import hashlib
+import json
 import sqlite3
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -115,3 +116,16 @@ def build_slice(
         "by_district": {d.lower(): by_district[d] for d in block.postcode_districts},
     }
     return counts, sha256
+
+
+def write_meta(path: Path, *, version: str | None, sample_seed: int, sha256: str) -> None:
+    """`slice.json` next to `slice.csv`: the snapshot the slice came from, its seed and hash."""
+    meta = {"version": version, "sample_seed": sample_seed, "slice_sha256": sha256}
+    path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+
+
+def read_meta(path: Path) -> dict[str, Any]:
+    meta = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(meta, dict):
+        raise ValueError(f"{path.name} is not a JSON object")
+    return meta

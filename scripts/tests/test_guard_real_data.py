@@ -1,4 +1,4 @@
-"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0)."""
+"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0, PHASE-3.md M3.0)."""
 
 import json
 import os
@@ -63,6 +63,15 @@ ALLOW = [
     "git grep -n neo4j-real",
     "docker compose --profile real config --services",
     "uv run neonradar er sample --profile demo --run latest --seed 7",
+    # PHASE-3.md M3.0: development evaluations stay allowed
+    "uv run neonradar eval run --split dev",
+    "uv run neonradar eval check",
+    "uv run neonradar eval run --split dev --seeds 1-5",
+    # the holdout folder's name in text and read-only git is fine; contents never are
+    'git grep -n "data/cache/holdout"',
+    'git commit -m "docs: the holdout run writes to data/cache/holdout"',
+    'gh pr create --title "M3.6" --body "the holdout run writes to data/cache/holdout"',
+    "ls data/cache/hold*",  # a glob lists names, never contents, as for data/cache/real
 ]
 
 BLOCK = [
@@ -143,6 +152,31 @@ BLOCK = [
     "curl -s sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv",
     "docker compose --profile real config",
     "docker inspect $(docker ps -q)",
+    # PHASE-3.md M3.0: the holdout run is human-only and its folder is closed (G11)
+    "uv run neonradar eval run --split test",
+    "neonradar eval run --split=test --engine neo4j",
+    "uv run neonradar eval run --seeds 3 --split test",
+    "ls data/cache/holdout",
+    "cat data/cache/holdout/eval-test-x/report.md",
+    "cd data/cache/holdout && ls",
+    "uv run neonradar eval report data/cache/holdout/eval-test-x",
+    "rm -rf data/cache/holdout/eval-test-x",
+    "cat data/cache/hold*/x",
+    "python3 - <<'EOF'\nprint(open('data/cache/holdout/x').read())\nEOF",
+    "NR_X=1 uv run neonradar --verbose eval run --split  test",
+    'bash -c "uv run neonradar eval run --split test"',
+    "uv run python -m neonradar_cli eval run --split='test'",
+    # file systems that ignore case (macOS, Windows): the folders in any letter case
+    "cat data/cache/REAL/x.json",
+    "head -n 5 data/cache/Real/records/x.ftm.jsonl",
+    "less data/cache/SPIKES/companies_house/out.json",
+    "cat Data/Cache/Real/x",
+    "cat data/cache/HOLDOUT/eval-test-x/report.md",
+    "ls data/cache/HoldOut",
+    "cd DATA/cache && ls",
+    "grep -rn SMITH DATA/",
+    "python3 - <<'EOF'\nprint(open('data/cache/Real/x').read())\nEOF",
+    "uv run NeonRadar er label --profile demo",
 ]
 
 TOOL_ALLOW = [
@@ -165,6 +199,8 @@ TOOL_ALLOW = [
     ("WebFetch", {"url": EU + "rss"}),
     ("mcp__neo4j__read-cypher", {"query": "MATCH (p:Person) RETURN p.names LIMIT 3"}),
     ("mcp__neo4j__get-schema", {}),
+    ("Read", {"file_path": "{project}/data/cache/synthetic/eval/eval-dev-x/report.md"}),
+    ("Grep", {"pattern": "data/cache/holdout", "path": "docs"}),
 ]
 
 TOOL_BLOCK = [
@@ -204,6 +240,15 @@ TOOL_BLOCK = [
         {"url": "https://data.opensanctions.org/datasets/latest/default/entities.ftm.json"},
     ),
     ("WebFetch", {"url": "https://members-api.parliament.uk/api/Members/Search?House=Commons"}),
+    ("Read", {"file_path": "{project}/data/cache/holdout/eval-test-x/report.md"}),
+    ("Grep", {"pattern": "x", "path": "data/cache/holdout"}),
+    ("Glob", {"pattern": "data/cache/holdout/**"}),
+    ("Glob", {"pattern": "**/*.md", "path": "{project}/data/cache/holdout"}),
+    ("Read", {"file_path": "{project}/data/cache/REAL/records/x.jsonl"}),
+    ("Read", {"file_path": "{project}/Data/Cache/Holdout/eval-test-x/report.md"}),
+    ("Grep", {"pattern": "SMITH", "path": "data/cache/Spikes"}),
+    ("Glob", {"pattern": "data/cache/REAL/**/*.jsonl"}),
+    ("Glob", {"pattern": "*", "path": "{project}/DATA/cache/holdout"}),
 ]
 
 
@@ -254,6 +299,13 @@ def test_cwd_inside_real_data(tmp_path):
     inside = tmp_path / "project" / "data" / "cache" / "real" / "records"
     assert run(tmp_path, "Bash", {"command": "cat x.json"}, cwd=inside) == 2
     assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 0
+
+
+def test_cwd_inside_the_holdout_folder(tmp_path):
+    inside = tmp_path / "project" / "data" / "cache" / "holdout" / "eval-test-x"
+    assert run(tmp_path, "Bash", {"command": "cat report.md"}, cwd=inside) == 2
+    assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 2
+    assert run(tmp_path, "Bash", {"command": "git status"}, cwd=inside) == 0
 
 
 def test_mcp_server_must_use_the_default_instance(tmp_path):

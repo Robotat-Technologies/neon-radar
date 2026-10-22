@@ -4,8 +4,10 @@
 merged sub-milestones in order: `index`, `slice` and `companies` (M2.3a); M2.3b adds
 `psc-index` and `psc`, M2.3c `officers`. Each step reads the previous steps' work files in
 `layout.work_dir(profile, dataset)`; a missing input stops the step with exit code 2 and names
-the step to run first. A build that runs the `companies` step deletes the work indexes
-afterwards unless `--keep-work` is given; `slice.csv` stays until the next `slice` step.
+the step to run first. After a successful build (records validated and swapped in) that ran
+the `companies` step, the work indexes are deleted unless `--keep-work` is given; `slice.csv`
+and `slice.json` stay until the next `slice` step. The `companies` step refuses (exit 2) a
+slice built from another snapshot than the newest download.
 """
 
 import json
@@ -32,6 +34,7 @@ STEPS = ("index", "slice", "companies")
 INDEX = "companies.sqlite"
 PSC_INDEX = "corporate_pscs.sqlite"  # written by the psc-index step (M2.3b)
 SLICE = "slice.csv"
+SLICE_META = "slice.json"  # the snapshot version, sample seed and SHA-256 of slice.csv
 NUMBER_RE = re.compile(r"[A-Z0-9]{8}\Z")
 
 
@@ -88,6 +91,8 @@ def companies_download() -> tuple[str, list[Path], list[str]]:
     product = layout.sources_dir(bulk.DATASET, bulk.PRODUCT, "latest").parent
     complete: list[tuple[str, dict[str, Any]]] = []
     for folder in sorted(product.iterdir()) if product.is_dir() else []:
+        if not folder.is_dir():
+            continue  # a stray file such as .DS_Store
         try:
             record = json.loads((folder / RECORD).read_text(encoding="utf-8"))
         except FileNotFoundError, ValueError:
@@ -125,6 +130,8 @@ def _need(path: Path, step: str) -> Path:
 def build(profile: Profile, context: BuildContext) -> BuildResult:
     options: CompaniesHouseSource = profile.options(bulk.DATASET)
     steps = context.steps or STEPS
+    if "slice" in steps and options.companies is None:  # before the long index pass
+        raise BuildError(f"{profile.profile}: no companies block", "profile", counts_only=True)
     work = context.work_dir
     work.mkdir(parents=True, exist_ok=True)
     counts: dict[str, Any] = {}
@@ -133,14 +140,25 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
         version, parts, urls = companies_download()
         strings["version"] = version
     if "index" in steps:
-        counts["index"] = bulk.build_index(parts, work / INDEX)
-    if "slice" in steps:
-        if options.companies is None:
-            raise BuildError(f"{profile.profile}: no companies block", "profile", counts_only=True)
+        counts["index"] = bulk.build_index(parts, work / INDEX, version)
+    if "slice" in steps and options.companies is not None:
+        index = _need(work / INDEX, "index")
         counts["slice"], strings["slice_sha256"] = slices.build_slice(
-            _need(work / INDEX, "index"), options.companies, work / SLICE
+            index, options.companies, work / SLICE
         )
+        slices.write_meta(work / SLICE_META, version=bulk.index_version(index),
+                          sample_seed=options.companies.sample_seed,
+                          sha256=strings["slice_sha256"])  # fmt: skip
     if "companies" in steps:
+        meta = slices.read_meta(_need(work / SLICE_META, "slice"))
+        if meta.get("version") != version:
+            raise StepInputMissing(
+                f"{bulk.DATASET}: slice.csv comes from snapshot {meta.get('version')}, the newest"
+                f" download is {version}; run --step index --step slice first",
+                "snapshot",
+                counts_only=True,
+            )
+        strings["slice_sha256"] = str(meta.get("slice_sha256"))
         counts["companies"], strings["statements"] = records.write_companies(
             parts,
             _need(work / SLICE, "slice"),
@@ -149,12 +167,23 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             version=version,
             urls=urls,
         )
-        if not context.keep_work:
-            for name in (INDEX, PSC_INDEX):
-                (work / name).unlink(missing_ok=True)
     return BuildResult(counts=counts, strings=strings)
 
 
+def cleanup(profile: Profile, context: BuildContext, result: BuildResult) -> None:
+    """After a successful build that ran the `companies` step: delete the work indexes
+    (unless `--keep-work`); `slice.csv` and `slice.json` stay for the later steps."""
+    if "companies" in (context.steps or STEPS) and not context.keep_work:
+        for name in (INDEX, PSC_INDEX):
+            (context.work_dir / name).unlink(missing_ok=True)
+
+
 register_builder(
-    Builder(bulk.DATASET, build, steps=STEPS, string_keys=("slice_sha256", "statements"))
+    Builder(
+        bulk.DATASET,
+        build,
+        steps=STEPS,
+        string_keys=("slice_sha256", "statements"),
+        cleanup=cleanup,
+    )
 )

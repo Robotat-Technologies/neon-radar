@@ -14,13 +14,13 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from followthemoney import ValueEntity, model
+from followthemoney import ValueEntity, model, registry
 
 from neonradar_contracts.records import Producer, Source, make_id, write_manifest
 from neonradar_ingest import __version__
 from neonradar_ingest.sources.companies_house import bulk
 from neonradar_ingest.sources.companies_house import slice as slices
-from neonradar_keys.addresses import address_key_from_parts
+from neonradar_keys.addresses import address_key
 from neonradar_keys.countries import country_code
 from neonradar_keys.ids import has_ch_prefix
 from neonradar_keys.postcodes import normalise_uk_postcode
@@ -33,6 +33,9 @@ SOURCE_URL = "https://find-and-update.company-information.service.gov.uk/company
 # overseas company registered in Scotland or Northern Ireland (before 1 October 2009; URI
 # customer guide, note 2.6 source B16), OE overseas entity (community sources B25, B47).
 OVERSEAS_PREFIXES = ("FC", "SF", "NF", "OE")
+# Counters that the summary always shows, also when zero.
+COUNTED = ("companies_without_address_key", "duplicate_numbers", "numbers_without_ch_prefix",
+           "overseas_origin_unmapped", "rows_without_name", "sic_without_code")  # fmt: skip
 
 
 def address_id(key: str) -> str:
@@ -69,7 +72,7 @@ class Writer:
 
     def __init__(self, statements: dict[str, list[str]] | None) -> None:
         self.statements = statements or {}
-        self.stats: Counter[str] = Counter()
+        self.stats: Counter[str] = Counter({key: 0 for key in COUNTED})
         self.addresses: dict[str, dict[str, Any]] = {}
         self.office_keys: Counter[str] = Counter()
 
@@ -93,7 +96,10 @@ class Writer:
         postcode = normalise_uk_postcode(raw_postcode) if raw_postcode else None
         parts = [part[name] for name in bulk.ADDRESS[:5]] + [postcode or raw_postcode]
         parts.append(part["RegAddress.Country"])
-        key = address_key_from_parts(parts)
+        # FtM cleans `full` (it drops tokens such as "ESQ." or "<BR>"), and the graph loader
+        # recomputes the key from the cleaned text (C2 L15): so the key comes from it too.
+        full = registry.address.clean(", ".join(p for p in parts if p))
+        key = address_key(full) if full else None
         if key is None:
             self.stats["companies_without_address_key"] += 1
             return None
@@ -102,7 +108,7 @@ class Writer:
         if key not in self.addresses:
             country = country_code(part["RegAddress.Country"]) or "gb"
             values = {
-                "full": ", ".join(p for p in parts if p),
+                "full": full,
                 "postOfficeBox": part["RegAddress.POBox"],
                 "street": part["RegAddress.AddressLine1"],
                 "street2": part["RegAddress.AddressLine2"],
@@ -186,6 +192,6 @@ def write_companies(
         "slice_companies_not_in_file": len(numbers - written),
         "companies_with_statements": sum(1 for n in written if n in (statements or {})),
         "top10_address_share": round(top10 / len(written), 4) if written else None,
-        **dict(sorted((read_stats | writer.stats).items())),
+        **dict(sorted({**read_stats, **writer.stats}.items())),
     }
     return counts, "absent" if statements is None else "present"

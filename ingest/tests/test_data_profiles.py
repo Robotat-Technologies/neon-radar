@@ -202,6 +202,7 @@ def test_the_world_and_overlay_blocks_follow_the_generator() -> None:
 
 
 NO_SEED = {"name": "w"}
+TOO_BIG = {"name": "w", "seed": 1, "companies": 200_001}
 
 
 @pytest.mark.parametrize(
@@ -242,6 +243,10 @@ NO_SEED = {"name": "w"}
                 }
             },
             "world name",
+        ),
+        (  # SY6 and SY7 hold 200,000 world companies; SY8 numbers parents and listed ones
+            {"sources": {"nr_synthetic": {"enabled": True, "fixtures": [], "world": TOO_BIG}}},
+            "less than or equal to 200000",
         ),
     ],
 )

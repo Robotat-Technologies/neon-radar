@@ -19,7 +19,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from itertools import batched
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -92,17 +92,22 @@ PROTECTED = ("real", "spikes", "holdout", "heldout")  # data/cache/ folders gene
 
 def refuse_protected(what: str, path: Path | None) -> None:
     """Exit 3 when `path` lies in a protected cache folder: real data, spike output, or the
-    holdout and held-out runs (G9, G11), checked before anything is read or written."""
+    holdout and held-out runs (G9, G11), checked before anything is read or written. Paths are
+    compared case-folded, because APFS and NTFS are case-insensitive (as guard_real_data.py)."""
     if path is None:
         return
     resolved = path.resolve()
-    roots = [layout.CACHE_ROOT / name for name in PROTECTED]
-    parts = resolved.parts
+    folded = [part.casefold() for part in resolved.parts]
     named = any(
-        parts[i : i + 2] == ("data", "cache") and parts[i + 2] in PROTECTED
-        for i in range(len(parts) - 2)
+        folded[i : i + 2] == ["data", "cache"] and folded[i + 2] in PROTECTED
+        for i in range(len(folded) - 2)
     )
-    if named or any(resolved.is_relative_to(root.resolve()) for root in roots):
+    roots = [(layout.CACHE_ROOT / name).resolve() for name in PROTECTED]
+    as_text = PurePosixPath(*folded)
+    inside = any(as_text.is_relative_to(PurePosixPath(str(r).casefold())) for r in roots)
+    existing = [p for p in (resolved, *resolved.parents) if p.exists()]
+    same = any(os.path.samefile(p, r) for p in existing for r in roots if r.exists())
+    if named or inside or same:
         raise SynthError(
             f"{what} lies in a protected data/cache folder (real data, spike output or the"
             " holdout runs): synthetic generation never reads or writes there (G9, G11)",
@@ -175,7 +180,8 @@ class BaseIndex:
         kind stops the command (exit 3) before the generator writes anything, naming no id."""
         for path in files:
             for record in iter_records(path):
-                if any(self.kinds.get(d) != "synthetic" for d in record.get("datasets") or [""]):
+                kinds = {self.kinds.get(d) for d in record.get("datasets") or [""]}
+                if kinds != {"synthetic"} or not str(record.get("id", "")).startswith("syn-"):
                     raise SynthError(
                         "the base holds a record that is not synthetic: a synthetic profile"
                         " never reads real records (G9; real profiles come with M3.4)",
@@ -245,7 +251,9 @@ def _validate_lines(lines: tuple[str, ...]) -> list[RecordIssue]:
 
 
 def validate_lines(lines: Iterable[str]) -> list[RecordIssue]:
-    """`validate_record` over every line, in worker processes; issues in line order."""
+    """`validate_record` over every line; issues in line order. Worker processes (one per four
+    20,000-line chunks, at most `WORKERS`) start from eight chunks, more than 140,000 lines, on:
+    below that, starting them costs more than it saves."""
     chunks = list(batched(lines, CHUNK, strict=False))
     workers = min(WORKERS, os.cpu_count() or 1, len(chunks) // 4)
     if workers <= 1:
@@ -292,6 +300,9 @@ def make_overlay(
     files = sorted(path for folder in folders for path in folder.glob("*.ftm.jsonl"))
     if not files:
         raise SynthError(f"no record files in the base ({', '.join(map(str, folders))})", 2)
+    for path in files:  # a symlink into a protected folder is refused before it is opened
+        refuse_protected("a base file", path)
+        refuse_protected("a base manifest", manifest_path(path))
     refuse_holdout_base(files)
     config = block.config(overlay_seed)
     canonical, run_id = _resolution(profile)

@@ -10,12 +10,13 @@ import dataclasses
 import re
 from datetime import date
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Self
 
 import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     NonNegativeInt,
     PositiveInt,
     StrictBool,
@@ -57,6 +58,11 @@ class ProfileError(ValueError):
     counts_only = True  # names profiles, datasets and keys only
 
 
+# World companies are numbered SY6 and SY7 plus five digits, and parents and listed companies SY8
+# (world.py), so a world holds at most 200,000 ordinary companies.
+MAX_COMPANIES = 200_000
+
+
 class World(BaseModel):
     """`sources.nr_synthetic.world`: a synthetic register (PHASE-3.md 7.11): the fields of
     `world.WorldConfig`, plus the world's `name` (its folder) and default `seed`."""
@@ -65,7 +71,7 @@ class World(BaseModel):
 
     name: str
     seed: NonNegativeInt
-    companies: PositiveInt = 600
+    companies: Annotated[int, Field(gt=0, le=MAX_COMPANIES)] = 600
     people: PositiveInt = 900
     today: date = date(2026, 7, 1)
     agent_every: PositiveInt = 300

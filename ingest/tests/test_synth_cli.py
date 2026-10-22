@@ -148,12 +148,12 @@ def test_a_real_record_in_the_base_stops_the_overlay(data_env: Any, tmp_path: Pa
         "id": "gbch-co-T0000001",
         "schema": "Company",
         "datasets": ["gb_companies_house"],
-        "properties": {"name": ["Test Holding Ltd"], "jurisdiction": ["gb"]},
+        "properties": {"name": ["Test Holder Ltd"], "jurisdiction": ["gb"]},
     }
     (base / "test.ftm.jsonl").write_text(json.dumps(lookalike) + "\n", encoding="utf-8")
     result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", out)
     assert result.exit_code == 3 and "not synthetic" in result.output
-    assert "T0000001" not in result.output and "Test Holding" not in result.output
+    assert "T0000001" not in result.output and "Test Holder" not in result.output
     assert not out.exists()
 
 
@@ -184,3 +184,61 @@ def test_a_base_made_from_a_holdout_seed_is_refused(
     (base / "w.manifest.json").write_text(json.dumps({"seed": 778}), encoding="utf-8")
     result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", tmp_path / "o")
     assert result.exit_code == 2 and "holdout seed" in result.output
+
+
+def mixed_case(data_env: Any, tmp_path: Path, variant: str) -> Path:
+    """A protected folder spelled in another case: refused on any file system (B-1)."""
+    return {
+        "Real": data_env.cache / "Real" / "x",
+        "HOLDOUT": data_env.cache / "HOLDOUT" / "x",
+        "Data/Cache/real": tmp_path / "Data" / "Cache" / "real" / "x",
+    }[variant]
+
+
+@pytest.mark.parametrize("variant", ["Real", "HOLDOUT", "Data/Cache/real"])
+def test_protected_folders_are_refused_in_any_case(
+    data_env: Any, tmp_path: Path, variant: str
+) -> None:
+    folder = mixed_case(data_env, tmp_path, variant)
+    result = synth("world", "--profile", "synth-demo", "--out", folder)
+    assert result.exit_code == 3 and not folder.exists()
+    result = synth("overlay", "--profile", "synth-demo", "--base", tmp_path, "--out", folder)
+    assert result.exit_code == 3 and not folder.exists()
+    folder.mkdir(parents=True)
+    result = synth("overlay", "--profile", "synth-demo", "--base", folder, "--out", tmp_path / "o")
+    assert result.exit_code == 3 and not (tmp_path / "o").exists()
+
+
+SYNTHETIC = {"id": "syn-w-co-000001", "schema": "Company", "datasets": ["nr_synthetic"],
+             "properties": {"name": ["Test Holder Ltd"], "jurisdiction": ["gb"]}}  # fmt: skip
+
+
+@pytest.mark.parametrize("linked", ["w.ftm.jsonl", "w.manifest.json"])
+def test_a_base_file_linked_into_a_protected_folder_is_refused(
+    data_env: Any, tmp_path: Path, linked: str
+) -> None:
+    """S-1: a record file or manifest symlinked into the real-data cache is never opened."""
+    protected = data_env.cache / "real"  # a tmp folder of the test, never the real cache
+    protected.mkdir(parents=True)
+    (protected / linked).write_text(json.dumps(SYNTHETIC) + "\n", encoding="utf-8")
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "w.ftm.jsonl").write_text(json.dumps(SYNTHETIC) + "\n", encoding="utf-8")
+    (base / linked).unlink(missing_ok=True)
+    (base / linked).symlink_to(protected / linked)
+    result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", tmp_path / "o")
+    assert result.exit_code == 3 and "protected" in result.output
+    assert not (tmp_path / "o").exists()
+
+
+def test_a_synthetic_dataset_record_with_another_id_is_refused(
+    data_env: Any, tmp_path: Path
+) -> None:
+    """S-2: a record claiming nr_synthetic must carry a syn- id."""
+    base = tmp_path / "base"
+    base.mkdir()
+    claimed = {**SYNTHETIC, "id": "gbch-co-T0000002"}
+    (base / "w.ftm.jsonl").write_text(json.dumps(claimed) + "\n", encoding="utf-8")
+    result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", tmp_path / "o")
+    assert result.exit_code == 3 and "not synthetic" in result.output
+    assert "T0000002" not in result.output and not (tmp_path / "o").exists()

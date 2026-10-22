@@ -16,9 +16,7 @@ PERIOD = Period(datetime(2025, 1, 1, tzinfo=UTC), datetime(2026, 7, 1, tzinfo=UT
 def background() -> tuple[Ctx, str, str]:
     ctx = Ctx(5, PERIOD, SimpleNames(), base_ids={BASE_ORG})
     account = ctx.account("bg|base", BASE_ORG, opened=date(2020, 1, 1))
-    other = ctx.account(
-        "bg|cp", ctx.organization("cp", "Test Counterparty Ltd"), opened=date(2020, 1, 1)
-    )
+    other = ctx.account("bg|cp", ctx.organization("cp", "Test Holder Ltd"), opened=date(2020, 1, 1))
     payment = ctx.pay("bg|1", other, account, 120.0, datetime(2025, 3, 3, 10, tzinfo=UTC))
     return ctx, account, payment
 

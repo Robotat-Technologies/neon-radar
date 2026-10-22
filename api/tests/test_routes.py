@@ -287,3 +287,11 @@ def test_only_the_allowed_hosts_are_answered(monkeypatch: pytest.MonkeyPatch) ->
             },
         )
         assert preflight.status_code == 400
+
+
+def test_network_says_which_types_it_uses_when_rel_types_is_absent(client: TestClient) -> None:
+    document = client.get(f"{P}/openapi.json").json()
+    parameters = document["paths"][f"{P}/entities/{{entity_id}}/network"]["get"]["parameters"]
+    rel_types = next(p for p in parameters if p["name"] == "rel_types")
+    assert "all 17 types C3 shows" in rel_types["description"]
+    assert "POSSIBLY_SAME_AS" in rel_types["description"]

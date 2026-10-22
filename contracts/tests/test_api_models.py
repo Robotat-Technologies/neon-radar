@@ -470,3 +470,14 @@ def test_possible_match_edges_have_their_own_id_form_outside_c4() -> None:
     with pytest.raises(ValidationError):
         api.GraphEdge.model_validate({**psa, "id": "syn-co-0001|same|syn-co-0002"})
     assert not re.fullmatch(EDGE_ID_PATTERN, psa["id"])  # C4 evidence keeps 1.0.0 ids
+
+
+def test_path_lists_have_the_5_3_caps_in_the_schema() -> None:
+    """At most 200 ownership paths and 5 shortest paths (5.3), declared before M2.12."""
+    owners = api.OwnershipResponse.model_json_schema()["properties"]["paths"]
+    shortest = api.PathsResponse.model_json_schema()["properties"]["paths"]
+    assert (owners["maxItems"], shortest["maxItems"]) == (200, 5)
+    subgraph = _load("subgraph.json")
+    paths = {"from_id": "syn-acct-0007", "to_id": "syn-acct-0015", "subgraph": subgraph}
+    with pytest.raises(ValidationError, match="at most 5"):
+        api.PathsResponse.model_validate({**paths, "paths": [_cycle_path()] * 6})

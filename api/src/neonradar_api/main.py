@@ -46,6 +46,7 @@ from neonradar_contracts.api import (
     MAX_POSSIBLE_MATCHES,
     MAX_SHORTEST_PATHS,
     PATHS_DEFAULT_TYPES,
+    QUERY_TIMEOUT_SECONDS,
     AlertDetail,
     AlertPage,
     CopilotAnswer,
@@ -82,7 +83,11 @@ PHASE_4: Final = "Phase 4"
 EntityIdPath = Annotated[str, Path(pattern=ENTITY_ID_PATTERN, description="A C2 node id.")]
 EntityIdQuery = Annotated[str, Query(pattern=ENTITY_ID_PATTERN)]
 RelTypes = Annotated[
-    list[RelationshipType] | None, Query(description="Repeatable; all record types if absent.")
+    list[RelationshipType] | None,
+    Query(
+        description="Repeatable; all 17 types C3 shows (the 16 built from records and "
+        "POSSIBLY_SAME_AS) if absent."
+    ),
 ]
 PathRelTypes = Annotated[
     list[RelationshipType] | None,
@@ -94,8 +99,9 @@ PathRelTypes = Annotated[
     ),
 ]
 TIMEOUT_NOTE: Final = (
-    "Runs read-only with a 5-second transaction timeout; a query that times out answers a 503 "
-    "problem whose detail suggests a smaller `max_hops` or fewer relationship types."
+    f"Runs read-only with a {QUERY_TIMEOUT_SECONDS:g}-second transaction timeout; a query that "
+    "times out answers a 503 problem whose detail suggests a smaller `max_hops` or fewer "
+    "relationship types."
 )
 
 Graph = Annotated[GraphConnection, Depends(get_graph)]
@@ -153,16 +159,18 @@ def get_network(
         "Chains of `OWNS` relationships that end at the entity (`up`: its owners, their owners, "
         "and so on) or start at it (`down`). `entity_id` is a canonical id or any id in its "
         "`referents`; an unknown id answers a 404 problem. Paths have 1 to `max_hops` "
-        "relationships and never repeat a node. A path's `effective_share_min` and "
+        "relationships and never repeat a node. Every path's `node_ids` start at the entity "
+        "(`root_id`), so for `up` they run from the entity to its top recorded owner and for "
+        "`down` from the entity to its furthest holding. A path's `effective_share_min` and "
         "`effective_share_max` are the products of `share_pct_min / 100` and "
         "`share_pct_max / 100` over its relationships, times 100, rounded to 4 decimals, and "
         "null when any relationship lacks that bound; a bound is exclusive when any "
         f"relationship's bound is. {EFFECTIVE_SHARE_NOTE} At most {MAX_OWNERSHIP_PATHS} paths, "
         "ordered by `effective_share_max` descending (nulls last), then by length, then by the "
-        f"list of node ids; `subgraph` holds their nodes and relationships, at most "
-        f"{MAX_PATH_SUBGRAPH_NODES} nodes, and `truncated` is set when either limit cut "
-        "something. Only `OWNS` is traversed: `CONTROLS` and `CONSOLIDATES` are reachable "
-        f"through `/paths` and `/network`. {TIMEOUT_NOTE}"
+        "list `node_ids` as returned (root first); `subgraph` holds their nodes and "
+        f"relationships, at most {MAX_PATH_SUBGRAPH_NODES} nodes, and `truncated` is set when "
+        "either limit cut something. Only `OWNS` is traversed: `CONTROLS` and `CONSOLIDATES` "
+        f"are reachable through `/paths` and `/network`. {TIMEOUT_NOTE}"
     ),
 )
 def get_ownership(

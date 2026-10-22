@@ -173,8 +173,8 @@ def test_search_passes_supertype_labels_to_the_index() -> None:
 
 def test_every_type_c3_shows_has_its_c2_properties_including_possible_matches() -> None:
     """C3 1.1.0 shows POSSIBLY_SAME_AS like a record-built relationship (PHASE-2.md 5.2)."""
-    assert set(shapes.EDGE_KEYS) >= set(entities.RECORD_TYPES)
-    assert "POSSIBLY_SAME_AS" in entities.RECORD_TYPES
+    assert set(shapes.EDGE_KEYS) >= set(entities.SHOWN_TYPES)
+    assert "POSSIBLY_SAME_AS" in entities.SHOWN_TYPES
     edge = shapes.graph_edge(
         {
             "props": {

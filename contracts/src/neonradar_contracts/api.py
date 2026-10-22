@@ -408,7 +408,7 @@ def _paths_in(paths: list[PathRef], subgraph: Subgraph, start: str, end: str | N
 class OwnershipResponse(_Model):
     root_id: EntityId
     direction: OwnershipDirection
-    paths: list[PathRef]
+    paths: Annotated[list[PathRef], Field(max_length=MAX_OWNERSHIP_PATHS)]
     subgraph: Subgraph
 
     @model_validator(mode="after")
@@ -420,7 +420,7 @@ class OwnershipResponse(_Model):
 class PathsResponse(_Model):
     from_id: EntityId
     to_id: EntityId
-    paths: list[PathRef]
+    paths: Annotated[list[PathRef], Field(max_length=MAX_SHORTEST_PATHS)]
     subgraph: Subgraph
 
     @model_validator(mode="after")

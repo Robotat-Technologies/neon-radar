@@ -2,6 +2,7 @@
 
 import itertools
 import re
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -233,11 +234,20 @@ def test_a_missing_required_faker_locale_is_an_error(monkeypatch: pytest.MonkeyP
             raise ImportError(name)
         return real_import(name)
 
+    def empty_japanese(name: str) -> Any:  # imports, but gives no surname
+        if name.endswith(".ja_JP"):
+            return SimpleNamespace(Provider=type("Provider", (), {"last_names": ()}))
+        return real_import(name)
+
     namesource.all_faker_surnames.cache_clear()
-    monkeypatch.setattr(namesource.importlib, "import_module", without_japanese)
     try:
+        monkeypatch.setattr(namesource.importlib, "import_module", without_japanese)
         with pytest.raises(RuntimeError, match="ja_JP"):
             namesource.all_faker_surnames()
         assert "ja_JP" in namesource.DROPPED
+        monkeypatch.setattr(namesource.importlib, "import_module", empty_japanese)
+        with pytest.raises(RuntimeError, match="no surnames for ja_JP"):
+            namesource.all_faker_surnames()
     finally:
+        monkeypatch.undo()
         namesource.all_faker_surnames.cache_clear()

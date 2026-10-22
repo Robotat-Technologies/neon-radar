@@ -107,11 +107,12 @@ DROPPED: list[str] = []
 @cache
 def all_faker_surnames() -> frozenset[str]:
     """The last names of every Faker locale installed, romanized ones included, folded. A
-    locale without a person provider is counted (`DROPPED`); one of `REQUIRED_LOCALES` missing
-    is an error, so a Faker change cannot silently narrow the filter."""
+    locale without a person provider is counted (`DROPPED`); a locale of `REQUIRED_LOCALES`
+    that gives no surname is an error, so a Faker change cannot silently narrow the filter."""
     from faker.config import AVAILABLE_LOCALES
 
     found: set[str] = set()
+    counts: dict[str, int] = {}
     DROPPED.clear()
     for locale in AVAILABLE_LOCALES:
         try:
@@ -119,15 +120,18 @@ def all_faker_surnames() -> frozenset[str]:
         except ImportError, AttributeError:
             DROPPED.append(locale)
             continue
+        surnames: set[str] = set()
         for attribute in dir(provider):
             value = getattr(provider, attribute, None)
             if attribute.startswith(("last_name", "last_romanized_name")) and isinstance(
                 value, tuple | list | dict
             ):
-                found.update(fold(str(name)) for name in value)
-    missing = sorted(REQUIRED_LOCALES - (set(AVAILABLE_LOCALES) - set(DROPPED)))
+                surnames.update(fold(str(name)) for name in value)
+        counts[locale] = len(surnames)
+        found |= surnames
+    missing = sorted(locale for locale in REQUIRED_LOCALES if not counts.get(locale))
     if missing:
-        raise RuntimeError(f"Faker has no person provider for {', '.join(missing)}")
+        raise RuntimeError(f"Faker gives no surnames for {', '.join(missing)}")
     return frozenset(found)
 
 

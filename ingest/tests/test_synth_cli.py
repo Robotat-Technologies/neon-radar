@@ -242,3 +242,17 @@ def test_a_synthetic_dataset_record_with_another_id_is_refused(
     result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", tmp_path / "o")
     assert result.exit_code == 3 and "not synthetic" in result.output
     assert "T0000002" not in result.output and not (tmp_path / "o").exists()
+
+
+def test_a_resolving_profile_without_a_resolution_run_stops(data_env: Any, tmp_path: Path) -> None:
+    """#78 review: with resolution enabled, no run or no canonical.csv is exit 3."""
+    data = yaml.safe_load((data_env.profiles / "synth-demo.yaml").read_text(encoding="utf-8"))
+    data["profile"] = "synth-resolved"
+    data["resolution"] = {"enabled": True, "config": "resolve/config/er.yaml"}
+    (data_env.profiles / "synth-resolved.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "w.ftm.jsonl").write_text(json.dumps(SYNTHETIC) + "\n", encoding="utf-8")
+    out = tmp_path / "o"
+    result = synth("overlay", "--profile", "synth-resolved", "--base", base, "--out", out)
+    assert result.exit_code == 3 and "no resolution run" in result.output and not out.exists()

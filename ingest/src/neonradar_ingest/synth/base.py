@@ -49,7 +49,12 @@ class BaseView:
         records: Iterable[Mapping[str, Any]],
         dataset_kinds: Mapping[str, str],
         canonical_csv: Path | None = None,
+        *,
+        registry_status_required: bool = False,
     ) -> BaseView:
+        """`registry_status_required` (what `overlay.generate` asks for): a registry record
+        without a status is not eligible. It defaults to False only for the verbatim test of
+        merged entities, whose registry records carry no status."""
         view = cls()
         by_id: dict[str, Mapping[str, Any]] = {}
         for r in records:
@@ -62,9 +67,12 @@ class BaseView:
                 view.account_numbers.update(props.get("accountNumber", []))
             if r["schema"] in ENTITY_SCHEMAS:
                 by_id[r["id"]] = r
-        clusters = _clusters(by_id, canonical_csv)
+        clusters, unresolved = _clusters(by_id, canonical_csv)
         for anchor, members in sorted(clusters.items()):
-            reason = _ineligible(by_id[anchor], [by_id.get(m) for m in members], dataset_kinds)
+            records = [by_id.get(m) for m in members]
+            reason = _ineligible(by_id[anchor], records, dataset_kinds, registry_status_required)
+            if not reason and anchor in unresolved:
+                reason = "not_in_resolution"  # a resolved base must list every entity record
             if reason:
                 view.skipped[reason] = view.skipped.get(reason, 0) + 1
                 continue
@@ -83,10 +91,11 @@ class BaseView:
 
 def _clusters(
     by_id: Mapping[str, Mapping[str, Any]], canonical_csv: Path | None
-) -> dict[str, list[str]]:
-    """Anchor record id to member record ids: one cluster per record without a resolution run."""
+) -> tuple[dict[str, list[str]], set[str]]:
+    """Anchor record id to member record ids (one cluster per record without a resolution
+    run), and the records the resolution run does not list."""
     if canonical_csv is None:
-        return {i: [i] for i in by_id}
+        return {i: [i] for i in by_id}, set()
     groups: dict[str, list[str]] = {}
     with canonical_csv.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
@@ -104,14 +113,16 @@ def _clusters(
         )
         out[anchor] = sorted(members)
         clustered.update(present)
-    for i in by_id:
-        if i not in clustered:
-            out[i] = [i]
-    return out
+    unresolved = {i for i in by_id if i not in clustered}
+    out.update({i: [i] for i in unresolved})
+    return out, unresolved
 
 
 def _ineligible(
-    anchor: Mapping[str, Any], members: list[Mapping[str, Any] | None], kinds: Mapping[str, str]
+    anchor: Mapping[str, Any],
+    members: list[Mapping[str, Any] | None],
+    kinds: Mapping[str, str],
+    status_required: bool,
 ) -> str:
     if anchor["schema"] not in ELIGIBLE_SCHEMAS:
         return "not_an_organisation"
@@ -133,6 +144,8 @@ def _ineligible(
         props = m.get("properties", {})
         if props.get("dissolutionDate"):
             return "dissolved"
+        if status_required and kind == "registry" and not props.get("status"):
+            return "status_unknown"  # only synthetic records may have no status
         if any(status.strip().casefold() not in LIVE for status in props.get("status", [])):
             return "not_active"  # an allowlist: any other status fails closed
     return ""

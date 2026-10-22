@@ -304,8 +304,14 @@ def make_overlay(
         refuse_protected("a base file", path)
         refuse_protected("a base manifest", manifest_path(path))
     refuse_holdout_base(files)
-    config = block.config(overlay_seed)
     canonical, run_id = _resolution(profile)
+    if profile.resolution.enabled and canonical is None:
+        raise SynthError(
+            "the profile resolves its base, but it has no resolution run with a canonical.csv:"
+            " run `neonradar er run` first (without it a merged entity could get two accounts)",
+            3,
+        )
+    config = block.config(overlay_seed)
     kinds = dataset_kinds()
     index = BaseIndex(kinds)
     ov = overlay.generate(index.read(files), kinds, config, default_names(), canonical)

@@ -104,3 +104,40 @@ def test_every_registry_dataset_has_a_company_record_rule(monkeypatch: pytest.Mo
         commands, "load_registry", lambda: SimpleNamespace(datasets=[*registry.datasets, new])
     )
     assert "zz_new_register" not in commands.dataset_kinds()
+
+
+def test_registry_records_need_a_status_and_a_resolved_base_lists_every_record(
+    tmp_path: Path,
+) -> None:
+    """#78 review: a registry record with no status is not eligible when the caller asks (as
+    overlay.generate does), a synthetic one is; a record the resolution run omits is not."""
+    records = [
+        record("gbch-co-T0000501", "gb_companies_house"),
+        record("gbch-co-T0000502", "gb_companies_house", status=["Active"]),
+        record("syn-w-co-000503", "nr_synthetic"),
+    ]
+    view = BaseView.from_records(records, KINDS, registry_status_required=True)
+    assert [org.id for org in view.eligible] == ["gbch-co-T0000502", "syn-w-co-000503"]
+    assert view.skipped == {"status_unknown": 1}
+    canonical = tmp_path / "canonical.csv"
+    canonical.write_text(
+        "record_id,canonical_id,class,cluster_size,method,rule,match_probability,via,"
+        "path_methods,features\n"
+        "gbch-co-T0000502,nr-gbch-co-T0000502,org,1,anchor,,1.0,,,\n",
+        encoding="utf-8",
+    )
+    view = BaseView.from_records(records[1:], KINDS, canonical, registry_status_required=True)
+    assert [org.id for org in view.eligible] == ["gbch-co-T0000502"]
+    assert view.skipped == {"not_in_resolution": 1}
+
+
+def test_overlay_generate_refuses_an_unknown_registry_itself() -> None:
+    """#78 review: the fail-closed rule holds in overlay.generate, for any caller."""
+    from names_simple import SimpleNames
+
+    from neonradar_ingest.synth import overlay
+
+    base = [record("zz-co-T0000601", "zz_new_register", status=["Active"])]
+    config = overlay.OverlayConfig(3, illicit=0, lookalikes=0, typologies=())
+    ov = overlay.generate(base, {"zz_new_register": "registry"}, config, SimpleNames())
+    assert (ov.stats["eligible"], ov.stats["skipped"]) == (0, {"unknown_dataset_kind": 1})

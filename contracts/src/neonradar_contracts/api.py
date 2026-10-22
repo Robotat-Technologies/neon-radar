@@ -14,12 +14,12 @@ from typing import Annotated, Final, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from neonradar_contracts.alert import (
+    ENTITY_ID_PATTERN,
     HEADLINE_MAX,
     VERSION_PATTERN,
     Alert,
     AlertId,
     CitationKey,
-    EdgeId,
     EntityId,
     FiniteJsonValue,
     Priority,
@@ -27,7 +27,12 @@ from neonradar_contracts.alert import (
     Text,
     UtcTime,
 )
-from neonradar_contracts.graph import NODE_MAPPINGS
+from neonradar_contracts.graph import (
+    NODE_MAPPINGS,
+    POSSIBLY_SAME_AS_ID_INFIX,
+    EntityResolution,
+    PossibleMatchMethod,
+)
 
 API_PREFIX: Final = "/api/v1"
 MAX_CONTEXT_ENTITIES: Final = 20
@@ -75,12 +80,16 @@ PATHS_DEFAULT_TYPES: Final[tuple[RelationshipType, ...]] = (
 TypologyTier = Literal["core", "extended", "explainer_only"]
 TypologyStatus = Literal["draft", "approved", "retired"]
 OwnershipDirection = Literal["up", "down"]
-# Entity resolution (PHASE-2.md 5.2, 5.3): how a source record joined its entity, how two
-# entities are possibly the same, and the entity's `resolution` property.
+# How a source record joined its entity (PHASE-2.md 5.3): `identity` for a single-record
+# entity, else the method of its C2 RESOLVED_TO (graph.RESOLVED_TO_METHODS).
 MemberMethod = Literal["identity", "anchor", "deterministic", "probabilistic", "human"]
-PossibleMatchMethod = Literal["probabilistic", "deterministic", "source_hint"]
-EntityResolution = Literal["identity", "deterministic", "probabilistic", "human", "mixed"]
 
+# The relationship ids C3 shows: C4's EdgeId forms plus, from 1.1.0, `<a>|psa|<b>` for
+# POSSIBLY_SAME_AS (C2 1.1.0). C4 keeps EdgeId: detectors never use POSSIBLY_SAME_AS, so it is
+# never alert evidence.
+_ID = ENTITY_ID_PATTERN.removeprefix("^").removesuffix("$")
+GRAPH_EDGE_ID_PATTERN: Final = rf"^{_ID}(\|(addr|sanction|{POSSIBLY_SAME_AS_ID_INFIX})\|{_ID})?$"
+GraphEdgeId = Annotated[str, Field(pattern=GRAPH_EDGE_ID_PATTERN)]
 Count = Annotated[int, Field(ge=0)]
 Share = Annotated[float, Field(ge=0, le=100)]
 Probability = Annotated[float, Field(ge=0, le=1)]
@@ -183,7 +192,7 @@ class GraphNode(_WithSchema):
 class GraphEdge(_Model):
     """A C2 relationship built from a record; `id` is its C2 id, never a Neo4j elementId."""
 
-    id: EdgeId
+    id: GraphEdgeId
     type: RelationshipType
     source: EntityId
     target: EntityId
@@ -327,7 +336,7 @@ class PathRef(_Model):
     "at most"), and is null exactly when the bound is."""
 
     node_ids: Annotated[list[EntityId], Field(min_length=1)]
-    edge_ids: list[EdgeId]
+    edge_ids: list[GraphEdgeId]
     effective_share_min: Annotated[
         Share | None,
         Field(

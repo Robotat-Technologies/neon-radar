@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 from pathlib import Path
 from typing import Any, get_args
 
@@ -9,7 +10,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from neonradar_contracts import api, graph
-from neonradar_contracts.alert import Alert
+from neonradar_contracts.alert import EDGE_ID_PATTERN, Alert
 
 pytestmark = pytest.mark.contract
 
@@ -96,6 +97,7 @@ def test_literals_follow_the_c2_mapping() -> None:
     assert set(get_args(api.RelationshipType)) == record_types | {"POSSIBLY_SAME_AS"}
     assert not {"FLAGS", "PRODUCED", "RESOLVED_TO"} & set(get_args(api.RelationshipType))
     assert set(api.PATHS_DEFAULT_TYPES) == record_types - {"HAS_ADDRESS", "LINKED_TO"}
+    assert set(get_args(api.MemberMethod)) == {"identity", *graph.RESOLVED_TO_METHODS}
     mapped_labels = {label for m in graph.NODE_MAPPINGS.values() for label in m.labels}
     assert set(get_args(api.NodeLabel)) == mapped_labels
     assert set(get_args(api.NodeSchema)) == set(graph.NODE_MAPPINGS)
@@ -458,3 +460,13 @@ def test_possible_matches_are_never_confirmed() -> None:
         api.ResolutionResponse.model_validate(
             _resolution(possible_matches=[{**probabilistic, "entity": itself}])
         )
+
+
+def test_possible_match_edges_have_their_own_id_form_outside_c4() -> None:
+    edge = _load("subgraph.json")["edges"][0]
+    psa = {**edge, "id": "syn-co-0001|psa|syn-co-0002", "type": "POSSIBLY_SAME_AS"}
+    assert api.GraphEdge.model_validate(psa).id == psa["id"]
+    assert api.PathRef.model_validate(_cycle_path(edge_ids=[psa["id"], "syn-payment-000102"]))
+    with pytest.raises(ValidationError):
+        api.GraphEdge.model_validate({**psa, "id": "syn-co-0001|same|syn-co-0002"})
+    assert not re.fullmatch(EDGE_ID_PATTERN, psa["id"])  # C4 evidence keeps 1.0.0 ids

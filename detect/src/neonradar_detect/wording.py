@@ -15,13 +15,17 @@ that names conduct (G5); the error names the typology, the part and the patterns
 
 from __future__ import annotations
 
+import math
 import re
+import string
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from neonradar_detect.catalog import Typology
+from neonradar_contracts.alert import HEADLINE_MAX, WordingClass
+from neonradar_contracts.wording import find_forbidden, says_synthetic_scenario
+from neonradar_detect.catalog import Typology, TypologyFile
 from neonradar_detect.model import EdgeInfo, Finding, NodeInfo
 from neonradar_detect.wording_lint import violations
 
@@ -229,3 +233,56 @@ def render(
         if found:
             raise WordingError(f"{typology.slug}: the {part} matches {found}")
     return Rendered(headline, summary, steps)
+
+
+# Phase 1's headline rendering (PHASE-1.md 5.4, M1.7c), kept as it was so that C4's "Code" line
+# and Phase 1's tests stay true (a recorded deviation, reconciliation R1). No Phase 3 code calls
+# it: alerts render through `render` above.
+
+MetricValue = int | float | str
+
+
+def format_metric(value: MetricValue, spec: str = "") -> str:
+    """One metric as text; `spec` is the format spec of its placeholder, if any."""
+    if isinstance(value, bool) or (isinstance(value, float) and not math.isfinite(value)):
+        raise WordingError(f"metric value {value!r} cannot appear in a headline")
+    if spec:
+        try:
+            return format(value, spec)
+        except (TypeError, ValueError) as exc:
+            raise WordingError(f"format spec {spec!r} does not fit metric value {value!r}") from exc
+    if isinstance(value, int):
+        return f"{value:,}"
+    if isinstance(value, float):
+        return f"{value:,.2f}".rstrip("0").rstrip(".")
+    return value
+
+
+def render_headline(
+    typology: TypologyFile, wording_class: WordingClass, metrics: Mapping[str, MetricValue]
+) -> str:
+    """The alert headline for `wording_class`, rendered from the typology's templates."""
+    if typology.wording is None:
+        raise WordingError(f"typology {typology.slug} has no wording templates")
+    template = (
+        typology.wording.headline_synthetic
+        if wording_class == "synthetic_scenario"
+        else typology.wording.headline_structural
+    )
+    pieces = []
+    for literal, field, spec, _ in string.Formatter().parse(template):
+        pieces.append(literal)
+        if field is None:
+            continue
+        if field not in metrics:
+            raise WordingError(f"metric {field!r} is missing for typology {typology.slug}")
+        pieces.append(format_metric(metrics[field], spec or ""))
+    headline = "".join(pieces)
+    if len(headline) > HEADLINE_MAX:
+        raise WordingError(f"headline has {len(headline)} characters; C4 allows {HEADLINE_MAX}")
+    terms = find_forbidden(headline)
+    if terms:
+        raise WordingError(f"headline refused by the wording lint (7.1): {'; '.join(terms)}")
+    if wording_class != "synthetic_scenario" and says_synthetic_scenario(headline):
+        raise WordingError(f"only a synthetic_scenario headline may say so (7.1): {headline!r}")
+    return headline

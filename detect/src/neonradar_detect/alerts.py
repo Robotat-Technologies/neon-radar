@@ -70,8 +70,12 @@ def build(
             "parameters": {"node_ids": list(finding.node_ids), "edge_ids": list(finding.edge_ids)},
         },
     }
-    if finding.window is not None:
-        evidence["window"] = {"start": _utc(finding.window[0]), "end": _utc(finding.window[1])}
+    # C4 1.0.0 requires the key, null when the finding has no window (reconciliation A2)
+    evidence["window"] = (
+        {"start": _utc(finding.window[0]), "end": _utc(finding.window[1])}
+        if finding.window is not None
+        else None
+    )
     return {
         "alert_id": compute_alert_id(
             finding.typology, detector_version, finding.node_ids, finding.edge_ids

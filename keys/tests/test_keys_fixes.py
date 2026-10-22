@@ -44,6 +44,15 @@ def test_without_the_arabic_index_a_variant_spelling_has_no_symbols(
         "Panama City, Panama",
         "New York, NY, USA",
         "Isle of Man",
+        "Flat Rock, Michigan, USA",
+        "Office of the Registrar, Dubai",
+        # Two words were never enough (the spec's floor of three tokens stays): a bare street
+        # name or flat would join unrelated records under D6.
+        "High Street",
+        "Example Road",
+        "Flat A",
+        "Unit B",
+        "Flat Holm, Wales",
     ],
 )
 def test_place_names_alone_are_not_a_street_line(raw: str) -> None:
@@ -54,8 +63,9 @@ def test_place_names_alone_are_not_a_street_line(raw: str) -> None:
 @pytest.mark.parametrize(
     ("raw", "key"),
     [
-        ("1 Main Street, Road Town, Tortola", "NOPC|1 MAIN STREET ROAD TOWN TORTOLA"),
+        ("1 Example Street, Road Town, Tortola", "NOPC|1 EXAMPLE STREET ROAD TOWN TORTOLA"),
         ("Example House, Leeds", "NOPC|EXAMPLE HOUSE LEEDS"),
+        ("Example Village, Example House", "NOPC|EXAMPLE VILLAGE EXAMPLE HOUSE"),
         ("Flat A, Example Court, Leeds", "NOPC|FLAT A EXAMPLE COURT LEEDS"),
         ("Office 5, Example Tower, Dubai", "NOPC|OFFICE 5 EXAMPLE TOWER DUBAI"),
     ],
@@ -65,7 +75,8 @@ def test_street_lines_without_a_postcode_keep_their_key(raw: str, key: str) -> N
 
 
 def test_st_that_starts_a_segment_is_saint() -> None:
-    assert address_key("12 Main St, St Albans, AL1 1AA") == "AL1 1AA|12 MAIN STREET SAINT ALBANS"
+    key = address_key("12 Example St, St Example, QQ1 2AB")
+    assert key == "QQ1 2AB|12 EXAMPLE STREET SAINT EXAMPLE"
 
 
 @pytest.mark.parametrize(
@@ -96,14 +107,14 @@ def test_has_ch_prefix_needs_ascii_digits() -> None:
 @pytest.mark.parametrize(
     ("text", "rest"),
     [
-        ("Straße 5, N1 7GU, London", "Straße 5,  , London"),
-        ("ﬁeld Lane, N1 7GU", "ﬁeld Lane,  "),
-        ("Flat 3, n1 7gu", "Flat 3,  "),
+        ("Straße 5, QQ1 2AB, London", "Straße 5,  , London"),
+        ("ﬁeld Lane, QQ1 2AB", "ﬁeld Lane,  "),
+        ("Flat 3, qq1 2ab", "Flat 3,  "),
     ],
 )
 def test_find_uk_postcode_cuts_the_original_text(text: str, rest: str) -> None:
     # ß and ligatures grow when upper-cased; the cut must still fall around the postcode.
-    assert find_uk_postcode(text) == ("N1 7GU", rest)
+    assert find_uk_postcode(text) == ("QQ1 2AB", rest)
 
 
 @pytest.mark.parametrize(
@@ -135,13 +146,16 @@ def test_licence_texts_are_package_data() -> None:
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not on PATH")
 def test_wheel_contains_the_data_files_and_their_licences(tmp_path: Path) -> None:
     command = ["uv", "build", "--package", "neonradar-keys", "--wheel", "--offline", "--quiet"]
-    subprocess.run(  # noqa: S603 (fixed arguments; --offline keeps the test off the network)
+    result = subprocess.run(  # noqa: S603 (fixed arguments; --offline keeps it off the network)
         [*command, "--out-dir", str(tmp_path)],
         cwd=ROOT,
-        check=True,
         capture_output=True,
+        text=True,
+        check=False,
     )
+    assert result.returncode == 0, result.stderr
     (wheel,) = tmp_path.glob("neonradar_keys-*.whl")
-    names = set(zipfile.ZipFile(wheel).namelist())
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
     expected = ("ar_symbols.json.gz", "nationalities.csv", *LICENCE_FILES)
     assert {f"neonradar_keys/data/{name}" for name in expected} <= names

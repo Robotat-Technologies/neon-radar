@@ -65,9 +65,10 @@ _ABBREVIATIONS = {
     "HWY": "HIGHWAY",
 }
 _CARE_OF = re.compile(r"^(C\s*/\s*O|CARE OF)\b")
-# A street line (RULES_VERSION 2): a token that starts with a digit, a thoroughfare or building
-# word after a name in its segment ("HIGH STREET", "EXAMPLE HOUSE"; "ROAD TOWN" is a place), or a
-# unit word before its number or letter ("FLAT A"). Place names alone ("DUBAI") are not one.
+# A street line (RULES_VERSION 2): a token that starts with a digit, or, in a text of three or more
+# tokens (the spec's floor), a thoroughfare or building word after a name in its segment ("EXAMPLE
+# HOUSE"; "ROAD TOWN" is a place) or a unit word before a one-letter unit ("FLAT A"; "FLAT ROCK" is
+# a place). Place names alone ("DUBAI, UNITED ARAB EMIRATES") are not one.
 _STREET_WORDS = frozenset(
     {
         "STREET", "ROAD", "AVENUE", "LANE", "DRIVE", "COURT", "CRESCENT", "PLACE", "SQUARE",
@@ -117,11 +118,18 @@ def address_key(text: str) -> str | None:
             out.append("STREET" if street and not flat[i - 1].isdigit() else "SAINT")
         else:
             out.append(_ABBREVIATIONS.get(word, word))
-    has_street_line = any(
-        t[:1].isdigit()
-        or (t in _STREET_WORDS and i not in starts)
-        or (t in _UNIT_WORDS and i + 1 < len(out) and i + 1 not in starts)
-        for i, t in enumerate(out)
+    has_street_line = any(t[:1].isdigit() for t in out) or (
+        len(out) >= 3
+        and any(
+            (t in _STREET_WORDS and i not in starts)
+            or (
+                t in _UNIT_WORDS
+                and i + 1 < len(out)
+                and i + 1 not in starts
+                and len(out[i + 1]) == 1
+            )
+            for i, t in enumerate(out)
+        )
     )
     if not postcode and not has_street_line:
         return None

@@ -158,6 +158,7 @@ def make_world(profile: Profile, seed: int | None, out: Path | None, *, git_sha:
         raise _failed(issues)
     name = f"nr_synthetic-{config.today:%Y%m%d}-world"  # the world's date, never the clock
     folder = _target(out or layout.worlds_dir(block.name, seed), name)
+    refuse_protected("the output folder", folder)
     sha = writer.write_part(folder, name, writer.items(records), seed=seed, git_sha=git_sha)
     by_schema = Counter(str(record["schema"]) for record in records)
     return Written(folder, folder / f"{name}.ftm.jsonl", sha, seed, dict(sorted(by_schema.items())))
@@ -290,6 +291,8 @@ def make_overlay(
         if world_seed is not None:
             refuse_holdout(world_seed)
         folders = profile.record_dirs(project, seed=world_seed)
+    for folder in folders:
+        refuse_protected("a base folder", folder)
     files = sorted(path for folder in folders for path in folder.glob("*.ftm.jsonl"))
     if not files:
         raise SynthError(f"no record files in the base ({', '.join(map(str, folders))})", 2)
@@ -299,6 +302,7 @@ def make_overlay(
     refuse_holdout_base(files)
     config = block.config(overlay_seed)
     canonical, run_id = _resolution(profile)
+    refuse_protected("the resolution run", canonical)
     kinds = dataset_kinds()
     index = BaseIndex(kinds)
     ov = overlay.generate(index.read(files), kinds, config, default_names(), canonical)
@@ -319,6 +323,7 @@ def make_overlay(
     overlay_id = layout.new_run_id("ov")
     name = f"nr_synthetic-{config.end:%Y%m%d}-overlay"  # the period's end, never the clock
     folder = _target(out or layout.overlay_dir(profile, overlay_id), name)
+    refuse_protected("the output folder", folder)
     sha = writer.write_part(folder, name, ov.items(), seed=overlay_seed, git_sha=git_sha)
     texts = labels.files(
         ov.labels,

@@ -29,3 +29,6 @@
 - { name: assignment-4, color: "fbca04", description: "Assignment 4 test cases" }
 - { name: docs, color: "0075ca", description: "Documentation" }
 - { name: freeze-change, color: "b60205", description: "Changes what eval/freeze.json pins" }
+- { name: benchmark-change, color: "b60205", description: "Changes an expected answer, the benchmark fixture or its page" }
+- { name: human-run, color: "fbca04", description: "Has a step a named human runs" }
+- { name: assignment-5, color: "fbca04", description: "Assignment 5 held-out questions" }

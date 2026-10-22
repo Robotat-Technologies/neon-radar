@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help setup fmt lint typecheck test test-int contracts contracts-check cypher-lint check \
 	hygiene up down up-real down-real reset plugins smoke logs fixtures onboarding-check demo-data \
-	demo-mini demo-dev e2e gate-1 spec-check
+	demo-mini demo-dev e2e gate-1 spec-check spec-extract
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
@@ -190,9 +190,17 @@ demo-dev: ## the synthetic demo without Docker (devcontainer, Codespaces): API a
 e2e: ## the end-to-end test (Playwright, Chromium) against a running demo; E2E_BASE_URL=<url>
 	E2E_BASE_URL='$(E2E_BASE_URL)' npm run --prefix ui test:e2e
 
-spec-check: ## check a milestone's verbatim files against the code book (M=M3.x; PHASE-3.md 2.10)
-	@if [ -z "$(M)" ]; then echo "usage: make spec-check M=M3.x" >&2; exit 2; fi
-	uv run python scripts/spec_extract.py check --milestone $(M)
+# PHASE-4.md 2.10: the code book and the deviations file follow the milestone id (M3.x or M4.x)
+spec-book = $(if $(filter M4.%,$(M)),docs/build/PHASE-4-CODE.md,docs/build/PHASE-3-CODE.md)
+spec-devs = $(if $(filter M4.%,$(M)),docs/build/phase-4-deviations.json,docs/build/phase-3-deviations.json)
+
+spec-check: ## prove the verbatim files of milestone M (M=M3.x or M4.x; PHASE-4.md 2.10)
+	@if [ -z "$(M)" ]; then echo "usage: make spec-check M=M4.x" >&2; exit 2; fi
+	uv run python scripts/spec_extract.py check --milestone $(M) --book $(spec-book) --deviations $(spec-devs)
+
+spec-extract: ## copy the verbatim files of milestone M (reference files to REF)
+	@if [ -z "$(M)" ]; then echo "usage: make spec-extract M=M4.x [REF=/tmp/m4x-reference]" >&2; exit 2; fi
+	uv run python scripts/spec_extract.py extract --milestone $(M) --book $(spec-book) --deviations $(spec-devs) $(if $(REF),--reference $(REF),)
 
 gate-1: ## Gate 1 evidence, GC-01 to GC-17 (GATE_ARGS=--report-only or --offline)
 	uv run neonradar gate check --phase 1 $(GATE_ARGS)

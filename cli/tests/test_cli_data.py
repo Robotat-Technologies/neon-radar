@@ -45,12 +45,19 @@ def test_data_fetch_refuses_a_real_profile_by_default(data_env: Any) -> None:
     assert "uk-tiny is not in access.real_data_profiles" in result.output
 
 
-def test_data_fetch_names_the_missing_loaders(data_env: Any) -> None:
+def test_data_fetch_names_the_missing_loaders(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from neonradar_ingest.data import sources
+
+    # Companies House (M2.3a) finds nothing here: no request, no file.
+    spec = sources.SourceSpec("gb_companies_house", lambda client: [])
+    monkeypatch.setitem(sources._SOURCES, "gb_companies_house", spec)
     data_env.write_project(real_data_profiles=["uk-tiny"], data_protection_filed=True)
     data_env.approve_machine()
     result = runner.invoke(app, ["data", "fetch", "--profile", "uk-tiny"])
     assert result.exit_code == 0, result.output
-    assert "gb_companies_house: not available until M2.3a" in result.output
+    assert "gleif_lei: not available until M2.4" in result.output
     report = reports(data_env, "uk-tiny")[0]
     assert report["datasets"]["eu_fsf"] == {"status": "not available until M2.6d"}
     assert report["project_file"] == "(outside the repository) project.yaml"

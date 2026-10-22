@@ -16,7 +16,10 @@ from neonradar_ingest.data.profiles import DATASETS, Profile
 from neonradar_ingest.data.project import Project
 from neonradar_ingest.http import HttpClient, RateLimiter
 
-PLUGINS: tuple[str, ...] = ("neonradar_ingest.data.synthetic",)
+PLUGINS: tuple[str, ...] = (
+    "neonradar_ingest.data.synthetic",
+    "neonradar_ingest.sources.companies_house.build",
+)
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {
     "nr_synthetic": "M2.2",

@@ -505,3 +505,308 @@ entries:
       - https://moj-analytical-services.github.io/splink/llms.txt
     verified: 2026-10-18
     note: "Splink 5 documentation: comparisons and comparison levels, term-frequency adjustment, blocking and the comparison counts per rule, training (prior, u by random sampling, expectation maximisation), DuckDB performance. Read for docs/research/2026-10-18/er-splink.md (sources E5, E7, E8, E20) on 2026-10-18; not re-opened by the build."
+  - key: splink_5_release_2026
+    title: Splink 5.0.0 released
+    publisher: Ministry of Justice analytical services
+    year: 2026
+    url: https://moj-analytical-services.github.io/splink/blog/2026/09/28/splink-500-released.html
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Release post of 28 September 2026: no change to the statistical model, Splink 4 models load in Splink 5, but Splink 5 syntax is not fully backwards compatible. Read for docs/research/2026-10-18/er-splink.md section 5 (source E5) on 2026-10-18; not re-opened by the build."
+  - key: wilson_1927
+    title: "Probable Inference, the Law of Succession, and Statistical Inference (Journal of the American Statistical Association 22(158), 209 to 212)"
+    publisher: Edwin B. Wilson
+    year: 1927
+    url: https://doi.org/10.1080/01621459.1927.10502953
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The original of the Wilson score interval for a proportion, which the precision report uses (PHASE-2.md 3.4 and 7.3). Checked against its Crossref record for docs/research/2026-10-18/er-splink.md section 9 (source E18) on 2026-10-18; not re-opened by the build."
+  - key: nist_handbook_7_2_4_1
+    title: "e-Handbook of Statistical Methods, 7.2.4.1 Confidence intervals"
+    publisher: NIST/SEMATECH
+    year: null
+    url: https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living document. Gives the Wilson score limits for a proportion (the method it once called Agresti-Coull), citing Wilson (1927), with a one-sided example (p = 0.13, n = 200, lower limit 0.09577). Read for docs/research/2026-10-18/er-splink.md section 9 (source E17) on 2026-10-18; not re-opened by the build."
+  - key: cohen_1960
+    title: "A Coefficient of Agreement for Nominal Scales (Educational and Psychological Measurement 20(1), 37 to 46)"
+    publisher: Jacob Cohen
+    year: 1960
+    url: https://doi.org/10.1177/001316446002000104
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Cohen's kappa: agreement between two raters on nominal categories, corrected for the agreement expected by chance. Used for the overlap sample of the precision report (PHASE-2.md 7.3 rule 4). Checked against its Crossref record for PHASE-2.md 7.5 on 2026-10-18; not re-opened by the build."
+  - key: cicchetti_feinstein_1990
+    title: "High agreement but low kappa: II. Resolving the paradoxes (Journal of Clinical Epidemiology 43(6), 551 to 558)"
+    publisher: Domenic V. Cicchetti and Alvan R. Feinstein
+    year: 1990
+    url: https://doi.org/10.1016/0895-4356(90)90159-M
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Cited by PHASE-2.md 7.3 rule 4 for positive and negative agreement, reported next to Cohen's kappa because kappa can be low when observed agreement is high and one category dominates (the paradox in the title). Checked against its Crossref record for PHASE-2.md 7.5 on 2026-10-18; not re-opened by the build."
+  # Companies House, the PSC register and GLEIF (PHASE-2.md 7.5, M2.14)
+  - key: psc_regulations_2016_sch2
+    title: "The Register of People with Significant Control Regulations 2016 (SI 2016/339), Schedule 2"
+    publisher: legislation.gov.uk
+    year: 2016
+    url: https://www.legislation.gov.uk/uksi/2016/339/schedule/2
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The statutory descriptions of the bands for companies: 'more than 25% but not more than 50%', 'more than 50% but less than 75%' and '75% or more', so the bands are (25, 50], (50, 75) and [75, 100]. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B28) on 2026-10-18; not re-opened by the build."
+  - key: llp_psc_regulations_2016_sch2
+    title: "The Limited Liability Partnerships (Register of People with Significant Control) Regulations 2016 (SI 2016/340), Schedule 2"
+    publisher: legislation.gov.uk
+    year: 2016
+    url: https://www.legislation.gov.uk/uksi/2016/340/schedule/2
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The same band descriptions for limited liability partnerships. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B29) on 2026-10-18; not re-opened by the build."
+  - key: scottish_partnerships_psc_2017_sch3
+    title: "The Scottish Partnerships (Register of People with Significant Control) Regulations 2017 (SI 2017/694), Schedule 3"
+    publisher: legislation.gov.uk
+    year: 2017
+    url: https://www.legislation.gov.uk/uksi/2017/694/schedule/3
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The same band descriptions for eligible Scottish partnerships. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B30) on 2026-10-18; not re-opened by the build."
+  - key: ca_2006_sch1a_para9
+    title: "Companies Act 2006, Schedule 1A, paragraph 9 (interests held indirectly)"
+    publisher: legislation.gov.uk
+    year: 2006
+    url: https://www.legislation.gov.uk/ukpga/2006/46/schedule/1A/paragraph/9
+    extra_urls: []
+    verified: 2026-10-18
+    note: "When a person holds an interest in a company indirectly, through legal entities in which they have a majority stake. So a band on the PSC register may already describe an indirect holding, and multiplying it again down a chain can understate it (PHASE-2.md 7.2 rule 6). Read on legislation.gov.uk for PHASE-2.md 7.5 on 2026-10-18, where it was marked up to date to 29 August 2026; not re-opened by the build."
+  - key: ecta_2022_sch2
+    title: "Economic Crime (Transparency and Enforcement) Act 2022, Schedule 2, paragraph 6"
+    publisher: legislation.gov.uk
+    year: 2022
+    url: https://www.legislation.gov.uk/ukpga/2022/10/schedule/2/paragraph/6
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Conditions for registrable beneficial owners of overseas entities (the register of overseas entities), including holding more than 25% of the shares or of the voting rights, and holdings as a trustee or as a member of a firm. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B31) on 2026-10-18; not re-opened by the build."
+  - key: ch_psc_descriptions
+    title: psc_descriptions.yml (natures of control enumerations)
+    publisher: Companies House
+    year: 2025
+    url: https://github.com/companieshouse/api-enumerations/blob/master/psc_descriptions.yml
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The 86 natures_of_control values (24 company, 24 LLP, 12 Scottish partnership, 26 overseas entity) with their descriptions. The file last changed on 2025-11-07 (commit 0d3fb78) and was read at repository head 05067ab (2026-09-11) for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B5) on 2026-10-18; not re-opened by the build."
+  - key: ch_free_company_data
+    title: Free Company Data Product
+    publisher: Companies House
+    year: null
+    url: https://download.companieshouse.gov.uk/en_output.html
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. The monthly snapshot of basic company data (CSV), 'updated within 5 working days of the previous month end'. Read for docs/research/2026-10-18/bulk-sources-loading.md section 1 (source B1) on 2026-10-18; not re-opened by the build."
+  - key: ch_psc_snapshot
+    title: People with significant control (PSC) snapshot
+    publisher: Companies House
+    year: null
+    url: https://download.companieshouse.gov.uk/en_pscdata.html
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. The daily snapshot of the PSC register (JSON lines in a zip file, whole or in parts), 'updated every morning before 10am GMT'. Read for docs/research/2026-10-18/bulk-sources-loading.md section 2 (source B4) on 2026-10-18; not re-opened by the build."
+  - key: ch_personal_information_charter
+    title: Personal information charter
+    publisher: Companies House
+    year: 2026
+    url: https://www.gov.uk/government/organisations/companies-house/about/personal-information-charter
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Updated 7 September 2026. Organisations that use register data 'then become controllers of your personal data'; the usual residential address and the day of the date of birth are not made public. Read for docs/research/2026-10-18/bulk-sources-loading.md section 10 (source B12) on 2026-10-18; not re-opened by the build."
+  - key: gleif_golden_copy_manual
+    title: GLEIF Golden Copy and Delta Files user manual v2.2
+    publisher: GLEIF
+    year: 2022
+    url: https://www.gleif.org/lei-data/gleif-golden-copy/2022-02-23_gleif-golden-copy-and-delta-files_v2.2-final.pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The Golden Copy and delta files: formats, the three publishes a day and the publishes API. Read for docs/research/2026-10-18/bulk-sources-loading.md section 6 (source B51) on 2026-10-18; not re-opened by the build."
+  - key: gleif_level2
+    title: "Level 2 data: who owns whom"
+    publisher: GLEIF
+    year: null
+    url: https://www.gleif.org/en/lei-data/access-and-use-lei-data/level-2-data-who-owns-whom
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. Level 2 relationships are the 'direct accounting consolidating parent' and the 'ultimate accounting consolidating parent': accounting consolidation, not an ownership percentage. Read for docs/research/2026-10-18/bulk-sources-loading.md section 6 (source B56) on 2026-10-18; not re-opened by the build."
+  # Sanctions lists (PHASE-2.md 7.5, M2.14)
+  - key: fcdo_uk_sanctions_list
+    title: The UK Sanctions List
+    publisher: FCDO (GOV.UK)
+    year: null
+    url: https://www.gov.uk/government/publications/the-uk-sanctions-list
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. The UK Sanctions List in seven formats at static addresses, with its XML schema and change history. Read for docs/research/2026-10-18/sanctions-peps.md section 1 (source S1) on 2026-10-18; not re-opened by the build."
+  - key: fcdo_single_list_2026
+    title: "Moving to a single list for UK sanctions designations: 28 January 2026"
+    publisher: GOV.UK
+    year: 2025
+    url: https://www.gov.uk/guidance/moving-to-a-single-list-for-uk-sanctions-designations-28-january-2026
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Published 13 October 2025. From 9am on 28 January 2026 the UK Sanctions List is the only list of UK designations; newly designated persons 'will not be assigned an' OFSI Group ID, and historic Group IDs stay valid. Read for docs/research/2026-10-18/sanctions-peps.md section 1 (source S2) on 2026-10-18; not re-opened by the build."
+  - key: fcdo_format_guide
+    title: Format guide for the UK Sanctions List
+    publisher: FCDO (GOV.UK)
+    year: 2025
+    url: https://www.gov.uk/guidance/format-guide-for-the-uk-sanctions-list
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Published 22 December 2025. The fields of the UK Sanctions List: one Unique ID per regime, so 'there may be different Unique IDs for one designated person', the OFSI Group ID, name variations, aliases and names in non-Latin script. Read for docs/research/2026-10-18/sanctions-peps.md section 1 (source S3) on 2026-10-18; not re-opened by the build."
+  - key: ofac_sls
+    title: Sanctions List Service
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: null
+    url: https://ofac.treasury.gov/sanctions-list-service
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. OFAC's primary channel for its list files since 6 May 2024: the SDN and non-SDN lists and the delta files. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S13) on 2026-10-18; not re-opened by the build."
+  - key: ofac_advanced_xml_faq
+    title: Frequently asked questions on the advanced sanctions list standard
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: null
+    url: https://ofac.treasury.gov/sdn-list-data-formats-data-schemas/frequently-asked-questions-on-advanced-sanctions-list-standard
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. The advanced XML carries more data on listed parties than the legacy files: name parts for non-western names and labelled identification documents; information in non-Latin script also has a basic Latin version. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S22) on 2026-10-18; not re-opened by the build."
+  - key: ofac_50_percent_faqs
+    title: FAQs 398 to 402 on the 50 Percent Rule
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: 2020
+    url: https://ofac.treasury.gov/faqs/topic/1521
+    extra_urls: []
+    verified: 2026-10-18
+    note: "FAQ 399: the rule applies to entities owned 50 percent or more in the aggregate by one or more blocked persons. FAQ 401: indirect ownership passes blocked status down a chain entity by entity (X holds 50 percent of A and A holds 50 percent of B, so B is blocked). FAQ 398 (11 August 2020): the rule 'speaks only to ownership and not to control'. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S30) on 2026-10-18; not re-opened by the build."
+  - key: ofac_sham_transactions_2026
+    title: Guidance on Sham Transactions and Sanctions Evasion
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: 2026
+    url: https://ofac.treasury.gov/media/935441/download?inline
+    extra_urls: []
+    verified: 2026-10-18
+    note: "31 March 2026. Sham transactions do not terminate a blocked interest in property; the advisory supplements the 50 Percent Rule with factors for due diligence. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S31) on 2026-10-18; not re-opened by the build."
+  - key: ofac_search_faqs
+    title: FAQs 246 to 250 on the Sanctions List Search tool
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: null
+    url: https://ofac.treasury.gov/faqs/249
+    extra_urls:
+      - https://ofac.treasury.gov/faqs/246
+      - https://ofac.treasury.gov/faqs/247
+      - https://ofac.treasury.gov/faqs/248
+      - https://ofac.treasury.gov/faqs/250
+    verified: 2026-10-18
+    note: "Living FAQs. FAQ 249 (28 April 2021): Sanctions List Search uses Jaro-Winkler and Soundex; FAQs 246 to 248: a score of 100 returns exact matches and lower scores return potential matches; FAQ 250: OFAC 'cannot make such a recommendation' about the score to use. Read for docs/research/2026-10-18/sanctions-peps.md section 9 and names-addresses.md section 5.6 (sources S27, N11, N12) on 2026-10-18; not re-opened by the build."
+  - key: unsc_consolidated_list
+    title: United Nations Security Council Consolidated List
+    publisher: United Nations
+    year: null
+    url: https://main.un.org/securitycouncil/en/content/un-sc-consolidated-list
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. The consolidated list in XML, HTML and PDF. It gives names in the original script and separates good quality aliases ('sufficient for a positive identification') from low quality ones ('probably insufficient alone'). Read for docs/research/2026-10-18/sanctions-peps.md sections 3 and 9 (source S33) on 2026-10-18; not re-opened by the build."
+  - key: un_terms_of_use
+    title: Terms of Use
+    publisher: United Nations
+    year: null
+    url: https://www.un.org/en/about-us/terms-of-use
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. Allows downloading and copying the site's materials 'for the User's personal, non-commercial use', without redistribution or derivative works; NeonRadar loads the UN list only with the UN's written permission (PHASE-2.md 1.1). Read for docs/research/2026-10-18/sanctions-peps.md section 3 (source S35) on 2026-10-18; not re-opened by the build."
+  - key: eu_fsf
+    title: Financial Sanctions Files (RSS of the consolidated list files)
+    publisher: European Commission
+    year: null
+    url: https://webgate.ec.europa.eu/fsd/fsf/public/rss
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living feed. Lists the files of the EU consolidated list of financial sanctions (XML 1.0 and 1.1, CSV 1.0 and 1.1, PDF). Read for docs/research/2026-10-18/sanctions-peps.md section 4 (source S38) on 2026-10-18; not re-opened by the build."
+  - key: eu_reuse_decision_2011
+    title: Commission Decision 2011/833/EU on the reuse of Commission documents
+    publisher: European Union
+    year: 2011
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32011D0833
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Article 4: documents are available for commercial or non-commercial reuse, without charge and without an individual application; Article 6 conditions may include acknowledging the source and not distorting the original meaning. Read for docs/research/2026-10-18/sanctions-peps.md section 4 (source S41) on 2026-10-18. eur-lex.europa.eu answers automated clients with a bot challenge; not re-opened by the build; re-open in a browser."
+  - key: eu_best_practices_2024
+    title: EU Best Practices for the effective implementation of restrictive measures (11623/24)
+    publisher: Council of the European Union
+    year: 2024
+    url: https://data.consilium.europa.eu/doc/document/ST-11623-2024-INIT/en/pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "3 July 2024. Ownership is 'the possession of 50% or more of the proprietary rights of an entity', aggregated across designated persons. On identification: 'as many specific identifiers as possible', ICAO-standard transliteration 'should be present at all times and in all language versions', and cooperation to refute a match that rests on too few identifiers. Read for docs/research/2026-10-18/sanctions-peps.md sections 2 and 9 (source S45) on 2026-10-18; not re-opened by the build."
+  # Politically exposed persons (PHASE-2.md 7.5, M2.14)
+  - key: mlr_2017_reg_35
+    title: "The Money Laundering, Terrorist Financing and Transfer of Funds (Information on the Payer) Regulations 2017, regulation 35"
+    publisher: legislation.gov.uk
+    year: 2017
+    url: https://www.legislation.gov.uk/uksi/2017/692/regulation/35
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Politically exposed persons: the definition (35(12)); ministers (35(14)(a)) and members of parliament (35(14)(b)) among the prominent public functions; measures for at least 12 months after a person leaves office (35(9)); for a domestic PEP the starting point is a lower level of risk (35(3A), inserted from 10 January 2024). Read for docs/research/2026-10-18/sanctions-peps.md section 7 (source S55) on 2026-10-18; not re-opened by the build."
+  - key: fca_fg25_3
+    title: FG25/3 The treatment of politically exposed persons for anti-money laundering purposes
+    publisher: Financial Conduct Authority
+    year: 2025
+    url: https://www.fca.org.uk/publication/finalised-guidance/fg25-3.pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "7 July 2025, revised 15 July 2025. Which UK legislatures and posts count for PEP purposes (the devolved legislatures and governments where they have executive powers, not local government), among other guidance. Read for docs/research/2026-10-18/sanctions-peps.md section 7 (source S58) on 2026-10-18; not re-opened by the build."
+  - key: parliament_members_api
+    title: Members API
+    publisher: UK Parliament
+    year: null
+    url: https://members-api.parliament.uk/
+    extra_urls:
+      - https://members-api.parliament.uk/swagger/v1/swagger.json
+    verified: 2026-10-18
+    note: "Living API. Current and former members of both Houses and their government posts. Read for docs/research/2026-10-18/sanctions-peps.md section 7 (source S53) on 2026-10-18; not re-opened by the build."
+  - key: open_parliament_licence_3
+    title: Open Parliament Licence v3.0
+    publisher: UK Parliament
+    year: null
+    url: https://www.parliament.uk/site-information/copyright-parliament/open-parliament-licence/
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living page. Allows copying, publishing, adapting and commercial and non-commercial use of Parliamentary information with the attribution 'Contains Parliamentary information licensed under the Open Parliament Licence v3.0.'; personal data is not covered by the licence. Read for docs/research/2026-10-18/sanctions-peps.md section 7 (source S54) on 2026-10-18; not re-opened by the build."
+  # Data protection (PHASE-2.md 7.5, M2.14)
+  - key: uk_gdpr_art14
+    title: UK GDPR Article 14 (latest revised text)
+    publisher: legislation.gov.uk
+    year: 2026
+    url: https://www.legislation.gov.uk/eur/2016/679/article/14
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Information to give when personal data was not obtained from the data subject, at the latest within one month, including the source and 'whether it came from publicly accessible sources'. Since 5 February 2026 the disproportionate effort exception is Article 14(5)(e), and Article 14(7) requires appropriate measures 'including by making the information available publicly'. Read for docs/research/2026-10-18/bulk-sources-loading.md section 10 (source B32) on 2026-10-18; not re-opened by the build."
+  - key: ico_right_to_be_informed_exceptions
+    title: "The right to be informed: are there any exceptions?"
+    publisher: Information Commissioner's Office
+    year: 2025
+    url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/the-right-to-be-informed/are-there-any-exceptions/
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Dated 22 September 2025, under review for the Data (Use and Access) Act. Disproportionate effort 'should be treated as the exception, not the rule'; when relying on it, 'you must publish the privacy information' and 'you should carry out a DPIA'. Read for docs/research/2026-10-18/bulk-sources-loading.md section 10 (source B33) on 2026-10-18; not re-opened by the build."
+  - key: ico_criminal_offence_data
+    title: What is criminal offence data?
+    publisher: Information Commissioner's Office
+    year: 2025
+    url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/criminal-offence-data/what-is-criminal-offence-data/
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Dated 9 September 2025, under review. Criminal offence data covers allegations of offences, and 'related security measures' are 'likely to include personal data about penalties, conditions or restrictions placed on an individual'. Read for docs/research/2026-10-18/sanctions-peps.md section 8 (source S66) on 2026-10-18; not re-opened by the build."
+  - key: ico_legitimate_interests
+    title: Legitimate interests
+    publisher: Information Commissioner's Office
+    year: 2026
+    url: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/legitimate-interests/
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Updated 23 March 2026 for the Data (Use and Access) Act. The three-part test for the legitimate interests basis: purpose, necessity and balancing. Read for docs/research/2026-10-18/bulk-sources-loading.md section 10 (source B35) on 2026-10-18; not re-opened by the build."

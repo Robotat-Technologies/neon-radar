@@ -239,7 +239,7 @@ def test_a_class_whose_model_cannot_be_trained_scores_nothing(tmp_path: Path) ->
     people = [
         syn(f"syn-p-{n}", "Person", name="Testa Example", birthDate="1970-01") for n in (1, 2)
     ]
-    corpus_of(folder, [*people, syn("syn-o-1", "Company", name="Example Test Ltd")])
+    corpus_of(folder, [*people, syn("syn-o-1", "Company", name="Test Holder Ltd")])
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
     config = run.RunConfig(resolver.with_threads(1), sha, temp_directory=tmp_path / "spill")
     result = run.run([folder], tmp_path / "run", config)

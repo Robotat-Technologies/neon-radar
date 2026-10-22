@@ -18,7 +18,7 @@ from neonradar_graph.mapping import (
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mapping" / "all-schemata.ftm.jsonl"
 RECORDS = list(iter_records(FIXTURE))
-SUPPORT_TYPES = {"RESOLVED_TO", "FLAGS", "PRODUCED"}
+SUPPORT_TYPES = {"RESOLVED_TO", "POSSIBLY_SAME_AS", "FLAGS", "PRODUCED"}
 
 
 def record(rid: str, schema: str, nr: dict[str, Any] | None = None, **props: Any) -> dict[str, Any]:
@@ -136,6 +136,10 @@ def test_the_three_ownership_cases_and_share_bands() -> None:
         "role": "ownership-of-shares-25-to-50-percent",
         "natures_of_control": ["ownership-of-shares-25-to-50-percent"],
         "start_date": "2019-04-02",
+        # C2 1.1.0: false when the record has no value
+        "share_min_exclusive": False,
+        "share_max_exclusive": False,
+        "is_nominee": False,
     }
     holds = rows["syn-ownership-0002"]
     assert (holds.type, holds.source, holds.target) == (
@@ -147,7 +151,83 @@ def test_the_three_ownership_cases_and_share_bands() -> None:
     consolidates = rows["syn-ownership-0004"]
     assert consolidates.type == "CONSOLIDATES"
     assert consolidates.props["level"] == "direct"
-    assert "share_pct_min" not in consolidates.props
+    for name in ("share_pct_min", "share_min_exclusive", "is_nominee"):
+        assert name not in consolidates.props
+        assert name not in holds.props
+
+
+def test_company_psc_statements_and_accounts_category() -> None:
+    statements = [
+        "no-individual-or-entity-with-signficant-control",
+        "psc-exists-but-not-identified",
+    ]
+    nr = {"v": "1.1", "psc_statements": statements, "accounts_category": "DORMANT"}
+    records = [
+        record("syn-co-1", "Company", nr, name="Example Holdings Ltd"),
+        record("syn-org-1", "Organization", name="Example Trust"),
+    ]
+    rows = {row.id: row for row in to_node_rows(records).rows}
+    company = rows["syn-co-1"].props
+    assert company["psc_statements"] == statements
+    assert company["accounts_category"] == "DORMANT"
+    assert "psc_statements" not in rows["syn-org-1"].props  # absent: left out
+
+
+def test_owns_bound_flags_and_nominee_from_the_record() -> None:
+    nr = {
+        "v": "1.1",
+        "share_pct_min": 50.0,
+        "share_pct_max": 75.0,
+        "share_pct_min_exclusive": True,
+        "share_pct_max_exclusive": True,
+        "is_nominee": True,
+    }
+    owns = record("syn-ownership-1", "Ownership", nr, owner="syn-p-1", asset="syn-co-1")
+    (row,) = relationships([owns]).rows
+    assert row.type == "OWNS"
+    picked = {k: row.props[k] for k in ("share_pct_min", "share_pct_max")}
+    assert picked == {"share_pct_min": 50.0, "share_pct_max": 75.0}
+    assert row.props["share_min_exclusive"] is True
+    assert row.props["share_max_exclusive"] is True
+    assert row.props["is_nominee"] is True
+
+
+def test_controls_voting_rights_band_and_defaults() -> None:
+    banded = record(
+        "syn-control-1",
+        "Control",
+        {
+            "v": "1.1",
+            "share_pct_min": 25.0,
+            "share_pct_max": 50.0,
+            "share_pct_min_exclusive": True,
+            "natures_of_control": ["voting-rights-25-to-50-percent"],
+        },
+        controller="syn-p-1",
+        controlled="syn-co-1",
+        controlType="voting",
+    )
+    plain = record(
+        "syn-control-2", "Control", controller="syn-p-1", controlled="syn-co-1",
+        controlType="appointment",
+    )  # fmt: skip
+    rows = by_id(relationships([banded, plain]))
+    band = rows["syn-control-1"].props
+    assert rows["syn-control-1"].type == "CONTROLS"
+    assert (band["share_pct_min"], band["share_pct_max"]) == (25.0, 50.0)
+    assert (band["share_min_exclusive"], band["share_max_exclusive"]) == (True, False)
+    none = rows["syn-control-2"].props
+    assert "share_pct_min" not in none and "share_pct_max" not in none  # null when absent
+    assert (none["share_min_exclusive"], none["share_max_exclusive"]) == (False, False)
+    assert "is_nominee" not in none  # only OWNS carries is_nominee
+
+
+def test_director_of_nominee_keeps_the_1_0_rule() -> None:
+    director = record(
+        "syn-directorship-1", "Directorship", director="syn-p-1", organization="syn-co-1"
+    )
+    (row,) = relationships([director]).rows
+    assert "is_nominee" not in row.props  # no default invented (C2 mapping decision 9)
 
 
 def test_holds_account_wins_over_consolidation() -> None:

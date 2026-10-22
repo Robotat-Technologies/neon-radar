@@ -16,7 +16,7 @@ Contract-change issue #53 (M2.1a, PHASE-2.md 5.1). Details in [C1-record.md](C1-
 - **Wider `nr` keys:** `synthetic_kind` also accepts `list` and `leak`; `is_nominee` is also allowed on `Ownership`; `share_pct_min` and `share_pct_max` are also allowed on `Control`.
 - **Versions:** `nr.v` accepts `"1.0"` and `"1.1"`, and every key under both; `versions.RECORD` and `versions.CONTRACTS` are `1.1.0`, so `write_manifest()` writes `record_contract: "1.1.0"`. The manifest's `record_contract` pattern already accepted both values and is unchanged. The JSON Schema `schemas/record-nr.v1.json` is regenerated (the file name keeps the major version).
 - **Examples:** `examples/c1/demo-1.1.ftm.jsonl` (the seven lines of 5.1) and its manifest, valid in strict mode; the 1.0 example `demo.ftm.jsonl` and its manifest (`record_contract: "1.0.0"`) stay as they are and stay valid.
-- **Consumers in this change:** the demo-mini fixture manifest is regenerated (`make fixtures`; only `record_contract` changes, the records are byte-identical), and the API test of `GET /meta` reads `versions.CONTRACTS`.
+- **Consumers in this change:** the demo-mini fixture manifest is regenerated (`make fixtures`; only `record_contract` and `created_at` change, the records are byte-identical); the API test of `GET /meta` reads `versions.CONTRACTS`; the OpenSanctions spike mapping derives `nr.v` from `versions.RECORD` (M1.8d), so it now writes `"1.1"` and its expected test output says so. The Companies House, GLEIF and ICIJ spike mappings and the synthetic generator keep writing `"1.0"`, which stays valid.
 
 #### Changed from `docs/build/PHASE-2.md` 5.1 (tech lead sign-off at the M2.1a review)
 

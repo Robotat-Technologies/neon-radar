@@ -1,5 +1,7 @@
 # Spike report: UK Companies House (`gb_companies_house`)
 
+> **Status since C1 1.1.0:** `gb_companies_house` is `status: active` in `contracts/datasets.yaml` (M2.1a, `docs/build/PHASE-2.md` 5.1): its production loader is built in Phase 2 (M2.3). This report stays the record of the Phase 1 spike.
+
 | | |
 |---|---|
 | Milestone | M1.8a ([PHASE-1.md](../../build/PHASE-1.md) section 6, M1.8a) |

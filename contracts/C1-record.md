@@ -52,7 +52,7 @@ The validator reports each problem once. It does not report a rule whose input a
 
 FtM stores a reference only if it matches `^[0-9a-zA-Z]([0-9a-zA-Z.-]*[0-9a-zA-Z])?$`. Its `add()` drops any other value without a word, and its validator rejects it. The spec's first R1 allowed `_` and `:` in the `rest` of an id, so some valid ids could never be referenced. R1 now allows letters, digits, dots and hyphens in `rest`, ending in a letter or digit, so every valid id can be referenced. The decision was taken by the orchestrating session on the operator's standing instruction, pending tech lead sign-off at Gate 1 (`docs/build/operator-decisions.md` OD-10, OD-11; [CHANGELOG.md](CHANGELOG.md)).
 
-**Loaders build every id from a source identifier with one rule, `neonradar_contracts.records.make_id(prefix, kind, native)`:**
+**Loaders build every id from a source identifier with one rule, `neonradar_contracts.records.make_id(prefix, kind, native)`, except the list-loader forms listed in [Changes in 1.1.0](#changes-in-110):**
 
 1. `<prefix>-<kind>-<native>`, where `prefix` is the dataset's `id_prefix`, `kind` is a short lower-case word for the record type (for example `co`, `off`, `psc`), and each `_` in `native` becomes `.`.
 2. If that still breaks R1 (another character outside `[A-Za-z0-9.-]`, a last character that is not a letter or digit, or more than 100 characters after the prefix), the id is `<prefix>-<kind>-<first 20 hex characters of SHA-1(native)>` instead.
@@ -124,7 +124,7 @@ Three lines of `contracts/examples/c1/demo.ftm.jsonl` (all synthetic; the file h
 - `kind` (optional, 1.1.0): `registry`, `list`, `leak` or `synthetic`. The resolver's policies read it (`docs/build/PHASE-2.md` 7.1.1).
 - `anchor_priority` (optional, 1.1.0): an integer, 1 first, unique in the registry (`load_registry()` refuses a duplicate): the order in which a canonical entity picks its anchor record (7.1.6).
 - `commercial_use`: `allowed`, `licence-required` or, since 1.1.0, `permission-required` (the UN list: load only with the publisher's written permission).
-- `status` says whether a production loader exists (`active`), only a Phase 1 spike (`spike`), or a contract change must come first (`blocked`). Whether a source runs is decided by `access.*` in `docs/build/project.yaml` and the profile, never by `status`.
+- `status` says whether a production loader exists or is built in the current phase (`active`), only a Phase 1 spike exists (`spike`), or the status must change through a contract change before the dataset may run (`blocked`). Whether a source runs is decided by `access.*` in `docs/build/project.yaml` and the profile, never by `status`.
 
 ## How to write a loader that emits C1
 
@@ -133,11 +133,13 @@ Three lines of `contracts/examples/c1/demo.ftm.jsonl` (all synthetic; the file h
    ```python
    import json
    from followthemoney import ValueEntity, model
+   from neonradar_contracts import versions
 
    entity = ValueEntity(model["Company"], {"id": "gbch-co-T0000001", "datasets": ["gb_companies_house"]})
    entity.add("name", "...")                       # values are cleaned; invalid ones are dropped
    entity.add("incorporationDate", "...")          # from the source record
-   line = json.dumps({**entity.to_dict(), "nr": {"v": "1.0", "source_ref": "T0000001"}}, ensure_ascii=False)
+   nr_v = ".".join(versions.RECORD.split(".")[:2])  # nr.v is the major.minor: "1.1" since 1.1.0
+   line = json.dumps({**entity.to_dict(), "nr": {"v": nr_v, "source_ref": "T0000001"}}, ensure_ascii=False)
    ```
 
 2. Build ids with `make_id(prefix, kind, native)` (above), and use the same ids in references.

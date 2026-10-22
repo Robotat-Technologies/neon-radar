@@ -263,3 +263,22 @@ def test_windows_from_days_and_the_overlay(tmp_path: Path) -> None:
     for bad in (("2026-02-01", "2026-01-01"), ("2026-1-1", "2026-02-01"), ("x", "y")):
         with pytest.raises(runs.RunError):
             runs.window_of(*bad)
+
+
+def test_the_alert_order_does_not_depend_on_the_order_of_findings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Phase 1's `test_findings_are_sorted_by_origin_and_edge_ids_whatever_the_query_order`
+    (retired, R2): the runner sorts by priority, strength and alert id."""
+    first = run(tmp_path, run_id="run-20261021T101500-0005")
+    real = circular_flow.run
+
+    def reversed_findings(*args: Any) -> Any:
+        output = real(*args)
+        output.findings.reverse()
+        return output
+
+    monkeypatch.setattr(circular_flow, "run", reversed_findings)
+    second = run(tmp_path, run_id="run-20261021T101600-0006")
+    assert len(first.alerts) == 2
+    assert [a.alert_id for a in second.alerts] == [a.alert_id for a in first.alerts]

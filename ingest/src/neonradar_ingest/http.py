@@ -107,6 +107,8 @@ class HttpClient(httpx.Client):
     `X-Ratelimit-Reset`), or else 1, 2, 4 ... seconds. A hint over `max_hint` seconds raises
     HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
+    With `hide_paths`, errors and logs name only the method and the host, for paths that hold
+    a value from a record (the officers step's company numbers, M2.3c).
     """
 
     def __init__(
@@ -119,6 +121,7 @@ class HttpClient(httpx.Client):
         retry_hint: RetryHint = retry_after_seconds,
         max_hint: float = 300.0,
         sleep: Sleep = time.sleep,
+        hide_paths: bool = False,
         **options: Any,
     ) -> None:
         if retries < 0:
@@ -128,13 +131,22 @@ class HttpClient(httpx.Client):
         )
         self.headers["User-Agent"] = USER_AGENT
         self.limiter, self.retries, self.max_hint = limiter, retries, max_hint
-        self._retry_hint, self._sleep = retry_hint, sleep
+        self._retry_hint, self._sleep, self.hide_paths = retry_hint, sleep, hide_paths
         self.requests = self.retried = self.throttled = 0
+
+    def describe(self, request: httpx.Request) -> str:
+        """The request as errors and logs name it: method and redacted URL, or method and host."""
+        url = request.url
+        return (
+            f"{request.method} {url.scheme}://{url.host}/…"
+            if self.hide_paths
+            else (f"{request.method} {redact(url)}")
+        )
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
         request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
-        where = f"{request.method} {redact(request.url)}"
+        where = self.describe(request)
         retries = self.retries if request.method in RETRY_METHODS else 0
         for attempt in range(retries + 1):
             self.limiter.wait()
@@ -172,6 +184,6 @@ class HttpClient(httpx.Client):
         if response.status_code == 404:
             return None
         if response.is_error:
-            where = f"GET {redact(response.request.url)}"
+            where = self.describe(response.request)
             raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
         return response.json()

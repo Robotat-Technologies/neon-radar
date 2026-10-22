@@ -2,14 +2,16 @@
 
 `neonradar ingest build --dataset gb_companies_house [--step <name>]...` runs the steps of the
 merged sub-milestones in order: `index`, `slice` and `companies` (M2.3a), with `psc-index`
-and `psc` (M2.3b) when the profile's `psc` block is enabled; M2.3c adds `officers`. Each step
+and `psc` (M2.3b) when the profile's `psc` block is enabled, and `officers` (M2.3c) when its
+`officers` block is (the gate and the key are checked before the first step). Each step
 reads the previous steps' work files in `layout.work_dir(profile, dataset)`; a missing input
 stops the step with exit code 2 and names the step to run first. After a successful build
 (records validated and swapped in) that ran the `companies` or `psc` step, the work indexes
 are deleted unless `--keep-work` is given; `slice.csv` and `slice.json` stay until the next
 `slice` step. The `companies` step refuses (exit 2) a slice built from another snapshot than
 the newest download. A `psc` step run without the `companies` step keeps the previous company
-records, which its links point to.
+records, which its links point to; an `officers` step run on its own keeps the previous
+company and PSC records.
 """
 
 import json
@@ -34,11 +36,13 @@ from neonradar_ingest.data.sources import (
     register_source,
 )
 from neonradar_ingest.http import HttpClient
-from neonradar_ingest.sources.companies_house import bulk, psc, records
+from neonradar_ingest.sources.companies_house import bulk, officers, psc, records
 from neonradar_ingest.sources.companies_house import slice as slices
+from neonradar_ingest.sources.companies_house.officers import OfficersBlock
 
-STEPS = ("index", "psc-index", "slice", "companies", "psc")
+STEPS = ("index", "psc-index", "slice", "companies", "psc", "officers")
 PSC_STEPS = ("psc-index", "psc")  # only with an enabled `psc` block
+OFFICER_STEPS = ("officers",)  # only with an enabled `officers` block
 INDEX = "companies.sqlite"
 PSC_INDEX = "corporate_pscs.sqlite"  # written by the psc-index step
 SLICE = "slice.csv"
@@ -92,14 +96,14 @@ class PscBlock(BaseModel):
 
 
 class CompaniesHouseSource(BaseModel):
-    """The `gb_companies_house` block; `officers` stays a mapping until M2.3c."""
+    """The `gb_companies_house` block."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: StrictBool
     companies: CompaniesBlock | None = None
     psc: PscBlock | None = None
-    officers: dict[str, Any] | None = None
+    officers: OfficersBlock | None = None
 
 
 register_source_model(bulk.DATASET, CompaniesHouseSource)
@@ -158,33 +162,52 @@ def _need(path: Path, step: str) -> Path:
     return path
 
 
-def _carry(profile: Profile, out_dir: Path, name: str) -> Path:
+def _carried(profile: Profile, out_dir: Path, name: str) -> Path | None:
     """`<name>.ftm.jsonl` in `out_dir`, copied with its manifest from the previous records
-    when this build did not write it; StepInputMissing when there is none."""
+    when this build did not write it; None when there is none."""
     path = out_dir / f"{name}.ftm.jsonl"
     if not path.is_file():
         previous = layout.records_dir(profile, bulk.DATASET)
         for suffix in (".ftm.jsonl", ".manifest.json"):
             if (previous / f"{name}{suffix}").is_file():
                 shutil.copy2(previous / f"{name}{suffix}", out_dir / f"{name}{suffix}")
-    return _need(path, name)
+    return path if path.is_file() else None
 
 
-def _steps(options: CompaniesHouseSource, context: BuildContext) -> tuple[str, ...]:
-    """The steps to run: the PSC steps only with an enabled `psc` block."""
-    enabled = options.psc is not None and options.psc.enabled
-    return context.steps or tuple(s for s in STEPS if enabled or s not in PSC_STEPS)
+def _carry(profile: Profile, out_dir: Path, name: str) -> Path:
+    """As `_carried`, but StepInputMissing (naming the step) when there is none."""
+    return _carried(profile, out_dir, name) or _need(out_dir / f"{name}.ftm.jsonl", name)
+
+
+def _steps(options: CompaniesHouseSource, steps: tuple[str, ...]) -> tuple[str, ...]:
+    """The steps to run: the PSC and officer steps only with their blocks enabled."""
+    off = (() if options.psc is not None and options.psc.enabled else PSC_STEPS) + (
+        () if options.officers is not None and options.officers.enabled else OFFICER_STEPS
+    )
+    return steps or tuple(s for s in STEPS if s not in off)
+
+
+def plan(profile: Profile, steps: tuple[str, ...]) -> tuple[str, ...]:
+    """The steps a build of `profile` runs (`ingest build` gates each of them first)."""
+    return _steps(profile.options(bulk.DATASET), steps)
 
 
 def build(profile: Profile, context: BuildContext) -> BuildResult:
     options: CompaniesHouseSource = profile.options(bulk.DATASET)
-    steps = _steps(options, context)
+    steps = _steps(options, context.steps)
     block = options.psc if options.psc is not None and options.psc.enabled else None
     if block is None and set(steps) & set(PSC_STEPS):
         message = f"{profile.profile}: the psc block is not enabled"
         raise BuildError(message, "profile", counts_only=True)
     if "slice" in steps and options.companies is None:  # before the long index pass
         raise BuildError(f"{profile.profile}: no companies block", "profile", counts_only=True)
+    officer_block = options.officers if options.officers and options.officers.enabled else None
+    key = None
+    if "officers" in steps:  # the gate and the key before any step reads or writes
+        if officer_block is None:
+            message = f"{profile.profile}: the officers block is not enabled"
+            raise BuildError(message, "profile", counts_only=True)
+        key = officers.api_key(context.project, profile)
     work = context.work_dir
     work.mkdir(parents=True, exist_ok=True)
     counts: dict[str, Any] = {}
@@ -257,13 +280,23 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             version=psc_version,
             urls=psc_urls,
         )
+    if officer_block is not None and key is not None:
+        companies = _carry(profile, context.out_dir, "companies")
+        pscs = _carried(profile, context.out_dir, "psc")  # kept when this build did not run psc
+        counts["officers"], strings["stopped_by"] = officers.write_officers(
+            key,
+            officer_block,
+            _need(work / SLICE, "slice"),
+            [companies, *([pscs] if pscs else [])],
+            context.out_dir,
+        )
     return BuildResult(counts=counts, strings=strings)
 
 
 def cleanup(profile: Profile, context: BuildContext, result: BuildResult) -> None:
     """After a successful build that ran the `companies` or `psc` step: delete the work
     indexes (unless `--keep-work`); `slice.csv` and `slice.json` stay for the later steps."""
-    steps = _steps(profile.options(bulk.DATASET), context)
+    steps = _steps(profile.options(bulk.DATASET), context.steps)
     if {"companies", "psc"} & set(steps) and not context.keep_work:
         for name in (INDEX, PSC_INDEX):
             (context.work_dir / name).unlink(missing_ok=True)
@@ -274,7 +307,8 @@ register_builder(
         bulk.DATASET,
         build,
         steps=STEPS,
-        string_keys=("slice_sha256", "statements", "snapshot_date", "totals_check"),
+        string_keys=("slice_sha256", "statements", "snapshot_date", "totals_check", "stopped_by"),
         cleanup=cleanup,
+        plan=plan,
     )
 )

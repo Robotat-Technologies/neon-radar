@@ -16,7 +16,7 @@ from typing import Any, Self
 
 import httpx
 
-from neonradar_ingest.http import HttpClient, HttpError, RateLimiter, redact
+from neonradar_ingest.http import HttpClient, HttpError, RateLimiter
 
 BASE_URL = "https://api.company-information.service.gov.uk"
 # 600 requests per 5 minutes is 2 per second; the limiter runs at that rate (M1.8a step 3).
@@ -63,6 +63,7 @@ class CompaniesHouseClient:
         limiter: RateLimiter | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.time,
+        hide_paths: bool = False,
     ) -> None:
         self.log = RequestLog()
         self._page_size, self._clock = page_size, clock
@@ -75,6 +76,7 @@ class CompaniesHouseClient:
             sleep=sleep,
             auth=httpx.BasicAuth(api_key, ""),
             transport=transport,
+            hide_paths=hide_paths,  # errors and logs name no company number (M2.3c)
         )
 
     def __enter__(self) -> Self:
@@ -93,6 +95,11 @@ class CompaniesHouseClient:
         """Requests sent, retries included."""
         return self._http.requests
 
+    @property
+    def retried(self) -> int:
+        """Requests sent again after a 429, a 5xx or a transport error."""
+        return self._http.retried
+
     def _retry_hint(self, response: httpx.Response) -> float | None:
         """After a 429, wait for the window to reset and record it; otherwise back off."""
         self.log.see(response)
@@ -106,7 +113,7 @@ class CompaniesHouseClient:
         """GET `path`: None on 404, HttpError on other errors or a body that is not an object."""
         response = self._http.get(path, params=params)
         self.log.see(response)
-        where = f"GET {redact(response.request.url)}"
+        where = self._http.describe(response.request)
         if response.status_code == 404:
             return None
         if response.is_error:

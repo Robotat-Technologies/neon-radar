@@ -53,7 +53,7 @@ The contracts are the agreements between squads. Each has a document, pydantic m
 | Contract | Document | What it fixes | State on 21 October 2026 |
 |---|---|---|---|
 | C1 Record | [contracts/C1-record.md](../../contracts/C1-record.md) | The FollowTheMoney record format every loader and the generator write, the `nr` extension, rules R1 to R10, manifests and the dataset registry ([contracts/datasets.yaml](../../contracts/datasets.yaml)) | merged |
-| C2 Graph schema | [contracts/C2-graph-schema.md](../../contracts/C2-graph-schema.md) | Labels, flag labels, relationships, properties, the mapping from records, and `graph/schema/migrations/0001_init.cypher` (22 uniqueness constraints and 7 indexes) | merged |
+| C2 Graph schema | [contracts/C2-graph-schema.md](../../contracts/C2-graph-schema.md) | Labels, flag labels, relationships, properties, the mapping from records, and `graph/schema/migrations/` (`0001_init.cypher`: 22 uniqueness constraints and 7 indexes; `0002_resolution.cypher`, C2 1.1.0: entity resolution, 23 constraints and 9 indexes after both) | merged |
 | C3 API | `contracts/C3-api.md` (in review in [pull request #24](https://github.com/robotat-com/neon-radar/pull/24)); until it merges, PHASE-1.md section 5.3 | The HTTP routes under `/api/v1`, their models and limits, problem details and the OpenAPI snapshot `contracts/openapi/v1.json` | in review |
 | C4 Alert | [contracts/C4-alert.md](../../contracts/C4-alert.md) | The alert every detector produces: reproducible evidence, a deterministic id, `pattern_strength`, two wording classes and the wording lint | merged |
 

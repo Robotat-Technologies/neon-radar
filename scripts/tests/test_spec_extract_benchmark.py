@@ -2,14 +2,12 @@
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+import spec_extract as se  # scripts/ is on the test path (pyproject.toml, pythonpath)
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
-import spec_extract as se
 
 BENCHMARK = [
     "copilot/bench/benchmark.yaml",

@@ -49,7 +49,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.3c | todo | - | - | 2026-10-22 | - | - |
 | M2.4 | todo | - | - | 2026-10-22 | - | - |
 | M2.5 | todo | - | - | 2026-10-22 | - | - |
-| M2.6a | todo | - | - | 2026-10-22 | - | - |
+| M2.6a | pr-open (real-data run pending) | p2/m2-6a-uk-sanctions | #62 | 2026-10-22 | acceptance on synthetic data after merging main at 43a8a3e and #59 at 46b0b5e: pytest test_lists_common.py 78 passed; with test_lists_gb_fcdo_sanctions.py 94 passed; -k gate 1 passed (exit 3, no request, data fetch and ingest build); fixture validates against the committed XSD 4.33.3; verbatim blocks byte-identical (script); make check exit 0 (1867 passed, contracts 434, cypher-lint 0 problems, UI 56); make hygiene with size-exception: pass, size warns (2005 counted lines incl. #59) | Draft, depends on M2.1a (#59). Plan first: plan in the PR body (OD-10). Size exception (header). Shared builder plumbing in lists/shared.py; entity element names from the XSD; grouping edge cases, alias strengths, parties without a primary name and counted registration numbers decided on autopilot (PR #62); M2.2 fetch test empties the SourceSpec registry; *.xsd kept byte for byte; new deps defusedxml, types-defusedxml, xmlschema (permissive). For the data steward: the XSD's own notice; OD-12 searches for the fixture names (blocked for agents). Real-data run pending (operator); no reviewer run in session (OD-4) |
 | M2.6b | todo | - | - | 2026-10-22 | - | - |
 | M2.6c | todo | - | - | 2026-10-22 | - | - |
 | M2.6d | todo | - | - | 2026-10-22 | - | - |

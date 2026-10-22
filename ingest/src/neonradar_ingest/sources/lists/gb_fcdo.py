@@ -434,26 +434,6 @@ def party_records(
     return records
 
 
-def _filled(records: list[dict[str, Any]], schema: str, *names: str) -> tuple[int, int]:
-    chosen = [r for r in records if r["schema"] == schema]
-    return sum(any(r["properties"].get(n) for n in names) for r in chosen), len(chosen)
-
-
-def fill_rates(records: list[dict[str, Any]]) -> dict[str, float]:
-    """The shares of M2.6 rule 10, from the records as written."""
-    pairs = {
-        "person_birth_date": _filled(records, "Person", "birthDate"),
-        "person_nationality": _filled(records, "Person", "nationality"),
-        "person_passport_or_id": _filled(records, "Person", "passportNumber", "idNumber"),
-        "sanction_program": _filled(records, "Sanction", "program"),
-        "sanction_start_date": _filled(records, "Sanction", "startDate"),
-        "organization_registration_or_lei": _filled(
-            records, "Organization", "registrationNumber", "leiCode"
-        ),
-    }
-    return {name: shared.rate(*pair) for name, pair in pairs.items()}
-
-
 def build(profile: Profile, context: BuildContext) -> BuildResult:
     options: shared.ListOptions = profile.options(DATASET)
     download = shared.latest_download(DATASET, FILE_NAME)
@@ -469,7 +449,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     parties = group(kept, counts)
     records = [record for party in parties for record in party_records(party, options, counts)]
     by_schema = Counter(str(record["schema"]) for record in records)
-    rates = fill_rates(records)
+    rates = shared.fill_rates(records)
     zero = [name for name in FATAL_RATES if rates[name] == 0]
     outside = shared.check_size(DATASET, by_schema, zero, accept_size=context.accept_size)
     stamp = shared.list_stamp(raw_stamp)

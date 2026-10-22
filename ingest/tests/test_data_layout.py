@@ -127,3 +127,29 @@ def test_a_real_dataset_always_lands_under_real(data_env: Any) -> None:
         assert path.is_relative_to(data_env.cache / "real")
         assert not function(disguised, "nr_synthetic").is_relative_to(data_env.cache / "real")
     assert layout.reports_dir(layout.ALL_PROFILES) == data_env.cache / "reports" / "all-profiles"
+
+
+def test_the_phase_3_folders(data_env: Any) -> None:
+    """PHASE-3.md 4.5 (M3.3): worlds, overlays, development evaluations, the holdout folder."""
+    cache = data_env.cache
+    assert layout.worlds_dir("eval", 1) == cache / "synthetic/worlds/eval/1"
+    overlay_id = "ov-20261030T101500-7c2e"
+    assert layout.overlay_dir("synth-demo", overlay_id) == (
+        cache / f"synthetic/overlay/synth-demo/{overlay_id}"
+    )
+    assert layout.overlay_dir("uk-tiny", overlay_id) == cache / f"real/overlay/uk-tiny/{overlay_id}"
+    assert layout.latest_overlay("synth-demo") is None
+    latest = cache / "synthetic/overlay/synth-demo/LATEST"
+    latest.parent.mkdir(parents=True)
+    latest.write_text(overlay_id + "\n", encoding="utf-8")
+    assert layout.latest_overlay("synth-demo") == overlay_id
+    assert layout.eval_dir("eval-dev-1") == cache / "synthetic/eval/eval-dev-1"
+    assert layout.holdout_dir("eval-test-1").relative_to(cache).parts[0] == "holdout"
+    for call in (
+        lambda: layout.worlds_dir("../x", 1),
+        lambda: layout.worlds_dir("eval", -1),
+        lambda: layout.overlay_dir("synth-demo", "../x"),
+        lambda: layout.eval_dir("a/b"),
+    ):
+        with pytest.raises(ValueError):
+            call()

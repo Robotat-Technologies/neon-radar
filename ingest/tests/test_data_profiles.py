@@ -13,7 +13,9 @@ from neonradar_ingest.data.project import DEFAULT_PROJECT_FILE, REPO_ROOT, load_
 
 
 def test_the_committed_profiles_load_and_say_what_they_are(data_env: Any) -> None:
-    assert profile_names() == ["demo", "uk-sample", "uk-tiny"]
+    assert profile_names() == [
+        "demo", "synth-demo", "synth-eval", "synth-scale", "uk-sample", "uk-tiny",
+    ]  # fmt: skip
     demo, tiny, sample = (load_profile(name) for name in ("demo", "uk-tiny", "uk-sample"))
     assert (demo.real_data, tiny.real_data, sample.real_data) == (False, True, True)
     assert demo.options("nr_synthetic").fixtures == ["data/fixtures/demo-mini"]
@@ -114,7 +116,7 @@ def test_profile_validation_errors(data_env: Any, change: dict[str, Any], messag
 
 
 def test_unknown_or_unsafe_profile_names_fail(data_env: Any) -> None:
-    with pytest.raises(ProfileError, match="no profile 'nope'; profiles: demo, uk-sample"):
+    with pytest.raises(ProfileError, match="no profile 'nope'; profiles: demo, synth-demo"):
         load_profile("nope")
     with pytest.raises(ProfileError, match="not a profile name"):
         load_profile("../demo")
@@ -156,3 +158,109 @@ def test_a_synthetic_profile_may_list_a_real_dataset_only_disabled(data_env: Any
         "quiet", real_data=False, sources={"gleif_lei": {"enabled": False, "scope": "slice"}}
     )
     assert load_profile("quiet").enabled_sources(load_project()) == []
+
+
+def test_the_synthetic_profiles_have_a_world_an_overlay_and_detection(data_env: Any) -> None:
+    """PHASE-3.md 7.11, M3.3 deliverable 3."""
+    from neonradar_ingest.synth.overlay import SCENARIOS
+
+    sizes = {"synth-eval": (600, 900, 1), "synth-demo": (300, 450, 20261103)}
+    sizes["synth-scale"] = (142_000, 213_000, 20261105)
+    for name, (companies, people, seed) in sizes.items():
+        profile = load_profile(name)
+        world = profile.world
+        assert world is not None and (world.companies, world.people, world.seed) == (
+            companies, people, seed,
+        )  # fmt: skip
+        assert profile.resolution.config is None
+        assert profile.overlay is not None and profile.overlay.enabled
+        assert profile.overlay.typology_slugs() == tuple(SCENARIOS)
+        assert profile.detection is not None and profile.detection.window == "overlay"
+        assert profile.overlay_seed() == seed and profile.overlay_seed(7) == 7
+    scale = load_profile("synth-scale").overlay
+    assert scale is not None
+    config = scale.config(5)
+    assert (config.seed, config.split, config.illicit, config.lookalikes) == (5, "dev", 2, 2)
+    assert (config.background.share, config.background.personal) == (0.03, False)
+    assert load_profile("demo").world is None and load_profile("uk-tiny").world is None
+    with pytest.raises(ProfileError, match="has no world"):
+        load_profile("demo").world_seed()
+
+
+def test_the_world_and_overlay_blocks_follow_the_generator() -> None:
+    import dataclasses
+
+    from neonradar_ingest.synth.overlay import OverlayConfig
+    from neonradar_ingest.synth.world import WorldConfig
+
+    world = {f.name for f in dataclasses.fields(WorldConfig)}
+    assert set(profiles.World.model_fields) == world | {"name", "seed"}
+    defaults = profiles.World(name="w", seed=1).config()
+    assert defaults == WorldConfig()
+    overlay = {f.name for f in dataclasses.fields(OverlayConfig)} - {"split"}
+    assert set(profiles.Overlay.model_fields) == overlay | {"enabled"}
+
+
+NO_SEED = {"name": "w"}
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"overlay": {"enabled": True, "split": "test"}}, "split"),
+        ({"overlay": {"enabled": True, "typologies": ["nope"]}}, "no scenario module for nope"),
+        ({"overlay": {"enabled": True, "background": {"sharez": 1}}}, "unknown background"),
+        ({"overlay": {"enabled": True, "background": {"share": "x"}}}, "share"),
+        ({"overlay": {"enabled": True, "start": "2026-01-01", "end": "2025-01-01"}}, "after"),
+        ({"detection": {"enabled": True, "window": "week"}}, "window"),
+        ({"detection": {"enabled": True, "extra": 1}}, "extra"),
+        ({"resolution": {"enabled": True}}, "resolution.config is required"),
+        (
+            {"sources": {"nr_synthetic": {"enabled": True, "fixtures": [], "world": NO_SEED}}},
+            "seed",
+        ),
+        (
+            {
+                "sources": {
+                    "nr_synthetic": {
+                        "enabled": True,
+                        "fixtures": [],
+                        "world": {"name": "w", "seed": 1, "firms": 3},
+                    }
+                }
+            },
+            "firms",
+        ),
+        (
+            {
+                "sources": {
+                    "nr_synthetic": {
+                        "enabled": True,
+                        "fixtures": [],
+                        "world": {"name": "../w", "seed": 1},
+                    }
+                }
+            },
+            "world name",
+        ),
+    ],
+)
+def test_phase_3_block_errors(data_env: Any, change: dict[str, Any], message: str) -> None:
+    data = yaml.safe_load((data_env.profiles / "synth-demo.yaml").read_text(encoding="utf-8"))
+    data["profile"] = "broken"
+    path = data_env.profiles / "broken.yaml"
+    path.write_text(yaml.safe_dump(data | change), encoding="utf-8")
+    with pytest.raises(ProfileError, match=message):
+        load_profile("broken")
+
+
+def test_record_dirs_of_a_world_profile(data_env: Any) -> None:
+    profile, project = load_profile("synth-demo"), load_project()
+    with pytest.raises(ProfileError, match=r"no world for seed 4: run `neonradar synth world"):
+        profile.record_dirs(project, seed=4)
+    folder = layout.worlds_dir("demo", 4)
+    folder.mkdir(parents=True)
+    (folder / "nr_synthetic-20260701-world.ftm.jsonl").write_text("", encoding="utf-8")
+    assert profile.record_dirs(project, seed=4) == [folder]
+    with pytest.raises(ProfileError, match="no world for seed 20261103"):
+        profile.record_dirs(project)  # the world's own seed

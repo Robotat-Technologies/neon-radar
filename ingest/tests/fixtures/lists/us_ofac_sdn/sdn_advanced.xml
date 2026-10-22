@@ -1,0 +1,660 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic test fixture for the OFAC SDN List loader (PHASE-2.md M2.6b). Hand-written to the
+     committed sdn_advanced.xsd; every name, number, identifier and reference value is invented.
+     Party ids are in the unissued 99xxxx range; company numbers are 99 plus six digits or SY;
+     LEIs start SYN0; passports SYNP. Not a copy of any real list entry. -->
+<Sanctions xmlns="http://www.un.org/sanctions/1.0" Version="1">
+  <DateOfIssue CalendarTypeID="1"><Year>2026</Year><Month>10</Month><Day>20</Day></DateOfIssue>
+  <ReferenceValueSets>
+    <AliasTypeValues>
+      <AliasType ID="1">A.K.A.</AliasType>
+      <AliasType ID="2">F.K.A.</AliasType>
+      <AliasType ID="3">N.K.A.</AliasType>
+      <AliasType ID="4">Name</AliasType>
+    </AliasTypeValues>
+    <AreaCodeValues/>
+    <AreaCodeTypeValues/>
+    <CalendarTypeValues><CalendarType ID="1">Gregorian</CalendarType></CalendarTypeValues>
+    <CountryValues>
+      <Country ID="1" ISO2="GB">United Kingdom</Country>
+      <Country ID="2" ISO2="CY">Cyprus</Country>
+      <Country ID="3">Atlantis</Country>
+    </CountryValues>
+    <CountryRelevanceValues><CountryRelevance ID="1">Primary</CountryRelevance></CountryRelevanceValues>
+    <DecisionMakingBodyValues>
+      <DecisionMakingBody ID="1" OrganisationID="1">Synthetic Board</DecisionMakingBody>
+    </DecisionMakingBodyValues>
+    <DetailReferenceValues>
+      <DetailReference ID="1">Male</DetailReference>
+      <DetailReference ID="2">Female</DetailReference>
+    </DetailReferenceValues>
+    <DetailTypeValues>
+      <DetailType ID="1">Lookup</DetailType>
+      <DetailType ID="2">Text</DetailType>
+    </DetailTypeValues>
+    <DocNameStatusValues>
+      <DocNameStatus ID="1">Primary</DocNameStatus>
+      <DocNameStatus ID="2">Alternate</DocNameStatus>
+    </DocNameStatusValues>
+    <EntryEventTypeValues>
+      <EntryEventType ID="1">Created</EntryEventType>
+      <EntryEventType ID="2">Amended</EntryEventType>
+    </EntryEventTypeValues>
+    <EntryLinkTypeValues/>
+    <ExRefTypeValues/>
+    <FeatureTypeValues>
+      <FeatureType ID="1" FeatureTypeGroupID="1">Birthdate</FeatureType>
+      <FeatureType ID="2" FeatureTypeGroupID="1">Place of Birth</FeatureType>
+      <FeatureType ID="3" FeatureTypeGroupID="1">Nationality Country</FeatureType>
+      <FeatureType ID="4" FeatureTypeGroupID="1">Citizenship Country</FeatureType>
+      <FeatureType ID="5" FeatureTypeGroupID="1">Gender</FeatureType>
+      <FeatureType ID="6" FeatureTypeGroupID="1">Location</FeatureType>
+      <FeatureType ID="7" FeatureTypeGroupID="1">Organization Established Date</FeatureType>
+      <FeatureType ID="8" FeatureTypeGroupID="1">Email Address</FeatureType>
+      <FeatureType ID="9" FeatureTypeGroupID="1">Website</FeatureType>
+      <FeatureType ID="10" FeatureTypeGroupID="1">Digital Currency Address - XBT</FeatureType>
+      <FeatureType ID="11" FeatureTypeGroupID="1">Title</FeatureType>
+    </FeatureTypeValues>
+    <FeatureTypeGroupValues><FeatureTypeGroup ID="1">Synthetic group</FeatureTypeGroup></FeatureTypeGroupValues>
+    <IDRegDocDateTypeValues>
+      <IDRegDocDateType ID="1">Issue Date</IDRegDocDateType>
+      <IDRegDocDateType ID="2">Expiration Date</IDRegDocDateType>
+    </IDRegDocDateTypeValues>
+    <IDRegDocTypeValues>
+      <IDRegDocType ID="1">Passport</IDRegDocType>
+      <IDRegDocType ID="2">Diplomatic Passport</IDRegDocType>
+      <IDRegDocType ID="3">National ID No.</IDRegDocType>
+      <IDRegDocType ID="4">Identification Number</IDRegDocType>
+      <IDRegDocType ID="5">Cedula No.</IDRegDocType>
+      <IDRegDocType ID="6">UK Company Number</IDRegDocType>
+      <IDRegDocType ID="7">Company Number</IDRegDocType>
+      <IDRegDocType ID="8">Registration Number</IDRegDocType>
+      <IDRegDocType ID="9">Legal Entity Number</IDRegDocType>
+      <IDRegDocType ID="10">LE Number</IDRegDocType>
+      <IDRegDocType ID="11">Tax ID No.</IDRegDocType>
+      <IDRegDocType ID="12">Business Registration Number</IDRegDocType>
+    </IDRegDocTypeValues>
+    <IdentityFeatureLinkTypeValues>
+      <IdentityFeatureLinkType ID="1">Default</IdentityFeatureLinkType>
+    </IdentityFeatureLinkTypeValues>
+    <LegalBasisValues>
+      <LegalBasis ID="1" LegalBasisShortRef="SYN-ORDER" LegalBasisTypeID="1" SanctionsProgramID="1">Synthetic legal basis</LegalBasis>
+    </LegalBasisValues>
+    <LegalBasisTypeValues><LegalBasisType ID="1">Synthetic order</LegalBasisType></LegalBasisTypeValues>
+    <ListValues><List ID="1">SDN List</List></ListValues>
+    <LocPartTypeValues>
+      <LocPartType ID="1">ADDRESS1</LocPartType>
+      <LocPartType ID="2">ADDRESS2</LocPartType>
+      <LocPartType ID="3">ADDRESS3</LocPartType>
+      <LocPartType ID="4">CITY</LocPartType>
+      <LocPartType ID="5">STATE/PROVINCE</LocPartType>
+      <LocPartType ID="6">REGION</LocPartType>
+      <LocPartType ID="7">POSTAL CODE</LocPartType>
+      <LocPartType ID="8">Unknown</LocPartType>
+    </LocPartTypeValues>
+    <LocPartValueStatusValues><LocPartValueStatus ID="1">Approved</LocPartValueStatus></LocPartValueStatusValues>
+    <LocPartValueTypeValues><LocPartValueType ID="1">Unknown</LocPartValueType></LocPartValueTypeValues>
+    <NamePartTypeValues>
+      <NamePartType ID="1">Last Name</NamePartType>
+      <NamePartType ID="2">First Name</NamePartType>
+      <NamePartType ID="3">Middle Name</NamePartType>
+      <NamePartType ID="4">Maiden Name</NamePartType>
+      <NamePartType ID="5">Patronymic</NamePartType>
+      <NamePartType ID="6">Matronymic</NamePartType>
+      <NamePartType ID="7">Nickname</NamePartType>
+      <NamePartType ID="8">Entity Name</NamePartType>
+      <NamePartType ID="9">Vessel Name</NamePartType>
+      <NamePartType ID="10">Aircraft Name</NamePartType>
+    </NamePartTypeValues>
+    <OrganisationValues><Organisation ID="1">Synthetic Office</Organisation></OrganisationValues>
+    <PartySubTypeValues>
+      <PartySubType ID="1" PartyTypeID="1">Unknown</PartySubType>
+      <PartySubType ID="2" PartyTypeID="2">Unknown</PartySubType>
+      <PartySubType ID="3" PartyTypeID="3">Vessel</PartySubType>
+      <PartySubType ID="4" PartyTypeID="3">Aircraft</PartySubType>
+    </PartySubTypeValues>
+    <PartyTypeValues>
+      <PartyType ID="1">Individual</PartyType>
+      <PartyType ID="2">Entity</PartyType>
+      <PartyType ID="3">Transport</PartyType>
+    </PartyTypeValues>
+    <RelationQualityValues><RelationQuality ID="1">Unknown</RelationQuality></RelationQualityValues>
+    <RelationTypeValues>
+      <RelationType ID="1" Symmetrical="true">Associate Of</RelationType>
+      <RelationType ID="2" Symmetrical="false">Providing support to</RelationType>
+      <RelationType ID="3" Symmetrical="false">Acting for or on behalf of</RelationType>
+      <RelationType ID="4" Symmetrical="false">Owned or Controlled By</RelationType>
+      <RelationType ID="5" Symmetrical="true">Family member of</RelationType>
+      <RelationType ID="6" Symmetrical="false">Leader or official of</RelationType>
+      <RelationType ID="7" Symmetrical="false">playing a significant role in</RelationType>
+      <RelationType ID="8" Symmetrical="false">Principal Executive Officer</RelationType>
+      <RelationType ID="9" Symmetrical="false">Owns, controls, or operates</RelationType>
+      <RelationType ID="10" Symmetrical="false">Property in the interest of</RelationType>
+      <RelationType ID="11" Symmetrical="false">Synthetic other link</RelationType>
+    </RelationTypeValues>
+    <ReliabilityValues><Reliability ID="1">Reliable</Reliability></ReliabilityValues>
+    <SanctionsProgramValues>
+      <SanctionsProgram ID="1" SubsidiaryBodyID="1">SYN-ALPHA</SanctionsProgram>
+      <SanctionsProgram ID="2" SubsidiaryBodyID="1">SYN-BETA</SanctionsProgram>
+    </SanctionsProgramValues>
+    <SanctionsTypeValues>
+      <SanctionsType ID="1">Program</SanctionsType>
+      <SanctionsType ID="2">Block</SanctionsType>
+      <SanctionsType ID="3">Synthetic restriction</SanctionsType>
+    </SanctionsTypeValues>
+    <ScriptValues>
+      <Script ID="1" ScriptCode="Latn">Latin</Script>
+      <Script ID="2" ScriptCode="Arab">Arabic</Script>
+    </ScriptValues>
+    <ScriptStatusValues><ScriptStatus ID="1">Unknown</ScriptStatus></ScriptStatusValues>
+    <SubsidiaryBodyValues>
+      <SubsidiaryBody ID="1" Notional="false" DecisionMakingBodyID="1">Synthetic Unit</SubsidiaryBody>
+    </SubsidiaryBodyValues>
+    <SupInfoTypeValues/>
+    <TargetTypeValues/>
+    <ValidityValues>
+      <Validity ID="1">Valid</Validity>
+      <Validity ID="2">Fraudulent</Validity>
+    </ValidityValues>
+  </ReferenceValueSets>
+  <Locations>
+    <!-- Parts in shuffled order: the loader orders them ADDRESS1 ... POSTAL CODE, country. -->
+    <Location ID="101">
+      <LocationCountry CountryID="2" CountryRelevanceID="1"/>
+      <LocationPart LocPartTypeID="7">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>QQ1 1QQ</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="4">
+        <LocationPartValue Primary="false" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Lemesos</Value></LocationPartValue>
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Limassol</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="1">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>1 Sedge Lane</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="8">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Synthetic location note</Value></LocationPartValue>
+      </LocationPart>
+    </Location>
+    <Location ID="102"><LocationCountry CountryID="2" CountryRelevanceID="1"/></Location>
+    <Location ID="103"><LocationCountry CountryID="1" CountryRelevanceID="1"/></Location>
+    <Location ID="104"><LocationCountry CountryID="3" CountryRelevanceID="1"/></Location>
+    <Location ID="105">
+      <LocationCountry CountryID="1" CountryRelevanceID="1"/>
+      <LocationPart LocPartTypeID="1">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>2 Marram Row</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="2">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Unit 3</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="4">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Leeds</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="5">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Sorrel Shire</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="6">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>North</Value></LocationPartValue>
+      </LocationPart>
+      <LocationPart LocPartTypeID="7">
+        <LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>QQ2 2QQ</Value></LocationPartValue>
+      </LocationPart>
+    </Location>
+  </Locations>
+  <IDRegDocuments>
+    <IDRegDocument ID="301" IDRegDocTypeID="1" IdentityID="2001" IssuedBy-CountryID="2" ValidityID="1">
+      <IDRegistrationNo>SYNP000101</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="302" IDRegDocTypeID="1" IdentityID="2001" IssuedBy-CountryID="2" ValidityID="2">
+      <IDRegistrationNo>SYNP000102</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="303" IDRegDocTypeID="3" IdentityID="2001" IssuedBy-CountryID="2" ValidityID="1">
+      <IDRegistrationNo>SYNN 000101</IDRegistrationNo>
+      <DocumentDate IDRegDocDateTypeID="1">
+        <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+          <Start Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>2015</Year><Month>1</Month><Day>2</Day></From></Start>
+        </DatePeriod>
+      </DocumentDate>
+    </IDRegDocument>
+    <IDRegDocument ID="304" IDRegDocTypeID="11" IdentityID="2001" ValidityID="1">
+      <IDRegistrationNo>SYNT000101</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="305" IDRegDocTypeID="2" IdentityID="2002" ValidityID="1">
+      <IDRegistrationNo>SYNP000201</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="306" IDRegDocTypeID="5" IdentityID="2002" ValidityID="1">
+      <IDRegistrationNo>SYNC000201</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="307" IDRegDocTypeID="4" IdentityID="2002">
+      <IDRegistrationNo>SYNI000201</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="311" IDRegDocTypeID="6" IdentityID="2011" IssuedBy-CountryID="1" ValidityID="1">
+      <IDRegistrationNo>99000111</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="312" IDRegDocTypeID="9" IdentityID="2011" ValidityID="1">
+      <IDRegistrationNo>SYN0000000000000OF24</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="313" IDRegDocTypeID="7" IdentityID="2011" IssuedBy-CountryID="1" ValidityID="1">
+      <IDRegistrationNo>99 000 112</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="314" IDRegDocTypeID="8" IdentityID="2011" IssuedBy-CountryID="2" ValidityID="1">
+      <IDRegistrationNo>SY000113</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="321" IDRegDocTypeID="6" IdentityID="2012" IssuedBy-CountryID="1" ValidityID="1">
+      <IDRegistrationNo>SY000121</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="322" IDRegDocTypeID="10" IdentityID="2012" ValidityID="1">
+      <IDRegistrationNo>SYN0000000000000OG21</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="323" IDRegDocTypeID="9" IdentityID="2012" ValidityID="1">
+      <IDRegistrationNo>SYN0000000000000OG00</IDRegistrationNo>
+    </IDRegDocument>
+    <IDRegDocument ID="324" IDRegDocTypeID="12" IdentityID="2012" IssuedBy-CountryID="1" ValidityID="1">
+      <IDRegistrationNo>99000122</IDRegistrationNo>
+    </IDRegDocument>
+  </IDRegDocuments>
+  <DistinctParties>
+    <!-- A person: Latin and Arabic script, a weak alias, every person feature. -->
+    <DistinctParty FixedRef="990001">
+      <Profile ID="990001" PartySubTypeID="1">
+        <Identity ID="2001" FixedRef="990001" Primary="true" False="false">
+          <Alias FixedRef="990001" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5001" FixedRef="990001" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40001" ScriptID="1" ScriptStatusID="1" Acronym="false">Zafir</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40002" ScriptID="1" ScriptStatusID="1" Acronym="false">Rakan</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40003" ScriptID="1" ScriptStatusID="1" Acronym="false">QANDELOUNI</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+            <DocumentedName ID="5002" FixedRef="990001" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40001" ScriptID="2" ScriptStatusID="1" Acronym="false">ظافر</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40003" ScriptID="2" ScriptStatusID="1" Acronym="false">قنديلوني</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <Alias FixedRef="990001" AliasTypeID="1" Primary="false" LowQuality="false">
+            <DocumentedName ID="5003" FixedRef="990001" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40004" ScriptID="1" ScriptStatusID="1" Acronym="false">Zafer</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40005" ScriptID="1" ScriptStatusID="1" Acronym="false">QANDELOUNI</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <Alias FixedRef="990001" AliasTypeID="1" Primary="false" LowQuality="true">
+            <DocumentedName ID="5004" FixedRef="990001" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40006" ScriptID="1" ScriptStatusID="1" Acronym="false">Zafir</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="40001" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40002" NamePartTypeID="3"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40003" NamePartTypeID="1"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40004" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40005" NamePartTypeID="1"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40006" NamePartTypeID="2"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <!-- An exact date. -->
+        <Feature ID="6001" FeatureTypeID="1">
+          <FeatureVersion ID="7001" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1979</Year><Month>8</Month><Day>14</Day></From><To><Year>1979</Year><Month>8</Month><Day>14</Day></To></Start>
+              <End Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1979</Year><Month>8</Month><Day>14</Day></From><To><Year>1979</Year><Month>8</Month><Day>14</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <!-- A whole year. -->
+        <Feature ID="6002" FeatureTypeID="1">
+          <FeatureVersion ID="7002" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1980</Year><Month>1</Month><Day>1</Day></From><To><Year>1980</Year><Month>1</Month><Day>1</Day></To></Start>
+              <End Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1980</Year><Month>12</Month><Day>31</Day></From><To><Year>1980</Year><Month>12</Month><Day>31</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6003" FeatureTypeID="2">
+          <FeatureVersion ID="7003" ReliabilityID="1"><VersionDetail DetailTypeID="2">Limassol</VersionDetail></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6004" FeatureTypeID="3">
+          <FeatureVersion ID="7004" ReliabilityID="1"><VersionLocation LocationID="102"/></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6005" FeatureTypeID="4">
+          <FeatureVersion ID="7005" ReliabilityID="1"><VersionLocation LocationID="103"/></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6006" FeatureTypeID="5">
+          <FeatureVersion ID="7006" ReliabilityID="1"><VersionDetail DetailTypeID="1" DetailReferenceID="1"/></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6007" FeatureTypeID="6">
+          <FeatureVersion ID="7007" ReliabilityID="1"><VersionLocation LocationID="101"/></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6008" FeatureTypeID="8">
+          <FeatureVersion ID="7008" ReliabilityID="1"><VersionDetail DetailTypeID="2">nobody@example.invalid</VersionDetail></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6009" FeatureTypeID="10">
+          <FeatureVersion ID="7009" ReliabilityID="1"><VersionDetail DetailTypeID="2">SYNWALLET0001</VersionDetail></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6010" FeatureTypeID="11">
+          <FeatureVersion ID="7010" ReliabilityID="1"><VersionDetail DetailTypeID="2">Synthetic title</VersionDetail></FeatureVersion>
+          <IdentityReference IdentityID="2001" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <SanctionsEntryReference SanctionsEntryID="8001"/>
+        <SanctionsEntryReference SanctionsEntryID="8002"/>
+      </Profile>
+    </DistinctParty>
+    <!-- A person: patronymic, matronymic, maiden name, nickname, F.K.A. and N.K.A. -->
+    <DistinctParty FixedRef="990002">
+      <Profile ID="990002" PartySubTypeID="1">
+        <Identity ID="2002" FixedRef="990002" Primary="true" False="false">
+          <Alias FixedRef="990002" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5011" FixedRef="990002" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40101" ScriptID="1" ScriptStatusID="1" Acronym="false">Yazan</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40102" ScriptID="1" ScriptStatusID="1" Acronym="false">Zafer</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40103" ScriptID="1" ScriptStatusID="1" Acronym="false">Raqan</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40104" ScriptID="1" ScriptStatusID="1" Acronym="false">VELQASIMI</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40105" ScriptID="1" ScriptStatusID="1" Acronym="false">ZUBEIRONO</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40106" ScriptID="1" ScriptStatusID="1" Acronym="false">Nadim</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <Alias FixedRef="990002" AliasTypeID="2" Primary="false" LowQuality="false">
+            <DocumentedName ID="5012" FixedRef="990002" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40107" ScriptID="1" ScriptStatusID="1" Acronym="false">Yazan</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40108" ScriptID="1" ScriptStatusID="1" Acronym="false">VELQASIMY</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <Alias FixedRef="990002" AliasTypeID="3" Primary="false" LowQuality="false">
+            <DocumentedName ID="5013" FixedRef="990002" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40109" ScriptID="1" ScriptStatusID="1" Acronym="false">Yazan</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40110" ScriptID="1" ScriptStatusID="1" Acronym="false">VELQASEMI</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="40101" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40102" NamePartTypeID="5"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40103" NamePartTypeID="6"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40104" NamePartTypeID="1"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40105" NamePartTypeID="4"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40106" NamePartTypeID="7"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40107" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40108" NamePartTypeID="1"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40109" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40110" NamePartTypeID="1"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <!-- A two-year range. -->
+        <Feature ID="6101" FeatureTypeID="1">
+          <FeatureVersion ID="7101" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1965</Year><Month>1</Month><Day>1</Day></From><To><Year>1965</Year><Month>1</Month><Day>1</Day></To></Start>
+              <End Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1966</Year><Month>12</Month><Day>31</Day></From><To><Year>1966</Year><Month>12</Month><Day>31</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2002" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6102" FeatureTypeID="5">
+          <FeatureVersion ID="7102" ReliabilityID="1"><VersionDetail DetailTypeID="1" DetailReferenceID="2"/></FeatureVersion>
+          <IdentityReference IdentityID="2002" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6103" FeatureTypeID="3">
+          <FeatureVersion ID="7103" ReliabilityID="1"><VersionLocation LocationID="104"/></FeatureVersion>
+          <IdentityReference IdentityID="2002" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <SanctionsEntryReference SanctionsEntryID="8003"/>
+      </Profile>
+    </DistinctParty>
+    <!-- A person: approximate dates. -->
+    <DistinctParty FixedRef="990003">
+      <Profile ID="990003" PartySubTypeID="1">
+        <Identity ID="2003" FixedRef="990003" Primary="true" False="false">
+          <Alias FixedRef="990003" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5021" FixedRef="990003" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40201" ScriptID="1" ScriptStatusID="1" Acronym="false">Nadim</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40202" ScriptID="1" ScriptStatusID="1" Acronym="false">ULVARAZI</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="40201" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40202" NamePartTypeID="1"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <!-- Approximate start: the years only. -->
+        <Feature ID="6201" FeatureTypeID="1">
+          <FeatureVersion ID="7201" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="true" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1970</Year><Month>3</Month><Day>1</Day></From><To><Year>1970</Year><Month>3</Month><Day>1</Day></To></Start>
+              <End Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1972</Year><Month>6</Month><Day>30</Day></From><To><Year>1972</Year><Month>6</Month><Day>30</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2003" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <!-- An approximate exact date: the year only. -->
+        <Feature ID="6202" FeatureTypeID="1">
+          <FeatureVersion ID="7202" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="true" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1975</Year><Month>5</Month><Day>5</Day></From><To><Year>1975</Year><Month>5</Month><Day>5</Day></To></Start>
+              <End Approximate="true" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>1975</Year><Month>5</Month><Day>5</Day></From><To><Year>1975</Year><Month>5</Month><Day>5</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2003" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <SanctionsEntryReference SanctionsEntryID="8004"/>
+      </Profile>
+    </DistinctParty>
+    <DistinctParty FixedRef="990004">
+      <Profile ID="990004" PartySubTypeID="1">
+        <Identity ID="2004" FixedRef="990004" Primary="true" False="false">
+          <Alias FixedRef="990004" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5031" FixedRef="990004" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40301" ScriptID="1" ScriptStatusID="1" Acronym="false">Rakan</NamePartValue></DocumentedNamePart>
+              <DocumentedNamePart><NamePartValue NamePartGroupID="40302" ScriptID="1" ScriptStatusID="1" Acronym="false">ZUBEIRONO</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="40301" NamePartTypeID="2"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="40302" NamePartTypeID="1"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <SanctionsEntryReference SanctionsEntryID="8005"/>
+      </Profile>
+    </DistinctParty>
+    <!-- An entity: UK Company Number, LEI, a UK Company Number issued in the UK, a Cyprus one. -->
+    <DistinctParty FixedRef="990011">
+      <Profile ID="990011" PartySubTypeID="2">
+        <Identity ID="2011" FixedRef="990011" Primary="true" False="false">
+          <Alias FixedRef="990011" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5111" FixedRef="990011" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="41101" ScriptID="1" ScriptStatusID="1" Acronym="false">Sorrel Sike Trading Ltd</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <Alias FixedRef="990011" AliasTypeID="1" Primary="false" LowQuality="false">
+            <DocumentedName ID="5112" FixedRef="990011" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="41102" ScriptID="1" ScriptStatusID="1" Acronym="false">Sorrel Sike Trading Limited</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="41101" NamePartTypeID="8"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="41102" NamePartTypeID="8"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <!-- A whole month. -->
+        <Feature ID="6301" FeatureTypeID="7">
+          <FeatureVersion ID="7301" ReliabilityID="1">
+            <DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false">
+              <Start Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>2015</Year><Month>3</Month><Day>1</Day></From><To><Year>2015</Year><Month>3</Month><Day>1</Day></To></Start>
+              <End Approximate="false" YearFixed="false" MonthFixed="false" DayFixed="false"><From><Year>2015</Year><Month>3</Month><Day>31</Day></From><To><Year>2015</Year><Month>3</Month><Day>31</Day></To></End>
+            </DatePeriod>
+          </FeatureVersion>
+          <IdentityReference IdentityID="2011" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <Feature ID="6302" FeatureTypeID="6">
+          <FeatureVersion ID="7302" ReliabilityID="1"><VersionLocation LocationID="105"/></FeatureVersion>
+          <IdentityReference IdentityID="2011" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <!-- A person feature on an entity: counted, not loaded. -->
+        <Feature ID="6303" FeatureTypeID="3">
+          <FeatureVersion ID="7303" ReliabilityID="1"><VersionLocation LocationID="103"/></FeatureVersion>
+          <IdentityReference IdentityID="2011" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <SanctionsEntryReference SanctionsEntryID="8011"/>
+      </Profile>
+    </DistinctParty>
+    <!-- An entity: a UK Company Number with a prefix Companies House does not use. -->
+    <DistinctParty FixedRef="990012">
+      <Profile ID="990012" PartySubTypeID="2">
+        <Identity ID="2012" FixedRef="990012" Primary="true" False="false">
+          <Alias FixedRef="990012" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5121" FixedRef="990012" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="41201" ScriptID="1" ScriptStatusID="1" Acronym="false">Teasel Quay Trading Ltd</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <Alias FixedRef="990012" AliasTypeID="1" Primary="false" LowQuality="true">
+            <DocumentedName ID="5122" FixedRef="990012" DocNameStatusID="2">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="41202" ScriptID="1" ScriptStatusID="1" Acronym="true">TQT</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="41201" NamePartTypeID="8"/></MasterNamePartGroup>
+            <MasterNamePartGroup><NamePartGroup ID="41202" NamePartTypeID="8"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <Feature ID="6401" FeatureTypeID="9">
+          <FeatureVersion ID="7401" ReliabilityID="1"><VersionDetail DetailTypeID="2">www.example.invalid</VersionDetail></FeatureVersion>
+          <IdentityReference IdentityID="2012" IdentityFeatureLinkTypeID="1"/>
+        </Feature>
+        <SanctionsEntryReference SanctionsEntryID="8012"/>
+      </Profile>
+    </DistinctParty>
+    <DistinctParty FixedRef="990013">
+      <Profile ID="990013" PartySubTypeID="2">
+        <Identity ID="2013" FixedRef="990013" Primary="true" False="false">
+          <Alias FixedRef="990013" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5131" FixedRef="990013" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="41301" ScriptID="1" ScriptStatusID="1" Acronym="false">Marram Rigg Engineering Ltd</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="41301" NamePartTypeID="8"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <SanctionsEntryReference SanctionsEntryID="8013"/>
+      </Profile>
+    </DistinctParty>
+    <DistinctParty FixedRef="990014">
+      <Profile ID="990014" PartySubTypeID="2">
+        <Identity ID="2014" FixedRef="990014" Primary="true" False="false">
+          <Alias FixedRef="990014" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5141" FixedRef="990014" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="41401" ScriptID="1" ScriptStatusID="1" Acronym="false">Lichen Heath Logistics Ltd</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="41401" NamePartTypeID="8"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <SanctionsEntryReference SanctionsEntryID="8014"/>
+      </Profile>
+    </DistinctParty>
+    <!-- A vessel and an aircraft: skipped and counted. -->
+    <DistinctParty FixedRef="990021">
+      <Profile ID="990021" PartySubTypeID="3">
+        <Identity ID="2021" FixedRef="990021" Primary="true" False="false">
+          <Alias FixedRef="990021" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5211" FixedRef="990021" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="42101" ScriptID="1" ScriptStatusID="1" Acronym="false">LINNET WOLD</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="42101" NamePartTypeID="9"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <SanctionsEntryReference SanctionsEntryID="8021"/>
+      </Profile>
+    </DistinctParty>
+    <DistinctParty FixedRef="990022">
+      <Profile ID="990022" PartySubTypeID="4">
+        <Identity ID="2022" FixedRef="990022" Primary="true" False="false">
+          <Alias FixedRef="990022" AliasTypeID="4" Primary="true" LowQuality="false">
+            <DocumentedName ID="5221" FixedRef="990022" DocNameStatusID="1">
+              <DocumentedNamePart><NamePartValue NamePartGroupID="42201" ScriptID="1" ScriptStatusID="1" Acronym="false">BASALT HOLM</NamePartValue></DocumentedNamePart>
+            </DocumentedName>
+          </Alias>
+          <NamePartGroups>
+            <MasterNamePartGroup><NamePartGroup ID="42201" NamePartTypeID="10"/></MasterNamePartGroup>
+          </NamePartGroups>
+        </Identity>
+        <SanctionsEntryReference SanctionsEntryID="8022"/>
+      </Profile>
+    </DistinctParty>
+  </DistinctParties>
+  <ProfileRelationships>
+    <ProfileRelationship ID="9001" From-ProfileID="990012" To-ProfileID="990011" RelationTypeID="4" RelationQualityID="1" Former="false" SanctionsEntryID="8012"/>
+    <ProfileRelationship ID="9002" From-ProfileID="990001" To-ProfileID="990011" RelationTypeID="9" RelationQualityID="1" Former="false" SanctionsEntryID="8001"/>
+    <ProfileRelationship ID="9003" From-ProfileID="990013" To-ProfileID="990002" RelationTypeID="10" RelationQualityID="1" Former="true" SanctionsEntryID="8013"/>
+    <ProfileRelationship ID="9004" From-ProfileID="990003" To-ProfileID="990011" RelationTypeID="3" RelationQualityID="1" Former="false" SanctionsEntryID="8004"/>
+    <ProfileRelationship ID="9005" From-ProfileID="990001" To-ProfileID="990012" RelationTypeID="6" RelationQualityID="1" Former="false" SanctionsEntryID="8001"/>
+    <ProfileRelationship ID="9006" From-ProfileID="990014" To-ProfileID="990004" RelationTypeID="8" RelationQualityID="1" Former="false" SanctionsEntryID="8014"/>
+    <ProfileRelationship ID="9007" From-ProfileID="990002" To-ProfileID="990013" RelationTypeID="7" RelationQualityID="1" Former="false" SanctionsEntryID="8003"/>
+    <ProfileRelationship ID="9008" From-ProfileID="990001" To-ProfileID="990003" RelationTypeID="1" RelationQualityID="1" Former="true" SanctionsEntryID="8001"/>
+    <ProfileRelationship ID="9009" From-ProfileID="990002" To-ProfileID="990004" RelationTypeID="5" RelationQualityID="1" Former="false" SanctionsEntryID="8003"/>
+    <ProfileRelationship ID="9010" From-ProfileID="990003" To-ProfileID="990014" RelationTypeID="1" RelationQualityID="1" Former="false" SanctionsEntryID="8004"/>
+    <ProfileRelationship ID="9011" From-ProfileID="990014" To-ProfileID="990011" RelationTypeID="2" RelationQualityID="1" Former="false" SanctionsEntryID="8014"/>
+    <ProfileRelationship ID="9012" From-ProfileID="990003" To-ProfileID="990004" RelationTypeID="4" RelationQualityID="1" Former="false" SanctionsEntryID="8004"/>
+    <ProfileRelationship ID="9013" From-ProfileID="990011" To-ProfileID="990021" RelationTypeID="9" RelationQualityID="1" Former="false" SanctionsEntryID="8011"/>
+    <ProfileRelationship ID="9014" From-ProfileID="990013" To-ProfileID="990014" RelationTypeID="11" RelationQualityID="1" Former="false" SanctionsEntryID="8013"/>
+  </ProfileRelationships>
+  <SanctionsEntries>
+    <SanctionsEntry ID="8001" ProfileID="990001" ListID="1">
+      <EntryEvent ID="8501" EntryEventTypeID="2" LegalBasisID="1"><Date CalendarTypeID="1"><Year>2021</Year><Month>7</Month><Day>15</Day></Date></EntryEvent>
+      <EntryEvent ID="8502" EntryEventTypeID="1" LegalBasisID="1"><Date CalendarTypeID="1"><Year>2019</Year><Month>5</Month><Day>1</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8601" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+      <SanctionsMeasure ID="8602" SanctionsTypeID="1"><Comment>SYN-BETA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+      <SanctionsMeasure ID="8603" SanctionsTypeID="2"><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8002" ProfileID="990001" ListID="1">
+      <EntryEvent ID="8503" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2023</Year><Month>2</Month><Day>28</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8604" SanctionsTypeID="1"><Comment>SYN-BETA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+      <SanctionsMeasure ID="8605" SanctionsTypeID="3"><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8003" ProfileID="990002" ListID="1">
+      <EntryEvent ID="8504" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2020</Year><Month>11</Month><Day>30</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8606" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8004" ProfileID="990003" ListID="1">
+      <EntryEvent ID="8505" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2022</Year><Month>2</Month><Day>10</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8607" SanctionsTypeID="1"><Comment>SYN-BETA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8005" ProfileID="990004" ListID="1">
+      <EntryEvent ID="8506" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2022</Year><Month>2</Month><Day>10</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8608" SanctionsTypeID="1"><Comment>SYN-BETA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8011" ProfileID="990011" ListID="1">
+      <EntryEvent ID="8507" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2024</Year><Month>4</Month><Day>4</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8609" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+      <SanctionsMeasure ID="8610" SanctionsTypeID="2"><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8012" ProfileID="990012" ListID="1">
+      <EntryEvent ID="8508" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2024</Year><Month>4</Month><Day>4</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8611" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8013" ProfileID="990013" ListID="1">
+      <EntryEvent ID="8509" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2025</Year><Month>1</Month><Day>9</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8612" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <!-- No programme measure: the summary's programme fill rate stays below 1. -->
+    <SanctionsEntry ID="8014" ProfileID="990014" ListID="1">
+      <EntryEvent ID="8510" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2025</Year><Month>1</Month><Day>9</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8613" SanctionsTypeID="2"><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8021" ProfileID="990021" ListID="1">
+      <EntryEvent ID="8511" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2025</Year><Month>6</Month><Day>1</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8614" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+    <SanctionsEntry ID="8022" ProfileID="990022" ListID="1">
+      <EntryEvent ID="8512" EntryEventTypeID="1"><Date CalendarTypeID="1"><Year>2025</Year><Month>6</Month><Day>1</Day></Date></EntryEvent>
+      <SanctionsMeasure ID="8615" SanctionsTypeID="1"><Comment>SYN-ALPHA</Comment><DatePeriod CalendarTypeID="1" YearFixed="false" MonthFixed="false" DayFixed="false"/></SanctionsMeasure>
+    </SanctionsEntry>
+  </SanctionsEntries>
+  <SanctionsEntryLinks/>
+</Sanctions>

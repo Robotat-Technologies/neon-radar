@@ -96,3 +96,13 @@ Contains public sector information licensed under the Open Government Licence v3
 | Terms | The notice at the top of the file: it may be copied, used and distributed "for the purpose of developing, testing, or implementing compatible systems", provided that no modifications are made to the schema structure or namespace identifiers, the notice is retained, the schema is not misrepresented as originating from another source, and it is not "used for commercial resale or as part of a paid service without prior consent". The GOV.UK page that links it carries the Open Government Licence v3.0 "except where otherwise stated" |
 | How it is used | Test input only: `ingest/tests/test_lists_gb_fcdo_sanctions.py` validates the synthetic fixture against it, offline (`xmlschema`, `allow="sandbox"`). It is committed unchanged (`.gitattributes` keeps its bytes) and is not part of any package |
 | Where it goes | Committed in the repository under `ingest/tests/fixtures/`; never shipped in a wheel or image. The data steward confirms in the M2.6a review that these terms suit the repository |
+
+## OFAC advanced sanctions list schema (`ingest/tests/fixtures/lists/us_ofac_sdn/sdn_advanced.xsd`)
+
+| | |
+|---|---|
+| What | The XML Schema of OFAC's advanced sanctions list format (`sdn_advanced.xsd`, target namespace `http://www.un.org/sanctions/1.0`); it describes the file's structure and holds no personal data |
+| Source | http://www.treasury.gov/ofac/downloads/sanctions/1.0/sdn_advanced.xsd (answered from https://www.treasury.gov/...), the address PHASE-2.md M2.6b names (downloaded on 22 October 2026, SHA-256 `8ee987957c6a51cfc9c5c436af4659544cb10f6a943f574fc9b5c2dc7e894428`) |
+| Terms | The file carries no copyright or licence notice. It is published by the US Department of the Treasury, whose data catalogue marks the OFAC list files CC0 1.0; the research note adds, unchecked, that works of the US federal government are not subject to US copyright (17 U.S.C. 105) (`docs/research/2026-10-18/sanctions-peps.md` 2.7) |
+| How it is used | Test input only: `ingest/tests/test_lists_us_ofac_sdn.py` validates the synthetic fixture against it, offline (`xmlschema`, `allow="sandbox"`). It is committed unchanged (`.gitattributes` keeps its bytes) and is not part of any package |
+| Where it goes | Committed in the repository under `ingest/tests/fixtures/`; never shipped in a wheel or image. The data steward confirms in the M2.6b review that these terms suit the repository |

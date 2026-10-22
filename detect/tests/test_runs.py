@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from kit import WINDOW, Kit
+
 from neonradar_detect import catalog, runner, runs
 from neonradar_detect.detectors import circular_flow
 from neonradar_detect.graphrows import from_records

@@ -108,7 +108,7 @@ def test_the_shape_name_passes_the_lint() -> None:
 
 
 def test_a_detector_is_the_packages_module_for_the_slug() -> None:
-    with pytest.raises(ValueError, match="detector must be neonradar_detect.detectors"):
+    with pytest.raises(ValueError, match=r"detector must be neonradar_detect\.detectors"):
         TypologyFile.model_validate({**phase3(), "detector": "os.path"})
 
 

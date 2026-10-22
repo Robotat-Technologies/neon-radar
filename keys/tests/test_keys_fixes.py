@@ -1,4 +1,4 @@
-"""Tests for the changes after the M2.8 review (RULES_VERSION 2; section 2.6 of
+"""Tests for the changes after the M2.8 reviews (RULES_VERSION 2 and 3; section 2.6 of
 docs/build/phase-2-reconciliation.md). Every name and address here is invented or generic; the
 spec's own cases stay in test_keys.py and still pass."""
 
@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import unicodedata
 import zipfile
-from importlib.metadata import distribution
+from importlib.metadata import distribution, version
 from importlib.resources import files
 from pathlib import Path
 
@@ -24,7 +24,7 @@ LICENCE_FILES = ("ar_symbols.LICENSE.txt", "nationalities.LICENSE.txt")
 
 
 def test_rules_version_was_bumped() -> None:
-    assert neonradar_keys.RULES_VERSION == "2"
+    assert neonradar_keys.RULES_VERSION == "3"
 
 
 def test_without_the_arabic_index_a_variant_spelling_has_no_symbols(
@@ -74,6 +74,50 @@ def test_street_lines_without_a_postcode_keep_their_key(raw: str, key: str) -> N
     assert address_key(raw) == key
 
 
+WORDS_V3 = (
+    "Park", "Pk", "Green", "Grn", "Towers", "Plaza", "Hall", "Quay", "Wharf", "Row", "Walk",
+    "Grove", "Hill", "Mansions", "Lodge",
+)  # fmt: skip
+EXPANDED = {"Pk": "PARK", "Grn": "GREEN", "Blvd": "BOULEVARD"}
+
+
+@pytest.mark.parametrize("word", [*WORDS_V3, "Blvd"])
+def test_more_street_words_restore_keys_the_spec_gave(word: str) -> None:
+    # RULES_VERSION 3: street lines without a number that version 2 dropped. Each text has three
+    # tokens, so the spec gave it a key too (the rule never goes beyond the spec's floor).
+    expected = EXPANDED.get(word, word.upper())
+    assert address_key(f"Example {word}, Example Town") == f"NOPC|EXAMPLE {expected} EXAMPLE TOWN"
+
+
+@pytest.mark.parametrize(
+    ("raw", "key"),
+    [
+        ("Calle Ejemplo, Madrid, Spain", "NOPC|CALLE EJEMPLO MADRID SPAIN"),
+        ("Rue Exemple, Paris, France", "NOPC|RUE EXEMPLE PARIS FRANCE"),
+        ("Beispielstraße, Berlin, Germany", "NOPC|BEISPIELSTRASSE BERLIN GERMANY"),
+        ("Beispiel Strasse, Berlin, Germany", "NOPC|BEISPIEL STRASSE BERLIN GERMANY"),
+        ("улица Примерная, Москва, Россия", "NOPC|ULITSA PRIMERNAYA MOSKVA ROSSIYA"),
+        ("ул. Примерная, Москва, Россия", "NOPC|UL PRIMERNAYA MOSKVA ROSSIYA"),
+        ("شارع المثال، دبي", "NOPC|SHR LMTHL DBY"),
+    ],
+)
+def test_foreign_street_words_restore_keys_the_spec_gave(raw: str, key: str) -> None:
+    assert address_key(raw) == key
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Example Park",  # two tokens: the spec gave None too
+        "Calle Ejemplo",
+        "Rose Cottage, Example Village, Example County",  # a house name: the spec gave a key
+        "Rue, Paris, France",  # a street word with no name after it
+    ],
+)
+def test_texts_still_without_a_street_line(raw: str) -> None:
+    assert address_key(raw) is None
+
+
 def test_st_that_starts_a_segment_is_saint() -> None:
     key = address_key("12 Example St, St Example, QQ1 2AB")
     assert key == "QQ1 2AB|12 EXAMPLE STREET SAINT EXAMPLE"
@@ -102,6 +146,8 @@ def test_synthetic_all_zero_number_is_rejected_too() -> None:
 def test_has_ch_prefix_needs_ascii_digits() -> None:
     assert not has_ch_prefix("١٢٣٤٥٦٧٨")
     assert has_ch_prefix("01800000")
+    assert not has_ch_prefix("SC١٢٣٤٥٦")  # RULES_VERSION 3: the prefix form is ASCII too
+    assert has_ch_prefix("SC123456")
 
 
 @pytest.mark.parametrize(
@@ -136,6 +182,7 @@ def test_licence_texts_are_package_data() -> None:
     mit = (data / "ar_symbols.LICENSE.txt").read_text(encoding="utf-8")
     rigour_licence = distribution("rigour").read_text("licenses/LICENSE")
     assert rigour_licence is not None and rigour_licence.strip() in mit
+    assert f"v{version('rigour')}" in mit  # the tag the index was built from
     ogl = (data / "nationalities.LICENSE.txt").read_text(encoding="utf-8")
     assert (
         "Contains public sector information licensed under the Open Government Licence v3.0." in ogl

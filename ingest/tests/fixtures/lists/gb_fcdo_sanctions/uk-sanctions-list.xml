@@ -1,50 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Synthetic UK Sanctions List file for NeonRadar tests (PHASE-2.md M2.6a). Every value is invented; the structure follows SanctionsListSchema-4.33.3.xsd. -->
+<!-- Synthetic UK Sanctions List file for NeonRadar tests (PHASE-2.md M2.6a). Every value is invented; the structure follows SanctionsListSchema-4.33.3.xsd. Person names reuse surnames checked alone on the Companies House officer and company searches (PR #17, 21 Oct 2026), with spelling variants of them; company names are demo-mini names checked under OD-12. -->
 <Designations xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <DateGenerated>2026-10-20T09:00:00</DateGenerated>
   <Designation>
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0001</UniqueID>
-    <OFSIGroupID>9001</OFSIGroupID>
+    <OFSIGroupID>990001</OFSIGroupID>
     <Names>
       <Name>
-        <Name1>Ivo</Name1>
-        <Name6>KESTRANE</Name6>
+        <Name1>Zafir</Name1>
+        <Name6>QANDELOUNI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
       <Name>
-        <Name1>Iwo</Name1>
-        <Name6>KESTRAN</Name6>
+        <Name1>Zafer</Name1>
+        <Name6>QANDELOUNI</Name6>
         <NameType>Primary Name Variation</NameType>
       </Name>
       <Name>
-        <Name1>Ivo</Name1>
-        <Name2>Marek</Name2>
-        <Name6>KESTRANNE</Name6>
+        <Name1>Zafir</Name1>
+        <Name2>Nadim</Name2>
+        <Name6>QANDELOUNI</Name6>
         <NameType>Alias</NameType>
         <AliasStrength>Good quality a.k.a</AliasStrength>
       </Name>
       <Name>
-        <Name1>Kesto</Name1>
+        <Name1>Zafir</Name1>
         <NameType>Alias</NameType>
         <AliasStrength>Low quality a.k.a</AliasStrength>
       </Name>
       <Name>
-        <Name6>Ivko</Name6>
+        <Name6>Qandelouni</Name6>
         <NameType>Alias</NameType>
         <AliasStrength />
       </Name>
       <Name>
-        <Name1>Ivo</Name1>
-        <Name6>KESTREN</Name6>
+        <Name1>Zafir</Name1>
+        <Name6>KANDELUNI</Name6>
         <NameType>Alias</NameType>
         <AliasStrength />
       </Name>
     </Names>
     <NonLatinNames>
       <NonLatinName>
-        <NameNonLatinScript>Иво Кестране</NameNonLatinScript>
+        <NameNonLatinScript>Зафир Канделуни</NameNonLatinScript>
         <NonLatinScriptType>Cyrillic</NonLatinScriptType>
         <NonLatinScriptLanguage>Russian</NonLatinScriptLanguage>
       </NonLatinName>
@@ -136,11 +136,11 @@
     <LastUpdated>00/00/2025</LastUpdated>
     <DateDesignated>dd/04/2023</DateDesignated>
     <UniqueID>SYN0002</UniqueID>
-    <OFSIGroupID>9001</OFSIGroupID>
+    <OFSIGroupID>990001</OFSIGroupID>
     <Names>
       <Name>
-        <Name1>Ivo</Name1>
-        <Name6>KESTRANE</Name6>
+        <Name1>Zafir</Name1>
+        <Name6>QANDELOUNI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -184,8 +184,8 @@
     <UNReferenceNumber>zzi.004.</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Ansel</Name1>
-        <Name6>BRASKE</Name6>
+        <Name1>Yazan</Name1>
+        <Name6>ZUBEIRONO</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -226,8 +226,8 @@
     <UNReferenceNumber>ZZi.002</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Quillan</Name1>
-        <Name6>BRASKE</Name6>
+        <Name1>Rakan</Name1>
+        <Name6>ULVARAZI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -274,13 +274,13 @@
     <UNReferenceNumber>ZZi.002</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Quillan</Name1>
-        <Name6>BRASKE</Name6>
+        <Name1>Rakan</Name1>
+        <Name6>ULVARAZI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
       <Name>
-        <Name1>Quilla</Name1>
-        <Name6>BRASK</Name6>
+        <Name1>Raqan</Name1>
+        <Name6>ULVARAZY</Name6>
         <NameType>Primary Name Variation</NameType>
       </Name>
     </Names>
@@ -320,9 +320,9 @@
     <OFSIGroupID xsi:nil="true" />
     <Names>
       <Name>
-        <Name1>Lorcan</Name1>
-        <Name2>Edvard</Name2>
-        <Name6>BRASKE</Name6>
+        <Name1>Nadim</Name1>
+        <Name2>Yazan</Name2>
+        <Name6>QANDELOUNI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -365,11 +365,11 @@
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0007</UniqueID>
-    <OFSIGroupID>9002</OFSIGroupID>
+    <OFSIGroupID>990002</OFSIGroupID>
     <Names>
       <Name>
-        <Name1>Mirela</Name1>
-        <Name6>KESTRANE</Name6>
+        <Name1>Zafer</Name1>
+        <Name6>VELQASIMI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -406,11 +406,17 @@
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0008</UniqueID>
-    <OFSIGroupID>9002</OFSIGroupID>
+    <OFSIGroupID>990002</OFSIGroupID>
     <Names>
       <Name>
         <Name6>Sorrel Sike Trading Ltd</Name6>
         <NameType>Primary Name</NameType>
+      </Name>
+      <Name>
+        <Name1>Sorrel</Name1>
+        <Name2>Sike</Name2>
+        <NameType>Alias</NameType>
+        <AliasStrength>Good quality a.k.a</AliasStrength>
       </Name>
     </Names>
     <RegimeName>Synthetic Regime Alpha</RegimeName>
@@ -446,12 +452,12 @@
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0009</UniqueID>
-    <OFSIGroupID>9003</OFSIGroupID>
+    <OFSIGroupID>990003</OFSIGroupID>
     <UNReferenceNumber>ZZi.003</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Edvin</Name1>
-        <Name6>BRASKE</Name6>
+        <Name1>Yazan</Name1>
+        <Name6>VELQASIMI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -488,12 +494,12 @@
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0010</UniqueID>
-    <OFSIGroupID>9004</OFSIGroupID>
+    <OFSIGroupID>990004</OFSIGroupID>
     <UNReferenceNumber>ZZi.003</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Rasmo</Name1>
-        <Name6>KESTRANE</Name6>
+        <Name1>Rakan</Name1>
+        <Name6>ZUBEIRONO</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -534,8 +540,8 @@
     <UNReferenceNumber>ZZi.003</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Tavi</Name1>
-        <Name6>BRASKE</Name6>
+        <Name1>Nadim</Name1>
+        <Name6>ULVARAZI</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -579,7 +585,7 @@
         <NameType>Primary Name</NameType>
       </Name>
       <Name>
-        <Name1>TQT</Name1>
+        <Name1>Teasel</Name1>
         <NameType>Alias</NameType>
         <AliasStrength />
       </Name>
@@ -624,14 +630,13 @@
           <TypeOfEntity>Private limited company</TypeOfEntity>
         </TypeOfEntities>
         <Subsidiaries>
-          <Subsidiary>Umber Garth Foods Ltd</Subsidiary>
-          <Subsidiary>Tansy Strand Supplies Ltd</Subsidiary>
+          <Subsidiary>Umber Garth Foods Ltd|Tansy Strand Supplies Ltd</Subsidiary>
         </Subsidiaries>
         <ParentCompanies>
           <ParentCompany>Copper Acre Interiors Ltd</ParentCompany>
         </ParentCompanies>
         <BusinessRegistrationNumbers>
-          <BusinessRegistrationNumber>UK Company Number 99000112; Registration number 99000113; Company number 12345678 (Cyprus); LEI SYN0000000000000AB65</BusinessRegistrationNumber>
+          <BusinessRegistrationNumber>UK Company Number 99000112; Registration number 99000113; Company number 99000115 (Cyprus); UK 99000116; LEI SYN0000000000000AB65</BusinessRegistrationNumber>
           <BusinessRegistrationNumber>UK Company Number SY000114</BusinessRegistrationNumber>
         </BusinessRegistrationNumbers>
       </Entity>
@@ -641,12 +646,12 @@
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0014</UniqueID>
-    <OFSIGroupID>9005</OFSIGroupID>
+    <OFSIGroupID>990005</OFSIGroupID>
     <UNReferenceNumber>ZZi.004</UNReferenceNumber>
     <Names>
       <Name>
-        <Name1>Ansel</Name1>
-        <Name6>BRASKE</Name6>
+        <Name1>Yazan</Name1>
+        <Name6>ZUBEYRONO</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>
@@ -682,11 +687,53 @@
   <Designation>
     <LastUpdated>dd/mm/2025</LastUpdated>
     <DateDesignated>15/03/2022</DateDesignated>
+    <UniqueID>SYN0015</UniqueID>
+    <OFSIGroupID xsi:nil="true" />
+    <UNReferenceNumber>ZZi.005</UNReferenceNumber>
+    <Names>
+      <Name>
+        <Name1>Nadim</Name1>
+        <Name6>ZUBEIRONO</Name6>
+        <NameType>Primary Name</NameType>
+      </Name>
+    </Names>
+    <RegimeName>Synthetic Regime Alpha</RegimeName>
+    <IndividualEntityShip>Individual</IndividualEntityShip>
+    <DesignationSource>UK</DesignationSource>
+    <SanctionsImposed>Asset freeze|Travel ban</SanctionsImposed>
+    <SanctionsImposedIndicators>
+      <AssetFreeze>true</AssetFreeze>
+      <ArmsEmbargo>false</ArmsEmbargo>
+      <TargetedArmsEmbargo>false</TargetedArmsEmbargo>
+      <CharteringOfShips>false</CharteringOfShips>
+      <ClosureOfRepresentativeOffices>false</ClosureOfRepresentativeOffices>
+      <CrewServicingOfShipsAndAircraft>false</CrewServicingOfShipsAndAircraft>
+      <Deflag>false</Deflag>
+      <PreventionOfBusinessArrangements>false</PreventionOfBusinessArrangements>
+      <ProhibitionOfPortEntry>false</ProhibitionOfPortEntry>
+      <TravelBan>true</TravelBan>
+      <PreventionOfCharteringOfShips>false</PreventionOfCharteringOfShips>
+      <PreventionOfCharteringOfShipsAndAircraft>false</PreventionOfCharteringOfShipsAndAircraft>
+      <TechnicalAssistanceRelatedToAircraft>false</TechnicalAssistanceRelatedToAircraft>
+      <TrustServicesSanctions>false</TrustServicesSanctions>
+      <DirectorDisqualificationSanction>false</DirectorDisqualificationSanction>
+    </SanctionsImposedIndicators>
+    <IndividualDetails>
+      <Individual>
+        <DOBs>
+          <DOB>05/05/1985</DOB>
+        </DOBs>
+      </Individual>
+    </IndividualDetails>
+  </Designation>
+  <Designation>
+    <LastUpdated>dd/mm/2025</LastUpdated>
+    <DateDesignated>15/03/2022</DateDesignated>
     <UniqueID>SYN0013</UniqueID>
     <OFSIGroupID xsi:nil="true" />
     <Names>
       <Name>
-        <Name6>LINNET WOLD</Name6>
+        <Name6>MARRAM TOFT</Name6>
         <NameType>Primary Name</NameType>
       </Name>
     </Names>

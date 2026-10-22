@@ -236,7 +236,7 @@ def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: P
     assert candidate["reasons"] == ["identifier_name_mismatch"] and candidate["rule"] == "D1"
 
 
-# One reviewer's `same` decision and later identifier links (phase-2-reconciliation.md 2.7, G1)
+# One reviewer's `same` decision and later identifier links (phase-2-reconciliation.md 2.8, G1)
 
 
 def _syn_person(

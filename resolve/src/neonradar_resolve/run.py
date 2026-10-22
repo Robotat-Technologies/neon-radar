@@ -10,7 +10,7 @@ arrive in M2.10b; until then a run links records by the deterministic rules and 
 with different flag topics or a leaked record with another kind once the rules have run,
 because `cluster.resolve` (verbatim) checks D7's second-reviewer rule before the identifier
 links, so a later link could otherwise carry a flag across such a decision
-(docs/build/phase-2-reconciliation.md 2.7, G1).
+(docs/build/phase-2-reconciliation.md 2.8, G1).
 """
 
 from __future__ import annotations

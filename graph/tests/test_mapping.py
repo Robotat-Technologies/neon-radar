@@ -164,7 +164,7 @@ def test_company_psc_statements_and_accounts_category() -> None:
     nr = {"v": "1.1", "psc_statements": statements, "accounts_category": "DORMANT"}
     records = [
         record("syn-co-1", "Company", nr, name="Example Holdings Ltd"),
-        record("syn-org-1", "Organization", name="Example Trust"),
+        record("syn-org-1", "Organization", name="Myrtle Leat Formations Ltd"),  # demo-mini
     ]
     rows = {row.id: row for row in to_node_rows(records).rows}
     company = rows["syn-co-1"].props

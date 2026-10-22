@@ -83,6 +83,7 @@ def test_cross_script_symbols_and_skeletons():
     assert {"Q923", "Q1511218", "Q17501806"} <= set(person_key("Alexander").symbols)
     assert "Q17501806" in person_key("Александр").symbols
     assert person_key("إحمد خليل").symbols  # the Arabic index catches spellings the tagger misses
+    assert person_key("إحمد").symbols  # only the index can satisfy this (review of #49)
     assert "bdrhmn" in person_key("Abdul Rahman").skeletons
     assert "mhmd" in person_key("Mohammed").skeletons and "mhmd" in person_key("محمد").skeletons
 

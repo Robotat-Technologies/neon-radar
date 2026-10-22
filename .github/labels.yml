@@ -25,3 +25,7 @@
 - { name: size-exception, color: "c5def5", description: "Milestone allowed to exceed the 400-line limit (see PHASE-1.md 2.3)" }
 - { name: real-data-run, color: "e99695", description: "A named human runs a real-data command for this pull request" }
 - { name: er, color: "006b75", description: "Entity resolution" }
+- { name: eval, color: "5319e7", description: "Detection evaluation" }
+- { name: assignment-4, color: "fbca04", description: "Assignment 4 test cases" }
+- { name: docs, color: "0075ca", description: "Documentation" }
+- { name: freeze-change, color: "b60205", description: "Changes what eval/freeze.json pins" }

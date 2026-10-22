@@ -52,7 +52,8 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "S"]
 known-first-party = ["neonradar_*"]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101"]
+# Tests hold names in other scripts on purpose (PHASE-4.md 3.2 trap 18, M4.0).
+"**/tests/**" = ["S101", "RUF001"]
 "scripts/*" = ["S603", "S607"]
 ".claude/hooks/*" = ["S603", "S607"]
 # Synthetic names in Cyrillic and Arabic script on purpose (PHASE-1.md M1.8e).

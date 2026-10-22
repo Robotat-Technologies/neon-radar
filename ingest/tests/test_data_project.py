@@ -1,4 +1,5 @@
-"""The Phase 3 keys of the project file, read through the model (PHASE-3.md 1.3, M3.0)."""
+"""The Phase 3 and 4 keys of the project file, read through the model (PHASE-3.md 1.3, M3.0;
+PHASE-4.md 1.3, M4.0)."""
 
 from datetime import date
 from typing import Any
@@ -64,3 +65,27 @@ def test_the_committed_project_file_has_the_phase_3_keys() -> None:
     assert all(isinstance(name, str) for name in project.access.real_overlay_profiles)
     assert len(project.people.freeze_deciders) == 3
     assert isinstance(project.schedule.detection_freeze, date)
+
+
+def test_the_phase_4_keys_are_read(data_env: Any) -> None:
+    dates = {
+        "phase_4_start": date(2026, 11, 2),
+        "contracts_1_3_0": date(2026, 11, 3),
+        "assignment_5_due": date(2026, 11, 10),
+        "heldout_run": date(2026, 11, 11),
+        "teach_back_copilot": date(2026, 11, 12),
+    }
+    _write(data_env, {"people": {"heldout_owner": "@ana"}, "schedule": dates})
+    project = load_project()
+    assert project.people.heldout_owner == "@ana"
+    assert {key: getattr(project.schedule, key) for key in dates} == dates
+    _write(data_env, {"other": 1})
+    assert load_project().people.heldout_owner is None
+    assert load_project().schedule.heldout_run is None
+
+
+def test_the_committed_project_file_has_the_phase_4_keys() -> None:
+    project = load_project(DEFAULT_PROJECT_FILE)
+    assert project.people.heldout_owner  # "@TODO" until the operator names one (OD-25)
+    assert isinstance(project.schedule.phase_4_start, date)
+    assert isinstance(project.schedule.heldout_run, date)

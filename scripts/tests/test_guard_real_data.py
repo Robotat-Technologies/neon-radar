@@ -1,4 +1,5 @@
-"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0, PHASE-3.md M3.0)."""
+"""Tests for .claude/hooks/guard_real_data.py (PHASE-2.md M2.0, PHASE-3.md M3.0,
+PHASE-4.md M4.0)."""
 
 import json
 import os
@@ -72,6 +73,19 @@ ALLOW = [
     'git commit -m "docs: the holdout run writes to data/cache/holdout"',
     'gh pr create --title "M3.6" --body "the holdout run writes to data/cache/holdout"',
     "ls data/cache/hold*",  # a glob lists names, never contents, as for data/cache/real
+    # PHASE-4.md M4.0: the committed sets, the empty digest and the router's tests stay allowed
+    "uv run neonradar copilot bench",
+    "uv run neonradar copilot bench --set refusals",
+    'uv run neonradar copilot model-check --digest ""',
+    "uv run pytest copilot/tests/test_llm.py",
+    # text about the model and the profile, a router switched off, and other Compose services
+    'git commit -m "docs(copilot): explain ollama serve and --profile llm"',
+    'grep -rn "ollama" docs/copilot',
+    "uv run neonradar copilot ask --no-model-router 'Who owns Calvane Holdings Ltd?'",
+    "NR_COPILOT_MODEL_ROUTER=false uv run neonradar api serve",
+    "docker compose --profile app up -d api",
+    "docker compose stop ollama",
+    'uv run neonradar copilot model-check --digest=""',
 ]
 
 BLOCK = [
@@ -177,6 +191,31 @@ BLOCK = [
     "grep -rn SMITH DATA/",
     "python3 - <<'EOF'\nprint(open('data/cache/Real/x').read())\nEOF",
     "uv run NeonRadar er label --profile demo",
+    # PHASE-4.md M4.0: the held-out questions and the model are human-only (G15, G16)
+    "uv run neonradar copilot bench --file h1.yaml",
+    "neonradar copilot bench --engine neo4j --file=/tmp/h1.yaml",
+    "ls data/cache/heldout",
+    'uv run neonradar copilot ask --model-router "help"',
+    "uv run neonradar copilot model-check",
+    "uv run neonradar copilot model-check --digest 0f3c",
+    "ollama pull qwen3:4b-instruct-2507-q4_K_M",
+    "ollama serve",
+    "docker compose --profile llm up -d",
+    # the same, written another way
+    "cat data/cache/heldout/h1.yaml",
+    "cat data/cache/HeldOut/h1.yaml",
+    'uv run neonradar copilot model-check --digest "" --digest 0f3c',
+    "OLLAMA_NO_CLOUD=1 nohup ollama serve",
+    "/usr/local/bin/ollama run qwen3:4b-instruct-2507-q4_K_M",
+    "uv run ollama serve",
+    "uv run -- ollama pull qwen3:4b-instruct-2507-q4_K_M",
+    'bash -c "ollama pull qwen3:8b-q4_K_M"',
+    "docker compose --profile=llm up -d",
+    "COMPOSE_PROFILES=llm docker compose up -d",
+    "docker compose up -d ollama",
+    "NR_COPILOT_MODEL_ROUTER=true uv run neonradar api serve",
+    "uv run NeonRadar copilot bench --FILE h1.yaml",
+    "python3 - <<'EOF'\nimport os\nos.system('ollama serve')\nEOF",
 ]
 
 TOOL_ALLOW = [
@@ -201,6 +240,7 @@ TOOL_ALLOW = [
     ("mcp__neo4j__get-schema", {}),
     ("Read", {"file_path": "{project}/data/cache/synthetic/eval/eval-dev-x/report.md"}),
     ("Grep", {"pattern": "data/cache/holdout", "path": "docs"}),
+    ("Read", {"file_path": "{project}/copilot/bench/refusals.yaml"}),
 ]
 
 TOOL_BLOCK = [
@@ -249,6 +289,9 @@ TOOL_BLOCK = [
     ("Grep", {"pattern": "SMITH", "path": "data/cache/Spikes"}),
     ("Glob", {"pattern": "data/cache/REAL/**/*.jsonl"}),
     ("Glob", {"pattern": "*", "path": "{project}/DATA/cache/holdout"}),
+    ("Read", {"file_path": "{project}/data/cache/heldout/h1.yaml"}),
+    ("Grep", {"pattern": "x", "path": "data/cache/heldout"}),
+    ("Glob", {"pattern": "data/cache/held*/**"}),
 ]
 
 
@@ -306,6 +349,12 @@ def test_cwd_inside_the_holdout_folder(tmp_path):
     assert run(tmp_path, "Bash", {"command": "cat report.md"}, cwd=inside) == 2
     assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 2
     assert run(tmp_path, "Bash", {"command": "git status"}, cwd=inside) == 0
+
+
+def test_cwd_inside_the_held_out_folder(tmp_path):
+    inside = tmp_path / "project" / "data" / "cache" / "heldout"
+    assert run(tmp_path, "Bash", {"command": "cat h1.yaml"}, cwd=inside) == 2
+    assert run(tmp_path, "Bash", {"command": "ls"}, cwd=inside) == 2
 
 
 def test_mcp_server_must_use_the_default_instance(tmp_path):

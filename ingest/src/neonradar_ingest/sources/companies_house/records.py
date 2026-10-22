@@ -72,6 +72,7 @@ class Writer:
         self.stats: Counter[str] = Counter()
         self.addresses: dict[str, dict[str, Any]] = {}
         self.office_keys: Counter[str] = Counter()
+        self.known_addresses: set[str] = set()
 
     def _entity(self, schema: str, rid: str, values: dict[str, Any]) -> ValueEntity:
         entity = ValueEntity(model[schema], {"id": rid, "datasets": [bulk.DATASET]})
@@ -88,32 +89,38 @@ class Writer:
 
     def address(self, row: bulk.Row) -> str | None:
         """The registered office's `Address` id (one record per key), else None (counted)."""
-        part = {name: bulk.address_part(row[name]) for name in bulk.ADDRESS}
-        raw_postcode = part["RegAddress.PostCode"]
-        postcode = normalise_uk_postcode(raw_postcode) if raw_postcode else None
-        parts = [part[name] for name in bulk.ADDRESS[:5]] + [postcode or raw_postcode]
-        parts.append(part["RegAddress.Country"])
-        key = address_key_from_parts(parts)
-        if key is None:
+        found = self.add_address([bulk.address_part(row[name]) for name in bulk.ADDRESS])
+        if found is None:
             self.stats["companies_without_address_key"] += 1
             return None
-        self.office_keys[key] += 1
+        self.office_keys[found[0]] += 1
+        return found[1]
+
+    def add_address(self, parts: list[str | None]) -> tuple[str, str] | None:
+        """Key and id of the `Address` of cleaned parts (PO box, two street lines, town, county,
+        postcode, country), one record per key and none for an id in `known_addresses` (an
+        earlier step's record file has it); None when the parts give no key (M2.3a rule 7)."""
+        raw_postcode = parts[5]
+        postcode = normalise_uk_postcode(raw_postcode) if raw_postcode else None
+        parts = [*parts[:5], postcode or raw_postcode, parts[6]]
+        key = address_key_from_parts(parts)
+        if key is None:
+            return None
         rid = address_id(key)
-        if key not in self.addresses:
-            country = country_code(part["RegAddress.Country"]) or "gb"
+        if key not in self.addresses and rid not in self.known_addresses:
             values = {
                 "full": ", ".join(p for p in parts if p),
-                "postOfficeBox": part["RegAddress.POBox"],
-                "street": part["RegAddress.AddressLine1"],
-                "street2": part["RegAddress.AddressLine2"],
-                "city": part["RegAddress.PostTown"],
-                "region": part["RegAddress.County"],
-                "postalCode": postcode or raw_postcode,
-                "country": country,
+                "postOfficeBox": parts[0],
+                "street": parts[1],
+                "street2": parts[2],
+                "city": parts[3],
+                "region": parts[4],
+                "postalCode": parts[5],
+                "country": country_code(parts[6]) or "gb",
             }
             entity = self._entity("Address", rid, values)
             self.addresses[key] = {**entity.to_dict(), "nr": {"v": NR_VERSION}}
-        return rid
+        return key, rid
 
     def company(self, row: bulk.Row) -> dict[str, Any]:
         number = row["CompanyNumber"].strip()

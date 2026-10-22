@@ -1,0 +1,11 @@
+# Entity resolution settings (PHASE-2.md 7.1.7). Starting values; M2.10b calibrates the three
+# thresholds on the large synthetic benchmark, and the tech lead and the graph mentor set them
+# here and in ADR-0014 at the freeze (Thursday 29 October). Senior reviewers live in
+# docs/build/project.yaml (people.er_senior_reviewers), not here.
+merge_threshold:
+  person: 0.99    # unused until M2.10b (probabilistic links)
+  org: 0.995      # unused until M2.10b
+candidate_threshold: 0.80   # unused until M2.10b
+cluster_cap: 30   # fixed (X7)
+name_check_jaro_winkler: 0.85   # fixed (7.1.2); the strict form across P1 and P2 uses exact keys
+seed: 20261026    # fixed: the training seed and the default --seed of the benchmark commands

@@ -32,6 +32,8 @@
     4 cap) and `counts_only` when their message is safe to print on a real profile. Human-only
     commands call `tty.require_terminal` inside the guard. `purge --graph` is
     `real_graph.wipe()`; tests replace `real_graph._run` and never call Docker.
+  - `er run|show-config|bench` (`er.py`, M2.10a): `er run` gates a real profile, resolves
+    into `resolution_dir`, spills DuckDB into `retention.spill_dir` and writes `LATEST` last.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

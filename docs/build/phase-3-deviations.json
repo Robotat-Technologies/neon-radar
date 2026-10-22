@@ -1,13 +1,18 @@
 {
+  "ingest/src/neonradar_ingest/synth/background.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S6: the module docstring says background activity can form benign cycle shapes and near-threshold cash, and that R-REAL is the only control on real profiles (docstring only)",
+    "sha256": "fa62db58c1aedcd0695793ce42a68282a49c6c844b9e2a0d3c9baeda11f421ba"
+  },
   "ingest/src/neonradar_ingest/synth/base.py": {
     "milestone": "M3.3",
-    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics)",
-    "sha256": "9c1c47b78bb5d1748e099c31e1168cba41f8859ddaf08210e217df019e14273d"
+    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics); M3.3 review S3, S5, N1, N2: GLEIF records ineligible until C1 carries EntityCategory (category_unknown), a merged entity with a member missing from the base is ineligible (member_not_in_base), statuses are an allowlist checked on every member (not_active), docstring corrected and the unused flag_topics removed",
+    "sha256": "5288fe43640cac744b3513e1f2248304a0892842bf74ddc6d72ac4c8d9541187"
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included)",
-    "sha256": "65d58cb6ab8c6a8819552f8495a5854cc7d60db9543abbb925d5a791e33b7b07"
+    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key)",
+    "sha256": "5333f28273adaa7752e9f9c925b7892c1e98d0b5580b4faa9aba3f2d31a59c43"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",

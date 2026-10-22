@@ -166,10 +166,9 @@ def test_protected_folders_are_refused(data_env: Any, tmp_path: Path, folder: st
     assert result.exit_code == 3 and "protected" in result.output
     result = synth("world", "--profile", "synth-demo", "--out", inside)
     assert result.exit_code == 3 and not list(inside.iterdir())
-    elsewhere = tmp_path / "other" / "data" / "cache" / folder
+    elsewhere = tmp_path / "other" / "data" / "cache" / folder  # another checkout's cache
     elsewhere.mkdir(parents=True)
-    result = synth("overlay", "--profile", "synth-demo", "--base", elsewhere)
-    assert result.exit_code == 3
+    assert synth("overlay", "--profile", "synth-demo", "--base", elsewhere).exit_code == 3
 
 
 def test_a_base_made_from_a_holdout_seed_is_refused(

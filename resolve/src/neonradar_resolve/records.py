@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,7 @@ CLASSES = {
 # The relationship schemata whose ends give a record its linked organisations (7.1.5).
 RELATIONS = ("Directorship", "Ownership", "Control", "Representation", "UnknownLink")
 HINT_HEADER = ["record_a", "record_b", "hint"]
+HINT = re.compile(r"[a-z][a-z_]{0,59}")  # ICIJ link names such as same_name_as (M2.5)
 
 
 class RecordsError(ValueError):
@@ -160,6 +162,8 @@ def read_hints(path: Path) -> list[tuple[str, str, str]]:
     for number, row in enumerate(rows[1:], start=2):
         if len(row) != 3 or not all(row):
             raise RecordsError(f"{path.name}:{number}: a row needs three values")
+        if not HINT.fullmatch(row[2]):
+            raise RecordsError(f"{path.name}:{number}: a hint is lower-case words joined by _")
         out.append((row[0], row[1], row[2]))
     return out
 

@@ -157,6 +157,22 @@ def test_er_run_refuses_a_profile_without_resolution(data_env: Any) -> None:
     assert result.exit_code == 2 and "resolution.enabled: false" in result.output
 
 
+def test_er_run_on_a_real_profile_runs_the_gate_first(data_env: Any) -> None:
+    result = runner.invoke(app, ["er", "run", "--profile", "uk-tiny"])
+    assert result.exit_code == 3, result.output
+    assert not (data_env.cache / "real").exists()  # no run folder, spill folder or LATEST
+
+
+def test_er_run_on_a_real_profile_redacts_errors(data_env: Any) -> None:
+    data_env.allow_real("uk-tiny")  # synthetic test setup: the record folders do not exist
+    result = runner.invoke(app, ["er", "run", "--profile", "uk-tiny"])
+    assert result.exit_code == 1
+    assert "RecordsError, step resolve" in result.output
+    assert "does not exist" not in result.output  # the message stays in the log
+    assert layout.latest_run("uk-tiny") is None
+    assert not list((data_env.cache / "real" / "duckdb-tmp").glob("*"))
+
+
 def test_er_show_config_and_bench(data_env: Any) -> None:
     shown = json.loads(_er("show-config").output)
     assert shown["merge_threshold"] == {"person": 0.99, "org": 0.995}
@@ -167,6 +183,7 @@ def test_er_show_config_and_bench(data_env: Any) -> None:
     )
     output = _er("bench", "--size", "small").output
     assert "hard negatives merged: 0" in output
+    assert "left out: 0 records without truth, 0 truth records not in the run, 0 " in output
     assert output.splitlines()[0].startswith("person  precision ")
     assert list(layout.reports_dir("er-bench-small").glob("er-bench-*.json"))
 

@@ -12,7 +12,7 @@ from neonradar_resolve import rules
 from neonradar_resolve.features import company_numbers
 
 FIXTURES = Path(__file__).parent / "fixtures"
-VALID_LEI, INVALID_LEI = "549300OWFMSO9NYV4H90", "549300OWFMSO9NYV4H91"
+VALID_LEI, INVALID_LEI = "SYN000TESTLEI0000134", "SYN000TESTLEI0000130"
 
 
 def _links(tmp_path: Path, items: list[dict[str, object]]) -> list[tuple[str | None, str, str]]:
@@ -71,15 +71,15 @@ def test_d1_needs_a_uk_record_and_skips_people(tmp_path: Path) -> None:
             "Company",
             "gb_companies_house",
             name="Example Holder Ltd",
-            registrationNumber="01800000",
+            registrationNumber="00000001",
             jurisdiction="cy",
         ),
         rec(
-            "gbch-co-01800000",
+            "gbch-co-00000001",
             "Company",
             "gb_companies_house",
             name="Example Holder Ltd",
-            registrationNumber="1800000",
+            registrationNumber="1",
             jurisdiction="vg",
         ),
         rec(
@@ -87,25 +87,25 @@ def test_d1_needs_a_uk_record_and_skips_people(tmp_path: Path) -> None:
             "Person",
             "gb_companies_house",
             name="Testa Example",
-            registrationNumber="01800000",
+            registrationNumber="00000001",
             jurisdiction="gb",
         ),
     ]
     _, members = members_of(tmp_path, items)
     assert members["gbch-psc-test3"].company_numbers == frozenset()  # not a UK record
-    assert members["gbch-co-01800000"].company_numbers == {"01800000"}  # always for gbch-co-
+    assert members["gbch-co-00000001"].company_numbers == {"00000001"}  # always for gbch-co-
     assert members["gbch-psc-test4"].company_numbers == frozenset()
 
 
 def test_d1_links_to_the_companies_house_record_when_the_run_has_it(tmp_path: Path) -> None:
     items = [
-        _company("gbch-co-01800000", "01800000"),
-        _company("gbch-psc-test5", "1800000"),
-        _company("gbch-psc-test6", "01800000"),
+        _company("gbch-co-00000001", "00000001"),
+        _company("gbch-psc-test5", "1"),
+        _company("gbch-psc-test6", "00000001"),
     ]
     assert _links(tmp_path, items) == [
-        ("D1", "gbch-co-01800000", "gbch-psc-test5"),
-        ("D1", "gbch-co-01800000", "gbch-psc-test6"),
+        ("D1", "gbch-co-00000001", "gbch-psc-test5"),
+        ("D1", "gbch-co-00000001", "gbch-psc-test6"),
     ]
 
 
@@ -256,9 +256,59 @@ def test_company_numbers_ignores_people(tmp_path: Path) -> None:
                 "Person",
                 "gb_companies_house",
                 name="Z",
-                registrationNumber="01800000",
+                registrationNumber="00000001",
                 jurisdiction="gb",
             )
         ],
     )
     assert company_numbers(corpus.records["gbch-off-z"]) == frozenset()
+
+
+def _decision_file(tmp_path: Path, lines: list[dict[str, str]]) -> Path:
+    path = tmp_path / "decisions.jsonl"
+    base = {"record_a": "syn-a", "record_b": "syn-b", "note": "synthetic test line"}
+    path.write_text("".join(json.dumps(base | line) + "\n" for line in lines), encoding="utf-8")
+    return path
+
+
+def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None:
+    path = _decision_file(
+        tmp_path,
+        [
+            {"decision": "same", "by": "@One", "at": "2026-11-02T09:00:00Z"},
+            {"decision": "same", "by": "one", "at": "2026-11-02T09:05:00Z"},
+        ],
+    )
+    [link] = rules.read_decisions(path).same
+    assert link.reviewers == {"@one"}  # one person, however the handle is written
+    path = _decision_file(
+        tmp_path,
+        [
+            {"decision": "different", "by": "@two", "at": "2026-11-02T10:00:00Z"},
+            {"decision": "same", "by": "@one", "at": "2026-11-02T10:30:00+01:00"},  # 09:30 UTC
+        ],
+    )
+    assert rules.read_decisions(path).different == [("syn-a", "syn-b")]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        {"decision": "same", "by": "@TODO", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "@one", "at": "2026-11-02T09:00:00"},
+        {"decision": "same", "by": "@one", "at": "yesterday"},
+    ],
+)
+def test_d7_refuses_placeholders_and_times_without_offset(
+    tmp_path: Path, line: dict[str, str]
+) -> None:
+    with pytest.raises(rules.DecisionsError):
+        rules.read_decisions(_decision_file(tmp_path, [line]))
+
+
+def test_senior_reviewers_drop_placeholders() -> None:
+    from neonradar_resolve.config import load_config
+
+    config, _ = load_config(Path(__file__).parents[1] / "config" / "er.yaml")
+    seniors = config.cluster_config(["@TODO", "Senior", " "]).senior_reviewers
+    assert seniors == {"@senior"}

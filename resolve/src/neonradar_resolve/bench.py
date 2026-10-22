@@ -63,7 +63,13 @@ class Score:
     policy_blocked_pairs: int
     policy_blocked_recalled: int
     hard_negatives_merged: int
-    unlabelled_records: int
+    unlabelled_records: int  # resolvable records without a truth row
+    missing_records: int  # truth rows whose record is not in the run
+
+    @property
+    def left_out(self) -> int:
+        """Records and pairs the measures cannot count: `er bench` fails when there are any."""
+        return self.unlabelled_records + self.missing_records + self.cross_class_pairs_merged
 
     @property
     def policy_blocked_recall(self) -> float | None:
@@ -142,7 +148,8 @@ def measure(
         if len(pair) == 2 and set.intersection(*(clusters_of_entity.get(e, set()) for e in pair))
     )
     scores = {c: ClassScore(merged[c], true_merged[c], mergeable[c], recalled[c]) for c in CLASSES}
-    return Score(scores, cross, blocked, blocked_recalled, hard, unlabelled)
+    missing = sum(1 for rid in truth if rid not in cluster_of)
+    return Score(scores, cross, blocked, blocked_recalled, hard, unlabelled, missing)
 
 
 def as_counts(score: Score) -> dict[str, object]:
@@ -169,6 +176,7 @@ def as_counts(score: Score) -> dict[str, object]:
         policy_blocked_recall=rate(score.policy_blocked_recall),
         hard_negatives_merged=score.hard_negatives_merged,
         unlabelled_records=score.unlabelled_records,
+        missing_records=score.missing_records,
     )
     return out
 
@@ -190,4 +198,9 @@ def lines(score: Score) -> list[str]:
         f" ({score.policy_blocked_recalled} of {score.policy_blocked_pairs})"
     )
     out.append(f"hard negatives merged: {score.hard_negatives_merged}")
+    out.append(
+        f"left out: {score.unlabelled_records} records without truth,"
+        f" {score.missing_records} truth records not in the run,"
+        f" {score.cross_class_pairs_merged} person-organisation pairs merged"
+    )
     return out

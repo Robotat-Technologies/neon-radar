@@ -52,6 +52,16 @@ def _run_config(
     )
 
 
+def _thresholds(config: RunConfig) -> dict[str, Any]:
+    resolver = config.resolver
+    return {
+        "merge_threshold": dict(sorted(resolver.merge_threshold.items())),
+        "candidate_threshold": resolver.candidate_threshold,
+        "cluster_cap": resolver.cluster_cap,
+        "name_check_jaro_winkler": resolver.name_check_jaro_winkler,
+    }
+
+
 @app.command(name="run")
 def run_command(
     profile: Annotated[str, typer.Option("--profile", help="A profile in ingest/profiles/.")],
@@ -109,6 +119,8 @@ def run_command(
             "run_id": run_id,
             "resolver_version": resolver_version,
             "config_sha256": config.config_sha256,
+            "thresholds": _thresholds(config),
+            "seed": config.resolver.seed,
             "decisions_used": decisions is not None,
             "probabilistic": False,
             "counts": _lower_keys(result.counts),
@@ -196,5 +208,5 @@ def bench_command(
         "counts": _lower_keys(result.counts),
     }
     summary.emit(pseudo, "er bench", report, echo=False)
-    if score.hard_negatives_merged:
+    if score.hard_negatives_merged or score.left_out:
         raise typer.Exit(code=1)

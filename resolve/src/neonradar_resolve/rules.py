@@ -12,6 +12,7 @@ import itertools
 import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from neonradar_resolve.cluster import Link, Member
@@ -21,6 +22,13 @@ from neonradar_resolve.records import Corpus
 CH_RECORD = "gbch-co-"  # D1 links each record to the Companies House record when the run has it
 PERSON_NUMBER_CHARS = 8  # D3 compares the first 8 characters of nr.ch_person_number (3.3)
 DECISIONS = ("same", "different")
+PLACEHOLDER = "@todo"  # project.yaml handles not filled in yet (OD-22): never a reviewer
+
+
+def handle(value: str) -> str:
+    """A GitHub handle in one form: trimmed, lower case, with its `@` (handles ignore case)."""
+    text = value.strip().lower()
+    return text if text.startswith("@") else f"@{text}"
 
 
 class DecisionsError(ValueError):
@@ -129,35 +137,39 @@ class Decisions:
 
 
 def read_decisions(path: Path | None) -> Decisions:
-    """For each pair the newest line decides (by `at`, then by line order).
+    """For each pair the newest line decides (by `at` in UTC, then by line order).
 
     A `same` link carries `reviewers`: the handles whose own newest line for the pair says
     `same` (7.1.8). A missing file means no decisions.
     """
     if path is None or not path.is_file():
         return Decisions([], [], 0)
-    newest: dict[tuple[str, str], tuple[str, int, str]] = {}
-    by_handle: dict[tuple[str, str], dict[str, tuple[str, int, str]]] = {}
-    with path.open(encoding="utf-8") as handle:
-        for number, line in enumerate(handle, start=1):
+    Stamp = tuple[datetime, int, str]
+    newest: dict[tuple[str, str], Stamp] = {}
+    by_handle: dict[tuple[str, str], dict[str, Stamp]] = {}
+    with path.open(encoding="utf-8") as lines:
+        for number, line in enumerate(lines, start=1):
             if not line.strip():
                 continue
+            where = f"{path.name}:{number}"
             try:
                 data = json.loads(line)
                 a, b, decision = data["record_a"], data["record_b"], data["decision"]
-                by, at = data["by"], data["at"]
-            except (ValueError, KeyError, TypeError) as exc:
-                raise DecisionsError(f"{path.name}:{number}: not a decision line") from exc
-            strings = all(isinstance(v, str) and v for v in (a, b, by, at))
-            if not strings or decision not in DECISIONS or a == b:
-                raise DecisionsError(f"{path.name}:{number}: not a decision line")
+                by, at = handle(data["by"]), datetime.fromisoformat(data["at"])
+            except (ValueError, KeyError, TypeError, AttributeError) as exc:
+                raise DecisionsError(f"{where}: not a decision line") from exc
+            strings = all(isinstance(v, str) and v for v in (a, b))
+            if not strings or decision not in DECISIONS or a == b or by in ("@", PLACEHOLDER):
+                raise DecisionsError(f"{where}: not a decision line")
+            if at.tzinfo is None:
+                raise DecisionsError(f"{where}: the time has no offset")
             pair = (min(a, b), max(a, b))
-            stamp = (at, number, decision)
+            stamp = (at.astimezone(UTC), number, decision)
             if pair not in newest or stamp > newest[pair]:
                 newest[pair] = stamp
-            handles = by_handle.setdefault(pair, {})
-            if by not in handles or stamp > handles[by]:
-                handles[by] = stamp
+            own = by_handle.setdefault(pair, {})
+            if by not in own or stamp > own[by]:
+                own[by] = stamp
     same, different = [], []
     for pair in sorted(newest):
         if newest[pair][2] == "same":

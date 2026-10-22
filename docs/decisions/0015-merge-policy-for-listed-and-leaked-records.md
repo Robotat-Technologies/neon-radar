@@ -2,15 +2,15 @@
 
 - **Status:** proposed
 - **Date:** 2026-10-22
-- **Deciders:** data steward, project lead, tech lead (`docs/build/project.yaml` names them; an agent never decides)
+- **Deciders:** @robotat-com (data steward, project lead, tech lead)
 
 ## Context
 
-Entity resolution joins records that describe the same real person or organisation into one node of the graph (`docs/build/PHASE-2.md` 7.1). Some records carry flags: a sanctions list entry carries the topic `sanction`, a PEP source carries `role.pep`, and the graph turns such topics into the labels `:Sanctioned` and `:PEP` (PHASE-2.md 7.1.1). Records from the ICIJ Offshore Leaks Database carry no flag, but a node that contains one is shown with a leak record.
+Entity resolution joins records that describe the same real person or organisation into one node of the graph (`docs/build/PHASE-2.md` 7.1). Some records carry flags: a sanctions list entry carries the topic `sanction`, a PEP source carries `role.pep` (PHASE-2.md 7.1.1), and the graph loader turns a node's topics into the labels `:Sanctioned` and `:PEP` (PHASE-1.md 5.2, PHASE-2.md 7.1.4). Records from the ICIJ Offshore Leaks Database carry no flag, but every node that contains one shows that record among its sources, so a merge with a leak record presents a person or company as named in a leak.
 
 A wrong merge between a listed record and an unlisted one puts a sanctions or PEP flag on a real person or company who is not on any list. A wrong merge with a leak record ties a real person to a leaked file. Either error is the most harmful one this project can make (guardrails G1 and G8 in PHASE-2.md 2.1). Name similarity is a weak signal for these records:
 
-- ICIJ warns that "many people and entities have the same or similar names" and suggests confirming identities "using addresses or other identifiable information" [icij_faq].
+- ICIJ warns that "many people and entities have the same or similar names" and suggests confirming identities "based on addresses or other identifiable information" [icij_faq].
 - The sanctions authorities treat a name match as the start of a check, not a result. OFSI writes that a name match "does not necessarily mean" that the person dealt with is the one on the list, and that matching all the information on the list is likely to be a target match [ofsi_general_guidance_2026]. OFAC asks whether only the first or last name matches and whether the party has a different date of birth, identification number or nationality, and it does not confirm matches itself [ofac_faq_5]. The research note `docs/research/2026-10-18/sanctions-peps.md` (section 9) quotes this guidance and the EU best practices on identifiers.
 
 ## Options considered

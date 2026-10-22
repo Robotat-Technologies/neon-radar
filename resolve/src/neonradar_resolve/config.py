@@ -11,8 +11,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from neonradar_resolve import cluster
-
-PLACEHOLDER = "@TODO"  # project.yaml handles not yet filled in (OD-22) never count as reviewers
+from neonradar_resolve.rules import PLACEHOLDER, handle
 
 
 class ResolverConfig(BaseModel):
@@ -28,7 +27,8 @@ class ResolverConfig(BaseModel):
 
     def cluster_config(self, senior_reviewers: Iterable[str] = ()) -> cluster.Config:
         """The clustering settings, with `people.er_senior_reviewers` (placeholders dropped)."""
-        seniors = frozenset(h for h in senior_reviewers if h and h != PLACEHOLDER)
+        seniors = frozenset(handle(h) for h in senior_reviewers if h.strip())
+        seniors -= {PLACEHOLDER, "@"}
         return cluster.Config(
             merge_threshold={str(k): v for k, v in self.merge_threshold.items()},
             candidate_threshold=self.candidate_threshold,

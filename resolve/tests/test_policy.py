@@ -204,3 +204,32 @@ def test_p2_leak_and_registry_look_alikes_stay_apart(tmp_path: Path) -> None:
     [candidate] = result.candidates
     assert candidate["reasons"] == ["leaked_cross_source"]
     assert {r["canonical_id"] for r in result.canonical} == {"gbch-off-test3", "icij-90001"}
+
+
+def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: Path) -> None:
+    """A leak-style legal entity "Holder Example" shares a company number with "Example Holder
+    Ltd": the person key of the first would match, the organisation keys do not (7.1.2)."""
+    items = [
+        rec(
+            "gbch-co-00000002",
+            "Company",
+            "gb_companies_house",
+            name="Example Holder Ltd",
+            registrationNumber="00000002",
+            jurisdiction="gb",
+        ),
+        rec(
+            "icij-90002",
+            "LegalEntity",
+            "icij_offshore_leaks",
+            name="Holder Example",
+            registrationNumber="2",
+            jurisdiction="gb",
+        ),
+    ]
+    corpus, members = members_of(tmp_path, items)
+    assert members["icij-90002"].name_keys == {"holder example"}
+    result = _resolve(members, det=rules.deterministic(corpus, members))
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000002", "icij-90002"}
+    [candidate] = result.candidates
+    assert candidate["reasons"] == ["identifier_name_mismatch"] and candidate["rule"] == "D1"

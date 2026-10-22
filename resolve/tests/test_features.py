@@ -10,7 +10,7 @@ from nr_resolve_support import members_of, rec, syn
 from neonradar_resolve import features
 from neonradar_resolve.feature_schema import ORG_SCHEMA, PERSON_SCHEMA, RARE_NAME_MAX
 
-VALID_LEI = "549300OWFMSO9NYV4H90"
+VALID_LEI = "SYN000TESTLEI0000134"
 
 
 def _tables(tmp_path: Path, items: list[dict[str, object]]):  # type: ignore[no-untyped-def]
@@ -241,3 +241,18 @@ def test_write_features(tmp_path: Path) -> None:
         assert con.execute("SELECT unique_id FROM org_features").fetchall() == [("gbch-psc-w",)]
         names = [r[0] for r in con.execute("DESCRIBE person_features").fetchall()]
     assert names == PERSON_SCHEMA.names
+
+
+def test_name_symbols_and_the_postcode_from_address_text(tmp_path: Path) -> None:
+    items = [
+        rec(
+            "gbch-off-sym",
+            "Person",
+            "gb_companies_house",
+            name="Mohammed Testa",
+            address="3 Test Road, Leeds, ls12ab",
+        )
+    ]
+    _, rows, _, _, _ = _tables(tmp_path, items)
+    assert "Q5837762" in rows["gbch-off-sym"]["name_symbols"]  # the Mohammed name group
+    assert rows["gbch-off-sym"]["postcode"] == "LS1 2AB"

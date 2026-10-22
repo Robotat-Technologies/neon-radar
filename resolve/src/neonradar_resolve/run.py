@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import shutil
 import time
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
@@ -91,8 +92,9 @@ def count(
     """The counts of `run.json` (7.1.8): records, links, merges, possible matches, conflicts."""
     sizes = {str(r["canonical_id"]): int(str(r["cluster_size"])) for r in result.canonical}
     links_by_rule = Counter(str(x.rule) for x in links)
-    if decisions.same:
-        links_by_rule["D7"] = len(decisions.same)
+    applicable = [x for x in decisions.same if x.record_a in members and x.record_b in members]
+    if applicable:
+        links_by_rule["D7"] = len(applicable)
     reasons = Counter(str(r) for c in result.candidates for r in c["reasons"])  # type: ignore[attr-defined]
     return {
         "records_read": sum(f.records for f in corpus.inputs),
@@ -114,6 +116,13 @@ def count(
         "decisions_on_file": decisions.on_file,
         **result.counts,
     }
+
+
+def remove_features(path: Path) -> None:
+    """`features.duckdb`, its write-ahead log and DuckDB's own spill folder beside it."""
+    path.unlink(missing_ok=True)
+    path.with_name(path.name + ".wal").unlink(missing_ok=True)
+    shutil.rmtree(path.with_name(path.name + ".tmp"), ignore_errors=True)
 
 
 @contextmanager
@@ -166,7 +175,7 @@ def run(
             write_jsonl(run_dir / "conflicts.jsonl", result.conflicts)
     finally:  # the feature tables hold record values: never left behind by a failed run
         if not config.keep_features:
-            features_path.unlink(missing_ok=True)
+            remove_features(features_path)
     resolver = config.resolver
     summary = {
         "run_id": run_dir.name,

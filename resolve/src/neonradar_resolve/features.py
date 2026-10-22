@@ -100,13 +100,18 @@ def _person_keys(record: Record) -> list[PersonKey]:
 
 
 def name_keys(record: Record) -> frozenset[str]:
-    """Person keys for people, org keys for organisations, both for legal entities."""
-    names = record.values(*NAME_PROPS)
-    keys: set[str] = set()
-    if record.entity_class in ("person", "legal_entity"):
-        keys.update(person_key(v).key for v in names)
-    if record.entity_class in ("org", "legal_entity"):
-        keys.update(org_key(v).key for v in names)
+    """Person keys for people; organisation keys for organisations and legal entities.
+
+    A legal entity's identifier links (D1, D2, D5) compare it with organisations, and the strict
+    name check across P1 or P2 asks for an exact organisation key (7.1.2). Person keys sort
+    their tokens, so they would let "Holder Example" pass as "Example Holder".
+    """
+    if record.entity_class == "person":
+        keys = {person_key(v).key for v in record.values(*NAME_PROPS)}
+    elif record.entity_class in ("org", "legal_entity"):
+        keys = {org_key(v).key for v in record.values(*NAME_PROPS)}
+    else:
+        keys = set()
     return frozenset(k for k in keys if k)
 
 

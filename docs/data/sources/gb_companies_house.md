@@ -25,12 +25,15 @@ more with `--step`):
 
 - `index`: every live company's number, name, postcode district, category, status and
   country of origin in `companies.sqlite`, a work file under `data/cache/real/work/`.
-- `slice`: the profile's companies in `slice.csv` (below).
+- `slice`: the profile's companies in `slice.csv` (below), and `slice.json` with the snapshot
+  date, the sample seed and the SHA-256; the `companies` step refuses (exit 2) a slice built
+  from another snapshot than the newest download.
 - `companies`: a `Company` record per company in the slice (`gbch-co-<number>`) with its
   name, number, category (`legalForm`), status, jurisdiction, incorporation date, SIC codes
   (`sector`), previous names, accounts category (`nr.accounts_category`) and, once M2.3b has
   merged, its PSC statements (`nr.psc_statements`); and one `Address` record per distinct
-  registered office address key (`gbch-addr-<hash of the key>`), linked with the role
+  registered office address key (`gbch-addr-<hash of the key>`, the key computed from the
+  `full` text as FollowTheMoney cleans it, as the graph loader does), linked with the role
   `registered`. The care-of line is never loaded: it can name a person.
 
 Reading follows note 2.2 to 2.4: header cells are stripped (14 start with a space) and
@@ -76,7 +79,9 @@ note 2.6:
 
 ## Personal data
 
-The PSC and officer products (M2.3b, M2.3c) hold names, months of birth and nationalities.
+The company file itself can hold personal data: a company name or a previous name can be a
+person's name, and a registered office can be a home address. The PSC and officer products
+(M2.3b, M2.3c) hold names, months of birth and nationalities.
 Companies House's personal information charter says that organisations using register data
 "then become controllers of your personal data" and "must establish how they comply with the
 data protection law" (note 10, source B12). Every real run therefore passes the real-data gate

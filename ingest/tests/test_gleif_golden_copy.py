@@ -50,11 +50,19 @@ PARENT, ULTIMATE, INACTIVE_PARENT = lei("PARENT1"), lei("ULTIM1"), lei("PARENT2"
 ANNULLED, DUPLICATE, FUND, GHOST = lei("ANNUL1"), lei("DUPL1"), lei("FUND1"), lei("GHOST1")
 OTHER_A, OTHER_B = lei("OTHERA"), lei("OTHERB")
 INVALID = CHILD[:-1] + str((int(CHILD[-1]) + 1) % 10)
+CH_VERSION = "2026-10-01"
+
+
+def rid(code: str) -> str:
+    return f"gleif-lei-{code}"  # the Phase 1 id form (reconciliation B1)
+
 
 OPTIONAL = [
     gc.CREATION,
-    *(f"Entity.OtherEntityNames.OtherEntityName.{n}{x}" for n in (1, 2) for x in ("", ".xmllang")),
-    "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.1",
+    *(f"Entity.OtherEntityNames.OtherEntityName.{n}{x}" for n in (1, 2)
+      for x in ("", ".xmllang", ".type")),
+    *(f"Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.{n}{x}"
+      for n in (1, 2) for x in ("", ".type")),
     *(f"Entity.{k}.{p}" for k in ("LegalAddress", "HeadquartersAddress")
       for p in ("AdditionalAddressLine.1", "Region", "PostalCode")),
 ]  # fmt: skip
@@ -100,8 +108,17 @@ LEI_ROWS = [
     entity(CHILD, "MYRTLE LEAT\nFORMATIONS LTD", "99000001", **{
         gc.CREATION: "2012-06-06T15:52:00+02:00",
         "Entity.OtherEntityNames.OtherEntityName.1": "TANSY STRAND SUPPLIES LTD",
+        "Entity.OtherEntityNames.OtherEntityName.1.type": "TRADING_OR_OPERATING_NAME",
+        "Entity.OtherEntityNames.OtherEntityName.2": "BIRCH WOLD TRADING LTD",
+        "Entity.OtherEntityNames.OtherEntityName.2.type": "PREVIOUS_LEGAL_NAME",
         "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.1":
             "MYRTLE LEAT FORMATIONS LIMITED",
+        "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.1.type":
+            "PREFERRED_ASCII_TRANSLITERATED_LEGAL_NAME",
+        "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.2":
+            "MYRTLE LEAT FORMATIONS",
+        "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.2.type":
+            "AUTO_ASCII_TRANSLITERATED_LEGAL_NAME",
         "Entity.HeadquartersAddress.PostalCode": "qq1  1aa"}),
     entity(SIBLING, "BRACKEN DALE FREIGHT LTD", "990 00002", "RA000587", **{
         gc.CREATION: "06/06/2012", "Entity.LegalForm.EntityLegalFormCode": "",
@@ -142,9 +159,11 @@ RR_ROWS = [
 ]  # fmt: skip
 
 
-def csv_bytes(header: Sequence[str], rows: Sequence[dict[str, str]]) -> bytes:
+def csv_bytes(
+    header: Sequence[str], rows: Sequence[dict[str, str]], quoting: int = csv.QUOTE_MINIMAL
+) -> bytes:
     out = io.StringIO()
-    writer = csv.writer(out, quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
+    writer = csv.writer(out, quoting=quoting, lineterminator="\r\n")
     writer.writerow(header)
     writer.writerows([row.get(column, "") for column in header] for row in rows)
     return out.getvalue().encode("utf-8")
@@ -177,7 +196,9 @@ def profile(env: Any, scope: str = "slice", numbers: Sequence[str] | None = ("99
     if numbers is not None:
         path = layout.work_dir(PROFILE, "gb_companies_house") / "slice.csv"
         path.parent.mkdir(parents=True, exist_ok=True)
-        slices.write(path, [slices.Member(n, "seed", 0, n) for n in numbers])
+        sha256 = slices.write(path, [slices.Member(n, "seed", 0, n) for n in numbers])
+        slices.write_meta(path.with_name("slice.json"), version=CH_VERSION, sample_seed=7,
+                          sha256=sha256)  # fmt: skip
 
 
 def build() -> BuildResult:
@@ -193,6 +214,13 @@ def build() -> BuildResult:
 def records() -> dict[str, dict[str, Any]]:
     path = layout.records_dir(PROFILE, gc.DATASET) / gc.RECORD_FILE
     return {r["id"]: r for r in iter_records(path)}
+
+
+OPTIONAL_GROUPS = (
+    "other_entity_names", "transliterated_other_entity_names", "other_entity_names_type",
+    "transliterated_other_entity_names_type", "entity_creation_date", "relationship_period",
+    "quantifiers",
+)  # fmt: skip
 
 
 def test_the_lei_helper_gives_valid_check_digits() -> None:
@@ -257,7 +285,8 @@ def test_the_profile_block_is_validated(data_env: Any) -> None:
 
 def test_reading_maps_dotted_columns_and_keeps_line_breaks(tmp_path: Path) -> None:
     stats: Counter[str] = Counter()
-    data = b"\xef\xbb\xbf" + csv_bytes(LEI_HEADER, LEI_ROWS[:1]) + b'"SHORT","ROW"\r\n'
+    quoted = csv_bytes(LEI_HEADER, LEI_ROWS[:1], csv.QUOTE_ALL)
+    data = b"\xef\xbb\xbf" + quoted + b'"SHORT","ROW"\r\n'
     table = gc.Table(zipped(tmp_path / "lei.csv.zip", data), gc.LEI_COLUMNS, stats)
     rows = list(table.rows())
     assert table.header[0] == "LEI" and table.header == LEI_HEADER  # a byte order mark is dropped
@@ -294,19 +323,26 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     download()
     result = build()
     found = records()
-    companies = {rid for rid, r in found.items() if r["schema"] == "Company"}
-    assert companies == {f"gleif-{c}" for c in (CHILD, SIBLING, PARENT, ULTIMATE)}
+    companies = {key for key, r in found.items() if r["schema"] == "Company"}
+    assert companies == {rid(c) for c in (CHILD, SIBLING, PARENT, ULTIMATE)}
     counts = result.counts
     assert counts["by_reason"] == {"slice": 2, "uk": 0, "all": 0, "parent": 2}
     assert counts["slice_companies"] == 5 and counts["slice_companies_with_lei"] == 2
-    assert counts["registration_skipped"] == {"annulled": 1, "duplicate": 1}
-    assert counts["invalid_leis"] == 1 and counts["parents_not_loaded"] == 1
-    assert counts["uk_authority_leis"] == 8 and counts["scoped_leis"] == 2
+    whole = counts["lei_file"]  # counted over the whole LEI file, not the scope
+    assert whole["registration_skipped"] == {"annulled": 1, "duplicate": 1}
+    assert whole["invalid_leis"] == 1 and whole["uk_authority_leis"] == 8
+    assert whole["rows_read"] == len(LEI_ROWS) and counts["rr_file"]["rows_read"] == len(RR_ROWS)
+    assert counts["parents_not_loaded"] == 1 and counts["scoped_leis"] == 2
+    assert (
+        result.strings["slice_version"] == CH_VERSION and len(result.strings["slice_sha256"]) == 64
+    )
 
-    child = found[f"gleif-{CHILD}"]
+    child = found[rid(CHILD)]
     props = child["properties"]
     assert props["name"] == ["MYRTLE LEAT FORMATIONS LTD"]
     assert sorted(props["alias"]) == ["MYRTLE LEAT FORMATIONS LIMITED", "TANSY STRAND SUPPLIES LTD"]
+    assert props["previousName"] == ["BIRCH WOLD TRADING LTD"]  # by the name's type (C6)
+    assert counts["names_skipped_by_value"] == {"auto_ascii_transliterated_legal_name": 1}  # C1 R10
     assert props["leiCode"] == [CHILD] and props["registrationNumber"] == ["99000001"]
     assert props["jurisdiction"] == ["gb"] and props["status"] == ["ACTIVE"]
     assert props["legalForm"] == ["SYN1"] and props["incorporationDate"] == ["2012-06-06"]
@@ -320,26 +356,26 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     assert office == gc.hashed_id("addr", address_key(full) or "")
     assert found[office]["properties"]["postalCode"] == ["QQ1 1AA"]
 
-    sibling = found[f"gleif-{SIBLING}"]
+    sibling = found[rid(SIBLING)]
     assert sibling["properties"]["registrationNumber"] == ["99000002"]  # normalised (RA000587)
     assert sibling["properties"]["legalForm"] == ["PRIVATE LIMITED COMPANY"]
     assert "incorporationDate" not in sibling["properties"]
     assert sorted(sibling["nr"]["address_roles"].values()) == ["business", "registered"]
     assert sibling["nr"]["address_roles"][office] == "registered"  # shared with the child
-    parent = found[f"gleif-{PARENT}"]["properties"]
+    parent = found[rid(PARENT)]["properties"]
     assert parent["jurisdiction"] == ["us"] and parent["registrationNumber"] == ["123"]  # raw
-    assert found[f"gleif-{ULTIMATE}"]["properties"]["jurisdiction"] == ["gb-sct"]
+    assert found[rid(ULTIMATE)]["properties"]["jurisdiction"] == ["gb-sct"]
     assert counts["records"] == {"company": 4, "address": 3, "ownership": 3}
     assert counts["dates_dropped.creation"] == 1
 
     owns = {(r["properties"]["asset"][0], r["properties"]["owner"][0]): r
             for r in found.values() if r["schema"] == "Ownership"}  # fmt: skip
-    assert {(a[6:], o[6:], r["nr"]["consolidation"]) for (a, o), r in owns.items()} == {
+    assert {(a[10:], o[10:], r["nr"]["consolidation"]) for (a, o), r in owns.items()} == {
         (CHILD, PARENT, "direct"),
         (CHILD, ULTIMATE, "ultimate"),
         (PARENT, ULTIMATE, "direct"),
     }
-    direct = owns[(f"gleif-{CHILD}", f"gleif-{PARENT}")]
+    direct = owns[(rid(CHILD), rid(PARENT))]
     assert direct["id"] == gc.hashed_id("ownership", CHILD, PARENT, "IS_DIRECTLY_CONSOLIDATED_BY")
     assert direct["properties"]["startDate"] == ["2018-01-01"]  # the RELATIONSHIP_PERIOD
     assert not {"percentage", "sharesCount", "endDate"} & set(direct["properties"])
@@ -353,11 +389,12 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     assert counts["skipped_status_by_value"] == {"inactive": 1}
     assert counts["relationships_end_not_loaded"] == 2  # the missing parent, the outside child
     assert counts["relationships_outside_scope"] == 1
-    assert counts["optional_columns_absent"] == dict.fromkeys(
-        ("other_entity_names", "transliterated_other_entity_names", "entity_creation_date",
-         "relationship_period", "quantifiers"), 0)  # fmt: skip
+    assert counts["optional_columns_absent"] == dict.fromkeys(OPTIONAL_GROUPS, 0)
     assert result.lists == {"lei_headers": LEI_HEADER, "rr_headers": RR_HEADER}
-    assert result.strings == {"version": VERSION, "scope": "slice"}
+    assert {k: result.strings[k] for k in ("version", "scope")} == {
+        "version": VERSION,
+        "scope": "slice",
+    }
     manifest = json.loads((layout.records_dir(PROFILE, gc.DATASET) /
                            "golden-copy.manifest.json").read_text())  # fmt: skip
     assert manifest["source"]["source_version"] == VERSION
@@ -369,7 +406,7 @@ def test_the_uk_scope_and_a_header_without_optional_columns(data_env: Any) -> No
     download([*gc.LEI_COLUMNS, long_name], list(gc.RR_COLUMNS))
     result = build()
     found = records()
-    companies = {rid[6:] for rid, r in found.items() if r["schema"] == "Company"}
+    companies = {key[10:] for key, r in found.items() if r["schema"] == "Company"}
     assert companies == {
         CHILD,
         SIBLING,
@@ -382,14 +419,12 @@ def test_the_uk_scope_and_a_header_without_optional_columns(data_env: Any) -> No
         PARENT,
     }
     assert result.counts["by_reason"] == {"slice": 0, "uk": 8, "all": 0, "parent": 1}
-    odd = found[f"gleif-{ODD}"]["properties"]
+    odd = found[rid(ODD)]["properties"]
     assert odd["registrationNumber"] == ["XY123456"]  # not a Companies House form: kept raw
     assert result.counts["uk_numbers_not_ch_form"] == 1
-    child = found[f"gleif-{CHILD}"]["properties"]
+    child = found[rid(CHILD)]["properties"]
     assert "alias" not in child and "incorporationDate" not in child
-    assert result.counts["optional_columns_absent"] == dict.fromkeys(
-        ("other_entity_names", "transliterated_other_entity_names", "entity_creation_date",
-         "relationship_period", "quantifiers"), 1)  # fmt: skip
+    assert result.counts["optional_columns_absent"] == dict.fromkeys(OPTIONAL_GROUPS, 1)
     assert result.counts["relationships"] == {"direct": 4, "ultimate": 1}
     assert result.counts["headers_too_long"] == 1
     assert result.lists["lei_headers"] == list(gc.LEI_COLUMNS)
@@ -401,6 +436,16 @@ def test_a_missing_slice_or_download_names_what_to_run_first(data_env: Any) -> N
     with pytest.raises(BuildError, match="build gb_companies_house for this profile first") as e:
         build()
     assert e.value.exit_code == 2 and e.value.counts_only
+    profile(data_env)
+    (layout.work_dir(PROFILE, "gb_companies_house") / "slice.json").unlink()
+    with pytest.raises(BuildError, match=r"slice\.json is missing") as e:
+        build()
+    profile(data_env)
+    with (layout.work_dir(PROFILE, "gb_companies_house") / "slice.csv").open("a") as handle:
+        handle.write("99000008,seed,0\n")  # changed after the slice step
+    with pytest.raises(BuildError, match=r"slice\.csv differs from slice\.json") as e:
+        build()
+    assert e.value.exit_code == 2
     profile(data_env, scope="all", numbers=None)
     with pytest.raises(BuildError, match="no complete download") as e:
         (layout.sources_dir(gc.DATASET, gc.PRODUCT, VERSION) / "download.json").unlink()
@@ -425,3 +470,21 @@ def test_ingest_build_writes_the_header_lists_and_counts_only(data_env: Any) -> 
     for text in (json.dumps(summary), result.output):
         assert "SYN0" not in text and "MYRTLE" not in text and "QQ1" not in text
         assert "99000001" not in text
+
+
+def test_other_names_without_a_type_column_fail_closed() -> None:
+    other = "Entity.OtherEntityNames.OtherEntityName.1"
+    transliterated = "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.1"
+    counts: Counter[str] = Counter()
+    writer = gc.Writer([other, transliterated], counts)
+    found = writer.other_names({other: "TANSY STRAND SUPPLIES LTD", transliterated: "MYRTLE"})
+    assert found == {"alias": ["TANSY STRAND SUPPLIES LTD"], "previousName": []}
+    assert counts == {"names_skipped.no_type": 1}  # a transliteration of unknown kind
+
+
+def test_no_committed_profile_loads_every_lei() -> None:
+    from neonradar_ingest.data.profiles import profile_names
+
+    for name in profile_names():
+        block = load_profile(name).sources.get(gc.DATASET)
+        assert block is None or block.options.get("scope") != "all", name  # tests only

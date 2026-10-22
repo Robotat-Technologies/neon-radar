@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Literal, TextIO
 from urllib.parse import urlsplit
 
-from followthemoney import ValueEntity, model
+from followthemoney import ValueEntity, model, registry
 from pydantic import BaseModel, ConfigDict, StrictBool
 
 from neonradar_contracts.records import Producer, Source, write_manifest
@@ -48,8 +48,9 @@ from neonradar_ingest.data.sources import (
 from neonradar_ingest.http import HttpClient
 from neonradar_ingest.sources.companies_house import bulk as ch_bulk
 from neonradar_ingest.sources.companies_house import slice as slices
-from neonradar_ingest.sources.companies_house.build import SLICE, StepInputMissing
-from neonradar_keys.addresses import address_key_from_parts
+from neonradar_ingest.sources.companies_house.build import SLICE, SLICE_META, StepInputMissing
+from neonradar_ingest.sources.gleif.mapping import NAME_PROPERTY, entity_id
+from neonradar_keys.addresses import address_key
 from neonradar_keys.countries import country_code
 from neonradar_keys.ids import is_valid_lei, uk_company_number
 from neonradar_keys.postcodes import normalise_uk_postcode
@@ -64,7 +65,7 @@ CDF = {"lei2": "LEI_3.1", "rr": "RR_2.1"}  # file type: the CDF version the mapp
 FILE_RE = re.compile(r"(\d{8}-\d{4})-gleif-goldencopy-(lei2|rr)-golden-copy\.csv\.zip\Z")
 PUBLISH_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})")
 ISO_RE = re.compile(r"\s*(\d{4})-(\d{2})-(\d{2})(?:T[\d:.]+)?(?:Z|[+-]\d{2}:?\d{2})?\s*\Z")
-VOCAB_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,47}\Z")
+VOCAB_RE = re.compile(r"[a-z][a-z_-]{0,47}\Z")  # no digits: never an LEI or a number
 HEADER_RE = re.compile(r"[A-Za-z0-9 ._:/+()#,'&-]{1,80}\Z")  # what a summary list may hold
 UK_AUTHORITIES = ("RA000585", "RA000586", "RA000587")  # Companies House: E&W, NI, Scotland
 AUTHORITY = "Entity.RegistrationAuthority.RegistrationAuthorityID"
@@ -86,6 +87,9 @@ START, END = "Relationship.StartNode.NodeID", "Relationship.EndNode.NodeID"
 START_TYPE, END_TYPE = "Relationship.StartNode.NodeIDType", "Relationship.EndNode.NodeIDType"
 TYPE, STATUS = "Relationship.RelationshipType", "Relationship.RelationshipStatus"
 RR_COLUMNS = (START, START_TYPE, END, TYPE, STATUS)
+# Other names by their `.type` column through the spike's NAME_PROPERTY (reconciliation C6:
+# a previous legal name is `previousName`, an automatic transliteration is never written, C1
+# R10). Without a `.type` column an other name is an alias and a transliterated one is skipped.
 ALIAS_GROUPS = {
     "other_entity_names": "Entity.OtherEntityNames.OtherEntityName.{}",
     "transliterated_other_entity_names":
@@ -176,12 +180,10 @@ class Table:
                 raise BuildError(f"{name}: {len(members)} files inside, expected one CSV",
                                  "format", counts_only=True)  # fmt: skip
             with archive.open(members[0]) as raw:
-                text = io.TextIOWrapper(raw, encoding="utf-8", errors="strict", newline="")
+                text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="strict", newline="")
                 reader = csv.DictReader(text)
                 try:
-                    self.header = [
-                        cell.lstrip("\ufeff").strip() for cell in reader.fieldnames or []
-                    ]
+                    self.header = [cell.strip() for cell in reader.fieldnames or []]
                     missing = [column for column in self.enforced if column not in self.header]
                     if missing:
                         raise BuildError(f"{name}: column {missing[0]} is missing", "header",
@@ -309,8 +311,27 @@ class Writer:
     def __init__(self, header: Sequence[str], counts: Counter[str]) -> None:
         self.counts = counts
         self.addresses: dict[str, dict[str, Any]] = {}
-        self.aliases = [pattern.format(n) for pattern in ALIAS_GROUPS.values() for n in range(1, 6)
-                        if pattern.format(n) in header]  # fmt: skip
+        self.names = [(pattern.format(n), group) for group, pattern in ALIAS_GROUPS.items()
+                      for n in range(1, 6) if pattern.format(n) in header]  # fmt: skip
+        self.typed = {column for column, _ in self.names if f"{column}.type" in header}
+
+    def other_names(self, row: Row) -> dict[str, list[str | None]]:
+        """`alias` and `previousName` from the other names, by each name's `.type`."""
+        found: dict[str, list[str | None]] = {"alias": [], "previousName": []}
+        for column, group in self.names:
+            name = text(row[column])
+            if name is None:
+                continue
+            if column in self.typed:
+                kind = row[f"{column}.type"].strip()
+                prop = NAME_PROPERTY.get(kind)
+            else:
+                kind, prop = "no type", None if group != "other_entity_names" else "alias"
+            if prop is None:
+                self.counts[f"names_skipped.{vocab(kind.replace(' ', '_'))}"] += 1
+            else:
+                found[prop].append(name)
+        return found
 
     def entity(self, schema: str, rid: str, values: dict[str, Any]) -> ValueEntity:
         entity = ValueEntity(model[schema], {"id": rid, "datasets": [DATASET]})
@@ -335,13 +356,15 @@ class Writer:
             postcode or raw_postcode,
             part["Country"],
         ]
-        key = address_key_from_parts(parts)
+        # FtM cleans `full`, and the graph loader recomputes the key from it (C2 L15, M2.3a).
+        full = registry.address.clean(", ".join(p for p in parts if p))
+        key = address_key(full) if full else None
         if key is None:
             return None
         rid = hashed_id("addr", key)
         if key not in self.addresses:
             values = {
-                "full": ", ".join(p for p in parts if p),
+                "full": full,
                 "street": part["FirstAddressLine"],
                 "street2": part["AdditionalAddressLine.1"],
                 "city": part["City"],
@@ -363,7 +386,7 @@ class Writer:
         values: dict[str, Any] = {
             "name": text(row["Entity.LegalName"]),
             "leiCode": lei,
-            "alias": [text(row[column]) for column in self.aliases],
+            **self.other_names(row),
             "jurisdiction": text(row["Entity.LegalJurisdiction"]),
             "registrationNumber": number,
             "status": text(row["Entity.EntityStatus"]),
@@ -372,7 +395,7 @@ class Writer:
             "incorporationDate": iso_date(row.get(CREATION), self.counts, "creation"),
             "sourceUrl": SOURCE_URL.format(lei),
         }
-        entity = self.entity("Company", f"{PREFIX}-{lei}", values)
+        entity = self.entity("Company", entity_id(lei), values)
         nr: dict[str, Any] = {"v": NR_VERSION, "source_ref": lei}
         roles: dict[str, str] = {}
         for kind, role in ROLES.items():
@@ -387,7 +410,7 @@ class Writer:
 
     def ownership(self, row: Row, child: str, parent: str, level: str, periods: Sequence[str]
                   ) -> dict[str, Any]:  # fmt: skip
-        values: dict[str, Any] = {"owner": f"{PREFIX}-{parent}", "asset": f"{PREFIX}-{child}"}
+        values: dict[str, Any] = {"owner": entity_id(parent), "asset": entity_id(child)}
         for n in periods:
             if row[f"Relationship.Period.{n}.periodType"].strip() == "RELATIONSHIP_PERIOD":
                 start, end = (
@@ -429,13 +452,23 @@ def golden_copy_download() -> tuple[str, dict[str, Path], list[str]]:
     )
 
 
-def slice_numbers(profile: Profile) -> set[str]:
-    """The company numbers of the profile's Companies House `slice.csv` (exit 2 without it)."""
-    path = layout.work_dir(profile, ch_bulk.DATASET) / SLICE
-    if not path.is_file():
-        message = f"{DATASET}: {SLICE} is missing; build {ch_bulk.DATASET} for this profile first"
+def read_slice(profile: Profile) -> tuple[set[str], dict[str, str]]:
+    """The company numbers of the profile's Companies House `slice.csv`, and the snapshot
+    version and SHA-256 its `slice.json` records; exit 2 when either is missing, or when the
+    file is not the one `slice.json` describes."""
+    work = layout.work_dir(profile, ch_bulk.DATASET)
+    path, meta_path = work / SLICE, work / SLICE_META
+    if not path.is_file() or not meta_path.is_file():
+        missing = SLICE if not path.is_file() else SLICE_META
+        message = f"{DATASET}: {missing} is missing; build {ch_bulk.DATASET} for this profile first"
         raise StepInputMissing(message, "input", counts_only=True)
-    return {number for number, _, _ in slices.read(path)}
+    meta = slices.read_meta(meta_path)
+    sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    if meta.get("slice_sha256") != sha256:
+        message = f"{DATASET}: {SLICE} differs from {SLICE_META}; build {ch_bulk.DATASET} again"
+        raise StepInputMissing(message, "slice", counts_only=True)
+    strings = {"slice_version": str(meta.get("version")), "slice_sha256": sha256}
+    return {number for number, _, _ in slices.read(path)}, strings
 
 
 def write_relationships(
@@ -475,9 +508,11 @@ def write_relationships(
 
 
 def header_list(header: Sequence[str], counts: Counter[str]) -> list[str]:
-    """Column names for the summary; a name over 80 characters is counted, not written."""
+    """Column names for the summary; a name over 80 characters is counted, not written (and
+    so is one with a character a summary string may not hold)."""
     kept = [name for name in header if HEADER_RE.fullmatch(name)]
-    counts["headers_too_long"] += len(header) - len(kept)
+    counts["headers_too_long"] += sum(len(name) > 80 for name in header)
+    counts["headers_unlisted"] += len(header) - len(kept) - sum(len(n) > 80 for n in header)
     return kept
 
 
@@ -485,6 +520,8 @@ def absent_columns(lei_header: Sequence[str], rr_header: Sequence[str]) -> dict[
     """1 for each optional column group the files lack (note 6.2: unverified until read)."""
     absent = {name: int(not any(pattern.format(n) in lei_header for n in range(1, 6)))
               for name, pattern in ALIAS_GROUPS.items()}  # fmt: skip
+    absent |= {f"{name}_type": int(not any(f"{pattern.format(n)}.type" in lei_header
+               for n in range(1, 6))) for name, pattern in ALIAS_GROUPS.items()}  # fmt: skip
     absent["entity_creation_date"] = int(CREATION not in lei_header)
     absent["relationship_period"] = int(not any(PERIOD_RE.fullmatch(c) for c in rr_header))
     absent["quantifiers"] = int(not any(QUANTIFIER_RE.fullmatch(c) for c in rr_header))
@@ -493,7 +530,7 @@ def absent_columns(lei_header: Sequence[str], rr_header: Sequence[str]) -> dict[
 
 def build(profile: Profile, context: BuildContext) -> BuildResult:
     options: GleifSource = profile.options(DATASET)
-    numbers = slice_numbers(profile) if options.scope == "slice" else set()
+    numbers, strings = read_slice(profile) if options.scope == "slice" else (set(), {})
     version, paths, urls = golden_copy_download()
     counts: Counter[str] = Counter()
     lei_stats, rr_stats = Counter[str](), Counter[str]()
@@ -501,7 +538,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     rr_file = Table(paths["rr"], RR_COLUMNS, rr_stats)
     wanted = in_scope(lei_file, options.scope, numbers, counts)
     counts["scoped_leis"] = len(wanted)
-    add_parents(rr_file, wanted)
+    add_parents(Table(paths["rr"], RR_COLUMNS, Counter()), wanted)  # rr_stats counts one pass
     writer = Writer(lei_file.header, counts)
     by_reason: Counter[str] = Counter()
     categories: Counter[str] = Counter()
@@ -551,18 +588,25 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     lists = {"lei_headers": header_list(lei_file.header, counts),
              "rr_headers": header_list(rr_file.header, counts)}  # fmt: skip
     groups = {"registration_skipped": "registration_skipped",
-              "skipped_type": "skipped_type_by_value",
+              "names_skipped": "names_skipped_by_value", "skipped_type": "skipped_type_by_value",
               "skipped_status": "skipped_status_by_value"}  # fmt: skip
+    whole_file = ("invalid_leis", "registration_skipped", "uk_authority_leis")
     for key, value in counts.items():
         group, _, name = key.partition(".")
+        where = summary["lei_file"] if group in whole_file else summary  # whole-file counts
         if group in groups and name:
-            summary.setdefault(groups[group], {})[name] = value
+            where.setdefault(groups[group], {})[name] = value
         else:
-            summary[key] = value
-    return BuildResult(counts=dict(sorted(summary.items())), lists=lists,
-                       strings={"version": version, "scope": options.scope})  # fmt: skip
+            where[key] = value
+    strings |= {"version": version, "scope": options.scope}
+    return BuildResult(counts=dict(sorted(summary.items())), lists=lists, strings=strings)
 
 
 register_builder(
-    Builder(DATASET, build, string_keys=("scope",), list_keys=("lei_headers", "rr_headers"))
+    Builder(
+        DATASET,
+        build,
+        string_keys=("scope", "slice_version", "slice_sha256"),
+        list_keys=("lei_headers", "rr_headers"),
+    )
 )

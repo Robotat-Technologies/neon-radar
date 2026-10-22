@@ -52,33 +52,33 @@ I1, X1 = "9940000001", "9950000001"
 TRUST = ("settlor", "founder", "beneficiary of", "grantor", "protector of")
 ROWS: dict[str, list[dict[str, str]]] = {
     "nodes-entities.csv": [
-        {"node_id": E1, "name": "Synthetic Entity One Ltd", "original_name":
-         "Synthetic Entity Four Corp", "former_name": "Synthetic Entity One Former Ltd",
+        {"node_id": E1, "name": "Myrtle Leat Formations Ltd", "original_name":
+         "Tansy Strand Supplies Ltd", "former_name": "Tansy Tarn Ventures Limited",
          "jurisdiction": "XYZ",
          "jurisdiction_description": "British Virgin Islands", "company_type": "SYN TYPE",
          "address": "SYN ADDRESS TEXT", "internal_id": "SYN-1", "incorporation_date":
          "22-MAY-2006", "struck_off_date": "01-JAN-99", "closed_date": "02-FEB-2003",
          "status": "Defaulted", "ibcRUC": "SYN-IBC", "country_codes": "GBR;VGB",
          "sourceID": SOURCE, "valid_until": "SYN VALID", "note": NOTE},
-        {"node_id": E2, "name": "Synthetic Entity Two S.A.", "original_name":
-         "Synthetic Entity Two S.A.", "incorporation_date": "13/04/2010",
+        {"node_id": E2, "name": "Bracken Dale Freight Ltd", "original_name":
+         "Bracken Dale Freight Ltd", "incorporation_date": "13/04/2010",
          "inactivation_date": "21-AUG-0200",
          "struck_off_date": "2011-03-04", "sourceID": SOURCE, "note": NOTE},
         {"node_id": E3, "name": "? ?"},  # junk name: skipped
     ],
     "nodes-officers.csv": [
-        {"node_id": O1, "name": "Synthetic Officer Alpha", "country_codes": "GBR",
+        {"node_id": O1, "name": "Zafer Velqasimi", "country_codes": "GBR",
          "sourceID": SOURCE, "note": NOTE},
-        {"node_id": O2, "name": "Synthetic Officer Beta", "sourceID": SOURCE},
-        {"node_id": O5, "name": "Synthetic Nominee Officer Ltd"},
-        {"node_id": I1, "name": "Synthetic Agent Services Ltd"},  # also an intermediary
+        {"node_id": O2, "name": "Yazan Zubeirono", "sourceID": SOURCE},
+        {"node_id": O5, "name": "Copper Acre Interiors Ltd"},
+        {"node_id": I1, "name": "Basalt Holm Foods Ltd"},  # also an intermediary
     ],
     "nodes-intermediaries.csv": [
-        {"node_id": I1, "name": "Synthetic Agent Services Ltd", "status": "ACTIVE", "country_codes":
+        {"node_id": I1, "name": "Basalt Holm Foods Ltd", "status": "ACTIVE", "country_codes":
          "VGB", "address": "SYN ADDRESS TEXT", "note": NOTE},
     ],
     "nodes-others.csv": [
-        {"node_id": X1, "name": "Synthetic Foundation Gamma", "type": "SYN TYPE",
+        {"node_id": X1, "name": "Fennel Weald Foods Ltd", "type": "SYN TYPE",
          "incorporation_date":
          "2001-02-03", "closed_date": "31-DEC-2010", "jurisdiction_description": "Anguilla",
          "country_codes": "AIA", "note": NOTE},
@@ -214,9 +214,9 @@ def test_nodes_map_to_the_c1_table_and_note_is_never_read(data_env: Any) -> None
     e1 = found[rid(E1)]
     assert (e1["schema"], e1["datasets"]) == ("Company", ["icij_offshore_leaks"])
     assert e1["properties"] == {
-        "name": ["Synthetic Entity One Ltd"],
-        "alias": ["Synthetic Entity Four Corp"],
-        "previousName": ["Synthetic Entity One Former Ltd"],
+        "name": ["Myrtle Leat Formations Ltd"],
+        "alias": ["Tansy Strand Supplies Ltd"],
+        "previousName": ["Tansy Tarn Ventures Limited"],
         "jurisdiction": ["vg"],  # from the description, never the code column
         "country": ["gb", "vg"],
         "incorporationDate": ["2006-05-22"],

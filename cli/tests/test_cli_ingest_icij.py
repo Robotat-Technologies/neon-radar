@@ -15,9 +15,8 @@ from neonradar_ingest.data.project import REPO_ROOT
 
 runner = CliRunner()
 MEMBERS = {
-    "nodes-entities.csv": "node_id,name,note\n9920000001,Synthetic Entity One Ltd,SYN\n",
-    "nodes-officers.csv": "node_id,name\n"
-    "9930000001,Synthetic Officer Alpha\n9930000002,Synthetic Officer Beta\n",
+    "nodes-entities.csv": "node_id,name,note\n9920000001,Myrtle Leat Formations Ltd,SYN\n",
+    "nodes-officers.csv": "node_id,name\n9930000001,Zafer Velqasimi\n9930000002,Yazan Zubeirono\n",
     "nodes-intermediaries.csv": "node_id,name\n",
     "nodes-others.csv": "node_id,name\n",
     "nodes-addresses.csv": 'node_id,name,address\n9910000001,,"1 Synthetic Row, QQ1 1AA"\n',
@@ -51,7 +50,7 @@ def test_ingest_build_icij_writes_a_counts_only_summary(data_env: Any) -> None:
     data_env.allow_real("icij-cli")
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
-    assert "Synthetic" not in result.output
+    assert "Myrtle" not in result.output and "Velqasimi" not in result.output
     report = json.loads(next((data_env.cache / "reports" / "icij-cli").iterdir()).read_text())
     counts = report["datasets"]["icij_offshore_leaks"]
     assert counts["status"] == "ok" and counts["mode"] == "district-linked"

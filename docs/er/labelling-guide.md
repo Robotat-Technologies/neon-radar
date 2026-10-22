@@ -58,7 +58,7 @@ This is how the authorities that publish the lists ask people to treat a match: 
 
 ## Common traps
 
-Each trap has a worked example below; all of them come from the synthetic benchmark.
+Every trap except the name change has a worked example below, from the synthetic benchmark.
 
 | Trap | What to do | Examples |
 |---|---|---|
@@ -69,7 +69,7 @@ Each trap has a worked example below; all of them come from the synthetic benchm
 | **Typos.** One or two letters wrong in one word | Compatible, when the rest of the name and a tie agree | [9](#example-9-one-company-number-a-typo-and-a-legal-form) |
 | **Moved addresses.** A person's service address changes over time, and one source shows an old one | A different postcode is weak evidence against; a role in the same company or another tie can still decide `same` | [1](#example-1-one-arabic-name-two-latin-spellings), [5](#example-5-a-moved-address) |
 | **Near twins.** A different person with the same name, birth year or month and sometimes the same district | Look for a conflict (a different middle name, a different birth month) or a tie; without either, answer `unsure` | [6](#example-6-near-twins-with-different-middle-names), [7](#example-7-same-name-same-month-nothing-else), [8](#example-8-two-companies-with-the-same-name-core) |
-| **Legal forms.** Ltd, Limited, LTD., & and "and", a leading "The" | Spellings of one legal form are compatible. Two different legal forms (an LLP and a PLC) are two different entities | [8](#example-8-two-companies-with-the-same-name-core), [9](#example-9-one-company-number-a-typo-and-a-legal-form) |
+| **Legal forms.** Ltd, Limited, LTD., & and "and", a leading "The" | Spellings of one legal form are compatible. Different legal forms (an LLP and a PLC) point to two entities, unless the same company number ties the records together | [8](#example-8-two-companies-with-the-same-name-core), [9](#example-9-one-company-number-a-typo-and-a-legal-form) |
 | **Parent and subsidiary.** An owner and the company it owns, often with similar names | Two legal entities: `different` | [10](#example-10-a-parent-and-the-company-it-owns) |
 | **A name change.** A company's former and current names | One entity, if the company number or another tie agrees | [below](#a-name-change) |
 
@@ -86,7 +86,7 @@ Answer `unsure` when, after reading both cards completely:
 
 A record that gives only a name is the common case. The benchmark's leak-style record `syn-erb-r-5e3efc8464e109f8` gives one name string, "MAKSIM ARSENYEVICH BRAKESBER", and nothing else; the officer record `syn-erb-r-daffb111ff31d33b` gives "BRAKESBER, Maksim Arsenyevich", born June 1992, Russian, at QQ40 2BY. The names agree in full, but a name alone does not establish identity [icij_faq] [ofsi_general_guidance_2026], so the right answer for this pair is `unsure`, even though the benchmark's answer key says both records belong to one invented person. Your label describes what the cards show, not what you suspect.
 
-Do not answer `unsure` to save time, because a case feels hard when the steps above decide it, or because a name is unfamiliar to you. Every `unsure` has a cost ([PHASE-2.md](../build/PHASE-2.md) 7.3 rule 3):
+Do not answer `unsure` to save time, when a case feels hard but the steps above decide it, or because a name is unfamiliar to you. Every `unsure` has a cost ([PHASE-2.md](../build/PHASE-2.md) 7.3 rule 3):
 
 - It is left out of the headline precision, which is computed over `same` and `different` labels only.
 - The report also publishes the precision as if every `unsure` pair were wrong, k / (n + u). Each `unsure` lowers that published bound.

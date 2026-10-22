@@ -53,7 +53,7 @@ def read_statements(path: Path, numbers: set[str]) -> dict[str, list[str]] | Non
     """The `statement` table of `corporate_pscs.sqlite` for `numbers`, or None when absent."""
     if not path.is_file():
         return None
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection = sqlite3.connect(path.absolute().as_uri() + "?mode=ro", uri=True)
     try:
         values: dict[str, set[str]] = {}
         for number, value in connection.execute("SELECT company_number, value FROM statement"):
@@ -169,6 +169,9 @@ def write_companies(
                 number = row["CompanyNumber"].strip()
                 if number not in numbers or number in written:
                     writer.stats["duplicate_numbers"] += number in written
+                    continue
+                if bulk.text(row["CompanyName"]) is None:
+                    writer.stats["rows_without_name"] += 1  # a Company needs a name (R3)
                     continue
                 written.add(number)
                 handle.write(json.dumps(writer.company(row), ensure_ascii=False) + "\n")

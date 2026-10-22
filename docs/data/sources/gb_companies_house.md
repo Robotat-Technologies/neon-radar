@@ -39,7 +39,8 @@ number of fields are skipped and counted; strict UTF-8 (a mis-encoded release st
 build with the part's name); only complete HTML character references are decoded, so
 `A&B LIMITED` stays as it is; `dd/mm/yyyy` dates are parsed strictly and other values are
 dropped and counted; an address field holding only punctuation, digits or a bare outward
-postcode counts as missing.
+postcode counts as missing (so a foreign numeric postcode or a number-only PO box is not
+loaded).
 
 ## The slice
 
@@ -55,15 +56,16 @@ A profile's `companies` block (PHASE-2.md 7.8) decides which companies become re
 The same snapshot and seed give the same `slice.csv`; the summary prints its SHA-256
 (`slice_sha256`), the count per reason, district and level, how many the cap removed, and
 `top10_address_share`, the share of slice companies registered at one of the ten most common
-addresses (a number only). A high share means a few formation-agent addresses dominate the
-slice.
+addresses (a number only). A high share means a few addresses (often those of formation agents)
+dominate the slice.
 
 ## Overseas companies
 
 The jurisdiction is `gb`, except for numbers with these prefixes, whose jurisdiction is the
 country of origin (`neonradar_keys.countries.country_code`; a value that does not map is
-counted and left empty). Meanings from the Companies House URI customer guide (May 2012,
-note 2.6 source B16) and, for `OE`, the community sources of note 2.6:
+counted and left empty). Meanings from the Companies House URI customer guide (v1.1, May
+2012, note 2.6 source B16, read on 22 October 2026) and, for `OE`, the community sources of
+note 2.6:
 
 | Prefix | Meaning |
 |---|---|
@@ -74,8 +76,9 @@ note 2.6 source B16) and, for `OE`, the community sources of note 2.6:
 
 ## Personal data
 
-The PSC and officer products (M2.3b, M2.3c) hold names, months of birth and nationalities. Companies House's personal information charter says
-that organisations using register data "then become controllers of your personal data" and
-"must establish how they comply with the data protection law" (note 10, source B12). Every
-real run therefore passes the real-data gate (`docs/data/real-data-handling.md`), keeps its
-files under `data/cache/real/` for `access.real_data_days`, and prints counts only.
+The PSC and officer products (M2.3b, M2.3c) hold names, months of birth and nationalities.
+Companies House's personal information charter says that organisations using register data
+"then become controllers of your personal data" and "must establish how they comply with the
+data protection law" (note 10, source B12). Every real run therefore passes the real-data gate
+(`docs/data/real-data-handling.md`), keeps its files under `data/cache/real/` for
+`access.real_data_days`, and prints counts only.

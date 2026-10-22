@@ -97,12 +97,16 @@ def companies_download() -> tuple[str, list[Path], list[str]]:
     if not complete:
         raise StepInputMissing(
             f"{bulk.DATASET}: no complete download of the {bulk.PRODUCT} product; run"
-            f" neonradar data fetch --dataset {bulk.DATASET} first",
+            f" neonradar data fetch --profile <profile> --dataset {bulk.DATASET} first",
             "input",
             counts_only=True,
         )
     version, record = max(complete, key=lambda item: item[0])
-    files = [entry for entry in record.get("files", []) if entry.get("product") == bulk.PRODUCT]
+    files = [
+        entry
+        for entry in record.get("files", [])
+        if entry.get("product") == bulk.PRODUCT and bulk.PART_RE.fullmatch(str(entry.get("name")))
+    ]
     folder = layout.sources_dir(bulk.DATASET, bulk.PRODUCT, version)
     parts = sorted((folder / entry["name"] for entry in files), key=bulk.part_number)
     return version, parts, [str(entry.get("url", "")) for entry in files]

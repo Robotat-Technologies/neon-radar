@@ -8,6 +8,7 @@ number has, `QQ` postcodes and test names. Nothing is committed as a file (2.9).
 import csv
 import io
 import json
+import re
 import sqlite3
 import zipfile
 from collections.abc import Sequence
@@ -28,6 +29,7 @@ from neonradar_ingest.data.sources import BuildError
 from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.companies_house import build as ch_build
 from neonradar_ingest.sources.companies_house import bulk
+from neonradar_ingest.sources.companies_house import records as records_module
 from neonradar_keys.addresses import address_key
 
 HEADER = (
@@ -133,6 +135,8 @@ def test_a_missing_column_stops_the_build_with_its_name(tmp_path: Path) -> None:
     header = HEADER.replace("CountryOfOrigin,", "")
     with pytest.raises(BuildError, match="column CountryOfOrigin is missing") as stopped:
         rows_of(tmp_path, csv_bytes([], header=header))
+    with pytest.raises(BuildError, match="no header line"):
+        rows_of(tmp_path, b"")
     assert stopped.value.counts_only
 
 
@@ -155,7 +159,7 @@ def test_a_mis_encoded_byte_stops_the_build_with_the_part_name(tmp_path: Path) -
 def test_only_complete_html_references_are_decoded() -> None:
     assert bulk.text("TEST&#032;HOLDER&#039;S &AMP; CO LTD") == "TEST HOLDER'S & CO LTD"
     assert bulk.text("TEST &#x1F4A9; LTD") == "TEST \U0001f4a9 LTD"
-    assert bulk.text("A&B LIMITED") == "A&B LIMITED"
+    assert bulk.text("TEST A&B LTD") == "TEST A&B LTD"
     assert bulk.text("A&B; &#39") == "A&B; &#39"  # `&B;` is not a reference; `&#39` is cut
 
 
@@ -183,7 +187,11 @@ def test_discover_takes_the_newest_snapshot_with_every_part() -> None:
         "BasicCompanyData-2026-11-01-part1_3.zip",
         "BasicCompanyDataAsOneFile-2026-10-01.zip",
     ]
-    page = "".join(f'<a href="{name}">{name}</a>' for name in names)  # fmt: skip
+    elsewhere = [  # a complete newer set, but not on the download host over https: ignored
+        "https://elsewhere.example/BasicCompanyData-2026-12-01-part1_1.zip",
+        "http://download.companieshouse.gov.uk/BasicCompanyData-2026-12-01-part1_1.zip",
+    ]
+    page = "".join(f'<a href="{name}">{name}</a>' for name in names + elsewhere)
 
     def answer(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == bulk.PAGE_URL
@@ -261,7 +269,7 @@ def test_company_and_address_records(data_env: Any) -> None:
             company("T0000001", CompanyName="TEST&#032;HOLDER LTD", **shared,
                     **{"PreviousName_1.CompanyName": "OLD &AMP; TEST LTD",
                        "SICCode.SicText_2": "None Supplied", "DissolutionDate": "31/02/2020"}),
-            company("T0000002", "qq1  1aa", CompanyName="A&B LIMITED", **shared,
+            company("T0000002", "qq1  1aa", CompanyName="TEST A&B LTD", **shared,
                     **{"RegAddress.Country": "UNITED KINGDOM", "RegAddress.AddressLine2": "."}),
             company("FCT00001", "", CountryOfOrigin="FRANCE",
                     **{"RegAddress.AddressLine1": "-", "RegAddress.PostTown": ""}),
@@ -291,7 +299,7 @@ def test_company_and_address_records(data_env: Any) -> None:
         "no-individual-or-entity-with-signficant-control",
         "psc-exists-but-not-identified",
     ]
-    assert found["gbch-co-T0000002"]["properties"]["name"] == ["A&B LIMITED"]
+    assert found["gbch-co-T0000002"]["properties"]["name"] == ["TEST A&B LTD"]
     # One Address for the two offices with the same key; its full text gives that key back.
     addresses = [r for r in found.values() if r["schema"] == "Address"]
     office = first["properties"]["addressEntity"]
@@ -299,6 +307,7 @@ def test_company_and_address_records(data_env: Any) -> None:
     assert first["nr"]["address_roles"] == {office[0]: "registered"}
     shared_office = found[office[0]]["properties"]
     assert address_key(shared_office["full"][0]) == "QQ1 1AA|1 TEST STREET TESTTOWN"
+    assert office[0] == records_module.address_id(address_key(shared_office["full"][0]) or "")
     assert shared_office["postalCode"] == ["QQ1 1AA"] and shared_office["country"] == ["gb"]
     assert len(addresses) == 1  # the FC office has no key: no street line, no postcode
     jurisdictions = {rid: r["properties"].get("jurisdiction") for rid, r in found.items()}
@@ -355,4 +364,20 @@ def test_ingest_build_emits_a_counts_only_summary(data_env: Any) -> None:
     assert ch["slice"]["by_reason"] == {"seed": 1, "district": 1, "parent": 0, "child": 0}
     assert ch["slice"]["seeds_missing_from_index"] == 1 and len(ch["slice_sha256"]) == 64
     assert ch["companies"]["records"] == {"company": 1, "address": 1}
-    assert "TEST" not in json.dumps(summary)
+    for text in (json.dumps(summary), result.output):
+        assert "TEST" not in text and "QQ" not in text
+        assert not re.search(r"(?<![0-9])T000000[1-3]", text)
+
+
+def test_a_failed_real_build_prints_the_rule_and_the_part_only(data_env: Any) -> None:
+    from neonradar_cli.main import app
+
+    profile(data_env)
+    data = csv_bytes([company("T0000001", CompanyName="TEST HOLDER LTD")])
+    download(data.replace(b"HOLDER", b"HOLD\xe9R"))
+    data_env.allow_real("ch-test")
+    command = ["ingest", "build", "--profile", "ch-test", "--dataset", DATASET]
+    result = CliRunner().invoke(app, command)
+    assert result.exit_code == 1
+    assert "rule encoding" in result.output and "part1_1.zip: not valid UTF-8" in result.output
+    assert "TEST" not in result.output and "T0000001" not in result.output

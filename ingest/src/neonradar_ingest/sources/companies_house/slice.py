@@ -14,7 +14,10 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from neonradar_ingest.sources.companies_house.build import CompaniesBlock
 
 REASONS = ("seed", "district", "parent", "child")  # which reason a company reached twice keeps
 FILE_ORDER = ("seed", "parent", "child", "district")  # the order of slice.csv (M2.3c)
@@ -80,11 +83,11 @@ def read(path: Path) -> list[tuple[str, str, int]]:
 
 
 def build_slice(
-    index: Path, block: Any, path: Path, expansion: Iterable[Member] = ()
+    index: Path, block: CompaniesBlock, path: Path, expansion: Iterable[Member] = ()
 ) -> tuple[dict[str, Any], str]:
     """The `slice` step from the `index` and the profile's `companies` block: counts, SHA-256."""
     seed = block.sample_seed
-    connection = sqlite3.connect(f"file:{index}?mode=ro", uri=True)
+    connection = sqlite3.connect(index.absolute().as_uri() + "?mode=ro", uri=True)
     try:
         members = [Member(n, "seed", 0, sample_hash(seed, n)) for n in block.seeds]
         missing = sum(

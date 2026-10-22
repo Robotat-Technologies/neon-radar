@@ -19,7 +19,7 @@ from collections import Counter
 from collections.abc import Iterator, Sequence
 from datetime import date
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from neonradar_ingest.data.download import DownloadError
 from neonradar_ingest.data.sources import BuildError, RemoteFile, SourceSpec, register_source
@@ -29,6 +29,7 @@ from neonradar_keys.postcodes import normalise_uk_postcode, postcode_parts
 DATASET = "gb_companies_house"
 PRODUCT = "companies"
 PAGE_URL = "https://download.companieshouse.gov.uk/en_output.html"
+HOST = "download.companieshouse.gov.uk"  # parts listed anywhere else are ignored
 PART_RE = re.compile(r"BasicCompanyData-(\d{4}-\d{2}-\d{2})-part(\d+)_(\d+)\.zip\Z")
 HREF_RE = re.compile(r"""href\s*=\s*["']([^"'#?]+)["']""", re.IGNORECASE)
 REFERENCE_RE = re.compile(r"&(?:#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});")
@@ -73,9 +74,11 @@ def discover(client: HttpClient) -> list[RemoteFile]:
     found: dict[str, dict[int, tuple[int, str]]] = {}
     for href in HREF_RE.findall(response.text):
         name = href.rsplit("/", 1)[-1]
-        if match := PART_RE.fullmatch(name):
+        url = urljoin(PAGE_URL, href)
+        where = urlsplit(url)
+        if (match := PART_RE.fullmatch(name)) and (where.scheme, where.hostname) == ("https", HOST):
             when, part, of = match[1], int(match[2]), int(match[3])
-            found.setdefault(when, {})[part] = (of, urljoin(str(response.url), href))
+            found.setdefault(when, {})[part] = (of, url)
     for when in sorted(found, reverse=True):
         parts = found[when]
         totals = {of for of, _ in parts.values()}
@@ -114,7 +117,7 @@ def _rows(reader: Iterator[list[str]], part: str, stats: Counter[str], columns: 
           ) -> Iterator[Row]:  # fmt: skip
     header = [cell.strip() for cell in next(reader, [])]
     if not header:
-        return
+        raise BuildError(f"{part}: no header line", "header", counts_only=True)
     where = {name: i for i, name in reversed(list(enumerate(header)))}
     missing = [name for name in COLUMNS if name not in where]
     if missing:
@@ -202,8 +205,11 @@ def build_index(parts: Sequence[Path], path: Path) -> dict[str, int]:
         connection.execute("CREATE INDEX company_district ON company(district)")
         indexed = connection.execute("SELECT count(*) FROM company").fetchone()[0]
         connection.commit()
-    finally:
+    except BaseException:
         connection.close()
+        temporary.unlink(missing_ok=True)  # it holds the rows read so far
+        raise
+    connection.close()
     temporary.replace(path)
     counts = {"parts": len(parts), "companies_indexed": indexed}
     counts["duplicate_numbers"] = stats["rows_read"] - stats["rows_without_number"] - indexed

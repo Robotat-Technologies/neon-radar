@@ -86,11 +86,12 @@ def test_every_schema_loads_as_the_mapping_says(graph_db: Neo4jTarget) -> None:
         assert source_label in stored["source_labels"]
         assert target_label in stored["target_labels"]  # SUBJECT_OF ends at a :Sanction
         props = dict(stored["props"])
+        wanted = dict(row.props)
         if row.type == "PAID":
             ts = props.pop("ts")
             assert isinstance(ts, DateTime) and ts.utcoffset().total_seconds() == 0
-            assert ts.iso_format().startswith(row.ts.removesuffix("Z"))  # type: ignore[union-attr]
-        assert props == row.props
+            assert ts.to_native() == wanted.pop("ts")  # a DATETIME in UTC (I3)
+        assert props == wanted
 
 
 def test_loading_demo_mini_twice_changes_nothing(graph_db: Neo4jTarget) -> None:
@@ -108,18 +109,20 @@ def test_loading_demo_mini_twice_changes_nothing(graph_db: Neo4jTarget) -> None:
 
 
 def test_a_reload_follows_the_changed_record(graph_db: Neo4jTarget) -> None:
+    # Phase 1 used a gb_companies_house look-alike with role.pep.natl here; the default instance
+    # now refuses non-synthetic records (C2 L17), and test_mapping.py covers PEP sub-topics.
     records = fixture()
-    person = record("gbch-p-1", "Person", name="Zoe Example", topics=["role.pep.natl"])
+    person = record("syn-p-0091", "Person", name="Zoe Example", topics=["role.pep"])
     load_records(graph_db.driver, [*records.values(), person], database=graph_db.database)
     labels = "MATCH (n:Entity {id: $id}) RETURN labels(n) AS labels, n.topics AS topics"
-    assert "PEP" in query(graph_db, labels, id="gbch-p-1")[0]["labels"]
+    assert "PEP" in query(graph_db, labels, id="syn-p-0091")[0]["labels"]
     # The source drops the topic, and an Ownership changes its owner and its asset.
     person["properties"]["topics"] = []
     owns = records["syn-ownership-0001"]
     old_ends = (owns["properties"]["owner"], owns["properties"]["asset"])
     owns["properties"]["owner"], owns["properties"]["asset"] = ["syn-p-0002"], ["syn-co-0002"]
     report = load_records(graph_db.driver, [*records.values(), person], database=graph_db.database)
-    (stored,) = query(graph_db, labels, id="gbch-p-1")
+    (stored,) = query(graph_db, labels, id="syn-p-0091")
     assert "PEP" not in stored["labels"] and stored["topics"] == []
     assert report.written["labels_removed"] == 1
     assert report.written["relationships_deleted"] == report.written["relationships_created"] == 1

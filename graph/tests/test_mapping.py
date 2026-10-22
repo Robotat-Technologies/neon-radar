@@ -1,6 +1,7 @@
 """C1 records to C2 rows (neonradar_graph.mapping). Records built here are C1-shaped; the
 committed fixture is synthetic and valid in strict mode."""
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from neonradar_graph.mapping import (
     to_node_rows,
     to_relationship_rows,
 )
+from neonradar_keys.addresses import address_key
+from neonradar_keys.names import latin_forms
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mapping" / "all-schemata.ftm.jsonl"
 RECORDS = list(iter_records(FIXTURE))
@@ -84,6 +87,11 @@ def test_company_node_has_common_and_specific_properties() -> None:
         "jurisdiction": "gb",
         "legal_form": "Private limited company",
         "incorporation_date": "2019-04-02",
+        # C2 1.1.0, computed by the loader (L15): a single-record entity
+        "cluster_size": 1,
+        "resolution": "identity",
+        "names_latin": [],
+        "names_latin_text": "",
     }
     assert company.as_param() == {
         "id": "syn-co-0001",
@@ -108,7 +116,8 @@ def test_person_address_account_position_and_sanction_nodes() -> None:
     assert address.labels == ("Entity", "Address")
     assert address.props["names"] == [address.props["full"]]
     assert address.props["postal_code"] == "EX1 2MP"
-    assert "address_key" not in address.props  # Phase 2
+    assert address.props["address_key"] == address_key(address.props["full"])  # L15
+    assert yara.props["names_latin"] == [latin for latin in latin_forms(["يارا"])]
     account = rows["syn-acct-0001"]
     assert account.labels == ("Entity", "Account")
     assert account.props["caption"] == "NRSYN0000000001"
@@ -250,7 +259,6 @@ def test_holds_account_wins_over_consolidation() -> None:
 def test_paid_goes_from_account_to_account_with_a_utc_ts() -> None:
     paid = by_id(relationships())["syn-payment-000001"]
     assert (paid.type, paid.source, paid.target) == ("PAID", "syn-acct-0001", "syn-acct-0002")
-    assert paid.ts == "2026-03-14T10:22:05Z"
     assert paid.props == {
         "id": "syn-payment-000001",
         "datasets": ["nr_synthetic"],
@@ -259,8 +267,10 @@ def test_paid_goes_from_account_to_account_with_a_utc_ts() -> None:
         "currency": "EUR",
         "channel": "wire",
         "purpose": "Invoice 17",
+        "ts": datetime(2026, 3, 14, 10, 22, 5, tzinfo=UTC),  # a DATETIME in Neo4j (M2.11)
     }
-    assert paid.as_param()["ts"] == "2026-03-14T10:22:05Z"
+    assert paid.props["ts"].utcoffset() == timedelta(0)
+    assert paid.as_param()["props"]["ts"] is paid.props["ts"]
     assert "payer" not in str(paid.props)  # C2 v1 keeps no payer or beneficiary on PAID
 
 
@@ -317,7 +327,7 @@ def test_edge_schemata(
 ) -> None:
     (row,) = [r for r in relationships().rows if r.id == f"syn-{schema.lower()}-0001"]
     assert (row.type, row.source, row.target, row.props[prop]) == (type_, source, target, value)
-    assert row.ts is None
+    assert "ts" not in row.props
 
 
 def test_real_records_are_not_synthetic_and_flags_follow_topics() -> None:

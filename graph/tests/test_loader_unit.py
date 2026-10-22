@@ -2,17 +2,14 @@
 batching. The database side is in test_loader.py (integration)."""
 
 import copy
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from neonradar_contracts.graph import FLAG_LABELS, NODE_MAPPINGS
+from neonradar_contracts.graph import FLAG_LABELS
 from neonradar_contracts.records import iter_records
-from neonradar_graph import loader
+from neonradar_graph import cypher, loader
 from neonradar_graph.loader import (
     LoadError,
     LoadRefused,
@@ -22,12 +19,9 @@ from neonradar_graph.loader import (
     node_query,
     plan_load,
     read_records,
-    relationship_query,
 )
-from neonradar_graph.mapping import RelationshipRow
-from neonradar_graph.migrate import discover
 
-from .conftest import record
+from .conftest import FakeDriver, record
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mapping" / "all-schemata.ftm.jsonl"
 
@@ -79,39 +73,25 @@ def test_node_queries_take_labels_from_the_mapping() -> None:
     assert "SET n:LegalEntity" not in sanction and "SET n += row.props" in sanction
 
 
-def test_relationship_queries_match_ends_on_the_key_label_and_check_the_c2_label() -> None:
-    paid = relationship_query(RelationshipRow("PAID", "x", "a", "b", {}, "2026-03-14T10:22:05Z"))
-    seek = "USING INDEX SEEK"
-    assert (
-        f"OPTIONAL MATCH (s:Entity {{id: row.source}}) {seek} s:Entity(id) WHERE s:Account" in paid
+def test_relationship_queries_come_from_the_query_files_with_c2_names_only() -> None:
+    paid = cypher.query("upsert_relationships.cypher", rel_type="PAID", target_label="Entity")
+    assert "OPTIONAL MATCH (s:Entity {id: row.source})" in paid
+    assert "OPTIONAL MATCH (t:Entity {id: row.target})" in paid
+    assert "MERGE (s)-[r:PAID {id: row.id}]->(t)" in paid and "SET r += row.props)" in paid
+    assert "datetime(" not in paid  # PAID.ts arrives as a datetime parameter
+    assert "OPTIONAL MATCH (a)-[old:PAID {id: row.id}]->(b)" in paid  # moved or missing end
+    assert "  WHERE s IS NULL OR t IS NULL OR a <> s OR b <> t" in paid
+    subject = cypher.query(
+        "upsert_relationships.cypher", rel_type="SUBJECT_OF", target_label="Sanction"
     )
-    assert (
-        f"OPTIONAL MATCH (t:Entity {{id: row.target}}) {seek} t:Entity(id) WHERE t:Account" in paid
-    )
-    assert "MERGE (s)-[r:PAID {id: row.id}]->(t)" in paid
-    assert "SET r += row.props, r.ts = datetime(row.ts))" in paid
-    subject = relationship_query(RelationshipRow("SUBJECT_OF", "x", "a", "b", {}))
-    assert f"(s:Entity {{id: row.source}}) {seek} s:Entity(id) WHERE s:Entity" in subject
-    assert f"(t:Sanction {{id: row.target}}) {seek} t:Sanction(id) WHERE t:Sanction" in subject
-    assert "datetime" not in subject
-    assert "DELETE old\n" in paid  # Payment builds only PAID
-    owns = relationship_query(RelationshipRow("OWNS", "x", "a", "b", {}))
-    assert "OPTIONAL MATCH (a)-[old:OWNS {id: row.id}]->(b)" in owns
-    assert "  WHERE s IS NULL OR t IS NULL OR a <> s OR b <> t" in owns  # moved or missing end
-    for n, other in enumerate(["HOLDS_ACCOUNT", "CONSOLIDATES"]):  # the other Ownership types
-        assert f"OPTIONAL MATCH ()-[o{n}:{other} {{id: row.id}}]->()" in owns
-    assert "DELETE old, o0, o1\n" in owns
-
-
-@pytest.mark.parametrize("name", ["Company`) DETACH DELETE n //", "company", "", "UNKNOWN"])
-def test_a_name_that_is_not_an_identifier_never_reaches_query_text(
-    monkeypatch: pytest.MonkeyPatch, name: str
-) -> None:
-    monkeypatch.setitem(NODE_MAPPINGS, "Company", SimpleNamespace(labels=("Entity", name)))
-    with pytest.raises(ValueError, match="not a label name"):
-        node_query("Company")
-    with pytest.raises(ValueError, match="not a relationship type name"):
-        relationship_query(RelationshipRow(name or "x", "x", "a", "b", {}))
+    assert "OPTIONAL MATCH (t:Sanction {id: row.target})" in subject
+    owns = cypher.query("upsert_relationships_resolving.cypher", rel_type="OWNS")
+    assert "WHERE $labels.source IN labels(direct)" in owns  # the C2 label, as a parameter
+    assert "(:SourceRecord {id: row.target})-[:RESOLVED_TO]->(via:Entity)" in owns
+    assert "{{" not in owns and not owns.endswith(";")
+    moved = cypher.query("delete_relationships.cypher", rel_type="CONSOLIDATES")
+    assert "MATCH ()-[old:CONSOLIDATES {id: id}]->()" in moved
+    assert loader.SIBLING_TYPES["OWNS"] == ("HOLDS_ACCOUNT", "CONSOLIDATES")
 
 
 def test_a_strict_plan_refuses_c1_issues_and_mapping_issues() -> None:
@@ -159,28 +139,6 @@ def test_a_non_strict_plan_drops_an_account_whose_holding_was_skipped() -> None:
     assert [(i.rule, i.record_id) for i in plan.rejected] == [("R8", account)]
 
 
-class FakeDriver:
-    """Records each query; answers the migration check and returns no dangling rows."""
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, list[dict[str, Any]]]] = []
-
-    @contextmanager
-    def session(self, **kwargs: Any) -> Iterator[Any]:
-        yield SimpleNamespace(run=lambda query: [{"id": m.id} for m in discover()])
-
-    def execute_query(self, query: str, rows: list[dict[str, Any]], database_: str) -> Any:
-        self.calls.append((query, rows))
-        counters = SimpleNamespace(
-            nodes_created=len(rows) if "MERGE (n:" in query else 0,
-            relationships_created=0,
-            relationships_deleted=0,
-            labels_added=0,
-            labels_removed=0,
-        )
-        return [], SimpleNamespace(counters=counters), []
-
-
 def test_rows_go_in_batches_as_parameters_and_never_into_query_text() -> None:
     records = fixture()
     odd = "x}) DETACH DELETE n //"
@@ -192,17 +150,19 @@ def test_rows_go_in_batches_as_parameters_and_never_into_query_text() -> None:
         records[own] = record(own, "Ownership", owner="syn-co-0001", asset=rid)
     driver = FakeDriver()
     report = load_records(driver, list(records.values()), batch_size=2)  # type: ignore[arg-type]
-    queries = [query for query, _ in driver.calls]
+    queries = driver.queries
     assert all(odd not in query for query in queries)
-    accounts = [rows for query, rows in driver.calls if "SET n:Account" in query]
+    accounts = [params["rows"] for query, params, _ in driver.calls if "SET n:Account" in query]
     assert [len(rows) for rows in accounts] == [2, 2, 2, 1]
     assert report.nodes_by_label["Account"] == 7
     assert report.written["nodes_created"] == sum(
         report.nodes_by_label[k] for k in ("Entity", "Sanction")
     )
     assert report.relationships_by_type["HOLDS_ACCOUNT"] == 7
-    first_relationship = next(i for i, query in enumerate(queries) if "-[r:" in query)
-    assert all("MERGE (n:" in query for query in queries[:first_relationship])  # nodes first
+    first_relationship = next(i for i, query in enumerate(queries) if "]->" in query)
+    nodes_first = queries[1:first_relationship]  # after the migration check
+    assert nodes_first and all("MERGE (n:" in query for query in nodes_first)
+    assert {database for _, _, database in driver.calls} == {"neo4j"}
     assert loader.BATCH_SIZE == 5_000
 
 

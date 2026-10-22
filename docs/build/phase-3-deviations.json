@@ -6,8 +6,8 @@
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included)",
-    "sha256": "65d58cb6ab8c6a8819552f8495a5854cc7d60db9543abbb925d5a791e33b7b07"
+    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links), and label_payment and label refuse anything the scenario did not make (relationships included); created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review)",
+    "sha256": "e777862c6f2e165c56f120312ff1c8b5bc74831490023a427a05501a7a8aaefb"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",

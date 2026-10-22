@@ -5,8 +5,8 @@ from datetime import UTC, date, datetime
 import pytest
 from names_simple import SimpleNames
 
-from neonradar_ingest.synth import overlay
-from neonradar_ingest.synth.ctx import Ctx, ScenarioCtx
+from neonradar_ingest.synth import overlay, world
+from neonradar_ingest.synth.ctx import RELATIONSHIP_SCHEMAS, Ctx, ScenarioCtx
 from neonradar_ingest.synth.dates import Period
 
 BASE_ORG = "gbch-co-T0000501"
@@ -49,3 +49,49 @@ def test_the_bridge_needs_an_eligible_holder_and_never_a_base_account() -> None:
     named = {**pay, "properties": {**pay["properties"], "beneficiaryAccount": [BASE_ORG]}}
     with pytest.raises(ValueError, match="base record as an account"):
         overlay.check_bridge([named], {BASE_ORG}, ctx.base_accounts, {BASE_ORG})
+
+
+def test_owned_payments_and_relationships_move_no_scenario_draw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Independent review of #72: `created` holds what the code book puts there (entities,
+    accounts, addresses, positions), and the payments and relationships a scenario owns live
+    in `links`, so cash_commingling, which keys a stream on `len(s.created)`, draws the same
+    incorporation and opening dates however many it owns."""
+    made: list[ScenarioCtx] = []
+
+    class Recording(ScenarioCtx):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+            made.append(self)
+
+    monkeypatch.setattr(overlay, "ScenarioCtx", Recording)
+    small = world.WorldConfig(companies=40, people=60, agent_every=20, professional_every=20)
+    base = world.generate(5, small, SimpleNames())
+    config = overlay.OverlayConfig(5, illicit=2, lookalikes=2, typologies=("cash_commingling",))
+
+    def dates() -> dict[str, list[str]]:
+        records = overlay.generate(base, {"nr_synthetic": "synthetic"}, config, SimpleNames())
+        keep = {"Company": "incorporationDate", "BankAccount": "openingDate"}
+        return {
+            r["id"]: r["properties"][keep[r["schema"]]]
+            for r in records.other_records.values()
+            if r["schema"] in keep
+        }
+
+    first = dates()
+    assert len(made) == 4
+    for s in made:
+        assert s.links and s.links.isdisjoint(s.created)
+        for rid in s.created:
+            assert rid not in s.ctx.payments
+            assert s.ctx.records[rid]["schema"] not in RELATIONSHIP_SCHEMAS
+    real_pay = ScenarioCtx.pay
+
+    def padded_pay(self: ScenarioCtx, *args: object, **kwargs: object) -> str:
+        rid = real_pay(self, *args, **kwargs)  # type: ignore[arg-type]
+        self.links.update(f"pad-{len(self.links)}-{n}" for n in range(3))  # owns many more
+        return rid
+
+    monkeypatch.setattr(ScenarioCtx, "pay", padded_pay)
+    assert dates() == first

@@ -88,7 +88,6 @@ def _window(
     """`--window`, else the profile's `detection.window`, else the PAID time range (whole days);
     the flag is False when there is nothing to read a window from."""
     from neonradar_detect import runs
-    from neonradar_detect.source import Window
 
     if given:
         return runs.window_of(given[0], given[1]), True
@@ -97,10 +96,7 @@ def _window(
         if overlay is None:
             raise runs.RunError("detection.window is overlay, but the profile has no overlay")
         return runs.overlay_window(overlay / "overlay.json"), True
-    found = source.paid_time_range()
-    if found is None:  # a registry-only graph: registry detectors read the state as of now
-        return Window(runs.EPOCH, runs.now_utc().replace(microsecond=0)), False
-    return runs.day_window(*found), True
+    return runs.data_window(source)
 
 
 def _params(

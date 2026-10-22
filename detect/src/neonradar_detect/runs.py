@@ -28,6 +28,7 @@ import secrets
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
+from functools import partial
 from importlib import resources
 from pathlib import Path
 from types import ModuleType
@@ -124,6 +125,15 @@ def day_window(first: datetime, last: datetime) -> Window:
     start = datetime.combine(first.astimezone(UTC).date(), datetime.min.time(), UTC)
     end = datetime.combine(last.astimezone(UTC).date(), datetime.min.time(), UTC)
     return Window(start, end + timedelta(days=1))
+
+
+def data_window(source: Source, now: datetime | None = None) -> tuple[Window, bool]:
+    """The PAID time range in whole days, and True; on a graph without payments (registry
+    only), the time up to `now` and False, so the run records no window (C2 1.2.0)."""
+    found = source.paid_time_range()
+    if found is None:
+        return Window(EPOCH, (now or now_utc()).replace(microsecond=0)), False
+    return day_window(*found), True
 
 
 def overlay_window(overlay_json: Path) -> Window:
@@ -428,6 +438,45 @@ def _fail(
             load(record)
         except (DriverError, Neo4jError, RunError) as store_error:
             logger.warning("could not record the failed run %s: %s", record.run_id, store_error)
+
+
+def detect_on_graph(
+    driver: Driver,
+    database: str,
+    *,
+    typologies: Iterable[str] | None = None,
+    run_id: str | None = None,
+    runs_dir: Path | None = None,
+    keep_previous: bool = False,
+    real_registry_alerts: bool = False,
+    timeout_s: float = 600.0,
+) -> RunRecord:
+    """A run on Neo4j with the catalog's defaults over the PAID time range, then the L19 load:
+    what `neonradar detect run` does without a profile, with Phase 1's call shape (tests)."""
+    from neonradar_detect import catalog
+    from neonradar_detect.neo4jsource import Neo4jSource
+
+    cat = catalog.load()
+    chosen = set(typologies) if typologies is not None else None
+    params = {
+        slug: catalog.params_for(cat[slug], module)
+        for slug, module in runner.detectors(cat).items()
+        if chosen is None or slug in chosen
+    }
+    source = Neo4jSource(driver, database, timeout_s=timeout_s)
+    window, known = data_window(source)
+    return run(
+        source,
+        params,
+        window,
+        cat,
+        run_id=run_id or new_run_id(now_utc()),
+        engine="neo4j",
+        runs_dir=runs_dir,
+        window_known=known,
+        real_registry_alerts=real_registry_alerts,
+        load=partial(store, driver, database, keep_previous=keep_previous),
+    )
 
 
 # verify-alert ----------------------------------------------------------------------------------

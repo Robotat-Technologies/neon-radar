@@ -138,3 +138,50 @@ def test_real_profiles_are_refused(data_env: Any) -> None:
     assert synth("world", "--profile", "uk-tiny").exit_code == 2
     assert synth("world", "--profile", "demo").exit_code == 2
     assert not (data_env.cache / "real").exists()
+
+
+def test_a_real_record_in_the_base_stops_the_overlay(data_env: Any, tmp_path: Path) -> None:
+    """B1: a look-alike real record passed with --base: exit 3, nothing written, no id shown."""
+    base, out = tmp_path / "base", tmp_path / "out"
+    base.mkdir()
+    lookalike = {
+        "id": "gbch-co-T0000001",
+        "schema": "Company",
+        "datasets": ["gb_companies_house"],
+        "properties": {"name": ["Test Holding Ltd"], "jurisdiction": ["gb"]},
+    }
+    (base / "test.ftm.jsonl").write_text(json.dumps(lookalike) + "\n", encoding="utf-8")
+    result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", out)
+    assert result.exit_code == 3 and "not synthetic" in result.output
+    assert "T0000001" not in result.output and "Test Holding" not in result.output
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("folder", ["real", "spikes", "holdout", "heldout"])
+def test_protected_folders_are_refused(data_env: Any, tmp_path: Path, folder: str) -> None:
+    """B1 and S10: --base and --out never lie in a protected data/cache folder."""
+    inside = data_env.cache / folder / "x"
+    inside.mkdir(parents=True)
+    result = synth("overlay", "--profile", "synth-demo", "--base", inside, "--out", tmp_path / "o")
+    assert result.exit_code == 3 and "protected" in result.output
+    result = synth("world", "--profile", "synth-demo", "--out", inside)
+    assert result.exit_code == 3 and not list(inside.iterdir())
+    elsewhere = tmp_path / "other" / "data" / "cache" / folder
+    elsewhere.mkdir(parents=True)
+    result = synth("overlay", "--profile", "synth-demo", "--base", elsewhere)
+    assert result.exit_code == 3
+
+
+def test_a_base_made_from_a_holdout_seed_is_refused(
+    data_env: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S10: a base whose manifest names a holdout seed (exit 2, as the seed refusal)."""
+    seeds = tmp_path / "seeds.yaml"
+    seeds.write_text(yaml.safe_dump({"test": {"seeds": [778]}}), encoding="utf-8")
+    monkeypatch.setattr(commands, "SEEDS_FILE", seeds)
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "w.ftm.jsonl").write_text("", encoding="utf-8")
+    (base / "w.manifest.json").write_text(json.dumps({"seed": 778}), encoding="utf-8")
+    result = synth("overlay", "--profile", "synth-demo", "--base", base, "--out", tmp_path / "o")
+    assert result.exit_code == 2 and "holdout seed" in result.output

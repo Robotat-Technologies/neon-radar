@@ -86,6 +86,39 @@ def refuse_holdout(seed: int) -> None:
         )
 
 
+PROTECTED = ("real", "spikes", "holdout", "heldout")  # data/cache/ folders generation never touches
+
+
+def refuse_protected(what: str, path: Path | None) -> None:
+    """Exit 3 when `path` lies in a protected cache folder: real data, spike output, or the
+    holdout and held-out runs (G9, G11), checked before anything is read or written."""
+    if path is None:
+        return
+    resolved = path.resolve()
+    roots = [layout.CACHE_ROOT / name for name in PROTECTED]
+    parts = resolved.parts
+    named = any(
+        parts[i : i + 2] == ("data", "cache") and parts[i + 2] in PROTECTED
+        for i in range(len(parts) - 2)
+    )
+    if named or any(resolved.is_relative_to(root.resolve()) for root in roots):
+        raise SynthError(
+            f"{what} lies in a protected data/cache folder (real data, spike output or the"
+            " holdout runs): synthetic generation never reads or writes there (G9, G11)",
+            3,
+        )
+
+
+def refuse_holdout_base(files: Iterable[Path]) -> None:
+    """Exit 2 when a base file's manifest names a holdout seed (G11)."""
+    holdout = holdout_seeds()
+    for path in files:
+        meta = manifest_path(path)
+        seed = json.loads(meta.read_text(encoding="utf-8")).get("seed") if meta.is_file() else None
+        if isinstance(seed, int) and seed in holdout:
+            refuse_holdout(seed)
+
+
 def _failed(issues: list[RecordIssue]) -> SynthError:
     shown = "\n".join(f"  {issue}" for issue in issues[:SHOWN_ISSUES])
     more = f"\n  ... and {len(issues) - SHOWN_ISSUES} more" if len(issues) > SHOWN_ISSUES else ""
@@ -102,6 +135,7 @@ def _target(folder: Path, name: str) -> Path:
 
 def make_world(profile: Profile, seed: int | None, out: Path | None, *, git_sha: str) -> Written:
     """Generate, validate (R1 to R10, then R4 and R8 strictly) and write a profile's world."""
+    refuse_protected("--out", out)
     block = profile.world
     if profile.real_data or block is None:
         raise SynthError(
@@ -128,15 +162,24 @@ def make_world(profile: Profile, seed: int | None, out: Path | None, *, git_sha:
 class BaseIndex:
     """What the overlay command keeps of the base: ids, never records (L18, R4 and R8)."""
 
+    kinds: dict[str, str] = field(default_factory=dict)
     ids: set[str] = field(default_factory=set)
     legal_entities: set[str] = field(default_factory=set)
     datasets: set[str] = field(default_factory=set)
     records: int = 0
 
     def read(self, files: Iterable[Path]) -> Iterator[dict[str, Any]]:
-        """Stream the records of `files`, line by line, indexing each one."""
+        """Stream the records of `files`, line by line, indexing each one. The base of a
+        synthetic profile holds synthetic records only: the first record of any other dataset
+        kind stops the command (exit 3) before the generator writes anything, naming no id."""
         for path in files:
             for record in iter_records(path):
+                if any(self.kinds.get(d) != "synthetic" for d in record.get("datasets") or [""]):
+                    raise SynthError(
+                        "the base holds a record that is not synthetic: a synthetic profile"
+                        " never reads real records (G9; real profiles come with M3.4)",
+                        3,
+                    )
                 self.records += 1
                 rid = str(record.get("id"))
                 self.ids.add(rid)
@@ -225,6 +268,8 @@ def make_overlay(
         raise SynthError(
             f"profile {profile.profile} is a real profile: its overlay comes with M3.4", 3
         )
+    refuse_protected("--base", base)
+    refuse_protected("--out", out)
     block = profile.overlay
     if block is None or not block.enabled:
         raise SynthError(f"profile {profile.profile} has no enabled overlay block", 2)
@@ -240,10 +285,12 @@ def make_overlay(
     files = sorted(path for folder in folders for path in folder.glob("*.ftm.jsonl"))
     if not files:
         raise SynthError(f"no record files in the base ({', '.join(map(str, folders))})", 2)
+    refuse_holdout_base(files)
     config = block.config(overlay_seed)
     canonical, run_id = _resolution(profile)
-    index = BaseIndex()
-    ov = overlay.generate(index.read(files), dataset_kinds(), config, default_names(), canonical)
+    kinds = dataset_kinds()
+    index = BaseIndex(kinds)
+    ov = overlay.generate(index.read(files), kinds, config, default_names(), canonical)
 
     by_schema = Counter(schema for schema, _ in ov.items())
     issues = validate_lines(text for _, text in ov.items())

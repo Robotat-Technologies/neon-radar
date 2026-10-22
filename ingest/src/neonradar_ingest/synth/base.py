@@ -69,8 +69,8 @@ class BaseView:
                 by_id[r["id"]] = r
         clusters, unresolved = _clusters(by_id, canonical_csv)
         for anchor, members in sorted(clusters.items()):
-            records = [by_id.get(m) for m in members]
-            reason = _ineligible(by_id[anchor], records, dataset_kinds, registry_status_required)
+            parts = [by_id.get(m) for m in members]
+            reason = _ineligible(by_id[anchor], parts, dataset_kinds, registry_status_required)
             if not reason and anchor in unresolved:
                 reason = "not_in_resolution"  # a resolved base must list every entity record
             if reason:

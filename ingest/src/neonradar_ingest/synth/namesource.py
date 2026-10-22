@@ -21,7 +21,9 @@ word that lets a draw spell "Cedar Gate Holdings" (OD-12; the denylist blocks it
 
 from __future__ import annotations
 
+import importlib
 import unicodedata
+from functools import cache
 
 import numpy as np
 from faker import Faker
@@ -92,6 +94,26 @@ SCRIPT = {"en_GB": 0, "ru_RU": 1, "ar_SA": 2}
 SURNAME_SYLLABLES = 3
 
 
+@cache
+def all_faker_surnames() -> frozenset[str]:
+    """The last names of every Faker locale installed, romanized ones included, folded."""
+    from faker.config import AVAILABLE_LOCALES
+
+    found: set[str] = set()
+    for locale in AVAILABLE_LOCALES:
+        try:
+            provider = importlib.import_module(f"faker.providers.person.{locale}").Provider
+        except ImportError, AttributeError:
+            continue
+        for attribute in dir(provider):
+            value = getattr(provider, attribute, None)
+            if attribute.startswith(("last_name", "last_romanized_name")) and isinstance(
+                value, tuple | list | dict
+            ):
+                found.update(fold(str(name)) for name in value)
+    return frozenset(found)
+
+
 def _pick(rng: np.random.Generator, items: tuple[str, ...]) -> str:
     return items[int(rng.integers(len(items)))]
 
@@ -114,7 +136,7 @@ class PhaseOneNames:
                         surnames.update(fold(str(name)) for name in value)
         for spellings in (*words.ARABIC_SURNAMES, *words.RUSSIAN_SURNAMES):
             surnames.update(fold(name) for name in spellings)
-        self.real_surnames = frozenset(surnames)
+        self.real_surnames = frozenset(surnames) | all_faker_surnames()
 
     def _seeded(self, rng: np.random.Generator, locale: str) -> Faker:
         fake = self._fakers[locale]
@@ -145,9 +167,14 @@ class PhaseOneNames:
             picks = [int(rng.integers(len(SYLLABLES))) for _ in range(SURNAME_SYLLABLES)]
             name = "".join(SYLLABLES[i][script] for i in picks)
             name = name if script == 2 else name.capitalize()
-            if fold(name) not in self.real_surnames and not is_denied(name):
+            if self.surname_allowed(name):
                 return name
         raise RuntimeError(f"no invented {locale} surname after {MAX_TRIES} tries")
+
+    def surname_allowed(self, surname: str) -> bool:
+        """Not a surname of any installed Faker locale (romanized ones included), nor of the
+        curated lists, nor on the denylist (which names the real surnames syllables can spell)."""
+        return fold(surname) not in self.real_surnames and not is_denied(surname)
 
     def person(self, rng: np.random.Generator, locale: str) -> tuple[list[str], str]:
         """One spelling of an ordinary synthetic person's realistic name, and a gender."""

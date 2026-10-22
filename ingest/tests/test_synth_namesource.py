@@ -65,7 +65,8 @@ def test_flagged_personas_and_the_people_linked_to_them_have_invented_surnames(
     config = overlay.OverlayConfig(
         8, illicit=4, lookalikes=4, typologies=("sanctions_exposure", "pep_exposure")
     )
-    records = base + overlay.generate(base, {"nr_synthetic": "synthetic"}, config, names).records
+    ov = overlay.generate(base, {"nr_synthetic": "synthetic"}, config, names)
+    records = base + ov.records
     by_id = {r["id"]: r for r in records}
     flagged = {r["id"] for r in records if FLAG_TOPICS & set(r["properties"].get("topics", []))}
     linked: set[str] = set(flagged)
@@ -75,6 +76,9 @@ def test_flagged_personas_and_the_people_linked_to_them_have_invented_surnames(
             linked |= ends
     people = sorted(i for i in linked if by_id[i]["schema"] == "Person")
     assert len(people) > 10
+    # S8: every person in a scenario role, flagged or not, has an invented surname too.
+    roles = {row["object_id"] for row in ov.labels.participants}
+    people += sorted(i for i in roles if i in by_id and by_id[i]["schema"] == "Person")
     for pid in people:
         person = by_id[pid]
         for name in person["properties"]["name"]:
@@ -143,3 +147,10 @@ def test_legal_forms_follow_the_jurisdiction(names: namesource.PhaseOneNames) ->
     assert names.company(rng, "gb").endswith(" Ltd")
     assert names.company(rng, "nl").endswith(" B.V.")
     assert names.company(rng, "zz").endswith(" Ltd")
+
+
+def test_invented_surnames_never_spell_known_real_ones(names: namesource.PhaseOneNames) -> None:
+    """S9: the filter covers every installed Faker locale and the curated denylist entries."""
+    for surname in ("Takata", "Takaki", "Moroka"):
+        assert not names.surname_allowed(surname)
+    assert len(namesource.all_faker_surnames()) > 10_000

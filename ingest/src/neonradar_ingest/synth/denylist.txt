@@ -98,3 +98,7 @@ David Cameron
 Вячеслав Лебедев
 # OD-12 (2026-10-21): a live UK company; no synthetic company may carry this name.
 Cedar Gate Holdings
+# M3.3 review: real surnames that the invented syllables of namesource.py can spell.
+Takata
+Takaki
+Moroka

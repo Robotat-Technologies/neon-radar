@@ -29,8 +29,9 @@ from neonradar_ingest.sources.lists.common import check_bounds
 BOUNDS_FILE = Path(__file__).with_name("bounds.yaml")
 PRODUCT = "main"
 RECORD_V = "1.1"  # Phase 2 loaders write nr.v "1.1" (PHASE-2.md 5.1)
-# A list's own stamp as it may appear in a summary (dates, times, offsets, short ids).
-STAMP = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._:/+-]{0,59}\Z")
+# A list's own stamp as it may appear in a summary: a date or time, digits and separators only,
+# so a value that is not a stamp (a name, for example) never reaches a summary.
+STAMP = re.compile(r"[0-9][0-9 ._:/+TZ-]{0,59}\Z")
 
 
 class ListOptions(BaseModel):

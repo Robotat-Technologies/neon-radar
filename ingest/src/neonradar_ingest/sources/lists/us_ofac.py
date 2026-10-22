@@ -25,7 +25,7 @@ from defusedxml import DefusedXmlException
 from defusedxml.ElementTree import iterparse
 from followthemoney import model
 
-from neonradar_contracts.records import ID_RE
+from neonradar_contracts.records import ID_RE, make_id
 from neonradar_ingest.data.profiles import Profile, register_source_model
 from neonradar_ingest.data.sources import (
     BuildContext,
@@ -63,6 +63,7 @@ KINDS = {
     "aircraft": "Airplane",
 }
 SCHEMATA = ("Person", "Organization")
+MAX_ID = 120  # PHASE-1.md 4.4
 FATAL_RATES = ("person_birth_date", "sanction_program")  # zero means a broken parser
 PERSON_PARTS = ("first name", "middle name", "patronymic", "matronymic", "last name")
 PERSON_PROPS = ("firstName", "middleName", "fatherName", "motherName", "lastName")
@@ -79,8 +80,9 @@ FEATURES = {
     "organization established date": "incorporationDate",
 }
 GENDERS = {"male": "male", "female": "female"}
-LOCATION_PARTS = ("ADDRESS1", "ADDRESS2", "ADDRESS3", "CITY", "STATE/PROVINCE", "REGION")
-LOCATION_PARTS += ("POSTAL CODE",)
+LOCATION_PARTS = (
+    "ADDRESS1", "ADDRESS2", "ADDRESS3", "CITY", "STATE/PROVINCE", "REGION", "POSTAL CODE",
+)  # fmt: skip
 PASSPORTS = frozenset({"passport", "diplomatic passport"})
 ID_NUMBERS = frozenset({"national id no.", "identification number", "cedula no."})
 UK_IF_ISSUED_IN_GB = frozenset(
@@ -339,29 +341,23 @@ def party_kind(profile: Element, tables: Tables) -> str:
 
 
 def party_id(native: str) -> str:
-    """`ofac-<FixedRef>`, or a hash when the native id breaks the C1 id alphabet (OD-11)."""
+    """`ofac-<FixedRef>` (PHASE-2.md 4.4); a native id outside the C1 id alphabet goes through
+    `make_id` (C1-record.md, OD-11)."""
     candidate = f"{PREFIX}-{native}"
-    if ID_RE.fullmatch(candidate) and len(candidate) <= 120:
+    if ID_RE.fullmatch(candidate) and len(candidate) <= MAX_ID:
         return candidate
-    digest = hashlib.sha1(native.encode("utf-8"), usedforsecurity=False).hexdigest()[:20]
-    return f"{PREFIX}-x{digest}"
-
-
-def _has_name(profile: Element) -> bool:
-    return any(
-        shared.local(item.tag) == "NamePartValue" and shared.text(item) for item in profile.iter()
-    )
+    return make_id(PREFIX, "uid", native)
 
 
 def _classify(element: Element, tables: Tables) -> None:
     """Pass 1: remember the id and schema of each profile pass 2 will load (deliverable 8 needs
-    them for the relationships)."""
+    them for the relationships): a person or an organisation with a strong name."""
     fixed_ref = element.get("FixedRef", "")
     profile = shared.child(element, "Profile")
     if profile is None or not fixed_ref:
         return
     kind = party_kind(profile, tables)
-    if kind in SCHEMATA and _has_name(profile):
+    if kind in SCHEMATA and party_names(profile, kind == "Person", tables, Counter())["name"]:
         tables.parties[profile.get("ID", "")] = (party_id(fixed_ref), kind)
 
 
@@ -474,9 +470,9 @@ def _names(
 
 
 def _place_names(names: Names, props: dict[str, list[str]], counts: Counter[str]) -> None:
-    if not names.name:
+    if not names.name:  # a strong alias may stand in; a weak alias never becomes the name
         counts["parties_without_primary_name"] += 1
-        names.name = (names.alias or names.previous or names.weak)[:1]
+        names.name = (names.alias or names.previous)[:1]
     taken = set(names.name)
     props["name"] = names.name
     props["alias"] = [a for a in dict.fromkeys(names.alias) if a not in taken]
@@ -489,6 +485,18 @@ def _place_names(names: Names, props: dict[str, list[str]], counts: Counter[str]
 def _either(element: Element | None, name: str, other: str) -> Element | None:
     found = shared.child(element, name)
     return found if found is not None else shared.child(element, other)
+
+
+def party_names(
+    profile: Element, person: bool, tables: Tables, counts: Counter[str]
+) -> dict[str, list[str]]:
+    """The name properties of a profile; `name` is empty when it has no strong name."""
+    props: dict[str, list[str]] = defaultdict(list)
+    names = Names()
+    for identity in shared.children(profile, "Identity"):
+        _names(identity, person, tables, names, props, counts)
+    _place_names(names, props, counts)
+    return props
 
 
 def _period(period: Element, counts: Counter[str]) -> list[str]:
@@ -630,16 +638,12 @@ def _party(
         return
     loaded = tables.parties.get(profile.get("ID", ""))
     if loaded is None:
-        counts["parties_without_name"] += 1
+        counts["no_strong_name"] += 1
         return
     record_id, schema = loaded
-    props: dict[str, list[str]] = defaultdict(list)
+    props = party_names(profile, schema == "Person", tables, counts)
     props["topics"] = ["sanction"]
-    names = Names()
     identities = list(shared.children(profile, "Identity"))
-    for identity in identities:
-        _names(identity, schema == "Person", tables, names, props, counts)
-    _place_names(names, props, counts)
     for feature in shared.children(profile, "Feature"):
         _feature(feature, schema, tables, props, counts, skipped.features)
     for identity in identities:
@@ -686,9 +690,7 @@ def relationship_records(tables: Tables, counts: Counter[str]) -> Iterator[dict[
         counts["unknown_relation_types"] += known is None
         schema, a_prop, b_prop = known or UNKNOWN_LINK
         persons = a_schema == b_schema == "Person"
-        if schema in PERSONS_ONLY and not persons:
-            schema, a_prop, b_prop = UNKNOWN_LINK
-        elif schema in TARGETED and persons:
+        if (schema in PERSONS_ONLY and not persons) or (schema in TARGETED and persons):
             schema, a_prop, b_prop = UNKNOWN_LINK
         elif schema in TARGETED:
             target_schema = a_schema if a_prop == TARGETED[schema] else b_schema

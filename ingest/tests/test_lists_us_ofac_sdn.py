@@ -76,7 +76,8 @@ def fetch_and_build(
 
 
 def records_dir(data_env: Any) -> Path:
-    return data_env.cache / "real" / "records" / PROFILE / us_ofac.DATASET
+    path: Path = data_env.cache / "real" / "records" / PROFILE / us_ofac.DATASET
+    return path
 
 
 def summary(data_env: Any) -> dict[str, Any]:
@@ -121,7 +122,9 @@ def test_fixture_validates_against_the_committed_xsd() -> None:
     base = str(FIXTURES.resolve())
     schema = xmlschema.XMLSchema(KEYREF.sub("", text), base_url=base, allow="sandbox")
     schema.validate(str(FIXTURE.resolve()))
-    elements = list(parse_xml(FIXTURE).getroot().iter())
+    root = parse_xml(FIXTURE).getroot()
+    assert root is not None
+    elements = list(root.iter())
     for refer, attribute in keyrefs:
         tag, field = keys[refer]
         known = {e.get(field) for e in elements if e.tag.rsplit("}", 1)[-1] == tag}
@@ -332,23 +335,31 @@ def test_relationships(built: dict[str, dict[str, Any]], data_env: Any) -> None:
         for r in built.values()
         if r["schema"] not in ("Person", "Organization", "Sanction")
     }
-    o = "ofac-9900"
-    assert links == {
-        "9001": ("Control", {"controlled": [o + "12"], "controller": [o + "11"], "role": ["Owned or Controlled By"]}),
-        "9002": ("Control", {"controller": [o + "01"], "controlled": [o + "11"], "role": ["Owns, controls, or operates"]}),
-        "9003": ("Control", {"controlled": [o + "13"], "controller": [o + "02"], "role": ["Property in the interest of"], "status": ["former"]}),
-        "9004": ("Representation", {"agent": [o + "03"], "client": [o + "11"], "role": ["Acting for or on behalf of"]}),
-        "9005": ("Directorship", {"director": [o + "01"], "organization": [o + "12"], "role": ["Leader or official of"]}),
+    # Relation type id: (schema, From property, From party, To property, To party, label).
+    expected = {
+        "9001": ("Control", "controlled", "12", "controller", "11", "Owned or Controlled By"),
+        "9002": ("Control", "controller", "01", "controlled", "11", "Owns, controls, or operates"),
+        "9003": ("Control", "controlled", "13", "controller", "02", "Property in the interest of"),
+        "9004": ("Representation", "agent", "03", "client", "11", "Acting for or on behalf of"),
+        "9005": ("Directorship", "director", "01", "organization", "12", "Leader or official of"),
         # From an entity to a person: the ends are swapped (note 2.9).
-        "9006": ("Directorship", {"organization": [o + "14"], "director": [o + "04"], "role": ["Principal Executive Officer"]}),
-        "9007": ("Membership", {"member": [o + "02"], "organization": [o + "13"], "role": ["playing a significant role in"]}),
-        "9008": ("Associate", {"person": [o + "01"], "associate": [o + "03"], "relationship": ["Associate Of (former)"]}),
-        "9009": ("Family", {"person": [o + "02"], "relative": [o + "04"], "relationship": ["Family member of"]}),
-        "9010": ("UnknownLink", {"subject": [o + "03"], "object": [o + "14"], "role": ["Associate Of"]}),
-        "9011": ("UnknownLink", {"subject": [o + "14"], "object": [o + "11"], "role": ["Providing support to"]}),
-        "9012": ("UnknownLink", {"subject": [o + "03"], "object": [o + "04"], "role": ["Owned or Controlled By"]}),
-        "9014": ("UnknownLink", {"subject": [o + "13"], "object": [o + "14"], "role": ["Synthetic other link"]}),
+        "9006": ("Directorship", "organization", "14", "director", "04",
+                 "Principal Executive Officer"),
+        "9007": ("Membership", "member", "02", "organization", "13",
+                 "playing a significant role in"),
+        "9008": ("Associate", "person", "01", "associate", "03", "Associate Of (former)"),
+        "9009": ("Family", "person", "02", "relative", "04", "Family member of"),
+        "9010": ("UnknownLink", "subject", "03", "object", "14", "Associate Of"),  # not two persons
+        "9011": ("UnknownLink", "subject", "14", "object", "11", "Providing support to"),
+        "9012": ("UnknownLink", "subject", "03", "object", "04", "Owned or Controlled By"),
+        "9014": ("UnknownLink", "subject", "13", "object", "14", "Synthetic other link"),
     }  # fmt: skip
+    assert set(links) == set(expected)  # 9013 points to the vessel: skipped
+    for ref, (schema, a_prop, a, b_prop, b, label) in expected.items():
+        found, p = links[ref]
+        assert (found, p[a_prop], p[b_prop]) == (schema, [f"ofac-9900{a}"], [f"ofac-9900{b}"]), ref
+        assert p.get("role", p.get("relationship")) == [label], ref
+        assert p.get("status") == (["former"] if ref == "9003" else None), ref
     assert not any(r["schema"] == "Ownership" for r in built.values())  # no share from OFAC
     assert any(re.fullmatch(r"ofac-control-[0-9a-f]{20}", key) for key in built)
     counts = summary(data_env)
@@ -498,3 +509,17 @@ def test_zero_fill_rate_fails_even_with_accept_size(
     assert result.exit_code == 4, result.output
     assert "the fill rate of person_birth_date is zero; the parser is broken" in result.output
     assert not records_dir(data_env).exists()
+
+
+def test_a_weak_alias_never_becomes_the_name(tmp_path: Path) -> None:
+    """A party whose only name is weak is skipped and counted, with its relationships."""
+    text = FIXTURE.read_text(encoding="utf-8")
+    alias = '<Alias FixedRef="990004" AliasTypeID="4" Primary="true" LowQuality="false">'
+    path = tmp_path / "weak.xml"
+    path.write_text(text.replace(alias, alias.replace('"false"', '"true"')), encoding="utf-8")
+    tables, records, counts = parse(path)
+    assert "990004" not in tables.parties
+    assert not any("ofac-990004" in json.dumps(record) for record in records)
+    assert (counts["no_strong_name"], counts["relationships_to_skipped_parties"]) == (1, 4)
+    assert us_ofac.party_id("990004") == "ofac-990004"
+    assert re.fullmatch(r"ofac-uid-[0-9a-f]{20}", us_ofac.party_id("SYN 0001"))  # make_id

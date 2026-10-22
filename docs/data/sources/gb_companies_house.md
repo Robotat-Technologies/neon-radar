@@ -12,10 +12,13 @@ research note `docs/research/2026-10-18/bulk-sources-loading.md` (sections 2 to 
 | `psc` | PSC snapshot: `psc-snapshot-<yyyy-mm-dd>_<N>of<M>.zip`, listed on `https://download.companieshouse.gov.uk/en_pscdata.html`, about 2.2 GB in 33 parts on 17 October 2026 | Daily, compiled to the end of the previous day, files replaced every morning (note 3.1) | M2.3b |
 | officers | REST API, per company, within a request budget | On demand, cached | M2.3c |
 
-`neonradar data fetch` takes, for each product, the newest snapshot date for which every part
-is listed and downloads the parts to `data/cache/real/sources/gb_companies_house/<product>/<date>/`;
-a cut download resumes part by part. It fetches both products, whether or not a profile
-enables its `psc` block. The two products rotate separately, so a daily PSC download
+`neonradar data fetch` takes, for each product the profile needs, the newest snapshot date for
+which every part is listed and downloads the parts to
+`data/cache/real/sources/gb_companies_house/<product>/<date>/`; a cut download resumes part by
+part. It fetches `companies` always and `psc` only when the profile's `psc` block is enabled;
+a product whose discovery fails (for example a PSC page without a complete snapshot) stops
+only itself, and the command exits 1 after the other product has downloaded. The two
+products rotate separately, so a daily PSC download
 never removes the monthly company parts. Companies House says the bulk files are "provided
 free of charge and will not be supported" (note 2.1).
 
@@ -49,8 +52,10 @@ that ran the `companies` or `psc` step, unless `--keep-work` is given; `slice.cs
 `slice.json` stay (with the PSC snapshot date when the expansion ran, since the daily PSC
 snapshot changes the slice too). A `psc` step run on its own keeps the previous company
 records, which its links point to; a `companies` step run without the `psc` step writes the
-company records only, so run both after a new slice. A PSC's address gets the same key rule as a registered office, so a PSC at a
-slice company's registered office links to that company's `Address` record.
+company records only, so run both after a new slice. The `psc` step refuses (exit 2) a slice
+built from another PSC snapshot than the newest PSC download. A PSC's address gets the same
+key rule as a registered office, so a PSC at a slice company's registered office links to
+that company's `Address` record.
 
 Reading follows note 2.2 to 2.4: header cells are stripped (14 start with a space) and
 columns mapped by name; a missing column stops the build; empty rows and rows with the wrong
@@ -145,17 +150,30 @@ summary, with the ISO codes of non-UK registrations (unmapped values counted, ne
 and only `resolved` PSCs drive the slice expansion. The outcome decides no merge: the resolver
 applies its own rule (PHASE-2.md 7.1.2, D1).
 
-**Not loaded.** Any usual residential address and any day of birth are never read, and
-neither are the `etag` or the links other than the PSC's own id. The source writes an
-individual's title in front of `name`; the loader removes it (when it equals
-`name_elements.title`), so no title is loaded. A PSC's address gets the country the source
+**Not loaded.** Usual residential addresses, days of birth, the care-of line, other
+forenames, honours, identity verification details (counted as
+`with_identity_verification_details`, never read), a statement's linked PSC name, the `etag`
+and the links other than the PSC's own id are never read. The source writes an individual's
+title in front of `name`: when `name` starts with `name_elements.title`, the loader removes it
+(`titles_removed`); when it does not, `name` is kept as given and counted (`titles_kept`), so
+the reviewer sees whether any title is left. A PSC's address gets the country the source
 names; unlike a registered office, it is never assumed to be `gb`.
 
 ## Personal data
 
 The company file itself can hold personal data: a company name or a previous name can be a
-person's name, and a registered office can be a home address. The PSC and officer products
-(M2.3b, M2.3c) hold names, months of birth and nationalities.
+person's name, and a registered office can be a home address. The officer product (M2.3c)
+holds names, months of birth and nationalities.
+
+From the PSC snapshot, the loader keeps, for the slice companies only: an individual's name
+(without the title), forename, middle name and surname, month and year of birth,
+nationalities, country of residence and service address; a corporate or legal-person PSC's
+name, legal form, registration number, jurisdiction and address; whether a beneficial owner
+is recorded as sanctioned; each interest's natures of control, band and dates; and the
+company's statement values. The downloads themselves cover every UK company: about 2.2 GB a
+version, and the data manager keeps the two newest complete versions, so up to about 4.4 GB
+of all-UK PSC data can sit under `data/cache/real/sources/` until retention or a purge
+removes it (only when a profile enables the `psc` block).
 Companies House's personal information charter says that organisations using register data
 "then become controllers of your personal data" and "must establish how they comply with the
 data protection law" (note 10, source B12). Every real run therefore passes the real-data gate

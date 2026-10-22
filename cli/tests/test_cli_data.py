@@ -45,7 +45,10 @@ def test_data_fetch_refuses_a_real_profile_by_default(data_env: Any) -> None:
     assert "uk-tiny is not in access.real_data_profiles" in result.output
 
 
-def test_data_fetch_names_the_missing_loaders(data_env: Any) -> None:
+def test_data_fetch_names_the_missing_loaders(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sources, "_SOURCES", {})  # as if no loader had arrived: no download
     data_env.write_project(real_data_profiles=["uk-tiny"], data_protection_filed=True)
     data_env.approve_machine()
     result = runner.invoke(app, ["data", "fetch", "--profile", "uk-tiny"])

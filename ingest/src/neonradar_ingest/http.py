@@ -3,7 +3,8 @@
 httpx with a 10 s connect and 60 s read timeout, an explicit `follow_redirects`, the NeonRadar
 User-Agent, a per-source rate limiter, and retries with exponential backoff after a 429, a
 500, 502, 503 or 504 or a transport error that honour `Retry-After`. Logs never show headers,
-keys or credentials.
+keys or credentials; a client built with `log_query=False` logs its URLs without their query
+string (PHASE-2.md M2.6 rule 4: the UN redirect carries a signature, the EU URL a token).
 """
 
 import logging
@@ -11,6 +12,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -48,9 +50,23 @@ def redact(url: httpx.URL | str) -> str:
     return str(url.copy_with(userinfo=b"", params=params))
 
 
+def logged_url(url: httpx.URL | str, *, query: bool = True) -> str:
+    """`redact(url)`, or without user info, query string and fragment when `query` is false."""
+    if query:
+        return redact(url)
+    return str(httpx.URL(url).copy_with(userinfo=b"", query=None, fragment=None))
+
+
+# Whether the request being sent may show its query string in logs (`HttpClient.log_query`).
+_LOG_QUERY: ContextVar[bool] = ContextVar("neonradar_log_query", default=True)
+
+
 def _redact_urls(record: logging.LogRecord) -> bool:
     if isinstance(record.args, tuple):
-        record.args = tuple(redact(a) if isinstance(a, httpx.URL) else a for a in record.args)
+        query = _LOG_QUERY.get()
+        record.args = tuple(
+            logged_url(a, query=query) if isinstance(a, httpx.URL) else a for a in record.args
+        )
     return True
 
 
@@ -107,6 +123,8 @@ class HttpClient(httpx.Client):
     `X-Ratelimit-Reset`), or else 1, 2, 4 ... seconds. A hint over `max_hint` seconds raises
     HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
+    `log_query=False` keeps every query string out of the logs and errors, also those of the
+    redirects it follows (a signed storage URL).
     """
 
     def __init__(
@@ -119,6 +137,7 @@ class HttpClient(httpx.Client):
         retry_hint: RetryHint = retry_after_seconds,
         max_hint: float = 300.0,
         sleep: Sleep = time.sleep,
+        log_query: bool = True,
         **options: Any,
     ) -> None:
         if retries < 0:
@@ -129,12 +148,20 @@ class HttpClient(httpx.Client):
         self.headers["User-Agent"] = USER_AGENT
         self.limiter, self.retries, self.max_hint = limiter, retries, max_hint
         self._retry_hint, self._sleep = retry_hint, sleep
+        self.log_query = log_query
         self.requests = self.retried = self.throttled = 0
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
+        token = _LOG_QUERY.set(self.log_query)  # read by the filter on httpx's request log
+        try:
+            return self._send(request, **kwargs)
+        finally:
+            _LOG_QUERY.reset(token)
+
+    def _send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
-        where = f"{request.method} {redact(request.url)}"
+        where = f"{request.method} {logged_url(request.url, query=self.log_query)}"
         retries = self.retries if request.method in RETRY_METHODS else 0
         for attempt in range(retries + 1):
             self.limiter.wait()
@@ -172,6 +199,6 @@ class HttpClient(httpx.Client):
         if response.status_code == 404:
             return None
         if response.is_error:
-            where = f"GET {redact(response.request.url)}"
+            where = f"GET {logged_url(response.request.url, query=self.log_query)}"
             raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
         return response.json()

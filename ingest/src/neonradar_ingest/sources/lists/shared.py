@@ -23,7 +23,7 @@ from neonradar_contracts.records import Producer, Source, write_manifest
 from neonradar_ingest import __version__
 from neonradar_ingest.data import layout
 from neonradar_ingest.data.sources import BuildError, RemoteFile
-from neonradar_ingest.http import HttpClient
+from neonradar_ingest.http import HttpClient, RateLimiter
 from neonradar_ingest.sources.lists.common import check_bounds
 
 BOUNDS_FILE = Path(__file__).with_name("bounds.yaml")
@@ -74,6 +74,12 @@ def discover_static(name: str, url: str) -> Callable[[HttpClient], list[RemoteFi
     return discover
 
 
+def list_client() -> HttpClient:
+    """`SourceSpec.client` for a list file: redirects followed, one request per second, and no
+    query string in any log (M2.6 rule 4: the UN redirect is signed, the EU URL holds a token)."""
+    return HttpClient("", follow_redirects=True, limiter=RateLimiter(1.0), log_query=False)
+
+
 def latest_download(dataset: str, name: str) -> Download:
     """The file `name` of the newest complete version of `dataset`, else BuildError."""
     product_dir = layout.sources_dir(dataset, PRODUCT, "current").parent
@@ -112,6 +118,26 @@ def load_bounds() -> dict[str, dict[str, list[int]]]:
 def rate(part: int, whole: int) -> float:
     """A fill rate rounded to four places; 0.0 when there is nothing to fill."""
     return round(part / whole, 4) if whole else 0.0
+
+
+def _filled(records: list[dict[str, Any]], schema: str, *names: str) -> tuple[int, int]:
+    chosen = [r for r in records if r["schema"] == schema]
+    return sum(any(r["properties"].get(n) for n in names) for r in chosen), len(chosen)
+
+
+def fill_rates(records: list[dict[str, Any]]) -> dict[str, float]:
+    """The shares of M2.6 rule 10, from the records as written."""
+    pairs = {
+        "person_birth_date": _filled(records, "Person", "birthDate"),
+        "person_nationality": _filled(records, "Person", "nationality"),
+        "person_passport_or_id": _filled(records, "Person", "passportNumber", "idNumber"),
+        "sanction_program": _filled(records, "Sanction", "program"),
+        "sanction_start_date": _filled(records, "Sanction", "startDate"),
+        "organization_registration_or_lei": _filled(
+            records, "Organization", "registrationNumber", "leiCode"
+        ),
+    }
+    return {name: rate(*pair) for name, pair in pairs.items()}
 
 
 def check_size(

@@ -60,12 +60,18 @@ def default_client() -> HttpClient:
 class SourceSpec:
     """`discover(client)` lists the files of the current version of each product.
 
-    `client` builds the source's HTTP client (its rate limit and redirect rule).
+    `client` builds the source's HTTP client (its rate limit and redirect rule). `products`,
+    when given, names the products a profile needs, each with its own discovery: `data fetch`
+    asks it before any request, so a product the profile does not use is never downloaded,
+    and a product whose discovery fails stops only itself (M2.3b, data minimisation).
     """
 
     dataset: str
     discover: Callable[[HttpClient], list[RemoteFile]]
     client: Callable[[], HttpClient] = default_client
+    products: Callable[[Profile], Mapping[str, Callable[[HttpClient], list[RemoteFile]]]] | None = (
+        None
+    )
 
 
 @dataclass(frozen=True, slots=True)

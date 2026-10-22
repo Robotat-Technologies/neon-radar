@@ -24,6 +24,7 @@ from typing import Any
 import httpx
 
 from neonradar_ingest.data import layout
+from neonradar_ingest.data.profiles import Profile
 from neonradar_ingest.data.sources import RemoteFile, SourceSpec
 from neonradar_ingest.http import HttpClient, HttpError
 
@@ -221,17 +222,41 @@ def _rotate(product_dir: Path) -> int:
     return max(len(complete) - KEEP, 0)
 
 
-def fetch(
-    spec: SourceSpec, client: HttpClient, *, sleep: Callable[[float], None] = time.sleep
-) -> dict[str, Any]:
-    """Download the current version of every product of `spec`; return counts and versions."""
-    counts: Counter[str] = Counter()
-    groups: dict[tuple[str, str], list[RemoteFile]] = {}
+def _discover(discover: Callable[[HttpClient], list[RemoteFile]], client: HttpClient
+              ) -> list[RemoteFile]:  # fmt: skip
     try:
-        found = spec.discover(client)
-    except HttpError as exc:  # stop this dataset only; the message would carry the URL
+        return discover(client)
+    except HttpError as exc:  # the message would carry the URL
         status = f"HTTP {exc.status}" if exc.status else "no response"
         raise DownloadError(f"discover: {status} after retries", "http") from None
+
+
+def fetch(
+    spec: SourceSpec,
+    client: HttpClient,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    profile: Profile | None = None,
+) -> dict[str, Any]:
+    """Download the current version of every product of `spec`; return counts and versions.
+
+    With a `profile` and `spec.products`, only the products the profile needs are discovered,
+    each on its own: a product whose discovery fails is reported as stopped (and counted in
+    `products_stopped`) while the others download. Otherwise a failed discovery stops the
+    dataset.
+    """
+    counts: Counter[str] = Counter()
+    groups: dict[tuple[str, str], list[RemoteFile]] = {}
+    stopped: dict[str, dict[str, Any]] = {}
+    if spec.products is None or profile is None:
+        found = _discover(spec.discover, client)
+    else:
+        found = []
+        for name, discover in spec.products(profile).items():
+            try:
+                found.extend(r for r in _discover(discover, client) if r.product == name)
+            except DownloadError as exc:  # stop this product only
+                stopped[name] = {"status": "stopped", "rule": exc.rule}
     for remote in found:
         layout.safe_name("file name", remote.name)
         if remote.name == RECORD or remote.name.endswith(RESERVED_ENDINGS):
@@ -256,4 +281,7 @@ def fetch(
             _write_json(folder / RECORD, record)
         counts["versions_deleted"] += _rotate(folder.parent)
         products[product] = {"version": version, "files": len(remotes)}
-    return {**{key: counts[key] for key in sorted(counts)}, "products": products}
+    result = {**{key: counts[key] for key in sorted(counts)}, "products": products | stopped}
+    if spec.products is not None and profile is not None:
+        result["products_stopped"] = len(stopped)
+    return result

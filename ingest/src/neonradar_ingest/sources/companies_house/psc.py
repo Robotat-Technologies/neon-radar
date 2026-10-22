@@ -82,7 +82,9 @@ PSC_COUNTED = (
     "pscs_without_id",
     "pscs_without_known_nature",
     "pscs_without_name",
+    "titles_kept",
     "titles_removed",
+    "with_identity_verification_details",
 )
 VALUE_RE = re.compile(r"[a-z0-9][a-z0-9 ._#:/()&,'-]{0,79}\Z")  # a `_by_value` key (M2.2)
 BATCH = 10_000
@@ -408,6 +410,8 @@ class PscWriter(records.Writer):
         ):
             values["name"] = bulk.text(name[size:])  # the title is not loaded
             stats["titles_removed"] += 1
+        elif schema == "Person" and title:
+            stats["titles_kept"] += 1  # `name` does not start with it: kept as given
         if values["name"] is None:
             stats["pscs_without_name"] += 1  # FtM needs a name (R3)
             return None
@@ -446,7 +450,6 @@ class PscWriter(records.Writer):
     def interests(self, number: str, data: Mapping[str, Any], owner: str) -> list[dict[str, Any]]:
         """One `Ownership` or `Control` per interest of the PSC in the company (rule 4)."""
         found = [n for n in map(natures.classify, _natures(data)) if n is not None]
-        self.stats["natures_unknown"] += len(_natures(data)) - len(found)
         company = make_id(records.PREFIX, "co", number)
         out = []
         for interest in natures.interests(found):
@@ -532,12 +535,17 @@ def write_pscs(
                 continue
             owner = make_id(records.PREFIX, "psc", segment)
             interests = writer.interests(number, data, owner)
+            unknown = sum(natures.classify(value) is None for value in _natures(data))
             if not interests:
                 stats["pscs_without_known_nature"] += 1  # no link to load: no record either
+                stats["natures_unknown"] += unknown
                 continue
             record = writer.psc(kind, data, segment)
             if record is None:
-                continue
+                continue  # without a name (counted)
+            stats["natures_unknown"] += unknown
+            # Counted, never read: identity verification details (as the M1.8a mapping does).
+            stats["with_identity_verification_details"] += "identity_verification_details" in data
             seen.add(segment)
             loaded[kind] += 1
             for item in (record, *interests):

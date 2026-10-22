@@ -265,9 +265,7 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     download(
         [
             lines(
-                person(
-                    "99000010", "P1", ["ownership-of-shares-25-to-50-percent"], is_sanctioned=True
-                ),
+                person("99000010", "P1", ["ownership-of-shares-25-to-50-percent"]),
                 line(
                     "OE990070",
                     "individual-beneficial-owner",
@@ -302,6 +300,7 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
                     "legal-person-person-with-significant-control",
                     "L1",
                     name="SYNTHETIC AUTHORITY A",
+                    is_sanctioned=True,  # on a PSC that is not a beneficial owner: no topic
                     identification={"legal_authority": "Test Act", "legal_form": "Public Body"},
                     address=OFFICE,
                     natures_of_control=["significant-influence-or-control"],
@@ -396,7 +395,8 @@ def test_every_kind_statements_and_the_statement_table(data_env: Any) -> None:
     assert list(foreign["nr"]["address_roles"].values()) == ["registered"]
     assert found["gbch-psc-SYNP2"]["properties"]["topics"] == ["sanction"]  # is_sanctioned
     assert "topics" not in foreign["properties"]  # is_sanctioned false
-    assert "topics" not in zafer["properties"]  # is_sanctioned on a PSC that is not an owner
+    assert "topics" not in zafer["properties"]
+    assert "topics" not in found["gbch-psc-SYNL1"]["properties"]
     assert found["gbch-psc-SYNL1"]["properties"]["legalForm"] == ["Public Body"]
     assert found["gbch-co-99000010"]["nr"]["psc_statements"] == [
         "psc-details-not-confirmed",
@@ -670,16 +670,49 @@ def test_steps_inputs_work_files_and_the_psc_block(data_env: Any) -> None:
 def test_unmapped_personal_fields_never_reach_records_index_or_summary(data_env: Any) -> None:
     from neonradar_cli.main import app
 
-    profile(data_env, ["99000010"])
+    profile(data_env, ["99000010", "OE990070"])
+    verification = {
+        "preferred_name": "SENTINELPREF",
+        "identity_verified_on": "2025-01-02",
+        "appointment_verification_start_on": "2025-01-03",
+        "appointment_verification_end_on": "2025-01-04",
+        "appointment_verification_statement_date": "2025-01-05",
+        "appointment_verification_statement_due_on": "2025-01-06",
+    }
+    elements = {
+        "title": "SENTINELTITLE",
+        "forename": "Zafer",
+        "other_forenames": "SENTINELOTHER",
+        "surname": "Velqasimi",
+        "honours": "SENTINELHONOURS",
+    }
     sentinel = {
         "usual_residential_address": {"premises": "SENTINELHOME", "postal_code": "QQ9 9ZZ"},
+        "address": OFFICE | {"care_of": "SENTINELCARE"},
         "date_of_birth": {"day": 17, "month": 3, "year": 1981},
-        "name_elements": {"title": "SENTINELTITLE", "forename": "Zafer", "surname": "Velqasimi"},
+        "name_elements": elements,
         "name": "SENTINELTITLE Zafer Velqasimi",
+        "identity_verification_details": verification,
     }
+    owner = sentinel | {
+        "name": "SENTINELTITLE Yazan Ulvarazi",
+        "name_elements": elements | {"forename": "Yazan", "surname": "Ulvarazi"},
+        "natures_of_control": ["voting-rights-more-than-25-percent-registered-overseas-entity"],
+    }
+    statement = {"linked_psc_name": "SENTINELLINK", "identity_verification_details": verification}
     download(
-        [lines(person("99000010", "P1", ["voting-rights-25-to-50-percent"], **sentinel), totals(1))]
-    )
+        [
+            lines(
+                person("99000010", "P1", ["voting-rights-25-to-50-percent"], **sentinel),
+                line("OE990070", "individual-beneficial-owner", "P2", **owner),
+                line("99000010", "persons-with-significant-control-statement", "T1",
+                     statement="psc-details-not-confirmed", **statement),
+                line("99000010", "super-secure-person-with-significant-control", "S1",
+                     **statement),
+                totals(4),
+            )
+        ]
+    )  # fmt: skip
     data_env.allow_real("ch-test")
     command = ["ingest", "build", "--profile", "ch-test", "--dataset", DATASET, "--keep-work"]
     result = CliRunner().invoke(app, command)
@@ -689,10 +722,79 @@ def test_unmapped_personal_fields_never_reach_records_index_or_summary(data_env:
     folder = layout.records_dir("ch-test", DATASET)
     texts = [summary, result.output, *(p.read_text() for p in folder.iterdir())]
     texts += [p.read_bytes().decode("latin-1") for p in work.iterdir()]
+    assert len(texts) == 2 + 4 + 4  # two record files and manifests; two indexes, the slice
     for text in texts:
         assert "SENTINEL" not in text and "QQ9" not in text and "1981-03-17" not in text
+        assert "2025-01-0" not in text  # no verification date
     for text in (summary, result.output):
-        assert not re.search(r"Velqasimi|Zafer|SYNP1|99000010|BRACKEN", text)
+        assert not re.search(r"Velqasimi|Zafer|Yazan|Ulvarazi|SYNP|99000010|OE990070", text)
     ch = json.loads(summary)["datasets"][DATASET]
     assert (ch["totals_check"], ch["snapshot_date"]) == ("passed", SNAPSHOT)
-    assert records()["gbch-psc-SYNP1"]["properties"]["birthDate"] == ["1981-03"]
+    assert ch["psc"]["with_identity_verification_details"] == 2
+    assert ch["psc"]["titles_removed"] == 2 and ch["psc"]["titles_kept"] == 0
+    found = records()
+    assert found["gbch-psc-SYNP1"]["properties"]["birthDate"] == ["1981-03"]
+    assert found["gbch-psc-SYNP2"]["properties"]["name"] == ["Yazan Ulvarazi"]
+    assert found["gbch-co-99000010"]["nr"]["psc_statements"] == [
+        "psc-details-not-confirmed",
+        "super-secure-person-with-significant-control",
+    ]
+
+
+def test_a_title_the_name_does_not_start_with_is_counted(data_env: Any) -> None:
+    profile(data_env, ["99000010"])
+    elements = {"title": "Dr", "forename": "Nadim", "surname": "Qandelouni"}
+    download([lines(person("99000010", "P1", ["voting-rights-25-to-50-percent"],
+                           name="Nadim Qandelouni", name_elements=elements))])  # fmt: skip
+    counts = build().counts["psc"]
+    assert (counts["titles_kept"], counts["titles_removed"]) == (1, 0)
+    assert records()["gbch-psc-SYNP1"]["properties"]["name"] == ["Nadim Qandelouni"]
+
+
+def test_the_psc_step_needs_a_slice_from_the_current_psc_snapshot(data_env: Any) -> None:
+    profile(data_env, ["99000010"])
+    download([lines(person("99000010", "P1", ["voting-rights-25-to-50-percent"]))])
+    build(("index", "psc-index", "slice", "companies"), keep_work=True)
+    later = {"psc-snapshot-2026-10-18_1of1.zip": lines(person("99000010", "P1", []))}
+    put("psc", "2026-10-18", later, ".txt")
+    with pytest.raises(BuildError, match="run --step psc-index --step slice first") as stopped:
+        build(("psc",))
+    assert stopped.value.exit_code == 2
+
+
+def fetch_client(pages: dict[str, str], seen: list[str]) -> HttpClient:
+    def answer(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        seen.append(url)
+        if url in pages:
+            return httpx.Response(200, text=pages[url])
+        if url.endswith(".zip"):
+            return httpx.Response(200, content=b"synthetic part")
+        return httpx.Response(404)
+
+    return HttpClient("", follow_redirects=True, limiter=RateLimiter(1000.0),
+                      sleep=lambda _: None, transport=httpx.MockTransport(answer))  # fmt: skip
+
+
+def test_data_fetch_downloads_only_the_products_the_profile_needs(data_env: Any) -> None:
+    from neonradar_ingest.data import download as downloads
+
+    part = "BasicCompanyData-2026-10-01-part1_1.zip"
+    snapshot = "psc-snapshot-2026-10-17_1of1.zip"
+    pages = {bulk.PAGE_URL: f'<a href="{part}">x</a>', psc.PAGE_URL: f'<a href="{snapshot}">x</a>'}
+    spec = sources.source_spec(DATASET)
+    assert spec is not None
+    profile(data_env, ["99000010"], enabled=False)
+    seen: list[str] = []
+    result = downloads.fetch(spec, fetch_client(pages, seen), profile=load_profile("ch-test"))
+    assert psc.PAGE_URL not in seen and not any("psc-snapshot" in url for url in seen)
+    assert set(result["products"]) == {"companies"} and result["products_stopped"] == 0
+    # With the block enabled, a PSC page without a complete snapshot stops only that product.
+    profile(data_env, ["99000010"])
+    pages[psc.PAGE_URL] = '<a href="psc-snapshot-2026-10-18_1of2.zip">x</a>'
+    result = downloads.fetch(spec, fetch_client(pages, []), profile=load_profile("ch-test"))
+    assert result["products"]["psc"] == {"status": "stopped", "rule": "discover"}
+    assert result["products"]["companies"]["files"] == 1 and result["products_stopped"] == 1
+    pages[psc.PAGE_URL] = f'<a href="{snapshot}">x</a>'
+    result = downloads.fetch(spec, fetch_client(pages, []), profile=load_profile("ch-test"))
+    assert result["products"]["psc"] == {"version": "2026-10-17", "files": 1}

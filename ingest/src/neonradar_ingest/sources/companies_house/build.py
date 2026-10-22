@@ -15,6 +15,7 @@ records, which its links point to.
 import json
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -110,7 +111,17 @@ def discover(client: HttpClient) -> list[RemoteFile]:
     return [*bulk.discover(client), *psc.discover(client)]
 
 
-register_source(SourceSpec(bulk.DATASET, discover))
+def products(profile: Profile) -> dict[str, Callable[[HttpClient], list[RemoteFile]]]:
+    """The products a profile needs (`data fetch`): `companies`, and `psc` only when the
+    profile's `psc` block is enabled, so PSC data is never downloaded for nothing."""
+    options: CompaniesHouseSource = profile.options(bulk.DATASET)
+    wanted: dict[str, Callable[[HttpClient], list[RemoteFile]]] = {bulk.PRODUCT: bulk.discover}
+    if options.psc is not None and options.psc.enabled:
+        wanted[psc.PRODUCT] = psc.discover
+    return wanted
+
+
+register_source(SourceSpec(bulk.DATASET, discover, products=products))
 PARTS = {bulk.PRODUCT: bulk.PART_RE, psc.PRODUCT: psc.PART_RE}
 
 
@@ -248,6 +259,15 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             urls=urls,
         )
     if block is not None and "psc" in steps:
+        meta = slices.read_meta(_need(work / SLICE_META, "slice"))
+        if meta.get("psc_snapshot") != psc_version:
+            raise StepInputMissing(
+                f"{bulk.DATASET}: slice.csv comes from PSC snapshot {meta.get('psc_snapshot')},"
+                f" the newest PSC download is {psc_version}; run --step psc-index --step slice"
+                " first",
+                "snapshot",
+                counts_only=True,
+            )
         counts["psc"], strings["totals_check"] = psc.write_pscs(
             psc_parts,
             _need(work / SLICE, "slice"),

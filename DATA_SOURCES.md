@@ -18,6 +18,11 @@ NeonRadar ships loaders, never data. The repository holds code and synthetic fix
 | `icij_offshore_leaks` | ICIJ Offshore Leaks Database (`full-oldb.LATEST.zip`) | ODbL 1.0 (database), CC BY-SA 3.0 (contents) | Yes, with citation. A publicly used derived database must be ODbL and offered in machine-readable form (clause 4.6); produced works such as screenshots and reports need a notice that the content came from the database under ODbL (clause 4.3); internal use is not public use | "Always cite the International Consortium of Investigative Journalists when using this data." plus the ODbL notices | Spike reading a slice over byte ranges ([report](docs/data/spikes/icij.md), go with changes); output, and an archive copy only if ranges are refused, in `data/cache/spikes/icij/` (gitignored) |
 | `opensanctions_default` | OpenSanctions bulk data | CC BY-NC 4.0; "Any use inside a for-profit business requires a data license." | Licence required | No official text; NeonRadar's proposed wording below, following CC BY-NC 4.0 section 3(a)(1) | Only if `access.opensanctions` in `docs/build/project.yaml` is `evaluation`, `licensed` or `exempt` (currently `none`, so not used; spike [blocked on licence decision](docs/data/spikes/opensanctions.md)) |
 | `nr_synthetic` | NeonRadar generator | Apache-2.0 (our own output) | Yes | None | Fixtures and the walking skeleton |
+| `gb_fcdo_sanctions` | UK Sanctions List (FCDO) | Open Government Licence v3.0, which does not cover personal data | Yes | "Contains public sector information licensed under the Open Government Licence v3.0. Source: UK Sanctions List, Foreign, Commonwealth and Development Office. Converted to FollowTheMoney records by NeonRadar." | None in Phase 1. Phase 2 loader (M2.6a), run only when `access.sanctions_lists` includes it |
+| `us_ofac_sdn` | OFAC Specially Designated Nationals and Blocked Persons List | CC0 1.0 (public domain) | Yes | "Source: US Department of the Treasury, Office of Foreign Assets Control, Specially Designated Nationals and Blocked Persons List (public domain). NeonRadar is not affiliated with OFAC. Converted to FollowTheMoney records by NeonRadar." | None in Phase 1. Phase 2 loader (M2.6b), run only when `access.sanctions_lists` includes it |
+| `un_sc_sanctions` | United Nations Security Council Consolidated List | UN website terms of use; no licence for the list found | Only with the UN's written permission | "Source: United Nations Security Council Consolidated List. Converted to FollowTheMoney records by NeonRadar." | None in Phase 1. Phase 2 loader (M2.6c), tested on synthetic data; run only when `access.sanctions_lists` includes it, which needs the UN's written permission |
+| `eu_fsf` | EU Financial Sanctions Files (consolidated list) | The Commission's reuse policy, Decision 2011/833/EU (not CC BY 4.0) | Yes, with acknowledgement and without distorting the meaning | "Source: European Commission, Financial Sanctions Files, reused under the Commission's reuse policy (Decision 2011/833/EU). Only the information published in the Official Journal of the EU is deemed authentic. Converted to FollowTheMoney records by NeonRadar." | None in Phase 1. Phase 2 loader (M2.6d), run only when `access.sanctions_lists` includes it |
+| `gb_parliament_members` | UK Parliament members and ministers (Members API) | Open Parliament Licence v3.0, which does not cover personal data | Yes | "Contains Parliamentary information licensed under the Open Parliament Licence v3.0. Converted to FollowTheMoney records by NeonRadar." | None in Phase 1. Optional Phase 2 loader (M2.6e), run only when `access.pep_sources` includes it |
 
 ## UK Companies House (`gb_companies_house`)
 
@@ -90,6 +95,64 @@ A missing file, a missing key or any other value counts as `none`. Under every r
 - **Publisher:** NeonRadar's own generator. Licence: Apache-2.0. No attribution needed.
 - **No personal data:** every company, person, address, account and payment is generated. Synthetic names are checked against a denylist of real prominent family names. Company names committed to the repository are checked against the Companies House search API when a key is available; without a key, they are checked against the public Companies House search or listed in the pull request for the data steward to check.
 - **Synthetic laundering scenarios** run only among synthetic entities (ids starting `syn-`); real entities may receive synthetic background activity only.
+
+## Official sanctions lists and UK Parliament data (Phase 2)
+
+Added with the record contract C1 1.1.0 (`docs/build/PHASE-2.md` 5.1). The licence fields, attribution lines and notes in [contracts/datasets.yaml](contracts/datasets.yaml) are the machine-readable form of this section; the quotations come from [docs/research/2026-10-18/sanctions-peps.md](docs/research/2026-10-18/sanctions-peps.md), checked on 18 October 2026. The data steward approves each licence field and attribution line in the review of M2.1a. Whether a list is loaded is decided by `access.sanctions_lists` and `access.pep_sources` in [docs/build/project.yaml](docs/build/project.yaml) and by the profile, never by the dataset's `status`. Every list holds data about real people: whoever loads it is a controller under UK GDPR.
+
+### UK Sanctions List (`gb_fcdo_sanctions`)
+
+- **Title and publisher:** UK Sanctions List, Foreign, Commonwealth and Development Office (FCDO) (<https://www.gov.uk/government/publications/the-uk-sanctions-list>). It is the only UK sanctions list since 28 January 2026.
+- **Licence:** [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/). Commercial use is allowed.
+- **Attribution text:**
+
+  > Contains public sector information licensed under the Open Government Licence v3.0. Source: UK Sanctions List, Foreign, Commonwealth and Development Office. Converted to FollowTheMoney records by NeonRadar.
+
+- **Personal data:** the Open Government Licence does not cover "personal data in the Information": whoever loads it is a controller under UK GDPR.
+- **No endorsement:** no endorsement by the FCDO is implied.
+
+### OFAC SDN List (`us_ofac_sdn`)
+
+- **Title and publisher:** Specially Designated Nationals and Blocked Persons List, US Department of the Treasury, Office of Foreign Assets Control (<https://ofac.treasury.gov/sanctions-list-service>).
+- **Licence:** OFAC's data catalogue marks the list files [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) ("No restrictions on public access"); the data.gov record says "This data is in the public domain and may be used without restriction." Commercial use is allowed.
+- **Attribution text:**
+
+  > Source: US Department of the Treasury, Office of Foreign Assets Control, Specially Designated Nationals and Blocked Persons List (public domain). NeonRadar is not affiliated with OFAC. Converted to FollowTheMoney records by NeonRadar.
+
+- **Personal data:** public-domain status does not remove data protection duties: whoever loads it is a controller under UK GDPR.
+- **Note:** OFAC does not confirm matches; NeonRadar output is not a screening result.
+
+### UN Security Council Consolidated List (`un_sc_sanctions`)
+
+- **Title and publisher:** United Nations Security Council Consolidated List, United Nations Security Council (<https://main.un.org/securitycouncil/en/content/un-sc-consolidated-list>).
+- **Licence:** the [UN website terms of use](https://www.un.org/en/about-us/terms-of-use) allow download "for the User's personal, non-commercial use", and no licence for the list was found. NeonRadar loads it only with written permission from sc-sanctionslists@un.org, filed in `docs/data/licences/un_sc_sanctions.md` (`commercial_use: permission-required`). Until then it is not in `access.sanctions_lists`, and the UK list carries UN listings with their UN reference numbers.
+- **Attribution text:**
+
+  > Source: United Nations Security Council Consolidated List. Converted to FollowTheMoney records by NeonRadar.
+
+- **Personal data:** whoever loads it is a controller under UK GDPR.
+
+### EU Financial Sanctions Files (`eu_fsf`)
+
+- **Title and publisher:** EU Financial Sanctions Files (consolidated list), European Commission (<https://webgate.ec.europa.eu/fsd/fsf/public/rss>).
+- **Licence:** the Commission's reuse policy, [Decision 2011/833/EU](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32011D0833), which allows reuse "for commercial or non-commercial purposes", with acknowledgement of the source and without distorting the meaning. The registry records it as `LicenseRef-EC-Reuse-Decision-2011-833`, not CC BY 4.0: no licence statement attached to the files themselves was found.
+- **Attribution text:**
+
+  > Source: European Commission, Financial Sanctions Files, reused under the Commission's reuse policy (Decision 2011/833/EU). Only the information published in the Official Journal of the EU is deemed authentic. Converted to FollowTheMoney records by NeonRadar.
+
+- **Personal data:** whoever loads it is a controller under UK GDPR.
+- **Note:** the public download token can be revoked, so it is configurable (`NR_EU_FSF_TOKEN`), and stored URLs never include it.
+
+### UK Parliament members and ministers (`gb_parliament_members`)
+
+- **Title and publisher:** UK Parliament members and ministers, UK Parliament, through the Members API (<https://members-api.parliament.uk/>). An optional source of politically exposed person flags (M2.6e).
+- **Licence:** [Open Parliament Licence v3.0](https://www.parliament.uk/site-information/copyright-parliament/open-parliament-licence/). Commercial use is allowed. Photographs are outside the licence and are not loaded.
+- **Attribution text:**
+
+  > Contains Parliamentary information licensed under the Open Parliament Licence v3.0. Converted to FollowTheMoney records by NeonRadar.
+
+- **Personal data:** the Open Parliament Licence does not cover personal data: whoever loads it is a controller under UK GDPR.
+- **No endorsement:** no endorsement by Parliament is implied.
 
 ## Sources
 

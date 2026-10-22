@@ -323,7 +323,7 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
         {"decision": "same", "by": "@ one", "at": "2026-11-02T09:00:00Z"},
         {"decision": "same", "by": "@\u043ene", "at": "2026-11-02T09:00:00Z"},  # Cyrillic o
         {"decision": "same", "by": "@one-", "at": "2026-11-02T09:00:00Z"},
-        {"decision": "same", "by": "@\u212aelvin", "at": "2026-11-02T09:00:00Z"},  # Kelvin sign
+        {"decision": "same", "by": "@\u212aate", "at": "2026-11-02T09:00:00Z"},  # Kelvin sign K
         {"decision": "same", "by": "@" + "a" * 40, "at": "2026-11-02T09:00:00Z"},
         {"decision": "same", "by": "@example-one", "at": "2026-11-02T09:00:00"},
         {"decision": "same", "by": "@example-one", "at": "yesterday"},

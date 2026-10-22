@@ -11,7 +11,7 @@ import pytest
 from followthemoney.types import registry
 from nr_resolve_support import members_of, rec, syn
 
-from neonradar_resolve import policy, rules, schemas
+from neonradar_resolve import policy, rules, run, schemas
 from neonradar_resolve.cluster import Config, Link, Member, resolve
 from neonradar_resolve.run import guard_decisions
 
@@ -355,3 +355,81 @@ def test_strict_name_check_outcome_depends_on_id_order(
     if not psc_under_the_flag:
         [candidate] = result.candidates
         assert candidate["reasons"] == ["identifier_name_mismatch"]
+
+
+# Counterexamples a random search found against the earlier guard (5 in 60,000 trials): with
+# each, a record gained a flag topic it did not have without the one-reviewer decisions.
+# Members: "<n> <kind> <flag or -> <SY number suffix or -> <name: a, b or c>".
+FUZZ = [
+    (
+        "0 list - 2 a,1 synthetic - 2 b,2 list role.pep 1 b,3 list - 1 b,4 synthetic - - b,"
+        "5 synthetic - - b",
+        "D1 1 3,D5 1 4,D5 1 5,D5 2 4",
+        "2 4,0 1,0 3",
+    ),
+    (
+        "0 synthetic - 1 b,1 synthetic role.pep 1 c,2 synthetic - 1 c,3 synthetic - 2 b,"
+        "4 synthetic sanction - b,5 synthetic role.pep - b",
+        "D1 0 1,D1 2 4,D1 3 5,D5 0 2,D5 0 5",
+        "4 5,1 5",
+    ),
+    (
+        "0 list - 2 a,1 list sanction 1 b,2 list - 1 a,3 synthetic - - b,"
+        "4 synthetic sanction 2 c,5 list role.pep 2 b",
+        "D1 1 3,D1 3 5,D5 0 1,D5 1 5,D5 3 4",
+        "1 4,4 5",
+    ),
+    (
+        "0 synthetic - 2 a,1 synthetic - - a,2 synthetic sanction 1 a,3 synthetic - 1 c,"
+        "4 leak role.pep 1 a,5 synthetic - - c",
+        "D1 0 1,D1 0 5,D5 1 2,D5 2 3",
+        "2 3,0 3",
+    ),
+    (
+        "0 synthetic - - c,1 leak - - a,2 synthetic sanction - a,3 synthetic sanction 2 a,"
+        "4 list sanction 1 b,5 synthetic - 2 b,6 synthetic - 1 a",
+        "D1 0 6,D5 2 3,D5 2 6",
+        "2 4,2 6,3 5",
+    ),
+]
+NAMES = {"a": "testa example", "b": "testa exampel", "c": "quill marsh"}
+
+
+@pytest.mark.parametrize(("spec", "det_spec", "same_spec"), FUZZ)
+def test_one_reviewer_decisions_never_add_a_flag_or_a_leak(
+    spec: str, det_spec: str, same_spec: str
+) -> None:
+    members = []
+    for item in spec.split(","):
+        n, kind, flag, number, name = item.split()
+        members.append(
+            Member(
+                f"syn-{n}",
+                "nr_synthetic",
+                kind,
+                10,
+                "Company",
+                "org",
+                True,
+                flag_topics=frozenset() if flag == "-" else frozenset({flag}),
+                company_numbers=frozenset() if number == "-" else frozenset({f"SY00000{number}"}),
+                name_keys=frozenset({NAMES[name]}),
+            )
+        )
+    det = [
+        Link(f"syn-{a}", f"syn-{b}", "deterministic", r)
+        for r, a, b in map(str.split, det_spec.split(","))
+    ]
+    same = [_one(f"syn-{a}", f"syn-{b}") for a, b in map(str.split, same_spec.split(","))]
+    by_id = {m.record_id: m for m in members}
+    kept, _ = guard_decisions(by_id, det, [], rules.Decisions(same, [], len(same)), CONFIG)
+    before = run._groups(
+        resolve(members, det, [], [], [], [], CONFIG, schemas.common_schema), by_id
+    )
+    after = run._groups(
+        resolve(members, det, [], kept, [], [], CONFIG, schemas.common_schema), by_id
+    )
+    for rid in by_id:
+        flags0, leak0 = run._signature(before[rid])
+        flags1, leak1 = run._signature(after[rid])
+        assert flags1 <= flags0 and leak1 <= leak0, rid

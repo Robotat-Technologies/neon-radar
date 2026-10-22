@@ -302,3 +302,13 @@ def test_er_run_passes_the_listed_reviewers_on_a_real_profile(
     _er("run", "--profile", profile, "--no-probabilistic")
     expected = frozenset({"@example-one", "@example-two"}) if profile == "uk-tiny" else None
     assert seen[0].reviewers == expected
+
+
+def test_a_truth_class_other_than_person_or_org_fails_clearly(tmp_path: Path) -> None:
+    path = tmp_path / "er_truth.csv"
+    path.write_text(
+        "# synthetic: true\nrecord_id,entity_id,class,style,twin_of\nsyn-a,syn-e,address,x,\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="truth row 1: class must be person or org"):
+        bench.read_truth(path)

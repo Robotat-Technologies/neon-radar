@@ -206,8 +206,8 @@ def read_decisions(path: Path | None, reviewers: frozenset[str] | None = None) -
     same, different = [], []
     for pair in sorted(newest):
         if newest[pair][2] == "same":
-            reviewers = frozenset(h for h, s in by_handle[pair].items() if s[2] == "same")
-            same.append(Link(pair[0], pair[1], "human", "D7", reviewers=reviewers))
+            supporters = frozenset(h for h, s in by_handle[pair].items() if s[2] == "same")
+            same.append(Link(pair[0], pair[1], "human", "D7", reviewers=supporters))
         else:
             different.append(pair)
     return Decisions(same, different, len(newest))

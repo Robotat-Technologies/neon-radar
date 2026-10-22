@@ -83,7 +83,9 @@ def read_truth(path: Path) -> dict[str, Truth]:
     with path.open(encoding="utf-8", newline="") as handle:
         lines = [line for line in handle if not line.startswith("#")]
     out = {}
-    for row in csv.DictReader(lines):
+    for number, row in enumerate(csv.DictReader(lines), start=1):
+        if row["class"] not in CLASSES:
+            raise ValueError(f"{path.name}: truth row {number}: class must be person or org")
         out[row["record_id"]] = Truth(
             row["entity_id"], row["class"], row["style"], row["twin_of"] or None
         )

@@ -43,7 +43,7 @@
     "jsdom": "^30.0.1",
     "npm-run-all2": "^9.0.3",
     "openapi-typescript": "7.13.0",
-    "oxlint": "~1.82.0",
+    "oxlint": "~1.89.0",
     "prettier": "3.9.10",
     "typescript": "~6.0.3",
     "vite": "^8.3.4",

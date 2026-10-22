@@ -240,7 +240,7 @@ def _validate_lines(lines: tuple[str, ...]) -> list[RecordIssue]:
 def validate_lines(lines: Iterable[str]) -> list[RecordIssue]:
     """`validate_record` over every line, in worker processes; issues in line order."""
     chunks = list(batched(lines, CHUNK, strict=False))
-    workers = min(WORKERS, os.cpu_count() or 1, len(chunks))
+    workers = min(WORKERS, os.cpu_count() or 1, len(chunks) // 4)
     if workers <= 1:
         return [issue for chunk in chunks for issue in _validate_lines(chunk)]
     with ProcessPoolExecutor(workers) as pool:

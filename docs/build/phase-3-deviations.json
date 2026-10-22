@@ -6,8 +6,8 @@
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links), and label_payment and label refuse anything the scenario did not make (relationships included); created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review)",
-    "sha256": "e777862c6f2e165c56f120312ff1c8b5bc74831490023a427a05501a7a8aaefb"
+    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links); label_payment and label accept only created, links or a branch ledger (_check_label), so they refuse anything the scenario did not make (relationships included), and every endpoint check is the code book's _check (created or a branch ledger only), so a link is never an endpoint; created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review)",
+    "sha256": "40213676f35ab58b0cfddd4772373c3e2e38c4588574238e98276b90d373e08d"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",

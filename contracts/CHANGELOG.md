@@ -2,6 +2,28 @@
 
 The four NeonRadar contracts and their versions (`neonradar_contracts.versions`). The tech lead tags `contracts-v<version>` when the contracts freeze (`docs/build/PHASE-1.md` 5.0); after that, every change needs an approved contract-change issue and an entry here.
 
+## 1.1.0 (unreleased)
+
+### C3: API 1.1.0
+
+Additive, from `docs/build/PHASE-2.md` 5.3 (M2.1c, contract-change issue #51); the details are in [C3-api.md](C3-api.md#changes-in-110).
+
+- New route `GET /api/v1/entities/{entity_id}/resolution` (`get_resolution`) with `ResolutionMember`, `PossibleMatch` (with `rule`) and `ResolutionResponse`; it answers a 501 problem naming M2.12 until M2.12 implements it.
+- `PathRef` gains `effective_share_min_exclusive` and `effective_share_max_exclusive` (nullable; null exactly when their bound is), and its four effective-share fields say that an effective share is NeonRadar's calculation, not a register figure or a sanctions ownership test.
+- The semantics of `/ownership` and `/paths` (effective shares, ordering, limits, the default relationship types of `/paths`, the 5-second timeout) are fixed in C3-api.md and in the OpenAPI descriptions; their 501 problems now name M2.12.
+- The ownership, paths and resolution routes declare 200 and 404, 422 and 503 problems (ownership and paths keep their 501), so M2.12 changes nothing in `openapi/v1.json`.
+- `RelationshipType` gains `POSSIBLY_SAME_AS` (C2 1.1.0): the network returns it like any other relationship and counts it in `relationship_counts`; `/paths` uses it only when asked for. `PATHS_DEFAULT_TYPES` names the 14 default types of `/paths`.
+- `GET /meta` serves the real data notice version 2 (`contracts/wording/real-data-v2.txt`, verbatim from 5.3) as `Disclaimers.real_data`; `real-data-v1.txt` stays unchanged and `DisclaimerId` gains `real-data-v2`.
+- `contracts/wording/forbidden-terms.txt` gains 17 patterns under `# Phase 2 additions (PHASE-2.md 7.2)`, one per unqualified "Never write" phrase of 7.2; `scripts/check_wording.py` also scans `graph/src/**/wording.py`.
+- Example `examples/c3/resolution.json` (synthetic). `openapi/v1.json` and `ui/src/api/schema.d.ts` regenerated.
+
+#### Refinements of 5.3 (tech lead sign-off)
+
+The spec's types are kept; these are stricter forms of the same values, taken by the M2.1c builder under OD-10.
+
+- `ResolutionResponse.resolution` is the C2 1.1.0 enum (`identity`, `deterministic`, `probabilistic`, `human`, `mixed`) rather than any string; `run_id` has the 4.4 run id form; `rule` is a D rule id (`D` and a number); `decided_at` is a C3 UTC time (`YYYY-MM-DDTHH:MM:SSZ`, "Times" in C3-api.md); `match_probability` is between 0 and 1.
+- The models check the conditional rules of 5.3 and C2 1.1.0: one member per record (`cluster_size`), `canonical` exactly when `cluster_size` is 2 or more, one `anchor` in a merged entity and one `identity` member otherwise, a D rule on `deterministic` members and possible matches, a probability exactly on `probabilistic` possible matches, "not confirmed" in every possible-match explanation, at most 50 possible matches.
+
 ## 1.0.0 (unreleased)
 
 ### C1: NeonRadar Record 1.0.0

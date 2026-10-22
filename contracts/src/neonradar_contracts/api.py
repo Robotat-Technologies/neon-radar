@@ -1,4 +1,5 @@
-"""C3 API v1.0.0: every request and response model of the NeonRadar API (PHASE-1.md 5.3).
+"""C3 API v1.1.0: every request and response model of the NeonRadar API (PHASE-1.md 5.3, with
+the additions of PHASE-2.md 5.3: the resolution endpoint and open or closed effective shares).
 
 The FastAPI app (`neonradar_api.main.create_app`) declares its routes with these models; its
 OpenAPI document is committed at contracts/openapi/v1.json, and the UI generates its TypeScript
@@ -32,6 +33,17 @@ API_PREFIX: Final = "/api/v1"
 MAX_CONTEXT_ENTITIES: Final = 20
 MAX_ENTITY_ALERTS: Final = 50
 MAX_CURSOR_LENGTH: Final = 512
+# PHASE-2.md 5.3: ownership and paths limits, the query timeout and the possible-match cap.
+MAX_OWNERSHIP_PATHS: Final = 200
+MAX_SHORTEST_PATHS: Final = 5
+MAX_PATH_SUBGRAPH_NODES: Final = 500
+QUERY_TIMEOUT_SECONDS: Final = 5.0
+MAX_POSSIBLE_MATCHES: Final = 50
+NOT_CONFIRMED: Final = "not confirmed"
+EFFECTIVE_SHARE_NOTE: Final = (
+    "An effective share is NeonRadar's calculation from the published bands, not a figure any "
+    "register records, and not the result of a sanctions ownership test."
+)
 
 # C2 node labels (flag labels excluded: they are in NodeFlags) and the FtM schemata of nodes.
 NodeLabel = Literal[
@@ -44,19 +56,40 @@ NodeSchema = Literal[
 ]  # fmt: skip
 # The labels `GET /search` filters on (5.3).
 SearchLabel = Literal["Person", "Company", "Organization", "LegalEntity", "Address", "Account"]
-# C2 relationship types built from records; FLAGS, PRODUCED and RESOLVED_TO never appear in C3.
+# The C2 relationship types C3 shows: the 16 built from records and, from 1.1.0, the unconfirmed
+# POSSIBLY_SAME_AS, which the network returns like any other relationship (PHASE-2.md 5.2).
+# FLAGS, PRODUCED and RESOLVED_TO never appear in C3.
 RelationshipType = Literal[
     "OWNS", "CONTROLS", "CONSOLIDATES", "DIRECTOR_OF", "HOLDS_ACCOUNT", "PAID", "HAS_ADDRESS",
     "REPRESENTS", "FAMILY_OF", "ASSOCIATE_OF", "MEMBER_OF", "EMPLOYED_BY", "LINKED_TO",
-    "SUCCEEDED_BY", "HOLDS_POSITION", "SUBJECT_OF",
+    "SUCCEEDED_BY", "HOLDS_POSITION", "SUBJECT_OF", "POSSIBLY_SAME_AS",
 ]  # fmt: skip
+# `GET /paths` without `rel_types` (PHASE-2.md 5.3): HAS_ADDRESS, LINKED_TO and POSSIBLY_SAME_AS
+# are used only when asked for.
+PATHS_DEFAULT_TYPES: Final[tuple[RelationshipType, ...]] = (
+    "OWNS", "CONTROLS", "CONSOLIDATES", "DIRECTOR_OF", "REPRESENTS", "FAMILY_OF", "ASSOCIATE_OF",
+    "MEMBER_OF", "EMPLOYED_BY", "SUCCEEDED_BY", "HOLDS_POSITION", "SUBJECT_OF", "HOLDS_ACCOUNT",
+    "PAID",
+)  # fmt: skip
 # The typology catalog's tier and status (5.4); neonradar_detect.catalog uses these.
 TypologyTier = Literal["core", "extended", "explainer_only"]
 TypologyStatus = Literal["draft", "approved", "retired"]
 OwnershipDirection = Literal["up", "down"]
+# Entity resolution (PHASE-2.md 5.2, 5.3): how a source record joined its entity, how two
+# entities are possibly the same, and the entity's `resolution` property.
+MemberMethod = Literal["identity", "anchor", "deterministic", "probabilistic", "human"]
+PossibleMatchMethod = Literal["probabilistic", "deterministic", "source_hint"]
+EntityResolution = Literal["identity", "deterministic", "probabilistic", "human", "mixed"]
 
 Count = Annotated[int, Field(ge=0)]
 Share = Annotated[float, Field(ge=0, le=100)]
+Probability = Annotated[float, Field(ge=0, le=1)]
+# A deterministic rule id (PHASE-2.md 7.1.2: D1 to D7).
+RuleId = Annotated[str, Field(pattern=r"^D[1-9][0-9]*$")]
+# A resolution run id (PHASE-2.md 4.4): `er-<UTC yyyymmddThhmmss>-<4 hex>`.
+ResolutionRunId = Annotated[
+    str, Field(pattern=r"^er-[0-9]{8}T[0-9]{6}-[0-9a-f]{4}$", min_length=23, max_length=23)
+]
 Version = Annotated[str, Field(pattern=VERSION_PATTERN)]
 # A PEP 440 public version with an optional local part, for the API package (`0.1.0`,
 # `1.0.0rc1`, `0.2.0.dev3+g1a2b3c`); contract versions stay MAJOR.MINOR.PATCH.
@@ -289,12 +322,44 @@ class EntityDetail(_Model):
 
 class PathRef(_Model):
     """A path as C2 ids: `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`. The effective
-    share is the product of the OWNS share bands along an ownership path (Phase 2)."""
+    share range is the product of the OWNS share bands along an ownership path (PHASE-2.md 5.3);
+    each bound's flag says whether it is open ("more than", "less than") or closed ("at least",
+    "at most"), and is null exactly when the bound is."""
 
     node_ids: Annotated[list[EntityId], Field(min_length=1)]
     edge_ids: list[EdgeId]
-    effective_share_min: Share | None
-    effective_share_max: Share | None
+    effective_share_min: Annotated[
+        Share | None,
+        Field(
+            description="The product of the lower share bounds (each / 100) along the path, "
+            "times 100, rounded to 4 decimals; null when a relationship has no lower bound. "
+            + EFFECTIVE_SHARE_NOTE
+        ),
+    ]
+    effective_share_max: Annotated[
+        Share | None,
+        Field(
+            description="The product of the upper share bounds (each / 100) along the path, "
+            "times 100, rounded to 4 decimals; null when a relationship has no upper bound. "
+            + EFFECTIVE_SHARE_NOTE
+        ),
+    ]
+    effective_share_min_exclusive: Annotated[
+        bool | None,
+        Field(
+            description="True when any relationship's lower bound is exclusive (say \"more "
+            'than"), false when all are inclusive (say "at least"); null when '
+            "effective_share_min is null. " + EFFECTIVE_SHARE_NOTE
+        ),
+    ]
+    effective_share_max_exclusive: Annotated[
+        bool | None,
+        Field(
+            description="True when any relationship's upper bound is exclusive (say \"less "
+            'than"), false when all are inclusive (say "at most"); null when '
+            "effective_share_max is null. " + EFFECTIVE_SHARE_NOTE
+        ),
+    ]
 
     @model_validator(mode="after")
     def _ordered(self) -> Self:
@@ -303,6 +368,15 @@ class PathRef(_Model):
         low, high = self.effective_share_min, self.effective_share_max
         if low is not None and high is not None and low > high:
             raise ValueError("effective_share_min must not exceed effective_share_max")
+        for bound, flag, name in (
+            (low, self.effective_share_min_exclusive, "min"),
+            (high, self.effective_share_max_exclusive, "max"),
+        ):
+            if (bound is None) != (flag is None):
+                raise ValueError(
+                    f"effective_share_{name}_exclusive is null exactly when "
+                    f"effective_share_{name} is"
+                )
         return self
 
 
@@ -343,6 +417,94 @@ class PathsResponse(_Model):
     @model_validator(mode="after")
     def _paths(self) -> Self:
         _paths_in(self.paths, self.subgraph, self.from_id, self.to_id)
+        return self
+
+
+# Entity resolution (PHASE-2.md 5.3) --------------------------------------------------------
+
+
+class ResolutionMember(_WithSchema):
+    """One source record of an entity and how it joined: a single-record entity has one member
+    with method `identity`; a merged entity has one `anchor` and members joined by a D rule
+    (`deterministic`, `human` for D7), or by `probabilistic` matching."""
+
+    record_id: EntityId
+    dataset: Slug
+    schema_: Annotated[NodeSchema, Field(alias="schema")]
+    caption: Text
+    names: list[str]
+    method: MemberMethod
+    rule: RuleId | None
+    match_probability: Probability | None
+    decided_at: UtcTime | None
+    explanation: Text
+
+    @model_validator(mode="after")
+    def _method(self) -> Self:
+        if self.method == "deterministic" and self.rule is None:
+            raise ValueError("a deterministic member names its D rule")
+        if self.method == "probabilistic" and self.match_probability is None:
+            raise ValueError("a probabilistic member has a match_probability")
+        return self
+
+
+class PossibleMatch(_Model):
+    """Another entity that may describe the same person or company: never confirmed, never
+    merged, and flags never cross it (PHASE-2.md 0.5 item 3, guardrail G8)."""
+
+    entity: EntitySummary
+    match_probability: Probability | None
+    method: PossibleMatchMethod
+    rule: RuleId | None
+    reasons: list[str]
+    evidence: list[str]
+    explanation: Text
+
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        if (self.method == "probabilistic") != (self.match_probability is not None):
+            raise ValueError(
+                "match_probability is set for probabilistic possible matches and null for "
+                "deterministic and source_hint ones"
+            )
+        if self.method == "deterministic" and self.rule is None:
+            raise ValueError("a deterministic possible match names its D rule")
+        if NOT_CONFIRMED not in self.explanation:
+            raise ValueError(f'a possible-match explanation says "{NOT_CONFIRMED}"')
+        return self
+
+
+class ResolutionResponse(_Model):
+    """How an entity was resolved: its source records and its possible matches. `canonical` is
+    true for an entity merged from two or more records (`cluster_size`, one member each)."""
+
+    entity_id: EntityId
+    canonical: bool
+    resolution: EntityResolution
+    cluster_size: Annotated[int, Field(ge=1)]
+    members: Annotated[list[ResolutionMember], Field(min_length=1)]
+    possible_matches: Annotated[list[PossibleMatch], Field(max_length=MAX_POSSIBLE_MATCHES)]
+    resolver_version: Text | None
+    run_id: ResolutionRunId | None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if len(self.members) != self.cluster_size:
+            raise ValueError("an entity has one member per source record (cluster_size)")
+        _distinct([member.record_id for member in self.members], "member record ids")
+        if self.canonical != (self.cluster_size > 1):
+            raise ValueError("canonical is true exactly for entities merged from two or more")
+        if (self.resolution == "identity") == self.canonical:
+            raise ValueError("resolution is identity exactly for single-record entities")
+        methods = [member.method for member in self.members]
+        if self.canonical and (methods.count("anchor") != 1 or "identity" in methods):
+            raise ValueError("a merged entity has exactly one anchor and no identity member")
+        if not self.canonical and methods != ["identity"]:
+            raise ValueError("a single-record entity has one member with method identity")
+        others = [match.entity.id for match in self.possible_matches]
+        _distinct(others, "possible match entities")
+        if self.entity_id in others:
+            raise ValueError("an entity is not a possible match of itself")
         return self
 
 
@@ -427,7 +589,8 @@ class DatasetInfo(_Model):
 
 
 class Disclaimers(_Model):
-    """The texts of contracts/wording/ (PHASE-1.md 7.1, verbatim)."""
+    """The texts of contracts/wording/, verbatim: PHASE-1.md 7.1, and from C3 1.1.0 the real
+    data notice version 2 (`real-data-v2`, PHASE-2.md 5.3)."""
 
     standing: Text
     synthetic_demo: Text

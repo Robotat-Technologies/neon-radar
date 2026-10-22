@@ -37,6 +37,7 @@ from neonradar_ingest.data import layout
 from neonradar_ingest.data.profiles import Profile
 from neonradar_ingest.data.project import REPO_ROOT, Project
 from neonradar_ingest.synth import labels, overlay, world, writer
+from neonradar_ingest.synth.base import REGISTRY_ID_PREFIXES
 from neonradar_ingest.synth.namesource import default_names
 
 SEEDS_FILE = REPO_ROOT / "eval" / "seeds.yaml"  # looked up per call, so tests can patch it
@@ -191,8 +192,14 @@ class BaseIndex:
 
 
 def dataset_kinds() -> dict[str, str]:
-    """Each registered dataset's `kind` (contracts/datasets.yaml, C1 1.1.0)."""
-    return {d.slug: d.kind for d in load_registry().datasets if d.kind is not None}
+    """Each registered dataset's `kind` (contracts/datasets.yaml, C1 1.1.0). A registry the
+    generator has no company-record rule for is left out, so its records are never eligible
+    (`unknown_dataset_kind`: fail closed, M3.3 review)."""
+    return {
+        d.slug: d.kind
+        for d in load_registry().datasets
+        if d.kind is not None and (d.kind != "registry" or d.slug in REGISTRY_ID_PREFIXES)
+    }
 
 
 def _resolution(profile: Profile) -> tuple[Path | None, str | None]:

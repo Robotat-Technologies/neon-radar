@@ -4,12 +4,11 @@
 real profile) and, when the profile was resolved, the resolution run's `canonical.csv`. It keeps:
 every base id (so no scenario can use one), every name of a non-synthetic base record (no new name
 may repeat one) and of a synthetic base record (new names avoid them where they can), the account
-numbers already in use, and the eligible organisations. An organisation is eligible for an
-account when it is a `Company` or `Organization` from a registry or synthetic dataset, carries no
-flag topic, and is not dissolved. People are never eligible: generated payments next to an
-identifiable person would be invented financial data about them. A merged entity counts once,
-through its anchor record, and is not eligible if any of its records is flagged or comes from a
-list or leak dataset.
+numbers already in use, and the eligible organisations. A merged entity counts once, through its
+anchor record, and is eligible for an account only when every one of its records is a synthetic
+or registry company record (`REGISTRY_ID_PREFIXES`; GLEIF only once records carry a category)
+with no topic, a live status or none, and no dissolution date (G1; the M3.3 review). People are
+never eligible: generated payments next to a person would be invented financial data about them.
 """
 
 from __future__ import annotations
@@ -26,16 +25,13 @@ ENTITY_SCHEMAS = frozenset(
     {"Person", "Company", "Organization", "LegalEntity", "PublicBody", "Address"}
 )
 ELIGIBLE_SCHEMAS = frozenset({"Company", "Organization"})
-DESCRIPTIVE = frozenset({"corp.public", "fin", "gov", "pol.party", "pol.union", "rel", "mil"})
-CLOSED = frozenset({"dissolved", "closed", "inactive", "liquidation", "struck off", "removed"})
+# Statuses that may hold an account, an allowlist as in generator v0's join.
+LIVE = frozenset({"active", "open", "registered"})
 # G1 (orchestrator decision, M3.3): a registry record holds an account only as the registry's
 # own company record, never a PSC, officer, relationship or other record of the same dataset.
 REGISTRY_ID_PREFIXES = {"gb_companies_house": "gbch-co-", "gleif_lei": "gleif-lei-"}
-
-
-def flag_topics(topics: Iterable[str]) -> set[str]:
-    """Topics that are more than descriptive (PHASE-2.md 7.1.1)."""
-    return {t for t in topics if t not in DESCRIPTIVE and not t.startswith(("fin.", "gov."))}
+# A GLEIF sole proprietor is a person; C1 records carry no EntityCategory yet (reconciliation C7).
+CATEGORY_UNKNOWN = frozenset({"gleif_lei"})
 
 
 @dataclass(slots=True)
@@ -68,7 +64,7 @@ class BaseView:
                 by_id[r["id"]] = r
         clusters = _clusters(by_id, canonical_csv)
         for anchor, members in sorted(clusters.items()):
-            reason = _ineligible(by_id[anchor], [by_id[m] for m in members], dataset_kinds)
+            reason = _ineligible(by_id[anchor], [by_id.get(m) for m in members], dataset_kinds)
             if reason:
                 view.skipped[reason] = view.skipped.get(reason, 0) + 1
                 continue
@@ -94,18 +90,20 @@ def _clusters(
     groups: dict[str, list[str]] = {}
     with canonical_csv.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
-            if row["record_id"] in by_id:
-                groups.setdefault(row["canonical_id"], []).append(row["record_id"])
+            groups.setdefault(row["canonical_id"], []).append(row["record_id"])
     out = {}
     clustered: set[str] = set()
     for canonical, members in groups.items():
+        present = [m for m in members if m in by_id]  # members missing from the base stay listed
+        if not present:
+            continue
         anchor = (
             canonical[3:]
-            if canonical.startswith("nr-") and canonical[3:] in members
-            else min(members)
+            if canonical.startswith("nr-") and canonical[3:] in present
+            else min(present)
         )
         out[anchor] = sorted(members)
-        clustered.update(members)
+        clustered.update(present)
     for i in by_id:
         if i not in clustered:
             out[i] = [i]
@@ -113,11 +111,13 @@ def _clusters(
 
 
 def _ineligible(
-    anchor: Mapping[str, Any], members: list[Mapping[str, Any]], kinds: Mapping[str, str]
+    anchor: Mapping[str, Any], members: list[Mapping[str, Any] | None], kinds: Mapping[str, str]
 ) -> str:
     if anchor["schema"] not in ELIGIBLE_SCHEMAS:
         return "not_an_organisation"
     for m in members:
+        if m is None:
+            return "member_not_in_base"
         kind = kinds.get(m["datasets"][0], "")
         if kind in ("list", "leak"):
             return "list_or_leak_record"
@@ -128,8 +128,11 @@ def _ineligible(
         prefix = REGISTRY_ID_PREFIXES.get(m["datasets"][0], "")
         if not str(m["id"]).startswith(prefix) or m["schema"] not in ELIGIBLE_SCHEMAS:
             return "not_a_registry_company"
-    props = anchor.get("properties", {})
-    status = " ".join(props.get("status", [])).casefold()
-    if props.get("dissolutionDate") or any(word in status for word in CLOSED):
-        return "dissolved"
+        if m["datasets"][0] in CATEGORY_UNKNOWN:
+            return "category_unknown"
+        props = m.get("properties", {})
+        if props.get("dissolutionDate"):
+            return "dissolved"
+        if any(status.strip().casefold() not in LIVE for status in props.get("status", [])):
+            return "not_active"  # an allowlist: any other status fails closed
     return ""

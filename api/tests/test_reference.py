@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from neonradar_api import docs_page
 from neonradar_api.files import RepoFiles, find_workspace_root
 from neonradar_api.main import create_app
+from neonradar_contracts import versions
 from neonradar_contracts.api import MetaResponse, Problem, TypologyDetail, TypologySummary
 from neonradar_contracts.datasets import load_registry
 from neonradar_contracts.wording import load_disclaimer
@@ -40,7 +41,12 @@ def test_meta_answers_without_neo4j(client: TestClient) -> None:
     assert meta.disclaimers.standing == load_disclaimer("standing-v1")
     assert meta.disclaimers.synthetic_demo == load_disclaimer("synthetic-demo-v1")
     assert meta.disclaimers.real_data == load_disclaimer("real-data-v1")
-    assert (meta.contracts_version, meta.schema_version) == ("1.0.0", "1.1.0")  # C2 1.1.0
+    assert (meta.contracts_version, meta.schema_version) == (
+        versions.CONTRACTS,
+        versions.GRAPH_SCHEMA,
+    )
+    assert meta.contracts_version == "1.1.0"  # C1 1.1.0 (M2.1a)
+    assert meta.schema_version == "1.1.0"  # C2 1.1.0 (M2.1b)
 
 
 def test_typologies_come_from_the_catalog_sorted_by_slug(client: TestClient) -> None:

@@ -1,18 +1,23 @@
 {
+  "ingest/src/neonradar_ingest/synth/background.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S6: the module docstring says background activity can form benign cycle shapes and near-threshold cash, and that R-REAL is the only control on real profiles (docstring only)",
+    "sha256": "fa62db58c1aedcd0695793ce42a68282a49c6c844b9e2a0d3c9baeda11f421ba"
+  },
   "ingest/src/neonradar_ingest/synth/base.py": {
     "milestone": "M3.3",
-    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics)",
-    "sha256": "9c1c47b78bb5d1748e099c31e1168cba41f8859ddaf08210e217df019e14273d"
+    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics); M3.3 review S3, S5, N1, N2: GLEIF records ineligible until C1 carries EntityCategory (category_unknown), a merged entity with a member missing from the base is ineligible (member_not_in_base), statuses are an allowlist checked on every member (not_active), docstring corrected and the unused flag_topics removed; #78 review: a registry record without a status is not eligible when the caller asks (overlay.generate does; the default stays off only for the verbatim merged-entity test), and a record the resolution run omits is not eligible (not_in_resolution); delta check of #78: a synthetic-kind record without a syn- id is not eligible (synthetic_id_prefix)",
+    "sha256": "e158311db75911d26692e08282346890051fbe7d7da0a74a8ce6d86d09777651"
   },
   "ingest/src/neonradar_ingest/synth/ctx.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links); label_payment and label accept only created, links or a branch ledger (_check_label), so they refuse anything the scenario did not make (relationships included), and every endpoint check is the code book's _check (created or a branch ledger only), so a link is never an endpoint; created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review)",
-    "sha256": "40213676f35ab58b0cfddd4772373c3e2e38c4588574238e98276b90d373e08d"
+    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links); label_payment and label accept only created, links or a branch ledger (_check_label), so they refuse anything the scenario did not make (relationships included), and every endpoint check is the code book's _check (created or a branch ledger only), so a link is never an endpoint; created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person",
+    "sha256": "cd40f9557146c798c0e10eee44a82357c5b0165734fb947934da24c557aa5071"
   },
   "ingest/src/neonradar_ingest/synth/overlay.py": {
     "milestone": "M3.3",
-    "reason": "M3.3 review S2: check_bridge takes the eligible organisation ids and requires every base holder of an account holding to be one, and refuses a payment whose payerAccount or beneficiaryAccount is a base id",
-    "sha256": "9d61c53d50c648029bfdbe70cedf2b8300bdd85db6b43ad2b704aaa0e5d39673"
+    "reason": "M3.3 review S2: check_bridge takes the eligible organisation ids and requires every base holder of an account holding to be one, and refuses a payment whose payerAccount or beneficiaryAccount is a base id; #78 review: overlay.generate leaves out a registry without a company-record rule (fail closed for any caller) and asks BaseView for registry statuses",
+    "sha256": "f2236dca92892e0cba4bff8d449ca62fd099b238c7d29fad660602229995cee6"
   },
   "ingest/src/neonradar_ingest/synth/world.py": {
     "milestone": "M3.3",

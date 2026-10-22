@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -21,6 +20,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from neonradar_ingest.synth import records as rec
+from neonradar_ingest.synth.companies import name_key as company_name_key
 from neonradar_ingest.synth.dates import Period
 from neonradar_ingest.synth.streams import stream
 from neonradar_ingest.synth.writer import line
@@ -36,9 +36,9 @@ class NameSource(Protocol):
         ...
 
     def invented_person(self, rng: np.random.Generator, locale: str) -> tuple[list[str], str]:
-        """The same with an invented surname, for people on synthetic lists, PEP personas and
-        their relatives and associates, so that no realistic full name is ever put on a
-        synthetic list (PHASE-2.md M2.9)."""
+        """The same with an invented surname, for every person a scenario creates and for
+        people on synthetic lists, PEP personas and their relatives and associates, so that no
+        realistic full name is ever flagged or put in a scenario role (PHASE-2.md M2.9)."""
         ...
 
     def company(self, rng: np.random.Generator, jurisdiction: str) -> str: ...
@@ -57,8 +57,10 @@ def letter(rng: np.random.Generator) -> str:
 
 
 def name_key(name: str) -> str:
-    """NFC, case-folded, spaces collapsed: the comparison form for name collisions."""
-    return " ".join(unicodedata.normalize("NFC", name).casefold().split())
+    """The comparison form for name collisions: NFC, case-folded, punctuation and spaces
+    collapsed, and legal forms at either end removed, so "X Ltd" collides with "X LIMITED"
+    (Phase 1's `companies.name_key`; M3.3 review)."""
+    return company_name_key(name)
 
 
 @dataclass(slots=True)
@@ -477,7 +479,8 @@ class ScenarioCtx:
         return self._own(self.ctx.company(self._key("co"), **kw))
 
     def person(self, **kw: Any) -> str:
-        return self._own(self.ctx.person(self._key("p"), **kw))
+        """Scenario people carry invented surnames (M3.3 review: no realistic name in a role)."""
+        return self._own(self.ctx.person(self._key("p"), **(kw | {"invented": True})))
 
     def organization(self, name: str, **kw: Any) -> str:
         return self._own(self.ctx.organization(self._key("org"), name, **kw))

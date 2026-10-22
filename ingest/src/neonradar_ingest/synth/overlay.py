@@ -21,7 +21,7 @@ from types import ModuleType
 from typing import Any
 
 from neonradar_ingest.synth import background, writer
-from neonradar_ingest.synth.base import BaseView
+from neonradar_ingest.synth.base import REGISTRY_ID_PREFIXES, BaseView
 from neonradar_ingest.synth.ctx import Ctx, LabelRows, NameSource, ScenarioCtx
 from neonradar_ingest.synth.dates import Period
 from neonradar_ingest.synth.scenarios import (
@@ -126,7 +126,12 @@ def generate(
     """`canonical_csv` is the base's latest resolution run (`canonical.csv`), when the profile
     resolves: a merged entity then gets one account, through its anchor record, and none when any
     of its records is flagged or comes from a list or a leak (`BaseView`)."""
-    view = BaseView.from_records(base_records, dataset_kinds, canonical_csv)
+    kinds = {  # a registry without a company-record rule fails closed (M3.3 review)
+        slug: kind
+        for slug, kind in dataset_kinds.items()
+        if kind != "registry" or slug in REGISTRY_ID_PREFIXES
+    }
+    view = BaseView.from_records(base_records, kinds, canonical_csv, registry_status_required=True)
     period = Period(
         datetime.combine(cfg.start, datetime.min.time(), UTC),
         datetime.combine(cfg.end, datetime.min.time(), UTC),

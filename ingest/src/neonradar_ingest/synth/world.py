@@ -286,7 +286,8 @@ def generate(seed: int, cfg: WorldConfig, names: NameSource) -> list[dict[str, A
             )
     for i in range(cfg.peps):
         pid = w.rid("p")
-        spellings, gender = w.person_names(pid, "en_GB")
+        names_rng = w.names_rng(pid)  # PEP personas carry invented surnames (2.9, 7.2.3)
+        spellings, gender = w.unique(lambda r=names_rng: w.names.invented_person(r, "en_GB"))
         w.records.append(
             rec.person(
                 pid,

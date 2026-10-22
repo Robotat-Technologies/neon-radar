@@ -3,8 +3,8 @@
 # Keys are the `link` value in lower case with runs of spaces collapsed; a value appears once.
 # Seeded from the Phase 1 spike's top links (docs/data/spikes/icij.md section 2), the lists in
 # docs/research/2026-10-16/sources-opensanctions-ftm-icij.md C.1 and the roles PHASE-2.md M2.5
-# names. Values not listed become UnknownLink and are counted by value in the build summary,
-# so the ingest mentor can extend this table.
+# names; each role is listed with and without "of". Values not listed become UnknownLink and
+# are counted by value in the build summary, so the ingest mentor can extend this table.
 #
 # ownership: Ownership (owner the officer, asset the entity; `role` the raw link).
 # nominee_ownership: the same, with nr.is_nominee true.
@@ -19,7 +19,9 @@ ownership:
   - owner
   - owner of
   - beneficial owner
+  - beneficial owner of
   - ultimate beneficial owner
+  - ultimate beneficial owner of
   - ubo
   - partner
   - partner of
@@ -30,24 +32,35 @@ directorship:
   - director
   - director of
   - alternate director
+  - alternate director of
+  - managing director
   - managing director of
   - secretary
   - secretary of
   - president
   - president of
+  - vice-president
   - vice-president of
   - treasurer
+  - treasurer of
+  - chairman
   - chairman of
   - board member
+  - board member of
+  - officer
   - officer of
   - signatory
+  - signatory of
   - is signatory for
   - authorised person / signatory of
   - bank signatory of
   - power of attorney
   - power of attorney of
+  - legal representative
   - legal representative of
+  - judicial representative
   - judicial representative of
+  - liquidator
   - liquidator of
 nominee_directorship:
   - nominee director
@@ -56,17 +69,24 @@ unknown_link:
   - beneficiary
   - beneficiary of
   - settlor
+  - settlor of
   - trust settlor of
   - founder
+  - founder of
   - grantor
+  - grantor of
   - protector
   - protector of
   - trustee
+  - trustee of
   - trustee of trust of
   - auditor
   - auditor of
+  - records & registers
   - records & registers of
+  - custodian
   - custodian of
+  - member
   - member of
   - connected to
   - linked to

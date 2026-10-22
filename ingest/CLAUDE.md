@@ -39,8 +39,10 @@
   - ICIJ loader (`sources/icij/full.py`, `slice.py`, `links.yaml`; M2.5): reads the zip's CSV
     members by header name, never extracting; selection passes keep node ids only; `note`
     and unmapped columns never reach records; `officer_of` links classify through
-    `links.yaml` (unknown values are counted, so extend the table); duplicate hints go to
-    `*-hints.csv`, never records. Tests build the zip in memory from invented rows.
+    `links.yaml` (unknown values are counted, so extend the table); a relationship type it
+    does not map is skipped and counted (fail closed), and one with same, similar, duplicate
+    or possibly in it is a hint, written to `*-hints.csv`, never a record. Names are tested
+    as FtM cleans them. Tests build the zip in memory from invented rows.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
   - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
     username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids

@@ -4,22 +4,27 @@
 the nodes by level. `district-linked`: level 0 the addresses with a UK postcode in the
 profile's Companies House postcode districts, level 1 the entities and officers registered at
 them, level 2 the officers and intermediaries of those entities. `gb-linked`: level 0 the nodes
-with `GBR` among their country codes, level 1 their direct neighbours. `full`: every node. Only
-nodes with a usable name (addresses: address text) count. Over `max_nodes`, whole levels are
+with `GBR` among their country codes, level 1 their direct neighbours through a relationship
+type the loader maps (hints and unknown types are not links). `full`: every node. Only nodes
+with a usable name (addresses: address text, else the `name` column), as FtM cleans it, count.
+Over `max_nodes`, whole levels are
 kept in order and, inside the level that overflows, the nodes with the smallest
 `sha256("<sample_seed>|<node_id>")`.
 """
 
 import hashlib
+import re
+import unicodedata
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, Self
 
+from followthemoney import registry
 from pydantic import (
     BaseModel,
     ConfigDict,
-    PositiveInt,
+    Field,
     StrictBool,
     StrictInt,
     ValidationInfo,
@@ -40,7 +45,12 @@ NODE_FILES = {
     "nodes-addresses.csv": "address",
 }
 RELATIONSHIPS = "relationships.csv"
-HINT_PREFIXES = ("same_", "similar", "probably_same_")
+# Relationship types the loader maps; any other type is skipped and counted (fail closed).
+LINK_TYPES = ("registered_address", "intermediary_of", "officer_of", "underlying",
+              "related_entity", "connected_to")  # fmt: skip
+HINT_WORDS = ("same", "similar", "duplicate", "possibly")  # anywhere in rel_type: never a link
+MAX_NODES = 500_000
+QUESTION_MARKS = re.compile(r"[?\s]+\Z")
 SKIP_NO_NAME = "nodes without a usable name"
 SKIP_KIND_CLASH = "node ids in an address file and another node file (first kept)"
 
@@ -63,7 +73,7 @@ class IcijSource(BaseModel):
 
     enabled: StrictBool
     mode: Mode = "district-linked"
-    max_nodes: PositiveInt = 50_000  # ignored in `full` mode
+    max_nodes: StrictInt = Field(default=50_000, gt=0, le=MAX_NODES)  # ignored in `full` mode
     sample_seed: StrictInt = 0
 
     @model_validator(mode="after")
@@ -79,8 +89,38 @@ class IcijSource(BaseModel):
 
 
 def is_hint(rel_type: str) -> bool:
-    """ICIJ's own duplicate hints (`same_*`, `similar*`, `probably_same_*`)."""
-    return rel_type.startswith(HINT_PREFIXES)
+    """ICIJ's own duplicate hints: "same", "similar", "duplicate" or "possibly" in the type."""
+    return any(word in rel_type for word in HINT_WORDS)
+
+
+def clean(value: str | None) -> str:
+    """NFC, stripped; empty when the value is only question marks (junk names)."""
+    text = unicodedata.normalize("NFC", (value or "").strip())
+    return "" if QUESTION_MARKS.match(text) else text
+
+
+def clean_name(value: str | None) -> str:
+    """The name as FtM stores it (invisible and control characters gone), or empty when
+    nothing or only question marks is left."""
+    return clean(registry.name.clean(unicodedata.normalize("NFC", value or "")))
+
+
+def clean_address(value: str | None) -> str:
+    return clean(registry.address.clean(unicodedata.normalize("NFC", value or "")))
+
+
+def address_text(row: Row) -> tuple[str, str | None]:
+    """An address node's text and its column: `address`, else `name` (the Phase 1 spike's
+    fallback, research note C.5)."""
+    for column in ("address", "name"):
+        if text := clean_address(row.get(column)):
+            return text, column
+    return "", None
+
+
+def usable(kind: str, row: Row) -> bool:
+    """A row C1 can carry: a name (addresses: text), as FtM cleans it."""
+    return bool(address_text(row)[0] if kind == "address" else clean_name(row.get("name")))
 
 
 def ends(row: Row) -> tuple[str, str, str]:
@@ -89,8 +129,8 @@ def ends(row: Row) -> tuple[str, str, str]:
     return start, end, (row.get("rel_type") or "").strip().lower()
 
 
-def in_districts(address: str | None, districts: frozenset[str]) -> bool:
-    postcode, _ = find_uk_postcode(address or "")
+def in_districts(address: str, districts: frozenset[str]) -> bool:
+    postcode, _ = find_uk_postcode(address)
     return postcode is not None and postcode_parts(postcode).district in districts
 
 
@@ -161,7 +201,7 @@ def _district_linked(
     rows: Rows, usable: Usable, districts: frozenset[str], skipped: Counter[str]
 ) -> tuple[list[set[str]], dict[str, tuple[str, ...]]]:
     def located(kind: str, row: Row) -> bool:
-        return in_districts(row.get("address"), districts)
+        return in_districts(address_text(row)[0], districts)
 
     level0 = set(node_kinds(rows, usable, Counter(), files=["nodes-addresses.csv"], match=located))
     registered: set[str] = set()
@@ -197,8 +237,8 @@ def _gb_linked(
     neighbours: set[str] = set()
     for row in rows(RELATIONSHIPS):
         start, end, rel = ends(row)
-        if is_hint(rel):
-            continue  # a hint is not a link
+        if rel not in LINK_TYPES:
+            continue  # a hint or an unknown type is not a link
         if start in level0:
             neighbours.add(end)
         if end in level0:

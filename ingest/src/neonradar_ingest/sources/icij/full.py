@@ -18,7 +18,6 @@ import hashlib
 import io
 import json
 import re
-import unicodedata
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
@@ -50,15 +49,20 @@ from neonradar_ingest.http import HttpClient, HttpError, redact
 from neonradar_ingest.sources.icij.archive import ARCHIVE_FILE, ARCHIVE_URL
 from neonradar_ingest.sources.icij.mapping import ADDRESS_ROLES, node_id
 from neonradar_ingest.sources.icij.slice import (
+    LINK_TYPES,
     NODE_FILES,
     RELATIONSHIPS,
     IcijSource,
     Row,
     Selection,
+    address_text,
+    clean,
+    clean_name,
     ends,
     is_hint,
     postcode_districts,
     select,
+    usable,
 )
 from neonradar_keys.countries import country_code
 
@@ -68,11 +72,13 @@ PRODUCT = "main"
 NR_VERSION = "1.1"
 NODE_URL = "https://offshoreleaks.icij.org/nodes/{}"
 LINKS_FILE = Path(__file__).with_name("links.yaml")
-DISCLAIMER = (
+DISCLAIMER = (  # ICIJ FAQ, verbatim, as re-fetched for M1.8c on 21 October 2026
     "There are legitimate uses for offshore companies and trusts.",
     "We do not intend to suggest or imply that any individuals, companies or other entities"
     " included in the ICIJ Offshore Leaks Database have broken the law or otherwise acted"
-    " improperly. (ICIJ FAQ, as re-fetched for M1.8c on 21 October 2026)",
+    " improperly.",
+    "We recommend caution before drawing any conclusions, as many people and entities have the"
+    " same or similar names.",
 )
 REQUIRED = {name: ("node_id", "name") for name in NODE_FILES} | {
     RELATIONSHIPS: ("node_id_start", "node_id_end", "rel_type", "link")
@@ -99,13 +105,10 @@ LINK_CLASSES = {
     "nominee_directorship": ("Directorship", True),
     "unknown_link": ("UnknownLink", False),
 }
-KNOWN_REL_TYPES = ("registered_address", "intermediary_of", "officer_of", "underlying",
-                   "related_entity", "connected_to")  # fmt: skip
 MONTH_NAMES = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 MONTHS = {name: number for number, name in enumerate(MONTH_NAMES, start=1)}
 ICIJ_DATE = re.compile(r"(\d{1,2})-([A-Za-z]{3})-(\d{4}|\d{2})\Z")  # 22-MAY-2006, 22-MAY-06
 ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})\Z")
-QUESTION_MARKS = re.compile(r"[?\s]+\Z")
 GENERATED_ON = re.compile(r"GENERATED_ON_(\d{4})(\d{2})(\d{2})\.txt\Z")
 SUMMARY_VALUE = re.compile(r"[^a-z0-9 ._#:/()&,'-]+")
 HINT_COUNTS = ("hints_written", "hints_repeated", "address_hints_dropped", "hints_outside_slice")
@@ -115,17 +118,7 @@ SKIP_NO_ID = "rows without a node id or relationship type"
 SKIP_OUTSIDE = "relationships with an end outside the slice"
 SKIP_CAP = "relationships dropped with nodes over the cap"
 SKIP_DUPLICATE_LINK = "duplicate relationship rows"
-
-
-def clean(value: str | None) -> str:
-    """NFC, stripped; empty when the value is only question marks (junk names)."""
-    text = unicodedata.normalize("NFC", (value or "").strip())
-    return "" if QUESTION_MARKS.match(text) else text
-
-
-def usable(kind: str, row: Row) -> bool:
-    """A row C1 can carry: a name (addresses: the address text)."""
-    return bool(clean(row.get("address" if kind == "address" else "name")))
+SKIP_UNKNOWN_TYPE = "relationships of a type the loader does not map"
 
 
 @cache
@@ -270,6 +263,7 @@ class Mapper:
         self.unknown_rel_types: Counter[str] = Counter()
         self.hints: Counter[str] = Counter(dict.fromkeys(HINT_COUNTS, 0))
         self.merged = 0  # ids in more than one node file, written as one record
+        self.address_from_name = 0  # address nodes whose text is only in the `name` column
         self.addresses: dict[str, dict[str, str]] = {}  # node id -> {address record id: role}
         self.edge_ids: set[str] = set()
 
@@ -295,6 +289,9 @@ class Mapper:
                 self.skipped[SKIP_NO_ID] += 1
             elif is_hint(rel):
                 self.hint(start, end, rel, hints, seen_hints)
+            elif rel not in LINK_TYPES:  # fail closed: an unknown type is never loaded
+                self.unknown_rel_types[summary_value(rel)] += 1
+                self.skipped[SKIP_UNKNOWN_TYPE] += 1
             elif start not in kept or end not in kept:
                 both = start in self.selected and end in self.selected
                 self.skipped[SKIP_CAP if both else SKIP_OUTSIDE] += 1
@@ -336,8 +333,6 @@ class Mapper:
         self.edge_ids.add(rid)
         if rel == "officer_of" and link_key(row.get("link")) not in link_table():
             self.unknown_links[summary_value(link_key(row.get("link")))] += 1
-        elif rel not in KNOWN_REL_TYPES:
-            self.unknown_rel_types[summary_value(rel)] += 1
         link = ValueEntity(model[kind], {"id": rid, "datasets": [DATASET]})
         link.add(link.schema.edge_source or "", node_id(start))
         link.add(link.schema.edge_target or "", node_id(end))
@@ -393,17 +388,19 @@ class Mapper:
         self.write(out, entity, nr)
 
     def properties(self, kind: str, row: Row) -> Iterator[tuple[str, str | None]]:
-        name = clean(row.get("name"))
+        name = clean_name(row.get("name"))
         if kind == "address":
-            yield "full", clean(row.get("address"))
+            text, column = address_text(row)
+            self.address_from_name += column == "name"
+            yield "full", text
         else:
             yield "name", name
         yield "publisher", clean(row.get("sourceID"))
         for code in (row.get("country_codes") or "").split(";"):
             yield "country", country_code(code)
         if kind == "entity":
-            yield "previousName", clean(row.get("former_name"))
-            original = clean(row.get("original_name"))
+            yield "previousName", clean_name(row.get("former_name"))
+            original = clean_name(row.get("original_name"))
             yield "alias", original if original.casefold() != name.casefold() else None
         if kind in ("entity", "other"):
             yield "jurisdiction", country_code(clean(row.get("jurisdiction_description")))
@@ -513,6 +510,7 @@ def build(profile: Profile, context: BuildContext, *, today: date | None = None)
         "links_by_class": dict(sorted(mapper.links.items())),
         **{key: mapper.hints[key] for key in HINT_COUNTS},
         "nodes_merged_across_files": mapper.merged,
+        "addresses_with_text_only_in_name": mapper.address_from_name,
         "unknown_links_by_value": dict(mapper.unknown_links.most_common()),
         "unknown_rel_types_by_value": dict(mapper.unknown_rel_types.most_common()),
         "dates": dict(sorted(mapper.dates.counts.items())),

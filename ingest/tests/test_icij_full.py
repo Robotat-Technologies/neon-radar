@@ -45,9 +45,9 @@ HEADERS = {
 }
 NOTE = "SYNTHETIC NOTE THAT MUST NEVER BE LOADED"
 SOURCE = "Synthetic Papers"
-A1, A2 = "9910000001", "9910000002"
-E1, E2, E3 = "9920000001", "9920000002", "9920000003"
-O1, O2, O5 = "9930000001", "9930000002", "9930000005"
+A1, A2, A3 = "9910000001", "9910000002", "9910000003"
+E1, E2, E3, E4 = "9920000001", "9920000002", "9920000003", "9920000004"
+O1, O2, O5, O6 = "9930000001", "9930000002", "9930000005", "9930000006"
 I1, X1 = "9940000001", "9950000001"
 TRUST = ("settlor", "founder", "beneficiary of", "grantor", "protector of")
 ROWS: dict[str, list[dict[str, str]]] = {
@@ -65,6 +65,7 @@ ROWS: dict[str, list[dict[str, str]]] = {
          "inactivation_date": "21-AUG-0200",
          "struck_off_date": "2011-03-04", "sourceID": SOURCE, "note": NOTE},
         {"node_id": E3, "name": "? ?"},  # junk name: skipped
+        {"node_id": E4, "name": "\u200b\u00ad"},  # invisible characters only: skipped
     ],
     "nodes-officers.csv": [
         {"node_id": O1, "name": "Zafer Velqasimi", "country_codes": "GBR",
@@ -72,6 +73,7 @@ ROWS: dict[str, list[dict[str, str]]] = {
         {"node_id": O2, "name": "Yazan Zubeirono", "sourceID": SOURCE},
         {"node_id": O5, "name": "Copper Acre Interiors Ltd"},
         {"node_id": I1, "name": "Basalt Holm Foods Ltd"},  # also an intermediary
+        {"node_id": O6, "name": "\u200e\x01"},  # invisible and control characters: skipped
     ],
     "nodes-intermediaries.csv": [
         {"node_id": I1, "name": "Basalt Holm Foods Ltd", "status": "ACTIVE", "country_codes":
@@ -87,6 +89,7 @@ ROWS: dict[str, list[dict[str, str]]] = {
         {"node_id": A1, "address": "1 Synthetic Row, Testford QQ1 1AA", "name": "SYN NAME",
          "country_codes": "GBR", "note": NOTE},
         {"node_id": A2, "address": "2 Example Lane, Testford QQ2 2BB", "country_codes": "GBR"},
+        {"node_id": A3, "address": "", "name": "3 Sample Court, Testford QQ3 3CC"},
     ],
 }  # fmt: skip
 
@@ -135,10 +138,15 @@ ROWS["relationships.csv"] = [
     rel(A1, A2, "same_address_as", "same address as"),
     rel(E1, A1, "similar", "similar name and address as"),
     rel(E1, E3, "same_as", "same as"),  # E3 is outside
+    rel(E1, E2, "synthetic_custom_type", "synthetic custom type"),  # unknown: never loaded
+    rel(O2, E2, "possibly_same_as", "possibly same as"),  # hint-like types are hints
+    rel(E1, O1, "duplicate_of", "duplicate of"),
 ]
 
 
-def zip_body(rows: dict[str, list[dict[str, str]]], drop: tuple[str, ...] = ()) -> bytes:
+def zip_body(
+    rows: dict[str, list[dict[str, str]]], drop: tuple[str, ...] = (), bom: bool = False
+) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("GENERATED_ON_20990101.txt", "")
@@ -148,7 +156,7 @@ def zip_body(rows: dict[str, list[dict[str, str]]], drop: tuple[str, ...] = ()) 
             writer = csv.DictWriter(text, columns, extrasaction="ignore", lineterminator="\n")
             writer.writeheader()
             writer.writerows(rows.get(member, []))
-            zf.writestr(member, text.getvalue())
+            zf.writestr(member, ("\ufeff" if bom else "") + text.getvalue())
     return buffer.getvalue()
 
 
@@ -247,9 +255,11 @@ def test_nodes_map_to_the_c1_table_and_note_is_never_read(data_env: Any) -> None
     assert a1["properties"]["country"] == ["gb"] and "icijId" not in a1["properties"]
     assert rid(E3) not in found  # a junk name leaves no name: skipped
     counts = result.counts
-    assert counts["records_by_schema"] == {"address": 2, "company": 2, "directorship": 2,
+    assert counts["records_by_schema"] == {"address": 3, "company": 2, "directorship": 2,
         "legalentity": 5, "ownership": 3, "representation": 1, "unknownlink": 9}  # fmt: skip
-    assert counts["skipped"]["nodes_without_a_usable_name"] == 1
+    assert counts["skipped"]["nodes_without_a_usable_name"] == 3  # E3, E4, O6
+    assert found[rid(A3)]["properties"]["full"] == ["3 Sample Court, Testford QQ3 3CC"]
+    assert counts["addresses_with_text_only_in_name"] == 1
     assert counts["nodes_merged_across_files"] == 1
     assert counts["dates"] == {"parsed": 7, "two_digit_year": 1, "dropped": 3}
 
@@ -286,6 +296,8 @@ def test_relationships_map_to_their_classes(data_env: Any) -> None:
     skipped = result.counts["skipped"]
     assert skipped["duplicate_relationship_rows"] == 1
     assert skipped["relationships_with_an_end_outside_the_slice"] == 1  # E1 -> E3
+    assert result.counts["unknown_rel_types_by_value"] == {"synthetic_custom_type": 1}
+    assert skipped["relationships_of_a_type_the_loader_does_not_map"] == 1  # fail closed
 
 
 def test_hints_are_written_never_loaded_and_address_hints_dropped(data_env: Any) -> None:
@@ -295,10 +307,12 @@ def test_hints_are_written_never_loaded_and_address_hints_dropped(data_env: Any)
         ["record_a", "record_b", "hint"],
         [rid(O1), rid(O2), "same_name_as"],
         [rid(E1), rid(E2), "similar_company_as"],
+        [rid(E2), rid(O2), "possibly_same_as"],  # the pair in id order
+        [rid(E1), rid(O1), "duplicate_of"],
     ]
     assert not any("same" in r["id"] or "similar" in r["id"] for r in records(out).values())
     counts = result.counts
-    assert (counts["hints_written"], counts["hints_repeated"]) == (2, 1)
+    assert (counts["hints_written"], counts["hints_repeated"]) == (4, 1)
     assert (counts["address_hints_dropped"], counts["hints_outside_slice"]) == (2, 1)
 
 
@@ -330,13 +344,14 @@ def test_the_build_validates_in_strict_mode_with_its_manifest(data_env: Any) -> 
     folder = layout.records_dir(chosen, "icij_offshore_leaks")
     record_file = next(folder.glob("*.ftm.jsonl"))
     counts, issues = validate_files([record_file], strict=True)
-    assert issues == [] and counts.total() == 24
+    assert issues == [] and counts.total() == 25
     manifest = Manifest.model_validate_json(manifest_path(record_file).read_text())
     assert (manifest.record_contract, manifest.licence.id) == ("1.1.0", "ODbL-1.0")
     assert manifest.source.source_version == "2099-01-01"
     assert manifest.source.urls == [ARCHIVE_URL]
     assert "There are legitimate uses for offshore companies and trusts." in manifest.notes
-    assert manifest.counts.skipped["nodes without a usable name"] == 1
+    assert manifest.counts.skipped["nodes without a usable name"] == 3
+    assert "many people and entities have the same or similar names." in manifest.notes[2]
 
 
 def test_headers_are_matched_by_name_required_ones_stop_the_build(data_env: Any) -> None:
@@ -373,6 +388,9 @@ def test_dates(raw: str, expected: str | None) -> None:
 
 def test_junk_names_and_summary_values() -> None:
     assert [full.clean(v) for v in ("???", " ? ? ", "A?", None)] == ["", "", "A?", ""]
+    invisible = ("\u200b", "\u00ad", "\u200e", "\x01", "\u200b?")
+    assert [full.clean_name(v) for v in invisible] == ["", "", "", "", ""]
+    assert full.clean_name(" Zafer\u200b  Velqasimi ") == "Zafer Velqasimi"
     assert full.summary_value("Mailing Address; Residential") == "mailing address_ residential"
     assert full.summary_value(";;") == "empty"
 
@@ -390,6 +408,13 @@ LINKS = [
     ("protector of", "UnknownLink", False), ("trustee of trust of", "UnknownLink", False),
     ("auditor of", "UnknownLink", False), ("records & registers of", "UnknownLink", False),
     ("an unknown synthetic role", "UnknownLink", False),
+    ("beneficial owner of", "Ownership", False),
+    ("ultimate beneficial owner of", "Ownership", False),
+    ("treasurer of", "Directorship", False), ("chairman", "Directorship", False),
+    ("chairman of", "Directorship", False), ("managing director", "Directorship", False),
+    ("vice-president", "Directorship", False), ("liquidator", "Directorship", False),
+    ("settlor of", "UnknownLink", False), ("trustee of", "UnknownLink", False),
+    ("person of significant control", "UnknownLink", False),
 ]  # fmt: skip
 
 
@@ -399,6 +424,9 @@ def test_every_link_value_maps_to_its_schema() -> None:
     assert full.classify("intermediary_of", "registered agent of") == ("Representation", False)
     assert full.classify("registered_address", "registered office") == ("address", False)
     assert full.classify("underlying", "") == ("UnknownLink", False)
+    for made_up in ("possibly_same_as", "duplicate_of", "same_officer_as", "similar_to"):
+        assert full.is_hint(made_up), made_up
+    assert not full.is_hint("officer_of") and "synthetic_custom_type" not in full.LINK_TYPES
 
 
 def client(handler: Any) -> HttpClient:
@@ -430,7 +458,15 @@ def test_discover_takes_the_version_from_last_modified_and_asks_conditionally(
         full.discover(client(lambda request: httpx.Response(404)))
 
 
-def test_unreadable_members_stop_the_build_without_quoting_a_value(data_env: Any) -> None:
+@pytest.mark.parametrize(
+    ("broken", "expected"),
+    [("nodes-officers.csv",
+      "nodes-officers.csv is not a readable UTF-8 CSV file (UnicodeDecodeError)"),
+     ("nodes-others.csv", "the archive has no nodes-others.csv")],
+)  # fmt: skip
+def test_unreadable_members_stop_the_build_without_quoting_a_value(
+    data_env: Any, broken: str, expected: str
+) -> None:
     body = io.BytesIO()
     with (
         zipfile.ZipFile(io.BytesIO(zip_body(ROWS))) as source,
@@ -438,26 +474,48 @@ def test_unreadable_members_stop_the_build_without_quoting_a_value(data_env: Any
     ):
         for name in source.namelist():
             data = source.read(name)
-            if name == "nodes-officers.csv":
+            if name == broken == "nodes-officers.csv":
                 data += b"9930000009,Synthetic \xff Officer\n"  # not UTF-8
-            if name != "nodes-others.csv":
+            if name != broken or broken != "nodes-others.csv":
                 target.writestr(name, data)
     install(body.getvalue())
     with pytest.raises(BuildError) as stopped:
         run(data_env)
     assert stopped.value.counts_only and "Synthetic" not in str(stopped.value)
-    assert str(stopped.value) in (
-        "nodes-officers.csv is not a readable UTF-8 CSV file (UnicodeDecodeError)",
-        "the archive has no nodes-others.csv",
-    )
+    assert str(stopped.value) == expected
 
 
-def test_committed_profiles_never_use_full_mode() -> None:
+def test_committed_profiles_never_use_full_mode_nor_gb_linked_without_adr_0013() -> None:
+    adr = [p.read_text(encoding="utf-8") for p in (REPO_ROOT / "docs" / "decisions").glob("0013-*")]
     for path in (REPO_ROOT / "ingest" / "profiles").glob("*.yaml"):
         block = yaml.safe_load(path.read_text(encoding="utf-8"))["sources"].get(
             "icij_offshore_leaks", {}
         )
         assert block.get("mode") != "full", path.name
+        if block.get("mode") == "gb-linked":  # the data steward's reason is in ADR-0013
+            assert any("gb-linked" in text and path.stem in text for text in adr), path.name
+
+
+def test_a_bom_and_a_long_field_do_not_stop_the_build(data_env: Any) -> None:
+    rows = {**ROWS, "nodes-entities.csv": [dict(ROWS["nodes-entities.csv"][0], note="N" * 200_000),
+                                           *ROWS["nodes-entities.csv"][1:]]}  # fmt: skip
+    install(zip_body(rows, bom=True))
+    result, out = run(data_env)
+    assert len(records(out)) == 25 and result.counts["records_by_schema"]["company"] == 2
+
+
+def test_discover_follows_a_redirect_asking_for_the_file_as_published(data_env: Any) -> None:
+    seen: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if str(request.url) == ARCHIVE_URL:
+            return httpx.Response(307, headers={"Location": "https://archive.test/full.zip"})
+        return httpx.Response(200, headers={"Last-Modified": "Wed, 09 Sep 2099 10:55:34 GMT"})
+
+    assert full.discover(client(answer))[0].version == "2099-09-09"
+    assert [r.method for r in seen] == ["HEAD", "HEAD"]
+    assert [r.headers["Accept-Encoding"] for r in seen] == ["identity", "identity"]
 
 
 def test_the_link_table_is_lower_case_and_each_value_appears_once() -> None:

@@ -63,6 +63,8 @@ TABLES: dict[str, list[dict[str, str]]] = {
         rel(O2, E3, "officer_of", "director of"),  # nothing beyond level 2 is followed
         rel(O4, E3, "officer_of", "secretary of"),
         rel(E3, E2, "same_name_as", "same name as"),  # a hint is not a link
+        rel(E3, E2, "possibly_same_as", "possibly same as"),  # nor a hint-like type
+        rel(E3, E2, "synthetic_custom_type", "synthetic"),  # nor a type the loader does not map
     ],
 }
 
@@ -112,6 +114,11 @@ def test_gb_linked_takes_gbr_nodes_and_their_direct_neighbours() -> None:
     assert selection.levels == [{A1, E3}, {E1, O1, X1, O2, O4}]  # E2 only through a hint
     capped = select(rows, usable, options("gb-linked", max_nodes=3), frozenset())
     assert capped.kept == {A1, E3, order(7, E1, O1, X1, O2, O4)[0]}
+
+
+def test_max_nodes_is_capped() -> None:
+    with pytest.raises(ValueError, match="500000"):
+        options("gb-linked", max_nodes=500_001)
 
 
 def test_full_takes_every_usable_node_and_ignores_the_cap() -> None:

@@ -3,6 +3,7 @@ and a counts-only summary, on a synthetic archive (invented ids and names, `QQ` 
 
 import io
 import json
+import re
 import zipfile
 from typing import Any
 
@@ -50,8 +51,11 @@ def test_ingest_build_icij_writes_a_counts_only_summary(data_env: Any) -> None:
     data_env.allow_real("icij-cli")
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
-    assert "Myrtle" not in result.output and "Velqasimi" not in result.output
-    report = json.loads(next((data_env.cache / "reports" / "icij-cli").iterdir()).read_text())
+    report_text = next((data_env.cache / "reports" / "icij-cli").iterdir()).read_text()
+    for text in (result.output, report_text):  # no name and no node or record id
+        assert "Myrtle" not in text and "Velqasimi" not in text and "icij-node-" not in text
+        assert not re.search(r"99[0-9]{8}", text)
+    report = json.loads(report_text)
     counts = report["datasets"]["icij_offshore_leaks"]
     assert counts["status"] == "ok" and counts["mode"] == "district-linked"
     assert counts["nodes_by_level"] == {"level_0": 1, "level_1": 1, "level_2": 1}

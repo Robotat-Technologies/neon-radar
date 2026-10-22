@@ -474,5 +474,5 @@ def test_the_smallest_unique_id_gives_the_name() -> None:
 def test_list_stamp_keeps_dates_only() -> None:
     assert shared.list_stamp("2026-10-20T09:00:00") == "2026-10-20T09:00:00"
     assert shared.list_stamp(" 20/10/2026 ") == "20/10/2026"
-    assert shared.list_stamp("Zafer VELQASIMI") == "unrecognised"  # a name never reaches a summary
+    assert shared.list_stamp("Zafir QANDELOUNI") == "unrecognised"  # a name never reaches a summary
     assert shared.list_stamp(None) == "missing"

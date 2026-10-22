@@ -779,6 +779,7 @@ dependencies = [
     { name = "neonradar-contracts" },
     { name = "neonradar-keys" },
     { name = "numpy" },
+    { name = "orjson" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
 ]
@@ -792,6 +793,7 @@ requires-dist = [
     { name = "neonradar-contracts", editable = "contracts" },
     { name = "neonradar-keys", editable = "keys" },
     { name = "numpy", specifier = "==2.5.*" },
+    { name = "orjson", specifier = "==3.13.*" },
     { name = "pydantic-settings", specifier = ">=2.16,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
 ]

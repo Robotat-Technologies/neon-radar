@@ -32,7 +32,13 @@ def _lower_keys(value: Any) -> Any:
 
 
 def _run_config(
-    config_path: Path, *, profile: str, temp: Path, keep: bool, seniors: list[str]
+    config_path: Path,
+    *,
+    profile: str,
+    temp: Path,
+    keep: bool,
+    seniors: list[str],
+    reviewers: frozenset[str] | None = None,
 ) -> RunConfig:
     from neonradar_resolve.config import load_config
     from neonradar_resolve.run import RunConfig
@@ -46,10 +52,21 @@ def _run_config(
         resolver,
         sha,
         senior_reviewers=frozenset(seniors),
+        reviewers=reviewers,
         profile=profile,
         temp_directory=temp,
         keep_features=keep,
     )
+
+
+def _reviewers(project: Any) -> frozenset[str]:
+    """Who may decide on a real profile: people.er_labellers and er_senior_reviewers (fail
+    closed: while both hold only placeholders, every decision line is refused)."""
+    from neonradar_resolve.rules import handle
+
+    people = project.people
+    listed = [*people.er_labellers, *people.er_senior_reviewers]
+    return frozenset(h for value in listed if (h := handle(value)))
 
 
 def _thresholds(config: RunConfig) -> dict[str, Any]:
@@ -104,6 +121,7 @@ def run_command(
                 temp=temp,
                 keep=keep_features,
                 seniors=project.people.er_senior_reviewers,
+                reviewers=_reviewers(project) if chosen.real_data else None,
             )
             result = run.run(
                 chosen.record_dirs(project),

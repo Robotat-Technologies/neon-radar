@@ -13,6 +13,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+import pytest
+from nr_resolve_support import corpus_of, syn
 from typer.testing import CliRunner
 
 from neonradar_cli.main import app
@@ -256,3 +258,21 @@ def test_shuffled_benchmark_ids_change_only_the_order_of_links(tmp_path: Path) -
         assert abs(shuffled[name]["recall"] - original[name]["recall"]) <= 0.01
     assert shuffled["policy_blocked_pairs"] == original["policy_blocked_pairs"]
     assert abs(shuffled["policy_blocked_recall"] - original["policy_blocked_recall"]) <= 0.01
+
+
+def test_hint_reasons_outside_the_allow_list_fold_into_other() -> None:
+    assert run._reason_key("source_hint:same_name_as") == "source_hint:same_name_as"
+    assert run._reason_key("source_hint:some_new_link") == "source_hint:other"
+    assert run._reason_key("listed_unlisted") == "listed_unlisted"
+
+
+def test_an_address_with_a_flag_topic_stops_the_run(tmp_path: Path) -> None:
+    folder = tmp_path / "records"
+    corpus_of(
+        folder, [syn("syn-addr-flag", "Address", full="1 Test Road, QQ1 2AB", topics="sanction")]
+    )
+    resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
+    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill")
+    with pytest.raises(run.RunError, match="1 Address records carry flag topics"):
+        run.run([folder], tmp_path / "run", config, probabilistic=False)
+    assert not list((tmp_path / "run").iterdir())  # no feature tables left behind

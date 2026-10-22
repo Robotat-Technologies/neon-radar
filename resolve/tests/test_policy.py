@@ -12,7 +12,8 @@ from followthemoney.types import registry
 from nr_resolve_support import members_of, rec, syn
 
 from neonradar_resolve import policy, rules, schemas
-from neonradar_resolve.cluster import Config, Link, resolve
+from neonradar_resolve.cluster import Config, Link, Member, resolve
+from neonradar_resolve.run import guard_decisions
 
 DESCRIPTIVE = ["corp.public", "fin", "fin.bank", "fin.fund", "gov", "gov.soe", "gov.muni"]
 DESCRIPTIVE += ["pol.party", "pol.union", "rel", "mil"]
@@ -60,10 +61,10 @@ def test_record_kind() -> None:
 def test_list_source_and_list_party(tmp_path: Path) -> None:
     sanction = {"topics": "sanction", "name": "Testa Example"}
     items = [
-        rec("uksl-g1234", "Person", "gb_fcdo_sanctions", **sanction),
+        rec("uksl-gtest1", "Person", "gb_fcdo_sanctions", **sanction),
         rec("uksl-un-zzi.1", "Person", "gb_fcdo_sanctions", **sanction),
-        rec("uksl-98765", "Person", "gb_fcdo_sanctions", **sanction),
-        rec("ofac-555", "Person", "us_ofac_sdn", **sanction),
+        rec("uksl-test-2", "Person", "gb_fcdo_sanctions", **sanction),
+        rec("ofac-test-1", "Person", "us_ofac_sdn", **sanction),
         rec("gbch-off-test1", "Person", "gb_companies_house", name="Testa Example"),
         syn("syn-list-1", "Person", "list", **sanction),
         rec(
@@ -84,14 +85,14 @@ def test_list_source_and_list_party(tmp_path: Path) -> None:
         ),
     ]
     _, members = members_of(tmp_path, items)
-    assert (members["uksl-g1234"].list_source, members["uksl-g1234"].list_party) == (
+    assert (members["uksl-gtest1"].list_source, members["uksl-gtest1"].list_party) == (
         "gb_fcdo_sanctions",
         "gb_fcdo_sanctions",
     )
-    for ungrouped in ("uksl-un-zzi.1", "uksl-98765"):
+    for ungrouped in ("uksl-un-zzi.1", "uksl-test-2"):
         assert members[ungrouped].list_source == "gb_fcdo_sanctions"
         assert members[ungrouped].list_party is None
-    assert members["ofac-555"].list_party == "us_ofac_sdn"
+    assert members["ofac-test-1"].list_party == "us_ofac_sdn"
     assert (
         members["gbch-off-test1"].list_source is None
         and members["gbch-off-test1"].kind == "registry"
@@ -115,11 +116,11 @@ def test_p1_registry_and_sanctions_look_alikes_stay_apart(tmp_path: Path) -> Non
     person = {"name": "Testa Example", "birthDate": "1971-04-12"}
     items = [
         rec("gbch-off-test1", "Person", "gb_companies_house", **person),
-        rec("uksl-g9001", "Person", "gb_fcdo_sanctions", topics="sanction", **person),
+        rec("uksl-gtest3", "Person", "gb_fcdo_sanctions", topics="sanction", **person),
     ]
     _, members = members_of(tmp_path, items)
-    result = _resolve(members, prob=[_prob("gbch-off-test1", "uksl-g9001")])
-    assert {r["canonical_id"] for r in result.canonical} == {"gbch-off-test1", "uksl-g9001"}
+    result = _resolve(members, prob=[_prob("gbch-off-test1", "uksl-gtest3")])
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-off-test1", "uksl-gtest3"}
     [candidate] = result.candidates
     assert candidate["reasons"] == ["listed_unlisted"]
 
@@ -161,7 +162,7 @@ def _d1_pair(tmp_path: Path, listed_name: str):  # type: ignore[no-untyped-def]
             jurisdiction="gb",
         ),
         rec(
-            "uksl-g9002",
+            "uksl-gtest4",
             "Organization",
             "gb_fcdo_sanctions",
             topics="sanction",
@@ -173,7 +174,7 @@ def _d1_pair(tmp_path: Path, listed_name: str):  # type: ignore[no-untyped-def]
     corpus, members = members_of(tmp_path, items)
     links = rules.deterministic(corpus, members)
     assert [(x.rule, x.record_a, x.record_b) for x in links] == [
-        ("D1", "gbch-co-00000001", "uksl-g9002")
+        ("D1", "gbch-co-00000001", "uksl-gtest4")
     ]
     return _resolve(members, det=links)
 
@@ -185,7 +186,7 @@ def test_p1_d1_with_exactly_the_same_name_merges(tmp_path: Path) -> None:
 
 def test_p1_d1_with_a_similar_name_is_only_a_possible_match(tmp_path: Path) -> None:
     result = _d1_pair(tmp_path, "Example Group")
-    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000001", "uksl-g9002"}
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000001", "uksl-gtest4"}
     [candidate] = result.candidates
     assert candidate["reasons"] == ["identifier_name_mismatch"] and candidate["rule"] == "D1"
 
@@ -193,17 +194,17 @@ def test_p1_d1_with_a_similar_name_is_only_a_possible_match(tmp_path: Path) -> N
 def test_p2_leak_and_registry_look_alikes_stay_apart(tmp_path: Path) -> None:
     items = [
         rec("gbch-off-test3", "Person", "gb_companies_house", name="Testa Example"),
-        rec("icij-90001", "LegalEntity", "icij_offshore_leaks", name="TESTA EXAMPLE"),
+        rec("icij-test-1", "LegalEntity", "icij_offshore_leaks", name="TESTA EXAMPLE"),
     ]
     _, members = members_of(tmp_path, items)
     assert (
-        members["icij-90001"].kind == "leak"
-        and members["icij-90001"].entity_class == "legal_entity"
+        members["icij-test-1"].kind == "leak"
+        and members["icij-test-1"].entity_class == "legal_entity"
     )
-    result = _resolve(members, prob=[_prob("gbch-off-test3", "icij-90001")])
+    result = _resolve(members, prob=[_prob("gbch-off-test3", "icij-test-1")])
     [candidate] = result.candidates
     assert candidate["reasons"] == ["leaked_cross_source"]
-    assert {r["canonical_id"] for r in result.canonical} == {"gbch-off-test3", "icij-90001"}
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-off-test3", "icij-test-1"}
 
 
 def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: Path) -> None:
@@ -219,7 +220,7 @@ def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: P
             jurisdiction="gb",
         ),
         rec(
-            "icij-90002",
+            "icij-test-2",
             "LegalEntity",
             "icij_offshore_leaks",
             name="Holder Example",
@@ -228,8 +229,88 @@ def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: P
         ),
     ]
     corpus, members = members_of(tmp_path, items)
-    assert members["icij-90002"].name_keys == {"holder example"}
+    assert members["icij-test-2"].name_keys == {"holder example"}
     result = _resolve(members, det=rules.deterministic(corpus, members))
-    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000002", "icij-90002"}
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000002", "icij-test-2"}
     [candidate] = result.candidates
     assert candidate["reasons"] == ["identifier_name_mismatch"] and candidate["rule"] == "D1"
+
+
+# One reviewer's `same` decision and later identifier links (phase-2-reconciliation.md 2.7, G1)
+
+
+def _syn_person(rid: str, kind: str = "synthetic", flags: tuple[str, ...] = ()) -> Member:
+    return Member(
+        rid, "nr_synthetic", kind, 10, "Person", "person", True,
+        flag_topics=frozenset(flags), name_keys=frozenset({"testa example"}),
+    )  # fmt: skip
+
+
+def _guarded(members: list[Member], det: list[Link], same: list[Link]):  # type: ignore[no-untyped-def]
+    by_id = {m.record_id: m for m in members}
+    decisions = rules.Decisions(same, [], len(same))
+    kept, held = guard_decisions(by_id, det, [], decisions, CONFIG)
+    result = resolve(members, det, [], kept, [], [], CONFIG, schemas.common_schema)
+    canon = {r["record_id"]: r["canonical_id"] for r in result.canonical}
+    return canon, result.counts["decisions_awaiting_second_review"] + held
+
+
+def test_one_reviewer_cannot_bring_a_flag_through_a_later_identifier_link() -> None:
+    v, u, w = (
+        _syn_person("syn-v"),
+        _syn_person("syn-u"),
+        _syn_person("syn-w", "list", ("sanction",)),
+    )
+    one = Link("syn-u", "syn-v", "human", "D7", reviewers=frozenset({"@one"}))
+    d5 = Link("syn-u", "syn-w", "deterministic", "D5")
+    canon, waiting = _guarded([v, u, w], [d5], [one])
+    assert canon["syn-v"] == "syn-v" and canon["syn-u"] == canon["syn-w"] == "nr-syn-u"
+    assert waiting == 1
+
+
+@pytest.mark.parametrize("v_id", ["syn-a-v", "syn-z-v"])
+def test_one_reviewer_decision_does_not_depend_on_id_order(v_id: str) -> None:
+    v, u, w = (
+        _syn_person(v_id),
+        _syn_person("syn-m-u"),
+        _syn_person("syn-m-w", "list", ("sanction",)),
+    )
+    weak = Link(*sorted((v_id, "syn-m-u")), "human", "D7", reviewers=frozenset({"@one"}))
+    strong = Link("syn-m-u", "syn-m-w", "human", "D7", reviewers=frozenset({"@one", "@two"}))
+    canon, waiting = _guarded([v, u, w], [], [weak, strong])
+    assert canon[v_id] == v_id and canon["syn-m-u"] == canon["syn-m-w"] == "nr-syn-m-u"
+    assert waiting == 1
+
+
+def test_one_reviewer_decision_between_unflagged_clusters_applies() -> None:
+    v, u = _syn_person("syn-v"), _syn_person("syn-u")
+    one = Link("syn-u", "syn-v", "human", "D7", reviewers=frozenset({"@one"}))
+    canon, waiting = _guarded([v, u], [], [one])
+    assert canon["syn-v"] == "nr-syn-u" and waiting == 0
+
+
+@pytest.mark.parametrize(
+    ("listed_id", "dataset", "psc_under_the_flag"),
+    [("uksl-gtest5", "gb_fcdo_sanctions", True), ("eufsf-test-5", "eu_fsf", False)],
+)
+def test_strict_name_check_outcome_depends_on_id_order(
+    tmp_path: Path, listed_id: str, dataset: str, psc_under_the_flag: bool
+) -> None:
+    """A registry record with a similar name ends up under a list entry's flag when its D1 link
+    sorts before the list entry's (UK, OFAC, UN, ICIJ ids sort after `gbch-`), and stays a
+    possible match when the list entry's sorts first (EU ids): a property of 7.1.6's order,
+    recorded in ADR-0015 for the deciders."""
+    uk = {"registrationNumber": "3", "jurisdiction": "gb"}
+    items = [
+        rec("gbch-co-00000003", "Company", "gb_companies_house", name="Example Holder Ltd", **uk),
+        rec("gbch-psc-test-s1", "Company", "gb_companies_house", name="Example Holdr Ltd", **uk),
+        rec(listed_id, "Organization", dataset, topics="sanction", name="Example Holder Plc", **uk),
+    ]
+    corpus, members = members_of(tmp_path, items)
+    result = _resolve(members, det=rules.deterministic(corpus, members))
+    canon = {r["record_id"]: r["canonical_id"] for r in result.canonical}
+    assert canon[listed_id] == "nr-gbch-co-00000003"
+    assert (canon["gbch-psc-test-s1"] == "nr-gbch-co-00000003") is psc_under_the_flag
+    if not psc_under_the_flag:
+        [candidate] = result.candidates
+        assert candidate["reasons"] == ["identifier_name_mismatch"]

@@ -171,25 +171,25 @@ def test_d4_links_listed_records_of_different_lists(tmp_path: Path) -> None:
 
     items = [
         listed("uksl-un-zzi.1", "gb_fcdo_sanctions"),
-        listed("eufsf-1", "eu_fsf"),
-        listed("eufsf-2", "eu_fsf"),
+        listed("eufsf-test-1", "eu_fsf"),
+        listed("eufsf-test-2", "eu_fsf"),
         sanction("uksl-sanction-1", "gb_fcdo_sanctions", "uksl-un-zzi.1", "ZZi.1"),
-        sanction("eufsf-sanction-1", "eu_fsf", "eufsf-1", "zzi.1."),
-        sanction("eufsf-sanction-2", "eu_fsf", "eufsf-2", "ZZi.1"),
+        sanction("eufsf-sanction-1", "eu_fsf", "eufsf-test-1", "zzi.1."),
+        sanction("eufsf-sanction-2", "eu_fsf", "eufsf-test-2", "ZZi.1"),
     ]
     assert _links(tmp_path, items) == [
-        ("D4", "eufsf-1", "uksl-un-zzi.1"),
-        ("D4", "eufsf-2", "uksl-un-zzi.1"),
+        ("D4", "eufsf-test-1", "uksl-un-zzi.1"),
+        ("D4", "eufsf-test-2", "uksl-un-zzi.1"),
     ]
 
 
 def test_d5_same_native_id_within_one_dataset(tmp_path: Path) -> None:
     items = [
-        rec("icij-1", "LegalEntity", "icij_offshore_leaks", {"source_ref": "90001"}, name="X"),
-        rec("icij-2", "LegalEntity", "icij_offshore_leaks", {"source_ref": "90001"}, name="Y"),
-        rec("ofac-3", "Person", "us_ofac_sdn", {"source_ref": "90001"}, name="X"),
+        rec("icij-test-1", "LegalEntity", "icij_offshore_leaks", {"source_ref": "90001"}, name="X"),
+        rec("icij-test-2", "LegalEntity", "icij_offshore_leaks", {"source_ref": "90001"}, name="Y"),
+        rec("ofac-test-3", "Person", "us_ofac_sdn", {"source_ref": "90001"}, name="X"),
     ]
-    assert _links(tmp_path, items) == [("D5", "icij-1", "icij-2")]
+    assert _links(tmp_path, items) == [("D5", "icij-test-1", "icij-test-2")]
 
 
 def test_d6_links_addresses_only(tmp_path: Path) -> None:
@@ -228,8 +228,8 @@ def test_d7_newest_line_decides_and_same_carries_its_reviewers() -> None:
     assert decisions.on_file == 3
     same = {(x.record_a, x.record_b): x for x in decisions.same}
     first = same[("syn-test-a1", "syn-test-a2")]
-    assert (first.method, first.rule, first.reviewers) == ("human", "D7", {"@one"})
-    assert same[("syn-test-b1", "syn-test-b2")].reviewers == {"@one", "@two"}
+    assert (first.method, first.rule, first.reviewers) == ("human", "D7", {"@example-one"})
+    assert same[("syn-test-b1", "syn-test-b2")].reviewers == {"@example-one", "@example-two"}
     assert decisions.different == [("syn-test-c1", "syn-test-c2")]
 
 
@@ -276,7 +276,7 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
         tmp_path,
         [
             {"decision": "same", "by": "@One", "at": "2026-11-02T09:00:00Z"},
-            {"decision": "same", "by": "one", "at": "2026-11-02T09:05:00Z"},
+            {"decision": "same", "by": " @ONE ", "at": "2026-11-02T09:05:00Z"},
         ],
     )
     [link] = rules.read_decisions(path).same
@@ -295,11 +295,17 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
     "line",
     [
         {"decision": "same", "by": "@TODO", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "one", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "@one.", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "@ one", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "@\u043ene", "at": "2026-11-02T09:00:00Z"},  # Cyrillic o
+        {"decision": "same", "by": "@one-", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "@" + "a" * 40, "at": "2026-11-02T09:00:00Z"},
         {"decision": "same", "by": "@one", "at": "2026-11-02T09:00:00"},
         {"decision": "same", "by": "@one", "at": "yesterday"},
     ],
 )
-def test_d7_refuses_placeholders_and_times_without_offset(
+def test_d7_refuses_bad_handles_and_times_without_offset(
     tmp_path: Path, line: dict[str, str]
 ) -> None:
     with pytest.raises(rules.DecisionsError):
@@ -310,5 +316,29 @@ def test_senior_reviewers_drop_placeholders() -> None:
     from neonradar_resolve.config import load_config
 
     config, _ = load_config(Path(__file__).parents[1] / "config" / "er.yaml")
-    seniors = config.cluster_config(["@TODO", "Senior", " "]).senior_reviewers
+    seniors = config.cluster_config(["@TODO", "@Senior", " ", "senior2"]).senior_reviewers
     assert seniors == {"@senior"}
+
+
+def test_d7_on_a_real_profile_accepts_listed_reviewers_only(tmp_path: Path) -> None:
+    """Fail closed: an unlisted handle stops the run (people.er_labellers, er_senior_reviewers)."""
+    line = {"decision": "same", "by": "@Example-One", "at": "2026-11-02T09:00:00Z"}
+    path = _decision_file(tmp_path, [line])
+    [link] = rules.read_decisions(path, frozenset({"@example-one"})).same
+    assert link.reviewers == {"@example-one"}
+    with pytest.raises(rules.DecisionsError) as caught:
+        rules.read_decisions(path, frozenset())
+    assert "not in people.er_labellers" in str(caught.value)
+
+
+def test_d6_links_each_address_to_the_smallest_id_of_its_key(tmp_path: Path) -> None:
+    def address(rid: str) -> dict[str, object]:
+        return rec(rid, "Address", "gb_companies_house", full="12 High St., London, n1 7gu")
+
+    items = [address(f"gbch-addr-{i}") for i in (3, 1, 2, 4)]
+    items.append(syn("syn-addr-1", "Address", full="12 High St., London, n1 7gu"))
+    assert _links(tmp_path, items) == [
+        ("D6", "gbch-addr-1", "gbch-addr-2"),
+        ("D6", "gbch-addr-1", "gbch-addr-3"),
+        ("D6", "gbch-addr-1", "gbch-addr-4"),
+    ]  # the synthetic record keeps to itself (X1)

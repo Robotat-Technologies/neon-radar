@@ -191,7 +191,7 @@ def test_every_empty_list_is_null(tmp_path: Path) -> None:
 def test_org_columns(tmp_path: Path) -> None:
     items = [
         rec(
-            "gbch-co-SC012345",
+            "gbch-co-test-1",
             "Company",
             "gb_companies_house",
             name="The Example Holder Limited",
@@ -205,7 +205,7 @@ def test_org_columns(tmp_path: Path) -> None:
         ),
     ]
     _, _, orgs, _, _ = _tables(tmp_path, items)
-    row = orgs["gbch-co-SC012345"]
+    row = orgs["gbch-co-test-1"]
     assert row["name_key"] == "example holder" and row["name_prefix"] == "exam"
     assert row["aliases"] == ["example holder", "example holder and sons", "example trading"]
     assert row["ch_same_as"] == "EXAMPLEHOLDER"

@@ -11,7 +11,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from neonradar_resolve import cluster
-from neonradar_resolve.rules import PLACEHOLDER, handle
+from neonradar_resolve.rules import handle
 
 
 class ResolverConfig(BaseModel):
@@ -27,8 +27,7 @@ class ResolverConfig(BaseModel):
 
     def cluster_config(self, senior_reviewers: Iterable[str] = ()) -> cluster.Config:
         """The clustering settings, with `people.er_senior_reviewers` (placeholders dropped)."""
-        seniors = frozenset(handle(h) for h in senior_reviewers if h.strip())
-        seniors -= {PLACEHOLDER, "@"}
+        seniors = frozenset(h for value in senior_reviewers if (h := handle(value)))
         return cluster.Config(
             merge_threshold={str(k): v for k, v in self.merge_threshold.items()},
             candidate_threshold=self.candidate_threshold,

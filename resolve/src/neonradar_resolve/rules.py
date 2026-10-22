@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -25,14 +26,26 @@ DECISIONS = ("same", "different")
 PLACEHOLDER = "@todo"  # project.yaml handles not filled in yet (OD-22): never a reviewer
 
 
-def handle(value: str) -> str:
-    """A GitHub handle in one form: trimmed, lower case, with its `@` (handles ignore case)."""
+# A GitHub handle with its @: ASCII letters, digits and single inner hyphens, 39 at most.
+HANDLE = re.compile(r"@[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}", re.ASCII)
+
+
+def handle(value: object) -> str | None:
+    """The handle in lower case (GitHub handles ignore case), or None when it is not one.
+
+    Placeholders (`@TODO`) are not handles.
+    """
+    if not isinstance(value, str):
+        return None
     text = value.strip().lower()
-    return text if text.startswith("@") else f"@{text}"
+    return text if HANDLE.fullmatch(text) and text != PLACEHOLDER else None
 
 
 class DecisionsError(ValueError):
     """A malformed decisions file; the message names the line, never a value."""
+
+    exit_code = 2
+    counts_only = True  # file name, line number and the rule only: safe on a real profile
 
 
 Pair = tuple[str, str]  # record ids, the smaller first
@@ -110,8 +123,19 @@ def d5(corpus: Corpus) -> set[Pair]:
 
 
 def d6(corpus: Corpus) -> set[Pair]:
-    """D6: Address records with the same address key (a full postcode or a street line)."""
-    return _pairs(_group((key, rid) for rid, key in address_keys(corpus).items()))
+    """D6: Address records with the same address key (a full postcode or a street line).
+
+    Each record links to the smallest record id of its key (synthetic and real records apart,
+    X1), so a key shared by n records gives n - 1 links, not n(n - 1)/2.
+    """
+    groups = _group(
+        (f"{corpus.records[rid].synthetic}|{key}", rid) for rid, key in address_keys(corpus).items()
+    )
+    pairs: set[Pair] = set()
+    for ids in groups.values():
+        hub = min(ids)
+        pairs.update(_pair(hub, rid) for rid in ids if rid != hub)
+    return pairs
 
 
 def deterministic(corpus: Corpus, members: Mapping[str, Member]) -> list[Link]:
@@ -136,11 +160,13 @@ class Decisions:
     on_file: int  # pairs with at least one decision
 
 
-def read_decisions(path: Path | None) -> Decisions:
+def read_decisions(path: Path | None, reviewers: frozenset[str] | None = None) -> Decisions:
     """For each pair the newest line decides (by `at` in UTC, then by line order).
 
     A `same` link carries `reviewers`: the handles whose own newest line for the pair says
-    `same` (7.1.8). A missing file means no decisions.
+    `same` (7.1.8). A missing file means no decisions. Every `by` must be a GitHub handle;
+    with `reviewers` (a real profile: people.er_labellers and people.er_senior_reviewers) it
+    must also be one of them, so an unlisted name fails the run instead of counting.
     """
     if path is None or not path.is_file():
         return Decisions([], [], 0)
@@ -159,8 +185,15 @@ def read_decisions(path: Path | None) -> Decisions:
             except (ValueError, KeyError, TypeError, AttributeError) as exc:
                 raise DecisionsError(f"{where}: not a decision line") from exc
             strings = all(isinstance(v, str) and v for v in (a, b))
-            if not strings or decision not in DECISIONS or a == b or by in ("@", PLACEHOLDER):
+            if not strings or decision not in DECISIONS or a == b:
                 raise DecisionsError(f"{where}: not a decision line")
+            if by is None:
+                raise DecisionsError(f"{where}: `by` is not a GitHub handle")
+            if reviewers is not None and by not in reviewers:
+                raise DecisionsError(
+                    f"{where}: the reviewer is not in people.er_labellers or"
+                    " people.er_senior_reviewers"
+                )
             if at.tzinfo is None:
                 raise DecisionsError(f"{where}: the time has no offset")
             pair = (min(a, b), max(a, b))

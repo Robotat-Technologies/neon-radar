@@ -5,6 +5,12 @@ builds members, feature tables, deterministic links, decisions and hints, calls
 `cluster.resolve` and writes `canonical.csv`, `candidates.jsonl`, `conflicts.jsonl` and
 `run.json`, with sorted rows so that the first three are byte-stable. The probabilistic models
 arrive in M2.10b; until then a run links records by the deterministic rules and decisions only.
+
+`guard_decisions` holds back a one-reviewer `same` decision whose merge would join records
+with different flag topics or a leaked record with another kind once the rules have run,
+because `cluster.resolve` (verbatim) checks D7's second-reviewer rule before the identifier
+links, so a later link could otherwise carry a flag across such a decision
+(docs/build/phase-2-reconciliation.md 2.7, G1).
 """
 
 from __future__ import annotations
@@ -32,6 +38,21 @@ CANONICAL_HEADER = (
 )  # fmt: skip
 SIZE_BUCKETS = ((1, 1, "1"), (2, 2, "2"), (3, 5, "3-5"), (6, 10, "6-10"), (11, 30, "11-30"))
 OUTPUTS = ("canonical.csv", "candidates.jsonl", "conflicts.jsonl", "run.json")
+# ICIJ link names kept as hints (M2.5); any other hint is counted as source_hint:other.
+HINTS = frozenset(
+    {
+        "same_name_as", "same_id_as", "same_as", "similar", "similar_company_as",
+        "same_company_as", "same_intermediary_as", "probably_same_officer_as",
+    }
+)  # fmt: skip
+HINT_REASON = "source_hint:"
+
+
+class RunError(ValueError):
+    """A run that must not continue; the message holds counts and rule ids only."""
+
+    exit_code = 2
+    counts_only = True
 
 
 @dataclass(frozen=True)
@@ -41,6 +62,8 @@ class RunConfig:
     resolver: ResolverConfig
     config_sha256: str
     senior_reviewers: frozenset[str] = frozenset()  # people.er_senior_reviewers
+    # Handles allowed in the decisions file; None accepts any handle (synthetic profiles).
+    reviewers: frozenset[str] | None = None
     profile: str | None = None
     temp_directory: Path | None = None  # DuckDB spill folder: layout.duckdb_tmp_dir(...)
     keep_features: bool = False
@@ -95,7 +118,11 @@ def count(
     applicable = [x for x in decisions.same if x.record_a in members and x.record_b in members]
     if applicable:
         links_by_rule["D7"] = len(applicable)
-    reasons = Counter(str(r) for c in result.candidates for r in c["reasons"])  # type: ignore[attr-defined]
+    reasons = Counter(
+        _reason_key(str(r))
+        for c in result.candidates
+        for r in c["reasons"]  # type: ignore[attr-defined]
+    )
     return {
         "records_read": sum(f.records for f in corpus.inputs),
         "records_by_class": dict(sorted(Counter(m.entity_class for m in members.values()).items())),
@@ -116,6 +143,79 @@ def count(
         "decisions_on_file": decisions.on_file,
         **result.counts,
     }
+
+
+def _reason_key(reason: str) -> str:
+    """A summary key for a reason: hints outside the allow-list fold into source_hint:other."""
+    if reason.startswith(HINT_REASON) and reason[len(HINT_REASON) :] not in HINTS:
+        return f"{HINT_REASON}other"
+    return reason
+
+
+def _signature(group: list[cluster.Member]) -> tuple[frozenset[str], frozenset[bool]]:
+    """What P1 and P2 compare: the flag topics and whether the records are leaked."""
+    return cluster.flags(group), frozenset(m.kind == "leak" for m in group)
+
+
+Groups = dict[str, list[cluster.Member]]  # record id -> the members of its cluster
+
+
+def _groups(result: cluster.Result, members: Mapping[str, cluster.Member]) -> Groups:
+    by_cluster: dict[str, list[cluster.Member]] = {}
+    for row in result.canonical:
+        by_cluster.setdefault(str(row["canonical_id"]), []).append(members[str(row["record_id"])])
+    return {str(r["record_id"]): by_cluster[str(r["canonical_id"])] for r in result.canonical}
+
+
+def guard_decisions(
+    members: Mapping[str, cluster.Member],
+    deterministic: list[cluster.Link],
+    probabilistic: list[cluster.Link],
+    decisions: rules.Decisions,
+    config: cluster.Config,
+) -> tuple[list[cluster.Link], int]:
+    """The `same` decisions to apply, and how many one-reviewer decisions wait.
+
+    A decision with one reviewer, none of them senior, is held back when, after the rules,
+    the strong decisions and the other links, its two records sit in clusters whose flag
+    topics differ or of which exactly one holds leaked records (P1, P2). Held-back decisions
+    are removed until the clusters they join keep the flag topics and leak status they had
+    without them, so the result does not depend on the order of record ids.
+    """
+
+    def weak(link: cluster.Link) -> bool:
+        return len(link.reviewers) < 2 and not link.reviewers & config.senior_reviewers
+
+    def known(link: cluster.Link) -> bool:
+        return link.record_a in members and link.record_b in members
+
+    strong = [x for x in decisions.same if not (weak(x) and known(x))]
+    pending = [x for x in decisions.same if weak(x) and known(x)]
+    if not pending:
+        return strong, 0
+
+    def clusters(same: list[cluster.Link]) -> Groups:
+        result = cluster.resolve(
+            members.values(), deterministic, probabilistic, same, decisions.different, [],
+            config, schemas.common_schema,
+        )  # fmt: skip
+        return _groups(result, members)
+
+    before = clusters(strong)
+    kept: list[cluster.Link] = []
+    for link in pending:
+        left, right = before[link.record_a], before[link.record_b]
+        if left is right or _signature(left) == _signature(right):
+            kept.append(link)
+    while kept:
+        after = clusters(strong + kept)
+        changed = [
+            x for x in kept if _signature(after[x.record_a]) != _signature(before[x.record_a])
+        ]
+        if not changed:
+            break
+        kept = [x for x in kept if x not in changed]
+    return strong + kept, len(pending) - len(kept)
 
 
 def remove_features(path: Path) -> None:
@@ -152,22 +252,30 @@ def run(
             corpus = records.read(record_dirs)
         with _step(timings, "features"):
             members = features.members(corpus)
+            flagged = sum(
+                1 for m in members.values() if m.entity_class == "address" and m.flag_topics
+            )
+            if flagged:  # addresses carry no flags (7.1.1); D6 merges them without P1
+                raise RunError(f"{flagged} Address records carry flag topics (7.1.1)")
             person, org = features.feature_tables(corpus, members)
             features.write_features(features_path, person, org, config.temp_directory)
         with _step(timings, "rules"):
             links = rules.deterministic(corpus, members)
-            decisions = rules.read_decisions(decisions_file)
+            decisions = rules.read_decisions(decisions_file, config.reviewers)
         with _step(timings, "cluster"):
+            settings = config.resolver.cluster_config(config.senior_reviewers)
+            same, held = guard_decisions(members, links, [], decisions, settings)
             result = cluster.resolve(
                 members.values(),
                 links,
                 [],
-                decisions.same,
+                same,
                 decisions.different,
                 corpus.hints,
-                config.resolver.cluster_config(config.senior_reviewers),
+                settings,
                 schemas.common_schema,
             )
+            result.counts["decisions_awaiting_second_review"] += held
         counts = count(corpus, members, links, decisions, result)
         with _step(timings, "write"):
             write_canonical(run_dir / "canonical.csv", result.canonical)

@@ -19,6 +19,7 @@ from neonradar_ingest.http import HttpClient, RateLimiter
 PLUGINS: tuple[str, ...] = (
     "neonradar_ingest.data.synthetic",
     "neonradar_ingest.sources.lists.gb_fcdo",
+    "neonradar_ingest.sources.lists.un_sc",
 )
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {

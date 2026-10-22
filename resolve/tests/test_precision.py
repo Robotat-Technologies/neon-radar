@@ -237,6 +237,9 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
     assert "Labelled whole (a census of this run, not a sample): S2" in text
     assert "(no decisions applied; 4 decisions on file)" in text
     assert "adjudicated by the project lead" in text
+    assert "sample seed 7 (ADR-0014 sets no evaluation sample seed yet)" in text
+    assert precision._seed_source(7, 7) == "ADR-0014"
+    assert precision._seed_source(7, 9) == "not the seed of ADR-0014"
     assert (
         "On 2026-11-03, human labellers judged 400 of 400 sampled probabilistic merges on"
         " synthetic records (profile demo) correct (precision 1.000, Wilson 95% interval 0.990"

@@ -229,6 +229,12 @@ def _census(census: Mapping[str, bool]) -> str | None:
     )
 
 
+def _seed_source(seed: object, adr_seed: object) -> str:
+    if adr_seed is None:
+        return "ADR-0014 sets no evaluation sample seed yet"
+    return "ADR-0014" if seed == adr_seed else "not the seed of ADR-0014"
+
+
 def _adjudication(outcome: Outcome, project_lead: str | None) -> str:
     if not outcome.adjudicators:
         return "no pair needed adjudication"
@@ -331,7 +337,7 @@ def report(
         f"config {run.get('config_sha256')}; thresholds person merge {_value(merge, 'person')},"
         f" org merge {_value(merge, 'org')}, candidate"
         f" {_value(thresholds, 'candidate_threshold')}; frame sizes {sizes}; sample seed"
-        f" {seed} ({'ADR-0014' if seed == adr_seed else 'not set in ADR-0014'});",
+        f" {seed} ({_seed_source(seed, adr_seed)});",
         f"labelled by {outcome.labellers} people {when}; {_adjudication(outcome, project_lead)}.",
         "",
         readme_sentence(outcome, on, real_data=real_data, profile=profile),

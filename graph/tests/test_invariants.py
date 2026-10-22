@@ -14,6 +14,7 @@ from neonradar_graph.loader import collect_files, load_files
 from neonradar_graph.mapping import to_node_rows, to_relationship_rows
 
 from .conftest import Neo4jTarget
+from .test_verify_overlay import OVERLAY, OVERLAY_INVARIANTS
 
 pytestmark = pytest.mark.integration
 
@@ -117,30 +118,8 @@ def test_invariant_i6_holds_after_a_detection_run(demo_mini: Neo4jTarget, tmp_pa
 
 
 # C2 1.2.0 (PHASE-3.md 5.2, 5.4): invariants I15 to I17, the three statements of
-# verify_overlay.cypher, run directly (`graph verify` runs them from M3.4). Each statement
-# returns one row with a `violations` count.
-VERIFY_OVERLAY = REPO_ROOT / "graph/src/neonradar_graph/queries/verify_overlay.cypher"
-OVERLAY_INVARIANTS = ("I15", "I16", "I17")
-
-
-def overlay_statements() -> dict[str, str]:
-    """The statements of verify_overlay.cypher by invariant: the `// I<n>:` comment that opens
-    a block names the statement after it, which ends at the line ending with `;`."""
-    statements: dict[str, str] = {}
-    name, lines = "", list[str]()
-    for line in VERIFY_OVERLAY.read_text(encoding="utf-8").splitlines():
-        if line.startswith("//"):
-            if not lines and line[3:].split(":")[0] in OVERLAY_INVARIANTS:
-                name = line[3:].split(":")[0]
-            continue
-        lines.append(line)
-        if line.rstrip().endswith(";"):
-            statements[name] = "\n".join(lines).rstrip().removesuffix(";")
-            name, lines = "", []
-    return statements
-
-
-OVERLAY = overlay_statements()
+# verify_overlay.cypher (parsed in test_verify_overlay.py), run directly (`graph verify` runs
+# them from M3.4). Each statement returns one row with a `violations` count.
 
 
 def overlay_violations(db: Neo4jTarget) -> dict[str, int]:
@@ -149,11 +128,6 @@ def overlay_violations(db: Neo4jTarget) -> dict[str, int]:
         (row,) = query(db, OVERLAY[name])
         out[name] = row["violations"]
     return out
-
-
-def test_verify_overlay_has_one_statement_per_invariant() -> None:
-    assert list(OVERLAY) == list(OVERLAY_INVARIANTS)
-    assert all(statement.count(";") == 0 for statement in OVERLAY.values())
 
 
 def test_overlay_invariants_hold_on_demo_mini(demo_mini: Neo4jTarget, tmp_path: Path) -> None:
@@ -253,8 +227,19 @@ OVERLAY_CASES = {
         {"I15": 0, "I16": 1, "I17": 0},
     ),
     "I17_alert_flags_a_real_person": (
-        [f"CREATE {REAL_PERSON} " + alert(True, ["gbch-p-T0000003"], [], flags="person")],
+        [f"CREATE {REAL_PERSON} " + alert(True, [], [], flags="person")],
         {"I15": 0, "I16": 0, "I17": 1},
+    ),
+    # An alert written under 1.1.0 has no evidence lists: I17 still reads its subjects.
+    "I17_alert_without_evidence_lists_flags_a_real_person": (
+        [f"CREATE {REAL_PERSON} CREATE (old:Alert {{alert_id: 'alr-00000000000000000003',"
+         " involves_real_entities: true})-[:FLAGS {role: 'subject'}]->(person)"],
+        {"I15": 0, "I16": 0, "I17": 1},
+    ),
+    "I17_alert_without_evidence_lists_on_a_real_organisation_allowed": (
+        [f"CREATE {REAL_ORG} CREATE (old:Alert {{alert_id: 'alr-00000000000000000004',"
+         " involves_real_entities: true})-[:FLAGS {role: 'subject'}]->(org)"],
+        {"I15": 0, "I16": 0, "I17": 0},
     ),
     "I17_evidence_names_a_legal_entity_of_unstated_kind": (
         [f"CREATE {REAL_ORG}, {REAL_LEGAL_ENTITY} "

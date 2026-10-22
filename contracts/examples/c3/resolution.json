@@ -1,0 +1,125 @@
+{
+  "entity_id": "nr-syn-co-0003",
+  "canonical": true,
+  "resolution": "mixed",
+  "cluster_size": 3,
+  "members": [
+    {
+      "record_id": "syn-co-0003",
+      "dataset": "nr_synthetic",
+      "schema": "Company",
+      "caption": "Fenwhistle Holdings Ltd",
+      "names": [
+        "Fenwhistle Holdings Ltd"
+      ],
+      "method": "anchor",
+      "rule": null,
+      "match_probability": 1.0,
+      "decided_at": "2026-10-22T09:15:00Z",
+      "explanation": "Anchor record: the entity takes its id and caption from this NeonRadar synthetic data record."
+    },
+    {
+      "record_id": "syn-co-0103",
+      "dataset": "nr_synthetic",
+      "schema": "Company",
+      "caption": "Fenwhistle Holdings Ltd",
+      "names": [
+        "Fenwhistle Holdings Ltd"
+      ],
+      "method": "deterministic",
+      "rule": "D1",
+      "match_probability": 1.0,
+      "decided_at": "2026-10-22T09:15:00Z",
+      "explanation": "Joined by the same UK company number."
+    },
+    {
+      "record_id": "syn-co-0203",
+      "dataset": "nr_synthetic",
+      "schema": "Company",
+      "caption": "Fenwhistle Holdings Ltd",
+      "names": [
+        "Fenwhistle Holdings Ltd"
+      ],
+      "method": "probabilistic",
+      "rule": null,
+      "match_probability": 0.997,
+      "decided_at": "2026-10-22T09:15:00Z",
+      "explanation": "Joined by probabilistic matching (match probability 0.997). Agreeing: same name, same jurisdiction, same postcode."
+    }
+  ],
+  "possible_matches": [
+    {
+      "entity": {
+        "id": "syn-co-0303",
+        "schema": "Company",
+        "caption": "Fenwhistle Holdings Ltd",
+        "labels": [
+          "Entity",
+          "LegalEntity",
+          "Organization",
+          "Company"
+        ],
+        "flags": {
+          "synthetic": true,
+          "sanctioned": false,
+          "pep": false,
+          "rca": false
+        },
+        "countries": [
+          "gb"
+        ],
+        "datasets": [
+          "nr_synthetic"
+        ]
+      },
+      "match_probability": 0.912,
+      "method": "probabilistic",
+      "rule": null,
+      "reasons": [
+        "below_merge_threshold"
+      ],
+      "evidence": [
+        "Agrees: same name",
+        "Agrees: same jurisdiction",
+        "Differs: registration numbers",
+        "Differs: postcodes"
+      ],
+      "explanation": "Possible match, not confirmed. Probabilistic matching gave 0.912, below the threshold for merging. Agreeing: same name, same jurisdiction. Differing: registration numbers, postcodes."
+    },
+    {
+      "entity": {
+        "id": "syn-co-0403",
+        "schema": "Company",
+        "caption": "Birch Wold Trading Ltd",
+        "labels": [
+          "Entity",
+          "LegalEntity",
+          "Organization",
+          "Company"
+        ],
+        "flags": {
+          "synthetic": true,
+          "sanctioned": false,
+          "pep": false,
+          "rca": false
+        },
+        "countries": [
+          "gb"
+        ],
+        "datasets": [
+          "nr_synthetic"
+        ]
+      },
+      "match_probability": null,
+      "method": "deterministic",
+      "rule": "D1",
+      "reasons": [
+        "identifier_name_mismatch"
+      ],
+      "evidence": [],
+      "explanation": "Possible match, not confirmed. Both records give the same UK company number, but the names differ, so they were not merged."
+    }
+  ],
+  "resolver_version": "0.1.0",
+  "run_id": "er-20261022T091500-3b7e"
+}

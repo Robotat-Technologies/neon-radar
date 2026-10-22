@@ -32,6 +32,16 @@ function styled() {
         },
         classes: ['type-owns'],
       },
+      {
+        data: {
+          id: 'gbch-co-T0000001|psa|syn-a',
+          source: 'gbch-co-T0000001',
+          target: 'syn-a',
+          type: 'POSSIBLY_SAME_AS',
+          properties: {},
+        },
+        classes: ['type-possibly_same_as'],
+      },
     ],
   })
 }
@@ -53,6 +63,17 @@ describe('graphStyle', () => {
     expect(cy.getElementById('e1').style('line-style')).toBe('dashed')
     expect(cy.getElementById('e2').style('line-style')).toBe('solid')
     expect(cy.getElementById('e1').style('width')).toBe('4px')
+  })
+
+  it('draws a possible match dashed and without an arrow, also when highlighted', () => {
+    const cy = styled()
+    const match = cy.getElementById('gbch-co-T0000001|psa|syn-a')
+    expect(match.style('line-style')).toBe('dashed')
+    expect(match.style('target-arrow-shape')).toBe('none')
+    expect(cy.getElementById('e2').style('target-arrow-shape')).toBe('triangle')
+    cy.edges().addClass('highlighted')
+    expect(match.style('line-style')).toBe('dashed')
+    expect(match.style('target-arrow-shape')).toBe('none')
   })
 
   it('never sets a dash style in the highlight rules', () => {

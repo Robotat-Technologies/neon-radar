@@ -85,6 +85,33 @@ def test_only_live_registry_organisations_get_background_activity(tmp_path: Path
     assert issues == []
 
 
+def test_psc_records_and_records_with_topics_never_hold_accounts() -> None:
+    # PSC records (M2.3b) describe owners, not registered companies; a topic (a sanctioned
+    # overseas entity's owner, for example) keeps a record away from any scenario or activity.
+    gb = {"jurisdiction": ["gb"], "incorporationDate": ["2001-05-04"]}
+    inputs = [
+        _rec("gbch-co-T0000001", "Company", "gb_companies_house", name=["Test Holder Ltd"], **gb),
+        _rec("gbch-psc-SYNT0000011", "Organization", "gb_companies_house",
+             name=["Test Authority"], **gb),
+        _rec("gbch-psc-SYNT0000012", "Company", "gb_companies_house", name=["Test Owner Ltd"],
+             topics=["sanction"], **gb),
+        _rec("gbch-co-T0000013", "Company", "gb_companies_house", name=["Test Listed Ltd"],
+             topics=["sanction"], **gb),
+        _rec("gleif-TEST0000000000000014", "Company", "gleif_lei", name=["TEST LISTED AG"],
+             topics=["sanction"], status=["ACTIVE"]),
+    ]  # fmt: skip
+    result = synthetic_join(inputs, seed=7)
+    held = {
+        r["properties"]["owner"][0]
+        for r in result.records
+        if r["schema"] == "Ownership" and not r["properties"]["owner"][0].startswith("syn-")
+    }
+    assert held == {"gbch-co-T0000001"}
+    assert result.counts["skipped: not a register company"] == 2
+    assert result.counts["skipped: topics"] == 2
+    assert all(v == 0 for v in touches_input(result, {r["id"] for r in inputs}).values())
+
+
 def test_the_scenario_is_the_only_detectable_cycle_and_looks_like_background() -> None:
     result = synthetic_join(real_input(), seed=7)
     pays = _payments(result.records)

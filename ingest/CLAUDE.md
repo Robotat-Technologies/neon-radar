@@ -21,9 +21,10 @@
     downloads through `data.download.fetch`, retention and purge. A production loader
     registers a `SourceSpec`, a `Builder` and its profile-block model, and joins
     `data.sources.PLUGINS`. `ingest build` runs the gate for every dataset and every builder
-    step it will run (the officers step meets `access.companies_house_key` there, not in the
-    loader), `data fetch` for every dataset. A synthetic profile may enable only
-    `nr_synthetic`; records of every other dataset always go under `data/cache/real/`. Its
+    step it will run (`Builder.plan`; the officers step meets `access.companies_house_key`
+    there, and again in the loader), `data fetch` for every dataset. A synthetic profile may
+    enable only `nr_synthetic`; records of every other dataset always go under
+    `data/cache/real/`. Its
     tests use the `data_env` fixture (root conftest.py): cache, profiles, project file
     (`NR_PROJECT_FILE`) and `.env` at tmp paths, and real httpx transports refused.
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use

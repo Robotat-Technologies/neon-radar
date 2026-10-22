@@ -34,7 +34,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2026-03-01T07:00:00",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "NK-synPersonAlpha"
     }
   },
@@ -60,7 +60,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2025-08-22T10:15:20",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "NK-synPersonBeta"
     }
   },
@@ -89,7 +89,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2024-05-01T08:00:00",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "NK-synPersonGamma"
     }
   },
@@ -118,7 +118,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2024-05-01T08:00:00",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "NK-synCompanyDelta"
     }
   },
@@ -144,7 +144,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2025-08-22T10:15:20",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "syn-os-address-01"
     }
   },
@@ -171,7 +171,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2025-08-22T10:15:20",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "syn-os-position_01"
     }
   },
@@ -200,7 +200,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2025-08-22T10:15:20",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "syn-os-occupancy-01"
     }
   },
@@ -226,7 +226,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2025-08-22T10:15:20",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "syn-os-family-01"
     }
   },
@@ -261,7 +261,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2024-05-01T08:00:00",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "syn-os-sanction-01"
     }
   },
@@ -290,7 +290,7 @@
     "last_seen": "2026-10-15T18:54:39",
     "last_change": "2024-05-01T08:00:00",
     "nr": {
-      "v": "1.0",
+      "v": "1.1",
       "source_ref": "syn-os-ownership-01"
     }
   }

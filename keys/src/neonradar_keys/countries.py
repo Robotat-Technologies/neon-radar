@@ -19,7 +19,10 @@ def _nationalities() -> dict[str, str]:
 
 @lru_cache(maxsize=50_000)
 def country_code(value: str | None) -> str | None:
-    """Lower-case ISO alpha-2 code for a country name, demonym or code; UK nations map to "gb".
+    """FollowTheMoney country code for a country name, demonym or code; UK nations map to "gb".
+
+    The code is lower case: ISO 3166-1 alpha-2 for current countries, plus FtM's own codes for
+    others (for example "xk" for Kosovo and "suhh" for the Soviet Union).
 
     Exact lookups in the Companies House and FCDO lists first, then rigour without fuzzy
     matching (fuzzy matching gives confident wrong answers). Unknown values give None.

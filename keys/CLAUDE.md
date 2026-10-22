@@ -3,8 +3,9 @@
 - Purpose: one implementation of every matching key (PHASE-2.md M2.8, docs/er/keys.md): person
   and organisation names in Latin, Arabic and Cyrillic, UK postcodes and addresses, countries,
   nationalities and the identifiers of rules D1 to D4. Owner: nr-graph.
-- Pure functions, no I/O apart from the two packaged files in `data/`. Used by the loaders, the
-  resolver and the graph loader; depends on rigour, normality, anyascii, typing-extensions only.
+- Pure functions, no I/O apart from the two packaged files in `data/` (each ships in the wheel with
+  its `*.LICENSE.txt`). Used by the loaders, the resolver and the graph loader; depends on rigour,
+  normality, anyascii, typing-extensions only.
 - Every output change needs a test and a `RULES_VERSION` bump. Commands: `uv run pytest keys/tests`.
 - Rebuild `data/ar_symbols.json.gz` with `keys/scripts/build_ar_symbol_index.py` (tag and
   SHA-256 of the new rigour) whenever the lock moves rigour, and bump `RULES_VERSION`;

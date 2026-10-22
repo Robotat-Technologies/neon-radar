@@ -34,6 +34,7 @@ from neonradar_contracts.graph import (
     REFERENCE_MAPPINGS,
     RELATIONSHIP_MAPPINGS,
     RESERVED_PROPERTIES,
+    SUPPORT_RELATIONSHIPS,
 )
 
 Row = Mapping[str, Any]
@@ -54,6 +55,9 @@ def _edge_keys() -> dict[str, frozenset[str]]:
     for reference in REFERENCE_MAPPINGS:
         own = keys.setdefault(reference.type, set())
         own.update(reference.properties.values(), reference.defaults)
+    # C2 1.1.0: entity resolution writes POSSIBLY_SAME_AS (a support relationship), which C3
+    # shows like a record-built one (PHASE-2.md 5.2).
+    keys["POSSIBLY_SAME_AS"] = set(SUPPORT_RELATIONSHIPS["POSSIBLY_SAME_AS"])
     common = frozenset(COMMON_RELATIONSHIP_PROPERTIES)
     return {rel_type: common | own for rel_type, own in keys.items()}
 

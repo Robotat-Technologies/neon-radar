@@ -61,12 +61,18 @@ def default_client() -> HttpClient:
 class SourceSpec:
     """`discover(client)` lists the files of the current version of each product.
 
-    `client` builds the source's HTTP client (its rate limit and redirect rule).
+    `client` builds the source's HTTP client (its rate limit and redirect rule). `products`,
+    when given, names the products a profile needs, each with its own discovery: `data fetch`
+    asks it before any request, so a product the profile does not use is never downloaded,
+    and a product whose discovery fails stops only itself (M2.3b, data minimisation).
     """
 
     dataset: str
     discover: Callable[[HttpClient], list[RemoteFile]]
     client: Callable[[], HttpClient] = default_client
+    products: Callable[[Profile], Mapping[str, Callable[[HttpClient], list[RemoteFile]]]] | None = (
+        None
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +106,9 @@ class BuildResult:
 @dataclass(frozen=True, slots=True)
 class Builder:
     """`cleanup`, when given, runs only after a successful build and swap (for example to
-    delete work indexes), so a failed validation leaves the work files in place."""
+    delete work indexes), so a failed validation leaves the work files in place. `plan`,
+    when given, names the steps a build of a profile runs for the requested ones (empty: all),
+    so `ingest build` gates only those."""
 
     dataset: str
     build: Callable[[Profile, BuildContext], BuildResult]
@@ -108,6 +116,11 @@ class Builder:
     string_keys: tuple[str, ...] = ()
     list_keys: tuple[str, ...] = ()
     cleanup: Callable[[Profile, BuildContext, BuildResult], None] | None = None
+    plan: Callable[[Profile, tuple[str, ...]], tuple[str, ...]] | None = None
+
+    def planned(self, profile: Profile, steps: tuple[str, ...]) -> tuple[str, ...]:
+        """The steps a build runs: `plan`'s answer, else the requested ones, else all."""
+        return self.plan(profile, steps) if self.plan else steps or self.steps
 
 
 class BuildError(Exception):

@@ -75,6 +75,7 @@ class Writer:
         self.stats: Counter[str] = Counter({key: 0 for key in COUNTED})
         self.addresses: dict[str, dict[str, Any]] = {}
         self.office_keys: Counter[str] = Counter()
+        self.known_addresses: set[str] = set()
 
     def _entity(self, schema: str, rid: str, values: dict[str, Any]) -> ValueEntity:
         entity = ValueEntity(model[schema], {"id": rid, "datasets": [bulk.DATASET]})
@@ -91,35 +92,45 @@ class Writer:
 
     def address(self, row: bulk.Row) -> str | None:
         """The registered office's `Address` id (one record per key), else None (counted)."""
-        part = {name: bulk.address_part(row[name]) for name in bulk.ADDRESS}
-        raw_postcode = part["RegAddress.PostCode"]
+        found = self.add_address([bulk.address_part(row[name]) for name in bulk.ADDRESS])
+        if found is None:
+            self.stats["companies_without_address_key"] += 1
+            return None
+        self.office_keys[found[0]] += 1
+        return found[1]
+
+    def add_address(
+        self, part: list[str | None], default_country: str | None = "gb"
+    ) -> tuple[str, str] | None:
+        """Key and id of the `Address` of cleaned parts (PO box, two street lines, town, county,
+        postcode, country): one record per key, and none for an id in `known_addresses` (an
+        earlier step's record file has it). None when the parts give no key (M2.3a rule 7).
+        `default_country` is the country when the given one does not map (a registered office
+        is in the UK; a PSC's address may not be)."""
+        raw_postcode = part[5]
         postcode = normalise_uk_postcode(raw_postcode) if raw_postcode else None
-        parts = [part[name] for name in bulk.ADDRESS[:5]] + [postcode or raw_postcode]
-        parts.append(part["RegAddress.Country"])
+        parts = [*part[:5], postcode or raw_postcode, part[6]]
         # FtM cleans `full` (it drops tokens such as "ESQ." or "<BR>"), and the graph loader
         # recomputes the key from the cleaned text (C2 L15): so the key comes from it too.
         full = registry.address.clean(", ".join(p for p in parts if p))
         key = address_key(full) if full else None
         if key is None:
-            self.stats["companies_without_address_key"] += 1
             return None
-        self.office_keys[key] += 1
         rid = address_id(key)
-        if key not in self.addresses:
-            country = country_code(part["RegAddress.Country"]) or "gb"
+        if key not in self.addresses and rid not in self.known_addresses:
             values = {
                 "full": full,
-                "postOfficeBox": part["RegAddress.POBox"],
-                "street": part["RegAddress.AddressLine1"],
-                "street2": part["RegAddress.AddressLine2"],
-                "city": part["RegAddress.PostTown"],
-                "region": part["RegAddress.County"],
+                "postOfficeBox": part[0],
+                "street": part[1],
+                "street2": part[2],
+                "city": part[3],
+                "region": part[4],
                 "postalCode": postcode or raw_postcode,
-                "country": country,
+                "country": country_code(part[6]) or default_country,
             }
             entity = self._entity("Address", rid, values)
             self.addresses[key] = {**entity.to_dict(), "nr": {"v": NR_VERSION}}
-        return rid
+        return key, rid
 
     def company(self, row: bulk.Row) -> dict[str, Any]:
         number = row["CompanyNumber"].strip()

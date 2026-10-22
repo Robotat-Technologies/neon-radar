@@ -2,8 +2,9 @@
 
 Every route is declared with its final response model, parameter limits and problem responses,
 so the OpenAPI snapshot (contracts/openapi/v1.json) does not change when a route is
-implemented. The Phase 1 routes are implemented (M1.9c); ownership and paths (Phase 2) and the
-copilot (Phase 4) answer 501 with a problem naming the phase that implements them. The API is
+implemented. The Phase 1 routes are implemented (M1.9c); ownership, paths and resolution
+(C3 1.1.0, PHASE-2.md 5.3) answer 501 with a problem naming M2.12, and the copilot answers 501
+naming Phase 4. The API is
 read-only, binds to 127.0.0.1 (`neonradar api serve`) and makes no outbound calls: FastAPI's
 OpenTelemetry is switched off, and instead of its CDN-backed `/docs` and `/redoc` pages it
 serves an offline page at `/docs` (guardrail G3).
@@ -38,7 +39,14 @@ from neonradar_contracts.alert import (
 )
 from neonradar_contracts.api import (
     API_PREFIX,
+    EFFECTIVE_SHARE_NOTE,
     MAX_CURSOR_LENGTH,
+    MAX_OWNERSHIP_PATHS,
+    MAX_PATH_SUBGRAPH_NODES,
+    MAX_POSSIBLE_MATCHES,
+    MAX_SHORTEST_PATHS,
+    PATHS_DEFAULT_TYPES,
+    QUERY_TIMEOUT_SECONDS,
     AlertDetail,
     AlertPage,
     CopilotAnswer,
@@ -51,6 +59,7 @@ from neonradar_contracts.api import (
     PathsResponse,
     Problem,
     RelationshipType,
+    ResolutionResponse,
     SearchLabel,
     SearchResponse,
     Subgraph,
@@ -68,14 +77,32 @@ TELEMETRY_OFF: Final[TelemetryConfig] = {
     "operation_spans": False,
     "auto_configure": False,
 }
-PHASE_2: Final = "Phase 2"
+M2_12: Final = "M2.12"
 PHASE_4: Final = "Phase 4"
 
 EntityIdPath = Annotated[str, Path(pattern=ENTITY_ID_PATTERN, description="A C2 node id.")]
 EntityIdQuery = Annotated[str, Query(pattern=ENTITY_ID_PATTERN)]
 RelTypes = Annotated[
-    list[RelationshipType] | None, Query(description="Repeatable; all record types if absent.")
+    list[RelationshipType] | None,
+    Query(
+        description="Repeatable; all 17 types C3 shows (the 16 built from records and "
+        "POSSIBLY_SAME_AS) if absent."
+    ),
 ]
+PathRelTypes = Annotated[
+    list[RelationshipType] | None,
+    Query(
+        description="Repeatable. When absent: "
+        + ", ".join(PATHS_DEFAULT_TYPES)
+        + ". HAS_ADDRESS, LINKED_TO and POSSIBLY_SAME_AS are used only when asked for; FLAGS, "
+        "PRODUCED and RESOLVED_TO are never allowed (422)."
+    ),
+]
+TIMEOUT_NOTE: Final = (
+    f"Runs read-only with a {QUERY_TIMEOUT_SECONDS:g}-second transaction timeout; a query that "
+    "times out answers a 503 problem whose detail suggests a smaller `max_hops` or fewer "
+    "relationship types."
+)
 
 Graph = Annotated[GraphConnection, Depends(get_graph)]
 Files = Annotated[RepoFiles, Depends(get_files)]
@@ -128,28 +155,93 @@ def get_network(
     "/entities/{entity_id}/ownership",
     tags=["entities"],
     responses=responses(404, 422, 501, 503),
+    description=(
+        "Chains of `OWNS` relationships that end at the entity (`up`: its owners, their owners, "
+        "and so on) or start at it (`down`). `entity_id` is a canonical id or any id in its "
+        "`referents`; an unknown id answers a 404 problem. Paths have 1 to `max_hops` "
+        "relationships and never repeat a node. Every path's `node_ids` start at the entity "
+        "(`root_id`), so for `up` they run from the entity to its top recorded owner and for "
+        "`down` from the entity to its furthest holding. A path's `effective_share_min` and "
+        "`effective_share_max` are the products of `share_pct_min / 100` and "
+        "`share_pct_max / 100` over its relationships, times 100, rounded to 4 decimals, and "
+        "null when any relationship lacks that bound; a bound is exclusive when any "
+        f"relationship's bound is. {EFFECTIVE_SHARE_NOTE} At most {MAX_OWNERSHIP_PATHS} paths, "
+        "ordered by `effective_share_max` descending (nulls last), then by length, then by the "
+        "list `node_ids` as returned (root first); `subgraph` holds their nodes and "
+        f"relationships, at most {MAX_PATH_SUBGRAPH_NODES} nodes, and `truncated` is set when "
+        "either limit cut something. Only `OWNS` is traversed: `CONTROLS` and `CONSOLIDATES` "
+        f"are reachable through `/paths` and `/network`. {TIMEOUT_NOTE}"
+    ),
 )
 def get_ownership(
     request: Request,
     entity_id: EntityIdPath,
-    direction: Annotated[OwnershipDirection, Query()],
-    max_hops: Annotated[int, Query(ge=1, le=8)] = 6,
-    min_share: Annotated[float | None, Query(ge=0, le=100)] = None,
+    direction: Annotated[
+        OwnershipDirection,
+        Query(description="`up`: chains that end at the entity; `down`: chains that start at it."),
+    ],
+    max_hops: Annotated[
+        int, Query(ge=1, le=8, description="Paths have 1 to `max_hops` relationships.")
+    ] = 6,
+    min_share: Annotated[
+        float | None,
+        Query(
+            ge=0,
+            le=100,
+            description="Absent or 0 keeps every path. Above 0, keeps the paths whose effective "
+            "share can reach it: `effective_share_max` above `min_share`, or equal to it with a "
+            "closed upper bound, compared after rounding. Paths whose maximum is unknown are "
+            "dropped.",
+        ),
+    ] = None,
 ) -> OwnershipResponse:
-    """Ownership chains up (owners) or down (holdings), with effective share bands."""
-    not_implemented(request, PHASE_2)
+    """Ownership chains up (owners) or down (holdings), with effective share ranges."""
+    not_implemented(request, M2_12)
 
 
-@router.get("/paths", tags=["entities"], responses=responses(404, 422, 501, 503))
+@router.get(
+    "/paths",
+    tags=["entities"],
+    responses=responses(404, 422, 501, 503),
+    description=(
+        f"Up to {MAX_SHORTEST_PATHS} shortest paths between `from_id` and `to_id`, ignoring "
+        "direction, with 1 to `max_hops` relationships of the types in `rel_types`. Each id is "
+        "a canonical id or any id in its `referents`; an unknown id answers a 404 problem. "
+        "Effective shares and their two flags are set only for a path made entirely of `OWNS` "
+        "relationships that all point the same way along it; otherwise all four are null. "
+        f"{EFFECTIVE_SHARE_NOTE} {TIMEOUT_NOTE}"
+    ),
+)
 def find_paths(
     request: Request,
     from_id: EntityIdQuery,
     to_id: EntityIdQuery,
     max_hops: Annotated[int, Query(ge=1, le=6)] = 4,
-    rel_types: RelTypes = None,
+    rel_types: PathRelTypes = None,
 ) -> PathsResponse:
     """Shortest paths between two nodes."""
-    not_implemented(request, PHASE_2)
+    not_implemented(request, M2_12)
+
+
+@router.get(
+    "/entities/{entity_id}/resolution",
+    tags=["entities"],
+    responses=responses(404, 422, 503),
+    description=(
+        "The source records an entity was built from, how each joined it, and the other "
+        "entities it may describe (possible matches, never confirmed and never merged). "
+        "`entity_id` is a canonical id or any id in its `referents`; an unknown id answers a "
+        "404 problem. A single-record entity has one member with method `identity`. "
+        "`PossibleMatch.match_probability` is null for `deterministic` and `source_hint` "
+        "possible matches, and `rule` names the D rule of a `deterministic` one; every "
+        'possible-match explanation says "not confirmed". At most '
+        f"{MAX_POSSIBLE_MATCHES} possible matches, the highest match probability first, then "
+        "those without a probability, by entity id."
+    ),
+)
+def get_resolution(request: Request, entity_id: EntityIdPath) -> ResolutionResponse:
+    """How an entity was resolved: its source records and its possible matches."""
+    not_implemented(request, M2_12)
 
 
 @router.get("/alerts", tags=["alerts"], responses=responses(422, 503))

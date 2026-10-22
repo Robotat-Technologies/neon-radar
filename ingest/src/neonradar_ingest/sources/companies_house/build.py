@@ -1,17 +1,23 @@
 """The `gb_companies_house` builder and its profile block (PHASE-2.md M2.3 build steps, M2.3a).
 
 `neonradar ingest build --dataset gb_companies_house [--step <name>]...` runs the steps of the
-merged sub-milestones in order: `index`, `slice` and `companies` (M2.3a); M2.3b adds
-`psc-index` and `psc`, M2.3c `officers`. Each step reads the previous steps' work files in
-`layout.work_dir(profile, dataset)`; a missing input stops the step with exit code 2 and names
-the step to run first. After a successful build (records validated and swapped in) that ran
-the `companies` step, the work indexes are deleted unless `--keep-work` is given; `slice.csv`
-and `slice.json` stay until the next `slice` step. The `companies` step refuses (exit 2) a
-slice built from another snapshot than the newest download.
+merged sub-milestones in order: `index`, `slice` and `companies` (M2.3a), with `psc-index`
+and `psc` (M2.3b) when the profile's `psc` block is enabled, and `officers` (M2.3c) when its
+`officers` block is (the gate and the key are checked before the first step). Each step
+reads the previous steps' work files in `layout.work_dir(profile, dataset)`; a missing input
+stops the step with exit code 2 and names the step to run first. After a successful build
+(records validated and swapped in) that ran the `companies` or `psc` step, the work indexes
+are deleted unless `--keep-work` is given; `slice.csv` and `slice.json` stay until the next
+`slice` step. The `companies` step refuses (exit 2) a slice built from another snapshot than
+the newest download. A `psc` step run without the `companies` step keeps the previous company
+records, which its links point to; an `officers` step run on its own keeps the previous
+company records, and the previous PSC records while the `psc` block is enabled.
 """
 
 import json
 import re
+import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -25,14 +31,21 @@ from neonradar_ingest.data.sources import (
     Builder,
     BuildError,
     BuildResult,
+    RemoteFile,
+    SourceSpec,
     register_builder,
+    register_source,
 )
-from neonradar_ingest.sources.companies_house import bulk, records
+from neonradar_ingest.http import HttpClient
+from neonradar_ingest.sources.companies_house import bulk, officers, psc, records
 from neonradar_ingest.sources.companies_house import slice as slices
+from neonradar_ingest.sources.companies_house.officers import OfficersBlock
 
-STEPS = ("index", "slice", "companies")
+STEPS = ("index", "psc-index", "slice", "companies", "psc", "officers")
+PSC_STEPS = ("psc-index", "psc")  # only with an enabled `psc` block
+OFFICER_STEPS = ("officers",)  # only with an enabled `officers` block
 INDEX = "companies.sqlite"
-PSC_INDEX = "corporate_pscs.sqlite"  # written by the psc-index step (M2.3b)
+PSC_INDEX = "corporate_pscs.sqlite"  # written by the psc-index step
 SLICE = "slice.csv"
 SLICE_META = "slice.json"  # the snapshot version, sample seed and SHA-256 of slice.csv
 NUMBER_RE = re.compile(r"[A-Z0-9]{8}\Z")
@@ -72,25 +85,55 @@ class CompaniesBlock(BaseModel):
         return districts
 
 
+class PscBlock(BaseModel):
+    """The `psc` block of a profile (PHASE-2.md 7.8, M2.3b deliverable 9)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: StrictBool
+    parent_depth: StrictInt = Field(default=0, ge=0)
+    child_depth: StrictInt = Field(default=0, ge=0)
+    include_ceased: StrictBool = False
+
+
 class CompaniesHouseSource(BaseModel):
-    """The `gb_companies_house` block; `psc` and `officers` stay mappings until M2.3b, M2.3c."""
+    """The `gb_companies_house` block."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: StrictBool
     companies: CompaniesBlock | None = None
-    psc: dict[str, Any] | None = None
-    officers: dict[str, Any] | None = None
+    psc: PscBlock | None = None
+    officers: OfficersBlock | None = None
 
 
 register_source_model(bulk.DATASET, CompaniesHouseSource)
 
 
-def companies_download() -> tuple[str, list[Path], list[str]]:
-    """The newest complete download of the `companies` product: version, parts, stored URLs."""
-    product = layout.sources_dir(bulk.DATASET, bulk.PRODUCT, "latest").parent
+def discover(client: HttpClient) -> list[RemoteFile]:
+    """The current parts of both bulk products: `companies` (monthly) and `psc` (daily)."""
+    return [*bulk.discover(client), *psc.discover(client)]
+
+
+def products(profile: Profile) -> dict[str, Callable[[HttpClient], list[RemoteFile]]]:
+    """The products a profile needs (`data fetch`): `companies`, and `psc` only when the
+    profile's `psc` block is enabled, so PSC data is never downloaded for nothing."""
+    options: CompaniesHouseSource = profile.options(bulk.DATASET)
+    wanted: dict[str, Callable[[HttpClient], list[RemoteFile]]] = {bulk.PRODUCT: bulk.discover}
+    if options.psc is not None and options.psc.enabled:
+        wanted[psc.PRODUCT] = psc.discover
+    return wanted
+
+
+register_source(SourceSpec(bulk.DATASET, discover, products=products))
+PARTS = {bulk.PRODUCT: bulk.PART_RE, psc.PRODUCT: psc.PART_RE}
+
+
+def latest_download(product: str) -> tuple[str, list[Path], list[str]]:
+    """The newest complete download of a product: version, parts, stored URLs."""
+    product_dir = layout.sources_dir(bulk.DATASET, product, "latest").parent
     complete: list[tuple[str, dict[str, Any]]] = []
-    for folder in sorted(product.iterdir()) if product.is_dir() else []:
+    for folder in sorted(product_dir.iterdir()) if product_dir.is_dir() else []:
         if not folder.is_dir():
             continue  # a stray file such as .DS_Store
         try:
@@ -101,7 +144,7 @@ def companies_download() -> tuple[str, list[Path], list[str]]:
             complete.append((folder.name, record))
     if not complete:
         raise StepInputMissing(
-            f"{bulk.DATASET}: no complete download of the {bulk.PRODUCT} product; run"
+            f"{bulk.DATASET}: no complete download of the {product} product; run"
             f" neonradar data fetch --profile <profile> --dataset {bulk.DATASET} first",
             "input",
             counts_only=True,
@@ -110,10 +153,13 @@ def companies_download() -> tuple[str, list[Path], list[str]]:
     files = [
         entry
         for entry in record.get("files", [])
-        if entry.get("product") == bulk.PRODUCT and bulk.PART_RE.fullmatch(str(entry.get("name")))
+        if entry.get("product") == product and PARTS[product].fullmatch(str(entry.get("name")))
     ]
-    folder = layout.sources_dir(bulk.DATASET, bulk.PRODUCT, version)
-    parts = sorted((folder / entry["name"] for entry in files), key=bulk.part_number)
+    folder = layout.sources_dir(bulk.DATASET, product, version)
+    parts = sorted(
+        (folder / entry["name"] for entry in files),
+        key=lambda path: bulk.part_number(path, PARTS[product]),
+    )
     return version, parts, [str(entry.get("url", "")) for entry in files]
 
 
@@ -127,28 +173,96 @@ def _need(path: Path, step: str) -> Path:
     return path
 
 
+def _carried(profile: Profile, out_dir: Path, name: str) -> Path | None:
+    """`<name>.ftm.jsonl` in `out_dir`, copied with its manifest from the previous records
+    when this build did not write it; None when there is none."""
+    path = out_dir / f"{name}.ftm.jsonl"
+    if not path.is_file():
+        previous = layout.records_dir(profile, bulk.DATASET)
+        for suffix in (".ftm.jsonl", ".manifest.json"):
+            if (previous / f"{name}{suffix}").is_file():
+                shutil.copy2(previous / f"{name}{suffix}", out_dir / f"{name}{suffix}")
+    return path if path.is_file() else None
+
+
+def _carry(profile: Profile, out_dir: Path, name: str) -> Path:
+    """As `_carried`, but StepInputMissing (naming the step) when there is none."""
+    return _carried(profile, out_dir, name) or _need(out_dir / f"{name}.ftm.jsonl", name)
+
+
+def _steps(options: CompaniesHouseSource, steps: tuple[str, ...]) -> tuple[str, ...]:
+    """The steps to run: the PSC and officer steps only with their blocks enabled."""
+    off = (() if options.psc is not None and options.psc.enabled else PSC_STEPS) + (
+        () if options.officers is not None and options.officers.enabled else OFFICER_STEPS
+    )
+    return steps or tuple(s for s in STEPS if s not in off)
+
+
+def plan(profile: Profile, steps: tuple[str, ...]) -> tuple[str, ...]:
+    """The steps a build of `profile` runs (`ingest build` gates each of them first)."""
+    return _steps(profile.options(bulk.DATASET), steps)
+
+
 def build(profile: Profile, context: BuildContext) -> BuildResult:
     options: CompaniesHouseSource = profile.options(bulk.DATASET)
-    steps = context.steps or STEPS
+    steps = _steps(options, context.steps)
+    block = options.psc if options.psc is not None and options.psc.enabled else None
+    if block is None and set(steps) & set(PSC_STEPS):
+        message = f"{profile.profile}: the psc block is not enabled"
+        raise BuildError(message, "profile", counts_only=True)
     if "slice" in steps and options.companies is None:  # before the long index pass
         raise BuildError(f"{profile.profile}: no companies block", "profile", counts_only=True)
+    officer_block = options.officers if options.officers and options.officers.enabled else None
+    key = None
+    if "officers" in steps:  # the gate and the key before any step reads or writes
+        if officer_block is None:
+            message = f"{profile.profile}: the officers block is not enabled"
+            raise BuildError(message, "profile", counts_only=True)
+        key = officers.api_key(context.project, profile)
     work = context.work_dir
     work.mkdir(parents=True, exist_ok=True)
     counts: dict[str, Any] = {}
     strings: dict[str, str] = {}
     if "index" in steps or "companies" in steps:
-        version, parts, urls = companies_download()
+        version, parts, urls = latest_download(bulk.PRODUCT)
         strings["version"] = version
+    if block is not None and ("psc-index" in steps or "psc" in steps):
+        psc_version, psc_parts, psc_urls = latest_download(psc.PRODUCT)
+        strings["snapshot_date"] = psc_version
     if "index" in steps:
         counts["index"] = bulk.build_index(parts, work / INDEX, version)
+    if block is not None and "psc-index" in steps:
+        counts["psc-index"], strings["totals_check"] = psc.build_index(
+            psc_parts,
+            work / PSC_INDEX,
+            _need(work / INDEX, "index"),
+            block.include_ceased,
+            psc_version,
+        )
     if "slice" in steps and options.companies is not None:
         index = _need(work / INDEX, "index")
+        expansion, psc_snapshot = None, None
+        if block is not None:
+            psc_snapshot = bulk.index_version(_need(work / PSC_INDEX, "psc-index"))
+            if psc_snapshot is not None:
+                strings.setdefault("snapshot_date", psc_snapshot)
+            expansion = psc.expansion(
+                work / PSC_INDEX,
+                index,
+                block.parent_depth,
+                block.child_depth,
+                options.companies.sample_seed,
+            )
         counts["slice"], strings["slice_sha256"] = slices.build_slice(
-            index, options.companies, work / SLICE
+            index, options.companies, work / SLICE, expansion
         )
-        slices.write_meta(work / SLICE_META, version=bulk.index_version(index),
-                          sample_seed=options.companies.sample_seed,
-                          sha256=strings["slice_sha256"])  # fmt: skip
+        slices.write_meta(
+            work / SLICE_META,
+            version=bulk.index_version(index),
+            sample_seed=options.companies.sample_seed,
+            sha256=strings["slice_sha256"],
+            psc_snapshot=psc_snapshot,
+        )
     if "companies" in steps:
         meta = slices.read_meta(_need(work / SLICE_META, "slice"))
         if meta.get("version") != version:
@@ -167,13 +281,46 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             version=version,
             urls=urls,
         )
+    if block is not None and "psc" in steps:
+        meta = slices.read_meta(_need(work / SLICE_META, "slice"))
+        if meta.get("psc_snapshot") != psc_version:
+            raise StepInputMissing(
+                f"{bulk.DATASET}: slice.csv comes from PSC snapshot {meta.get('psc_snapshot')},"
+                f" the newest PSC download is {psc_version}; run --step psc-index --step slice"
+                " first",
+                "snapshot",
+                counts_only=True,
+            )
+        counts["psc"], strings["totals_check"] = psc.write_pscs(
+            psc_parts,
+            _need(work / SLICE, "slice"),
+            _carry(profile, context.out_dir, "companies"),
+            context.out_dir,
+            include_ceased=block.include_ceased,
+            version=psc_version,
+            urls=psc_urls,
+        )
+    if officer_block is not None and key is not None:
+        companies = _carry(profile, context.out_dir, "companies")
+        # PSC records of this build, or kept from the last one when the psc block is enabled
+        # and the company records are not new (their links would point at missing companies)
+        keep = block is not None and ("psc" in steps or "companies" not in steps)
+        pscs = _carried(profile, context.out_dir, "psc") if keep else None
+        counts["officers"], strings["stopped_by"] = officers.write_officers(
+            key,
+            officer_block,
+            _need(work / SLICE, "slice"),
+            [companies, *([pscs] if pscs else [])],
+            context.out_dir,
+        )
     return BuildResult(counts=counts, strings=strings)
 
 
 def cleanup(profile: Profile, context: BuildContext, result: BuildResult) -> None:
-    """After a successful build that ran the `companies` step: delete the work indexes
-    (unless `--keep-work`); `slice.csv` and `slice.json` stay for the later steps."""
-    if "companies" in (context.steps or STEPS) and not context.keep_work:
+    """After a successful build that ran the `companies` or `psc` step: delete the work
+    indexes (unless `--keep-work`); `slice.csv` and `slice.json` stay for the later steps."""
+    steps = _steps(profile.options(bulk.DATASET), context.steps)
+    if {"companies", "psc"} & set(steps) and not context.keep_work:
         for name in (INDEX, PSC_INDEX):
             (context.work_dir / name).unlink(missing_ok=True)
 
@@ -183,7 +330,8 @@ register_builder(
         bulk.DATASET,
         build,
         steps=STEPS,
-        string_keys=("slice_sha256", "statements"),
+        string_keys=("slice_sha256", "statements", "snapshot_date", "totals_check", "stopped_by"),
         cleanup=cleanup,
+        plan=plan,
     )
 )

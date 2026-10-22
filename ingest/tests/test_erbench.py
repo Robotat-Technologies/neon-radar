@@ -187,10 +187,20 @@ def test_twins_share_their_names_but_not_their_identity(large: erbench.Bench) ->
         assert twin.company_number != original.company_number
 
 
-def test_no_generated_name_contains_a_denylisted_name(records: list[dict[str, Any]]) -> None:
+def test_no_generated_name_contains_a_denylisted_name(
+    records: list[dict[str, Any]], large: erbench.Bench
+) -> None:
     names = [v for r in records for p in NAME_PROPS for v in r["properties"].get(p, [])]
-    assert len(names) > 1000
+    names += [v for r in large.records for p in NAME_PROPS for v in r.props.get(p, [])]
+    assert len(names) > 10_000
     assert [name for name in names if is_denied(name)] == []
+
+
+def test_invented_surnames_avoid_the_known_real_ones(large: erbench.Bench) -> None:
+    real = {fold(name) for name in variants.NOT_INVENTED}
+    for person in large.people:
+        if person.invented:
+            assert not {fold(form) for form in person.surname.latin} & real
 
 
 def test_listed_and_leaked_people_have_invented_surnames(

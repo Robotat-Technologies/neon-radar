@@ -196,8 +196,9 @@ def faker_surnames() -> tuple[frozenset[str], frozenset[str]]:
 
 
 def invented_surname(rng: np.random.Generator, origin: str) -> Part:
-    """Two or three invented syllables in the person's script (deliverable 2)."""
-    count = 2 if chance(rng, 0.6) else 3
+    """Two or three invented syllables in the person's script (deliverable 2); three more often,
+    because two syllables form real surnames more easily."""
+    count = 3 if chance(rng, 0.7) else 2
     picked = [variants.SYLLABLES[int(i)] for i in rng.choice(len(variants.SYLLABLES), count)]
     spellings = [""]
     for forms, _, _ in picked:
@@ -210,10 +211,15 @@ def invented_surname(rng: np.random.Generator, origin: str) -> Part:
     return Part(latin)
 
 
+@cache
+def _not_invented() -> frozenset[str]:
+    return frozenset(fold(name) for name in variants.NOT_INVENTED)
+
+
 def invented_ok(part: Part) -> bool:
     native, latin = faker_surnames()
     forms = [fold(form) for form in part.latin]
-    if any(form in native or form in latin for form in forms):
+    if any(form in native or form in latin or form in _not_invented() for form in forms):
         return False
     return part.native is None or fold(part.native) not in native
 
@@ -303,7 +309,7 @@ def plan_orgs(seed: int, n: int) -> list[Org]:
     lei, listed = _subset(rng, n, SHARES["org_lei"]), _subset(rng, n, SHARES["org_listed"])
     leaked = _subset(rng, n, SHARES["org_leaked"])
     numbers = rng.choice(900_000, n, replace=False) + 100_000
-    unsc = rng.choice(10_000, n, replace=False) + UNISSUED
+    unsc = rng.choice(4_000, n, replace=False) + UNISSUED  # organisations: 990000 to 993999
     orgs: list[Org] = []
     for i in range(n):
         org_rng = _rng(seed, ORG, i + 1)
@@ -376,7 +382,7 @@ def plan_people(seed: int, n: int, n_orgs: int) -> list[Person]:
     middle = _subset(rng, n, SHARES["middle"])
     twins = _twins(rng, n, SHARES["twin"])
     numbers = rng.choice(90_000, 2 * n, replace=False) + 10_000
-    unsc = rng.choice(10_000, n, replace=False) + UNISSUED
+    unsc = rng.choice(6_000, n, replace=False) + UNISSUED + 4_000  # people: 994000 to 999999
     people: list[Person] = []
     for i in range(n):
         p_rng = _rng(seed, PERSON, i + 1)
@@ -453,10 +459,14 @@ def _surname(rng: np.random.Generator, fakers: dict[str, Faker], person: Person)
     return cyrillic_part(pick(rng, names))
 
 
-def _full_names(given: Part, surname: Part) -> list[str]:
-    names = [f"{g} {s}" for g in given.latin for s in surname.latin]
+def _full_names(given: Part, middle: Part | None, surname: Part) -> list[str]:
+    """Every form a record can show: given and surname, with the middle name and without."""
+    middles = [""] + [f"{m} " for m in (middle.latin if middle else ())]
+    names = [f"{g} {m}{s}" for g in given.latin for m in middles for s in surname.latin]
+    names += [f"{m}{s}" for m in middles[1:] for s in surname.latin]
     if given.native and surname.native:
-        names.append(f"{given.native} {surname.native}")
+        native = f"{middle.native} " if middle and middle.native else ""
+        names += [f"{given.native} {surname.native}", f"{given.native} {native}{surname.native}"]
     return names
 
 
@@ -476,8 +486,7 @@ def _name_people(seed: int, people: list[Person]) -> None:
                 continue
             if person.invented and not invented_ok(surname):
                 continue
-            names = _full_names(given, surname) + (list(middle.latin) if middle else [])
-            if any(is_denied(name) for name in names):
+            if any(is_denied(name) for name in _full_names(given, middle, surname)):
                 continue
             taken.update((key, surname_key) if person.invented else (key,))
             person.given, person.middle, person.surname = given, middle, surname
@@ -492,8 +501,11 @@ def _name_people(seed: int, people: list[Person]) -> None:
         for attempt in range(MAX_TRIES):
             rng = _rng(seed, NAME, twin.number, attempt)
             twin.middle = _middle(rng, fakers, twin) if twin.has_middle else None
-            if not twin.middle or not any(is_denied(name) for name in twin.middle.latin):
+            shown = _full_names(twin.given, twin.middle, twin.surname)
+            if not any(is_denied(name) for name in shown):
                 break
+        else:
+            raise RuntimeError(f"no middle name for twin {twin.number} after {MAX_TRIES} tries")
 
 
 def _details(seed: int, people: list[Person], by_number: dict[int, Person]) -> None:

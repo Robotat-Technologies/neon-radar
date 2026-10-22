@@ -76,6 +76,12 @@ jobs:
       - run: uv run pytest -m "integration and not network"
         env:
           NR_NEO4J_IMAGE: neo4j:5.26.32-community
+      # Every detector test again with the Cypher candidate steps (PHASE-3.md 7.1.5, M3.2).
+      - name: Detector tests on Neo4j
+        run: uv run pytest detect/tests -m "not integration and not network"
+        env:
+          NR_NEO4J_IMAGE: neo4j:5.26.32-community
+          NR_DETECT_SOURCE: neo4j
 
   ui:
     runs-on: ubuntu-24.04

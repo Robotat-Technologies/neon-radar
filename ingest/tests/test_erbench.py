@@ -152,7 +152,9 @@ def test_identifiers_and_postcodes_are_well_formed(records: list[dict[str, Any]]
             code = text.rsplit(", ", 1)[1]
             assert code.startswith("QQ") and normalise_uk_postcode(code) == code
         for unsc in record["properties"].get("unscId", []):
-            assert unsc.startswith("ZZi.99") and len(unsc) == 10  # no real regime or reference
+            assert (
+                unsc[:6] in ("ZZi.99", "ZZe.99") and len(unsc) == 10
+            )  # no real regime or reference
         for authority_id in record["properties"].get("authorityId", []):
             assert authority_id[:5] in ("SYA-9", "SYB-9", "SYC-9") and len(authority_id) == 10
         number = record["nr"].get("ch_person_number")

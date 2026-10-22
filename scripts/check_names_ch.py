@@ -31,14 +31,19 @@ from neonradar_ingest.synth.names import fold
 
 
 def bench_names(size: str, seed: int) -> list[tuple[str, str, str, str | None]]:
-    """(kind, entity id, name, invented surname or None) for every distinct name, people first."""
+    """(kind, entity id, name, invented surname or None) for every distinct name, people first.
+
+    A near twin's name is drawn by its original, so the original's id is the one to put in
+    `REDRAW`, and the one shown."""
     bench = build(size, seed)
+    people = {p.number: p for p in bench.people}
+    orgs = {o.number: o for o in bench.orgs}
     entries = [
-        ("person", p.entity_id, f"{p.given.latin[0]} {p.surname.latin[0]}",
-         p.surname.latin[0] if p.invented else None)
+        ("person", people[p.twin_of or p.number].entity_id,
+         f"{p.given.latin[0]} {p.surname.latin[0]}", p.surname.latin[0] if p.invented else None)
         for p in bench.people
     ]  # fmt: skip
-    entries += [("org", o.entity_id, o.name, None) for o in bench.orgs]
+    entries += [("org", orgs[o.twin_of or o.number].entity_id, o.name, None) for o in bench.orgs]
     seen: set[str] = set()
     out = []
     for entry in entries:
@@ -46,6 +51,11 @@ def bench_names(size: str, seed: int) -> list[tuple[str, str, str, str | None]]:
             seen.add(fold(entry[2]))
             out.append(entry)
     return out
+
+
+def _company_key(name: str) -> str:
+    """`name_key` with "&" written as "and", so both spellings of a name meet."""
+    return name_key(name.replace("&", " and "))
 
 
 def _titles(client: CompaniesHouseClient, path: str, name: str) -> list[str]:
@@ -75,7 +85,8 @@ def main(argv: list[str] | None = None) -> int:
     with CompaniesHouseClient(key) as client:
         for index, (_, _, name, invented) in enumerate(names):
             company = any(
-                name_key(t) == name_key(name) for t in _titles(client, "/search/companies", name)
+                _company_key(t) == _company_key(name)
+                for t in _titles(client, "/search/companies", name)
             )
             tokens = set(fold(name).split())
             officer = any(

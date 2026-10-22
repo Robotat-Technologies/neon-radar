@@ -324,7 +324,7 @@ def plan_orgs(seed: int, n: int) -> list[Org]:
         styles = ("officer", "psc")
         org.corporate = tuple(pick(org_rng, styles) for _ in range(1 + chance(org_rng, 0.5)))
         if org.listed and chance(org_rng, RATES["unsc"]):
-            org.unsc = f"ZZi.{int(unsc[i])}"
+            org.unsc = f"ZZe.{int(unsc[i])}"  # the UN writes "e" for entities
         orgs.append(org)
     _name_orgs(seed, orgs)
     return orgs
@@ -636,11 +636,13 @@ def _show(bench: Bench, rng: np.random.Generator, person: Person) -> Shown:
         limit = RATES["middle_initial"] + RATES["middle_dropped"]
         if bench.count("middle_dropped", RATES["middle_initial"] <= draw < limit):
             middle = None
-    if bench.count("typo", chance(rng, RATES["typo"])):
+    before = (given, surname)
+    if chance(rng, RATES["typo"]):
         if chance(rng, 0.5):
             given = typo(rng, given)
         else:
             surname = typo(rng, surname)
+    bench.count("typo", (given, surname) != before)  # only typos that changed a name count
     return Shown(given, middle, surname)
 
 
@@ -782,15 +784,19 @@ def _org_name(bench: Bench, rng: np.random.Generator, org: Org) -> str:
     separator, end = " ", ""
     if bench.count("org_punct", chance(rng, RATES["org_punct"])):
         kind = int(rng.integers(3))
-        if kind == 0:  # "Alder Brae Trading, Ltd"
-            separator = ", "
-        elif kind == 1 and core[1] not in ("&", "and"):  # "Alder-Brae Trading Ltd"
+        if kind == 1 and core[1] not in ("&", "and"):  # "Alder-Brae Trading Ltd"
             core[0:2] = [f"{core[0]}-{core[1]}"]
-        elif not form.endswith("."):  # "Alder Brae Trading Ltd."
+        elif kind != 0 and not form.endswith("."):  # "Alder Brae Trading Ltd."
             end = "."
-    if bench.count("org_typo", chance(rng, RATES["org_typo"])):
+        else:  # "Alder Brae Trading, Ltd"
+            separator = ", "
+    if chance(rng, RATES["org_typo"]):
         index = between(rng, 0, len(core) - 1)
-        core[index] = typo(rng, core[index])
+        word = core[index]
+        core[index] = typo(rng, word)
+        bench.count("org_typo", core[index] != word)
+    else:
+        bench.count("org_typo", False)
     name = f"{' '.join(core)}{separator}{form}{end}"
     if bench.count("org_the", chance(rng, RATES["org_the"])):
         name = f"The {name}"

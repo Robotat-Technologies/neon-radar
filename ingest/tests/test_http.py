@@ -146,6 +146,26 @@ def test_logs_never_show_keys_or_authorization(caplog: pytest.LogCaptureFixture)
     assert logging.getLogger("httpcore").getEffectiveLevel() == logging.INFO  # raw headers
 
 
+def test_log_query_false_keeps_query_strings_out_of_logs_and_errors(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """PHASE-2.md M2.6 rule 4: a signed redirect target is followed but never logged."""
+    caplog.set_level(logging.DEBUG)
+    signed = "https://files.example.test/list.xml?se=2099&sig=s1"
+    server = Server(
+        httpx.Response(302, headers={"Location": signed}), *[httpx.Response(503) for _ in range(4)]
+    )
+    with pytest.raises(HttpError) as error:
+        server.client(log_query=False).get("/list", params={"token": "t1", "page": "2"})
+    logged = caplog.text + str(error.value)
+    assert "https://files.example.test/list.xml" in logged
+    for part in ("se=2099", "sig=", "s1", "token", "page=2"):
+        assert part not in logged, part
+    server = Server(httpx.Response(200))
+    server.client().get("/list", params={"page": "2"})  # the default keeps a redacted query
+    assert "page=2" in caplog.text
+
+
 def hint(headers: dict[str, str]) -> float | None:
     return retry_after_seconds(httpx.Response(429, headers=headers))
 

@@ -1,5 +1,7 @@
 # Spike report: ICIJ Offshore Leaks Database (`icij_offshore_leaks`)
 
+> **Status since C1 1.1.0:** `icij_offshore_leaks` is `status: active` in `contracts/datasets.yaml` (M2.1a, `docs/build/PHASE-2.md` 5.1): its production loader is built in Phase 2 (M2.5). This report stays the record of the Phase 1 spike.
+
 Milestone M1.8c ([PHASE-1.md](../../build/PHASE-1.md), section 6). This was a technical fetch test. The report holds counts, field names, header facts and link vocabulary only: no names, addresses or other record content from the database. The spike output (C1 records and manifest) stayed in `data/cache/spikes/icij/`, which is gitignored, and must be deleted with `neonradar spike clean` after `access.spike_cache_days` (7 days).
 
 ## 1. Command, date, duration, network

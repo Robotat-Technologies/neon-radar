@@ -132,7 +132,7 @@ def _designation(element: Element, counts: Counter[str]) -> Designation | None:
         unique_id=unique_id,
         group_id=shared.text(element, "OFSIGroupID"),
         un_ref=un_reference(shared.text(element, "UNReferenceNumber")),
-        kind=shared.text(element, "IndividualEntityShip") or "",
+        kind=(shared.text(element, "IndividualEntityShip") or "").capitalize(),
         regime=shared.text(element, "RegimeName"),
         imposed=shared.text(element, "SanctionsImposed"),
         designated=shared.text(element, "DateDesignated"),

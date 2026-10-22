@@ -13,7 +13,7 @@ const wording = (id: string) => read(`contracts/wording/${id}.txt`).replace(/\n+
 
 const STANDING = wording('standing-v1')
 const SYNTHETIC_DEMO = wording('synthetic-demo-v1')
-const REAL_DATA = wording('real-data-v1')
+const REAL_DATA = wording('real-data-v2')
 
 const subgraph = json('contracts/examples/c3/subgraph.json')
 const entityDetail = json('contracts/examples/c3/entity-detail.json')
@@ -37,8 +37,8 @@ function dataset(slug: string, synthetic: boolean, recordCount: number, title: s
 function meta(realRecords = 0) {
   return {
     app_version: '0.1.0',
-    contracts_version: '1.0.0',
-    schema_version: '1.0.0',
+    contracts_version: '1.1.0',
+    schema_version: '1.1.0',
     datasets: [
       dataset('gb_companies_house', false, realRecords, 'UK Companies House public register'),
       dataset('nr_synthetic', true, 41, 'NeonRadar synthetic data'),

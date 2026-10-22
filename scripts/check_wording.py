@@ -2,7 +2,8 @@
 """Wording lint for entity-facing templates (docs/build/PHASE-1.md 7.1, guardrail G5).
 
 Scans the `wording` fields of detect/typologies/*.yaml and the string literals in
-detect/src/**/wording.py for the patterns in contracts/wording/forbidden-terms.txt (one
+detect/src/**/wording.py and graph/src/**/wording.py (the Phase 2 resolution and ownership
+templates, PHASE-2.md 7.2) for the patterns in contracts/wording/forbidden-terms.txt (one
 regular expression per line, case-insensitive, `#` starts a comment). Disclaimers and general
 documentation are out of scope: they discuss money laundering as a subject. Until M1.7c
 creates the terms file, the script exits 0 with a notice.
@@ -25,7 +26,7 @@ from hygiene_common import ROOT, annotate
 
 TERMS_FILE = "contracts/wording/forbidden-terms.txt"
 TYPOLOGY_GLOB = "detect/typologies/*.yaml"
-WORDING_GLOB = "detect/src/**/wording.py"
+WORDING_GLOBS = ("detect/src/**/wording.py", "graph/src/**/wording.py")
 STATEMENT_START = {tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING}
 # Escape sequences in Python and YAML strings: in "\nLaundered" there is no word boundary before
 # "L" until the escape is blanked out (with as many spaces, so line numbers stay right).
@@ -115,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
 
     findings: list[str] = []
     typology_files = sorted(args.root.glob(TYPOLOGY_GLOB))
-    wording_files = sorted(args.root.glob(WORDING_GLOB))
+    wording_files = sorted(path for glob in WORDING_GLOBS for path in args.root.glob(glob))
     for path in typology_files:
         name = path.relative_to(args.root).as_posix()
         text = path.read_text(encoding="utf-8")

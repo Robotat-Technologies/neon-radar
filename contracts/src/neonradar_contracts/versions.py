@@ -7,6 +7,6 @@ from typing import Final
 
 RECORD: Final = "1.1.0"
 GRAPH_SCHEMA: Final = "1.1.0"
-API: Final = "1.0.0"
+API: Final = "1.1.0"
 ALERT: Final = "1.0.0"
 CONTRACTS: Final = "1.1.0"

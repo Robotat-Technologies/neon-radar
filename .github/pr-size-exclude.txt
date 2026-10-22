@@ -14,3 +14,5 @@ LICENSE
 NOTICE
 .github/CODEOWNERS
 scripts/cypher-lint/package-lock.json
+docs/build/PHASE-3-CODE.md
+eval/baselines/*.json

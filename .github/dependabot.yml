@@ -5,7 +5,12 @@ updates:
     schedule: { interval: weekly }
     commit-message: { prefix: build, include: scope }
     groups:
-      python-minor-patch: { update-types: [minor, patch] }
+      # numpy and Faker drive the synthetic generator's output (PHASE-3.md 3.1): their
+      # upgrades arrive alone, and a numpy bump must pass `neonradar eval check`.
+      generator: { patterns: [numpy, faker] }
+      python-minor-patch:
+        update-types: [minor, patch]
+        exclude-patterns: [numpy, faker]
   - package-ecosystem: npm
     directory: "/ui"
     schedule: { interval: weekly }

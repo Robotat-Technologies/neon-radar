@@ -96,8 +96,7 @@ David Cameron
 Михаил Прохоров
 Андрей Костин
 Вячеслав Лебедев
-# Added in M2.9 (data-guardian review): public figures whose names Faker's en_GB and ru_RU lists
-# produced in the entity resolution benchmark.
+# Added in M2.9 (review).
 Darren Jones
 Brian Johnson
 Terry Davis
@@ -108,3 +107,11 @@ Guy Fletcher
 Sian Thomas
 Konstantin Sokolov
 Константин Соколов
+Rebecca Evans
+Elliott Carter
+Stanley Baker
+Leslie Jones
+Daniel Morgan
+Jason Collins
+Pamela Reed
+Gary Stevens

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import ast
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -36,17 +36,26 @@ def _company(rid: str, number: str, **props: object) -> dict[str, object]:
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("1800000", "01800000"),
         ("sc-999901", "SC999901"),
-        ("OC300001", "OC300001"),
+        ("OC999901", "OC999901"),
         ("ABC", None),
-        ("HE123456", None),
+        ("HE999901", None),
         ("SY000101", None),  # the synthetic prefix only for synthetic records
     ],
 )
 def test_d1_normalisation(tmp_path: Path, raw: str, expected: str | None) -> None:
     _, members = members_of(tmp_path, [_company("gbch-psc-test1", raw)])
     assert members["gbch-psc-test1"].company_numbers == ({expected} if expected else set())
+
+
+def test_d1_pads_a_synthetic_number(tmp_path: Path) -> None:
+    """Padding gives a low, allocated-range number for every digit-only input, so it is
+    tested on the synthetic prefix (the spec's "1800000" example is G4 in the reconciliation)."""
+    items = [
+        syn("syn-co-pad", "Company", name="X", registrationNumber="sy 9901", jurisdiction="gb")
+    ]
+    _, members = members_of(tmp_path, items)
+    assert members["syn-co-pad"].company_numbers == {"SY009901"}
 
 
 def test_d1_synthetic_prefix_only_for_synthetic_records(tmp_path: Path) -> None:
@@ -323,7 +332,7 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
         {"decision": "same", "by": "@ one", "at": "2026-11-02T09:00:00Z"},
         {"decision": "same", "by": "@\u043ene", "at": "2026-11-02T09:00:00Z"},  # Cyrillic o
         {"decision": "same", "by": "@one-", "at": "2026-11-02T09:00:00Z"},
-        {"decision": "same", "by": "@\u212aate", "at": "2026-11-02T09:00:00Z"},  # Kelvin sign K
+        {"decision": "same", "by": "@\u212aexample", "at": "2026-11-02T09:00:00Z"},  # Kelvin K
         {"decision": "same", "by": "@" + "a" * 40, "at": "2026-11-02T09:00:00Z"},
         {"decision": "same", "by": "@example-one", "at": "2026-11-02T09:00:00"},
         {"decision": "same", "by": "@example-one", "at": "yesterday"},
@@ -332,16 +341,17 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
 def test_d7_refuses_bad_handles_and_times_without_offset(
     tmp_path: Path, line: dict[str, str]
 ) -> None:
-    with pytest.raises(rules.DecisionsError):
+    with pytest.raises(rules.DecisionsError) as caught:
         rules.read_decisions(_decision_file(tmp_path, [line]))
+    assert line["by"].strip() not in str(caught.value)  # never the handle itself
 
 
 def test_senior_reviewers_drop_placeholders() -> None:
     from neonradar_resolve.config import load_config
 
     config, _ = load_config(Path(__file__).parents[1] / "config" / "er.yaml")
-    seniors = config.cluster_config(["@TODO", "@Senior", " ", "senior2"]).senior_reviewers
-    assert seniors == {"@senior"}
+    seniors = config.cluster_config(["@TODO", "@Example-Senior", " ", "example-senior2"])
+    assert seniors.senior_reviewers == {"@example-senior"}
 
 
 def test_d7_on_a_real_profile_accepts_listed_reviewers_only(tmp_path: Path) -> None:
@@ -356,14 +366,36 @@ def test_d7_on_a_real_profile_accepts_listed_reviewers_only(tmp_path: Path) -> N
     assert "example-one" not in str(caught.value).lower()  # the handle is not printed
 
 
+def _clustering_calls(path: Path) -> int:
+    """Calls of `neonradar_resolve.cluster.resolve` in one file, however it was imported."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules, functions = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("neonradar_resolve"):
+            modules |= {a.asname or a.name for a in node.names if a.name == "cluster"}
+        if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("cluster"):
+            functions |= {a.asname or a.name for a in node.names if a.name in ("resolve", "*")}
+        if isinstance(node, ast.Import):
+            modules |= {a.asname or a.name for a in node.names if a.name.endswith(".cluster")}
+    calls = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            name = ast.unparse(f.value) if isinstance(f, ast.Attribute) else None
+            calls += isinstance(f, ast.Attribute) and f.attr == "resolve" and name in modules
+            calls += isinstance(f, ast.Name) and f.id in functions
+    return calls + len(functions)
+
+
 def test_only_run_py_calls_the_clustering() -> None:
-    """`cluster.resolve` runs only behind the decision guard in run.py (G1)."""
+    """`cluster.resolve` runs only behind the decision guard in run.py (G1), in every package."""
     root = Path(__file__).parents[2]
-    files = [*root.glob("resolve/src/**/*.py"), *root.glob("cli/src/**/*.py")]
-    texts = {p.name: p.read_text(encoding="utf-8") for p in files}
-    assert {name for name, text in texts.items() if "cluster.resolve(" in text} == {"run.py"}
-    direct = re.compile(r"from neonradar_resolve\.cluster import[^\n]*\bresolve\b")
-    assert [name for name, text in texts.items() if direct.search(text)] == []
+    found = {
+        p.relative_to(root).as_posix(): n
+        for p in root.glob("*/src/**/*.py")
+        if p.name != "cluster.py" and (n := _clustering_calls(p))
+    }
+    assert found == {"resolve/src/neonradar_resolve/run.py": 2}
 
 
 def test_d6_links_each_address_to_the_smallest_id_of_its_key(tmp_path: Path) -> None:

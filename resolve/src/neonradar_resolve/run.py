@@ -116,7 +116,8 @@ def count(
     """The counts of `run.json` (7.1.8): records, links, merges, possible matches, conflicts."""
     sizes = {str(r["canonical_id"]): int(str(r["cluster_size"])) for r in result.canonical}
     links_by_rule = Counter(str(x.rule) for x in links)
-    # D7: decisions passed to the clustering; held-back ones count only as awaiting review
+    # D7: decisions passed to the clustering (decisions_applied says how many of them applied);
+    # decisions the guard holds back count only in decisions_awaiting_second_review
     applicable = [x for x in same if x.record_a in members and x.record_b in members]
     if applicable:
         links_by_rule["D7"] = len(applicable)
@@ -274,11 +275,12 @@ def run(
             decisions = rules.read_decisions(decisions_file, config.reviewers)
         with _step(timings, "cluster"):
             settings = config.resolver.cluster_config(config.senior_reviewers)
-            same, held = guard_decisions(members, links, [], decisions, settings)
+            scored: list[cluster.Link] = []  # M2.10b: the Splink pairs, for the guard and the run
+            same, held = guard_decisions(members, links, scored, decisions, settings)
             result = cluster.resolve(
                 members.values(),
                 links,
-                [],
+                scored,
                 same,
                 decisions.different,
                 corpus.hints,

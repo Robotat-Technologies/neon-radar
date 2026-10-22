@@ -11,7 +11,7 @@ import pytest
 from followthemoney.types import registry
 from nr_resolve_support import members_of, rec, syn
 
-from neonradar_resolve import policy, rules, run, schemas
+from neonradar_resolve import policy, rules, schemas
 from neonradar_resolve.cluster import Config, Link, Member, resolve
 from neonradar_resolve.run import guard_decisions
 
@@ -423,13 +423,56 @@ def test_one_reviewer_decisions_never_add_a_flag_or_a_leak(
     same = [_one(f"syn-{a}", f"syn-{b}") for a, b in map(str.split, same_spec.split(","))]
     by_id = {m.record_id: m for m in members}
     kept, _ = guard_decisions(by_id, det, [], rules.Decisions(same, [], len(same)), CONFIG)
-    before = run._groups(
-        resolve(members, det, [], [], [], [], CONFIG, schemas.common_schema), by_id
-    )
-    after = run._groups(
-        resolve(members, det, [], kept, [], [], CONFIG, schemas.common_schema), by_id
-    )
+    before = _flags_by_record(members, det, [], [])
+    after = _flags_by_record(members, det, kept, [])
     for rid in by_id:
-        flags0, leak0 = run._signature(before[rid])
-        flags1, leak1 = run._signature(after[rid])
-        assert flags1 <= flags0 and leak1 <= leak0, rid
+        assert after[rid] <= before[rid], rid  # no flag topic and no leak gained
+
+
+def _flags_by_record(
+    members: list[Member], det: list[Link], same: list[Link], different: list[tuple[str, str]]
+) -> dict[str, set[str]]:
+    """Each record's cluster's flag topics plus "leak" when the cluster holds a leaked record,
+    computed from canonical.csv rows, independently of run.py."""
+    result = resolve(members, det, [], same, different, [], CONFIG, schemas.common_schema)
+    canon = {str(r["record_id"]): str(r["canonical_id"]) for r in result.canonical}
+    marks: dict[str, set[str]] = {}
+    for m in members:
+        group = marks.setdefault(canon[m.record_id], set())
+        group |= set(m.flag_topics) | ({"leak"} if m.kind == "leak" else set())
+    return {rid: marks[cid] for rid, cid in canon.items()}
+
+
+def test_one_reviewer_chain_passing_the_first_check_is_held_back() -> None:
+    """Both decisions join clusters with the same flags, so both pass the first check; the
+    second makes the D3 link B-L2 break X5, so R joins by D5 before L's flag arrives."""
+    a = _syn_person("syn-z-a", dobs=("1970",))
+    a2, b = _syn_person("syn-z-a2"), _syn_person("syn-b")
+    l1 = _syn_person("syn-z-l", "list", ("sanction",))
+    l2 = _syn_person("syn-l2", "list", ("sanction",), dobs=("1980",))
+    r = _syn_person("syn-r", name="other example")
+    det = [
+        Link("syn-b", "syn-l2", "deterministic", "D3"),
+        Link("syn-b", "syn-r", "deterministic", "D5"),
+        Link("syn-z-a", "syn-z-l", "deterministic", "D5"),
+        Link("syn-z-a2", "syn-z-l", "deterministic", "D5"),
+    ]
+    same = [_one("syn-z-a", "syn-z-a2"), _one("syn-b", "syn-z-a2")]
+    canon, waiting = _guarded([a, a2, b, l1, l2, r], det, same)
+    assert canon["syn-r"] == "syn-r" and waiting == 2
+
+
+def test_one_reviewer_different_decision_can_move_a_flag_today() -> None:
+    """Pins current behaviour, which the spec allows (ADR-0015 property 1, reconciliation G1):
+    a `different` decision (X8) needs no second reviewer, and by keeping B from L2 it lets R
+    join B by D5 before Z's flag arrives through B's other D5 link."""
+    b, r = _syn_person("syn-b"), _syn_person("syn-r", name="other example")
+    l2, z = (_syn_person(x, "list", ("sanction",)) for x in ("syn-l2", "syn-z"))
+    det = [
+        Link("syn-b", "syn-l2", "deterministic", "D3"),
+        Link("syn-b", "syn-r", "deterministic", "D5"),
+        Link("syn-b", "syn-z", "deterministic", "D5"),
+    ]
+    members = [b, r, l2, z]
+    assert _flags_by_record(members, det, [], [])["syn-r"] == set()
+    assert _flags_by_record(members, det, [], [("syn-b", "syn-l2")])["syn-r"] == {"sanction"}

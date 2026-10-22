@@ -87,6 +87,13 @@ class _W:
         different name source changes names only, never ids, links, amounts or dates."""
         return stream(self.seed, "world", "name", rid)
 
+    def sy8(self) -> str:
+        """`SY8` plus five digits from a counter: the world's parent and listed companies (2.9)."""
+        self.counts["sy8"] = self.counts.get("sy8", 0) + 1
+        if self.counts["sy8"] >= 100_000:
+            raise ValueError("SY8 company numbers exhausted")
+        return f"SY8{self.counts['sy8']:05d}"
+
     def rid(self, kind: str) -> str:
         self.counts[kind] = self.counts.get(kind, 0) + 1
         return f"syn-w-{kind}-{self.counts[kind]:06d}"
@@ -263,7 +270,7 @@ def generate(seed: int, cfg: WorldConfig, names: NameSource) -> list[dict[str, A
                 entity,
                 w.company_name(entity, "ae"),
                 jurisdiction="ae",
-                registration_number=f"SL{i:06d}",
+                registration_number=w.sy8(),
                 incorporation_date="2010-01-01",
                 topics=["sanction"],
             )
@@ -336,7 +343,7 @@ def _parent(
             rid,
             w.company_name(rid, place),
             jurisdiction=place,
-            registration_number=f"SH{w.counts['co']:06d}",
+            registration_number=w.sy8(),
             incorporation_date=(today - timedelta(days=int(rng.integers(1500, 12000)))).isoformat(),
             sector="holding",
         )

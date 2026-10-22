@@ -16,7 +16,7 @@
   },
   "ingest/src/neonradar_ingest/synth/world.py": {
     "milestone": "M3.3",
-    "reason": "PEP personas of the world draw invented_person, not person, so they carry invented surnames as PHASE-3.md 2.9 and 7.2.3 require; names only (the names stream), no structural draw moves",
-    "sha256": "6bd38a6ec7053d8e884d1ce1a9df22acd96996c96b1e73ff764bc4a2c0b253ef"
+    "reason": "PEP personas of the world draw invented_person, not person, so they carry invented surnames as PHASE-3.md 2.9 and 7.2.3 require; names only (the names stream), no structural draw moves; M3.3 review S7: parent and listed companies take SY8 plus five digits from a counter (_W.sy8) instead of SH and SL numbers",
+    "sha256": "f9e978692357cc22bdff6c22117fcdff5f51e4203a976ca55dc7a7f61c9801fd"
   }
 }

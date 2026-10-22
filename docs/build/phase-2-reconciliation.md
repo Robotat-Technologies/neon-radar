@@ -107,6 +107,23 @@ PHASE-2.md 4.4 says a form a Phase 1 spike already chose stays, and `contracts/C
 | E11 | Real data stays under `data/cache/real/` (4.5, G9) | The detection runner (M1.9b) writes alert audit copies (ids and captions) to `data/runs/<run_id>/` | Q tech lead (Phase 3) | Decide where a run against the real instance writes before Phase 3 detects on real data |
 | E12 | `NR_PROJECT_FILE` points the data manager at a test project file (2374) | `neonradar_ingest.spikes.PROJECT_FILE` is fixed | M | M2.2 routes `cache_days` through `load_project()` |
 
+### 2.6 Matching keys after the M2.8 review (2.7: the spec seems wrong)
+
+The review of M2.8 (#49) found places where the verbatim code of M2.8 does not do what the spec says it does, or does something unsafe for matching. The follow-up changes them, bumps `RULES_VERSION` to `"2"` (M2.8: "every output change needs a test and a `RULES_VERSION` bump") and adds a failing test first for each (`keys/tests/test_keys_fixes.py`). Every assertion of the spec's own `test_keys.py` still passes; none was changed on purpose. The graph mentor and the tech lead confirm the D rows in the review of the follow-up pull request.
+
+| # | PHASE-2.md says | Found | Class | Decision |
+|---|---|---|---|---|
+| F1 | `assert person_key("إحمد خليل").symbols  # the Arabic index catches spellings the tagger misses` (5585) | The tagger alone gives خليل name groups, so the assertion passes with an empty index: nothing tested that the index is used | M | `assert person_key("إحمد").symbols` added to that test (only the index gives this spelling a group), and a test that it is empty when the index is disabled. No output change |
+| F2 | `address_key` is None "when it has neither a postcode nor a street line" (4146, the docstring at 4753) | `len(out) >= 3` (4789) counts any three words as a street line, so "Dubai, United Arab Emirates", "Road Town, Tortola, British Virgin Islands", "Panama City, Panama", "New York, NY, USA" and "Isle of Man" got `NOPC|` keys, which rule D6 would merge across unrelated records | D (orchestrator under OD-10; graph mentor and tech lead confirm) | A street line is a token that starts with a digit, a thoroughfare or building word after a name in its segment ("EXAMPLE HOUSE"; "ROAD TOWN" is a place), or a unit word before its number or letter ("FLAT A"). The five texts give None |
+| F3 | ST is STREET at the end of a segment or before the post town, else SAINT (4785) | In "12 Main St, St Albans, AL1 1AA" the second ST starts its segment but is the second-to-last token, so the key read `12 MAIN STREET STREET ALBANS` | M | ST that starts a segment is SAINT (`12 MAIN STREET SAINT ALBANS`) |
+| F4 | D1 normalisation: digits padded to 8 (5008, 7.1.2) | `\d` also matches Arabic-Indic and fullwidth digits, which came back as non-ASCII "company numbers"; `"0"`, `"00000000"` and `"SC000000"` were accepted, so a placeholder would link unrelated records under D1 and keep records apart under X3 | M (digits); D (all zeros, orchestrator under OD-10) | `[0-9]` instead of `\d`, numbers of only zeros give None, and `has_ch_prefix` needs ASCII digits |
+| F5 | `find_uk_postcode` returns the text without the postcode (4663) | Match positions in `text.upper()` were used to cut `text`; "ß" and ligatures such as "ﬁ" grow when upper-cased, so the cut shifted | M | Upper case letter by letter, keeping letters whose upper case is longer, so the positions index the original text |
+| F6 | Name symbols from rigour (4585) | The tagger was given the raw name: a decomposed (NFD) name got other groups and a fullwidth one none | M | `_rigour_symbols(nfkc(name))` |
+| F7 | `country_code` returns a "lower-case ISO alpha-2 code" (4979) | It returns FtM country codes, including `xk`, `suhh`, `yucs` and `cshh` | M | Docstring and `docs/er/keys.md` corrected; no output change |
+| F8 | Notices for the two data files (M2.8 deliverable 6) | The wheel carried the MIT-derived index and the OGL-derived table without their licence texts | M | `data/ar_symbols.LICENSE.txt` (rigour's MIT text) and `data/nationalities.LICENSE.txt` (attribution and the OGL v3.0 text) are package data; a test builds the wheel offline and checks all four files |
+| F9 | Limits not stated | `ch_same_as_key`: a paragraph 4 word at the very end stays a word, and anyascii folds £, € and ¥ before the equivalences; empty keys exist (`org_key("Ltd")`, `person_key(".")`, `ch_same_as_key("")`, postcode-only address keys) | M (documentation) | Stated in `docs/er/keys.md`, with a note for M2.10a that empty keys are dropped or written as NULL before they reach Splink; three further cases (Urdu and Persian heh forms, the Cyrillic letter Ѕ, `split_ch_name` on Arabic) are listed there as failing tests for the graph mentor, with no code change |
+| F10 | The oracle test inputs (5521 to 5764) | #49 replaced only a denylisted person name and the retired "falcon ridge" words; generic names such as "SMITH, John Michael" and "Łukasz Wiśniewski" and company names such as "BACK TO BASICS LIMITED" stay as the spec gives them | Q data steward (Gate 2 list) | Do the OD-12 Companies House checks apply to strings that are only normaliser test inputs? No change until decided |
+
 ## 3. Cypher that Phase 1 runs from Python strings
 
 From now on every Cypher statement that new or changed code runs lives in a `.cypher` file, so `make cypher-lint` checks it (M2.0 item 11). These move into files when a later milestone touches the code, not in M2.0.
@@ -142,6 +159,8 @@ The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and
 
 **Tech lead:** A5 (`.mcp.json` and the hook, with #19), A13 (the no-op `Write` deny rule), B5 (ICIJ relationship id key), B6 (list and Parliament id forms against `make_id`), C6 (GLEIF name types and C1 R10), C8 (ICIJ address roles), C11 (D5 and repeated ICIJ node ids), D8 (`opensanctions_default` status), E1 (`POSSIBLY_SAME_AS` in C3), E2 (I11 and sub-topics), E4 (relationship upsert template), E11 (where detection runs on real data write).
 
-**Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors).
+**Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors), F10 (OD-12 and normaliser test inputs).
+
+**Graph mentor, with the tech lead:** F2 (what counts as a street line) and F4 (company numbers of only zeros), decided by the orchestrator under OD-10.
 
 Each question blocks only the milestone named in its row.

@@ -46,7 +46,7 @@ The repository holds no copy of the jar. If NeonRadar ever publishes an image or
 | Copyright | Copyright (c) 2023-2025: OpenSanctions Datenbanken GmbH |
 | Source | https://github.com/opensanctions/rigour |
 | How it is made | `uv run python keys/scripts/build_ar_symbol_index.py --tag v2.5.0 --sha256 be47a435969da3fa7311d8c682e462d6d20e6cf27cf90ad1473ce213c9a91c79` downloads the file from `raw.githubusercontent.com/opensanctions/rigour`, checks its SHA-256 and writes 17,798 keys. The gzip header carries no timestamp, so a rebuild gives the same file (SHA-256 `7712414a8eb9b07cf7e2814ffd8d1460ae1c35a834a17a5ce39099f41f56f7e8`). It is rebuilt whenever the locked rigour version changes (`docs/build/PHASE-2.md` M2.8) |
-| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel. The project publishes no wheel yet; a published wheel or image that contains the file must also carry this notice |
+| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel, together with `ar_symbols.LICENSE.txt` (where the file comes from, and rigour's licence text), which `keys/tests/test_keys_fixes.py` checks is in the wheel. An image or bundle that contains the file must carry that licence file too |
 
 The file holds name forms and Wikidata ids of name groups (for example محمد maps to `Q5837762`, the name group that rigour also gives Mohammed and Мухаммед), not records about people. rigour's licence:
 
@@ -83,6 +83,6 @@ SOFTWARE.
 | Licence | Open Government Licence v3.0 (both sources): https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/ |
 | Attribution | "Contains public sector information licensed under the Open Government Licence v3.0." |
 | How it is made | `keys/scripts/build_nationalities.py` maps the two lists to codes with rigour (no fuzzy matching) and its own overrides (UK nations to `gb`, and values rigour maps wrongly or not at all). The two inputs are not in the repository; the committed file is the one in `docs/build/PHASE-2.md` M2.8, and the script is run again only when either list changes |
-| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel |
+| Where it goes | Committed in the repository and packaged in the `neonradar-keys` wheel, together with `nationalities.LICENSE.txt` (the attribution statement and the text of the Open Government Licence v3.0, read on 22 October 2026), which `keys/tests/test_keys_fixes.py` checks is in the wheel |
 
 Contains public sector information licensed under the Open Government Licence v3.0.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -36,7 +37,7 @@ def _company(rid: str, number: str, **props: object) -> dict[str, object]:
     ("raw", "expected"),
     [
         ("1800000", "01800000"),
-        ("SC 12345", "SC012345"),
+        ("sc-999901", "SC999901"),
         ("OC300001", "OC300001"),
         ("ABC", None),
         ("HE123456", None),
@@ -71,15 +72,15 @@ def test_d1_needs_a_uk_record_and_skips_people(tmp_path: Path) -> None:
             "Company",
             "gb_companies_house",
             name="Example Holder Ltd",
-            registrationNumber="00000001",
+            registrationNumber="99999901",
             jurisdiction="cy",
         ),
         rec(
-            "gbch-co-00000001",
+            "gbch-co-99999901",
             "Company",
             "gb_companies_house",
             name="Example Holder Ltd",
-            registrationNumber="1",
+            registrationNumber="9999 9901",
             jurisdiction="vg",
         ),
         rec(
@@ -87,30 +88,30 @@ def test_d1_needs_a_uk_record_and_skips_people(tmp_path: Path) -> None:
             "Person",
             "gb_companies_house",
             name="Testa Example",
-            registrationNumber="00000001",
+            registrationNumber="99999901",
             jurisdiction="gb",
         ),
     ]
     _, members = members_of(tmp_path, items)
     assert members["gbch-psc-test3"].company_numbers == frozenset()  # not a UK record
-    assert members["gbch-co-00000001"].company_numbers == {"00000001"}  # always for gbch-co-
+    assert members["gbch-co-99999901"].company_numbers == {"99999901"}  # always for gbch-co-
     assert members["gbch-psc-test4"].company_numbers == frozenset()
 
 
 def test_d1_links_to_the_companies_house_record_when_the_run_has_it(tmp_path: Path) -> None:
     items = [
-        _company("gbch-co-00000001", "00000001"),
-        _company("gbch-psc-test5", "1"),
-        _company("gbch-psc-test6", "00000001"),
+        _company("gbch-co-99999901", "99999901"),
+        _company("gbch-psc-test5", "9999 9901"),
+        _company("gbch-psc-test6", "99999901"),
     ]
     assert _links(tmp_path, items) == [
-        ("D1", "gbch-co-00000001", "gbch-psc-test5"),
-        ("D1", "gbch-co-00000001", "gbch-psc-test6"),
+        ("D1", "gbch-co-99999901", "gbch-psc-test5"),
+        ("D1", "gbch-co-99999901", "gbch-psc-test6"),
     ]
 
 
 def test_d1_without_the_companies_house_record_links_every_pair(tmp_path: Path) -> None:
-    items = [_company(f"gbch-psc-test{i}", "SC012345") for i in (7, 8, 9)]
+    items = [_company(f"gbch-psc-test{i}", "SC999901") for i in (7, 8, 9)]
     assert _links(tmp_path, items) == [
         ("D1", "gbch-psc-test7", "gbch-psc-test8"),
         ("D1", "gbch-psc-test7", "gbch-psc-test9"),
@@ -147,15 +148,15 @@ def test_d3_uses_the_first_eight_characters_only(tmp_path: Path) -> None:
         )
 
     items = [
-        officer("gbch-off-a", "123456780001"),
-        officer("gbch-off-b", "123456789999"),
-        officer("gbch-off-c", "123456790001"),
-        officer("gbch-off-d", "1234567"),
+        officer("gbch-off-a", "999999990001"),
+        officer("gbch-off-b", "999999999999"),
+        officer("gbch-off-c", "999999980001"),
+        officer("gbch-off-d", "9999999"),
         rec(
-            "gbch-co-00000001",
+            "gbch-co-99999901",
             "Company",
             "gb_companies_house",
-            {"ch_person_number": "123456780001"},
+            {"ch_person_number": "999999990001"},
             name="X",
         ),
     ]
@@ -185,9 +186,21 @@ def test_d4_links_listed_records_of_different_lists(tmp_path: Path) -> None:
 
 def test_d5_same_native_id_within_one_dataset(tmp_path: Path) -> None:
     items = [
-        rec("icij-test-1", "LegalEntity", "icij_offshore_leaks", {"source_ref": "90001"}, name="X"),
-        rec("icij-test-2", "LegalEntity", "icij_offshore_leaks", {"source_ref": "90001"}, name="Y"),
-        rec("ofac-test-3", "Person", "us_ofac_sdn", {"source_ref": "90001"}, name="X"),
+        rec(
+            "icij-test-1",
+            "LegalEntity",
+            "icij_offshore_leaks",
+            {"source_ref": "test-90001"},
+            name="X",
+        ),
+        rec(
+            "icij-test-2",
+            "LegalEntity",
+            "icij_offshore_leaks",
+            {"source_ref": "test-90001"},
+            name="Y",
+        ),
+        rec("ofac-test-3", "Person", "us_ofac_sdn", {"source_ref": "test-90001"}, name="X"),
     ]
     assert _links(tmp_path, items) == [("D5", "icij-test-1", "icij-test-2")]
 
@@ -240,7 +253,13 @@ def test_d7_without_a_file_reads_nothing(tmp_path: Path) -> None:
 
 def test_d7_refuses_a_malformed_line_without_printing_it(tmp_path: Path) -> None:
     path = tmp_path / "decisions.jsonl"
-    line = {"record_a": "syn-a", "record_b": "syn-b", "decision": "maybe", "by": "@x", "at": "t"}
+    line = {
+        "record_a": "syn-a",
+        "record_b": "syn-b",
+        "decision": "maybe",
+        "by": "@example-x",
+        "at": "t",
+    }
     path.write_text(json.dumps(line) + "\n", encoding="utf-8")
     with pytest.raises(rules.DecisionsError) as caught:
         rules.read_decisions(path)
@@ -256,7 +275,7 @@ def test_company_numbers_ignores_people(tmp_path: Path) -> None:
                 "Person",
                 "gb_companies_house",
                 name="Z",
-                registrationNumber="00000001",
+                registrationNumber="99999901",
                 jurisdiction="gb",
             )
         ],
@@ -275,17 +294,21 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
     path = _decision_file(
         tmp_path,
         [
-            {"decision": "same", "by": "@One", "at": "2026-11-02T09:00:00Z"},
-            {"decision": "same", "by": " @ONE ", "at": "2026-11-02T09:05:00Z"},
+            {"decision": "same", "by": "@Example-One", "at": "2026-11-02T09:00:00Z"},
+            {"decision": "same", "by": " @EXAMPLE-ONE ", "at": "2026-11-02T09:05:00Z"},
         ],
     )
     [link] = rules.read_decisions(path).same
-    assert link.reviewers == {"@one"}  # one person, however the handle is written
+    assert link.reviewers == {"@example-one"}  # one person, however the handle is written
     path = _decision_file(
         tmp_path,
         [
-            {"decision": "different", "by": "@two", "at": "2026-11-02T10:00:00Z"},
-            {"decision": "same", "by": "@one", "at": "2026-11-02T10:30:00+01:00"},  # 09:30 UTC
+            {"decision": "different", "by": "@example-two", "at": "2026-11-02T10:00:00Z"},
+            {
+                "decision": "same",
+                "by": "@example-one",
+                "at": "2026-11-02T10:30:00+01:00",
+            },  # 09:30 UTC
         ],
     )
     assert rules.read_decisions(path).different == [("syn-a", "syn-b")]
@@ -300,9 +323,10 @@ def test_d7_handles_ignore_case_and_times_compare_in_utc(tmp_path: Path) -> None
         {"decision": "same", "by": "@ one", "at": "2026-11-02T09:00:00Z"},
         {"decision": "same", "by": "@\u043ene", "at": "2026-11-02T09:00:00Z"},  # Cyrillic o
         {"decision": "same", "by": "@one-", "at": "2026-11-02T09:00:00Z"},
+        {"decision": "same", "by": "@\u212aelvin", "at": "2026-11-02T09:00:00Z"},  # Kelvin sign
         {"decision": "same", "by": "@" + "a" * 40, "at": "2026-11-02T09:00:00Z"},
-        {"decision": "same", "by": "@one", "at": "2026-11-02T09:00:00"},
-        {"decision": "same", "by": "@one", "at": "yesterday"},
+        {"decision": "same", "by": "@example-one", "at": "2026-11-02T09:00:00"},
+        {"decision": "same", "by": "@example-one", "at": "yesterday"},
     ],
 )
 def test_d7_refuses_bad_handles_and_times_without_offset(
@@ -327,8 +351,19 @@ def test_d7_on_a_real_profile_accepts_listed_reviewers_only(tmp_path: Path) -> N
     [link] = rules.read_decisions(path, frozenset({"@example-one"})).same
     assert link.reviewers == {"@example-one"}
     with pytest.raises(rules.DecisionsError) as caught:
-        rules.read_decisions(path, frozenset())
+        rules.read_decisions(path, frozenset({"@example-two"}))
     assert "not in people.er_labellers" in str(caught.value)
+    assert "example-one" not in str(caught.value).lower()  # the handle is not printed
+
+
+def test_only_run_py_calls_the_clustering() -> None:
+    """`cluster.resolve` runs only behind the decision guard in run.py (G1)."""
+    root = Path(__file__).parents[2]
+    files = [*root.glob("resolve/src/**/*.py"), *root.glob("cli/src/**/*.py")]
+    texts = {p.name: p.read_text(encoding="utf-8") for p in files}
+    assert {name for name, text in texts.items() if "cluster.resolve(" in text} == {"run.py"}
+    direct = re.compile(r"from neonradar_resolve\.cluster import[^\n]*\bresolve\b")
+    assert [name for name, text in texts.items() if direct.search(text)] == []
 
 
 def test_d6_links_each_address_to_the_smallest_id_of_its_key(tmp_path: Path) -> None:

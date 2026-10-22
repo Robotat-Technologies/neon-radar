@@ -35,8 +35,8 @@ def handle(value: object) -> str | None:
 
     Placeholders (`@TODO`) are not handles.
     """
-    if not isinstance(value, str):
-        return None
+    if not isinstance(value, str) or not value.isascii():
+        return None  # before lower(): the Kelvin sign K lowers to an ASCII k
     text = value.strip().lower()
     return text if HANDLE.fullmatch(text) and text != PLACEHOLDER else None
 

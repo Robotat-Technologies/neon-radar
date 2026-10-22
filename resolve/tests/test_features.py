@@ -28,7 +28,7 @@ def test_gleif_number_counts_only_in_the_companies_house_form(tmp_path: Path) ->
             "Company",
             "gleif_lei",
             name="Example Holder Ltd",
-            registrationNumber="SC012345",
+            registrationNumber="SC999901",
             jurisdiction="GB",
         ),
         rec(
@@ -36,7 +36,7 @@ def test_gleif_number_counts_only_in_the_companies_house_form(tmp_path: Path) ->
             "Company",
             "gleif_lei",
             name="Example Holder Ltd",
-            registrationNumber="12345",
+            registrationNumber="9999901",
             jurisdiction="GB",
         ),
         rec(
@@ -44,15 +44,15 @@ def test_gleif_number_counts_only_in_the_companies_house_form(tmp_path: Path) ->
             "Company",
             "gleif_lei",
             name="Example Holder Ltd",
-            registrationNumber="SC012345",
+            registrationNumber="SC999901",
             jurisdiction="IE",
         ),
     ]
     members, _, orgs, _, _ = _tables(tmp_path, items)
-    assert members["gleif-A"].company_numbers == {"SC012345"}
+    assert members["gleif-A"].company_numbers == {"SC999901"}
     assert members["gleif-B"].company_numbers == frozenset()  # another registration authority
     assert members["gleif-C"].company_numbers == frozenset()
-    assert orgs["gleif-B"]["registration_numbers"] == ["reg:gb:12345"]
+    assert orgs["gleif-B"]["registration_numbers"] == ["reg:gb:9999901"]
 
 
 def test_list_source_of_a_synthetic_list_record(tmp_path: Path) -> None:
@@ -124,11 +124,11 @@ def test_person_columns(tmp_path: Path) -> None:
         ),
         rec("gbch-addr-1", "Address", "gb_companies_house", postalCode="ec1a1bb"),
         rec(
-            "gbch-co-00000001",
+            "gbch-co-99999901",
             "Company",
             "gb_companies_house",
             name="Example Holder Ltd",
-            registrationNumber="1",
+            registrationNumber="9999-9901",
             jurisdiction="gb",
         ),
         rec("gbch-psc-test9", "Company", "gb_companies_house", name="Other Holder Ltd"),
@@ -137,7 +137,7 @@ def test_person_columns(tmp_path: Path) -> None:
             "Directorship",
             "gb_companies_house",
             director="gbch-off-test2",
-            organization="gbch-co-00000001",
+            organization="gbch-co-99999901",
         ),
         rec(
             "gbch-ownership-1",
@@ -159,7 +159,7 @@ def test_person_columns(tmp_path: Path) -> None:
     assert (row["birth_year_min"], row["birth_ym_min"]) == (1971, "1971-04")
     assert row["countries"] == ["gb", "ie"]
     assert row["postcode"] == "EC1A 1BB"  # addressEntity first
-    assert row["linked_orgs"] == ["gbch-psc-test9", "uk:00000001"]
+    assert row["linked_orgs"] == ["gbch-psc-test9", "uk:99999901"]
     assert row["identifiers"] == ["id:AB12", "passport:SY123456"]
     assert row["synthetic"] is False and row["name_key_rare"] == row["name_key"]
 
@@ -197,7 +197,7 @@ def test_org_columns(tmp_path: Path) -> None:
             name="The Example Holder Limited",
             alias="Example Holder & Sons Ltd",
             previousName="Example Trading Ltd",
-            registrationNumber="SC012345",
+            registrationNumber="SC999901",
             jurisdiction="gb-sct",
             leiCode=VALID_LEI,
             incorporationDate="2001-02-03",
@@ -211,7 +211,7 @@ def test_org_columns(tmp_path: Path) -> None:
     assert row["ch_same_as"] == "EXAMPLEHOLDER"
     assert row["name_tokens"] == ["example", "holder"]
     assert row["jurisdiction"] == "gb"
-    assert row["registration_numbers"] == [f"lei:{VALID_LEI}", "uk:SC012345"]
+    assert row["registration_numbers"] == [f"lei:{VALID_LEI}", "uk:SC999901"]
     assert row["incorporation_year"] == 2001
     assert row["postcode"] == "LS1 2AB"
     assert row["legal_forms"] == ["llc"]

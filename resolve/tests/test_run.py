@@ -11,9 +11,11 @@ import json
 import random
 from collections import defaultdict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import yaml
 from nr_resolve_support import corpus_of, syn
 from typer.testing import CliRunner
 
@@ -131,7 +133,7 @@ def _write_decisions(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for a, b, decision in lines:
-            line = {"record_a": a, "record_b": b, "decision": decision, "by": "@one"}
+            line = {"record_a": a, "record_b": b, "decision": decision, "by": "@example-one"}
             line |= {"at": "2026-11-02T10:00:00Z", "note": "synthetic test decision"}
             handle.write(json.dumps(line) + "\n")
 
@@ -276,3 +278,27 @@ def test_an_address_with_a_flag_topic_stops_the_run(tmp_path: Path) -> None:
     with pytest.raises(run.RunError, match="1 Address records carry flag topics"):
         run.run([folder], tmp_path / "run", config, probabilistic=False)
     assert not list((tmp_path / "run").iterdir())  # no feature tables left behind
+
+
+@pytest.mark.parametrize("profile", ["uk-tiny", "demo"])
+def test_er_run_passes_the_listed_reviewers_on_a_real_profile(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch, profile: str
+) -> None:
+    data_env.allow_real("uk-tiny")  # synthetic test setup; the run itself is replaced
+    project = yaml.safe_load(data_env.project.read_text(encoding="utf-8"))
+    project["people"] = {
+        "er_labellers": ["@Example-One", "@TODO"],
+        "er_senior_reviewers": ["@example-two"],
+    }
+    data_env.project.write_text(yaml.safe_dump(project), encoding="utf-8")
+    seen: list[run.RunConfig] = []
+
+    def fake(record_dirs: Any, run_dir: Path, config: run.RunConfig, **_: Any) -> Any:
+        seen.append(config)
+        run_dir.mkdir(parents=True)
+        return SimpleNamespace(counts={}, timings={})
+
+    monkeypatch.setattr(run, "run", fake)
+    _er("run", "--profile", profile, "--no-probabilistic")
+    expected = frozenset({"@example-one", "@example-two"}) if profile == "uk-tiny" else None
+    assert seen[0].reviewers == expected

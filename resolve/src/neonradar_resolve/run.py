@@ -110,12 +110,14 @@ def count(
     members: Mapping[str, cluster.Member],
     links: list[cluster.Link],
     decisions: rules.Decisions,
+    same: list[cluster.Link],
     result: cluster.Result,
 ) -> dict[str, Any]:
     """The counts of `run.json` (7.1.8): records, links, merges, possible matches, conflicts."""
     sizes = {str(r["canonical_id"]): int(str(r["cluster_size"])) for r in result.canonical}
     links_by_rule = Counter(str(x.rule) for x in links)
-    applicable = [x for x in decisions.same if x.record_a in members and x.record_b in members]
+    # D7: decisions passed to the clustering; held-back ones count only as awaiting review
+    applicable = [x for x in same if x.record_a in members and x.record_b in members]
     if applicable:
         links_by_rule["D7"] = len(applicable)
     reasons = Counter(
@@ -178,9 +180,13 @@ def guard_decisions(
 
     A decision with one reviewer, none of them senior, is held back when, after the rules,
     the strong decisions and the other links, its two records sit in clusters whose flag
-    topics differ or of which exactly one holds leaked records (P1, P2). Held-back decisions
-    are removed until the clusters they join keep the flag topics and leak status they had
-    without them, so the result does not depend on the order of record ids.
+    topics differ or of which exactly one holds leaked records (P1, P2). It is also held back
+    when, once applied, any record of the cluster it ends up in has other flag topics or leak
+    status than that record's cluster had without the one-reviewer decisions (a decision can
+    change which later links are refused, and so bring a flag to a third record), and when any
+    other record changes so; this repeats until nothing changes. So the order in which
+    decisions are applied does not decide what they hold. M2.10b: pass the same probabilistic
+    links as `cluster.resolve` gets.
     """
 
     def weak(link: cluster.Link) -> bool:
@@ -209,12 +215,16 @@ def guard_decisions(
             kept.append(link)
     while kept:
         after = clusters(strong + kept)
-        changed = [
-            x for x in kept if _signature(after[x.record_a]) != _signature(before[x.record_a])
-        ]
-        if not changed:
+        moved = {
+            rid for rid in after if _signature(after[rid]) != _signature(before[rid])
+        }  # records whose cluster now has other flag topics or leak status
+        if not moved:
             break
-        kept = [x for x in kept if x not in changed]
+        hit = [x for x in kept if any(m.record_id in moved for m in after[x.record_a])]
+        decided = {m.record_id for x in kept for m in after[x.record_a]}
+        # A record that changed outside every decision's cluster changed through one of them:
+        # hold them all back (fail closed), since the cause cannot be told apart.
+        kept = [] if moved - decided else [x for x in kept if x not in hit]
     return strong + kept, len(pending) - len(kept)
 
 
@@ -276,7 +286,7 @@ def run(
                 schemas.common_schema,
             )
             result.counts["decisions_awaiting_second_review"] += held
-        counts = count(corpus, members, links, decisions, result)
+        counts = count(corpus, members, links, decisions, same, result)
         with _step(timings, "write"):
             write_canonical(run_dir / "canonical.csv", result.canonical)
             write_jsonl(run_dir / "candidates.jsonl", result.candidates)

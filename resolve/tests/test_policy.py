@@ -154,11 +154,11 @@ def test_p1_pep_and_ofac_look_alikes_stay_apart(tmp_path: Path) -> None:
 def _d1_pair(tmp_path: Path, listed_name: str):  # type: ignore[no-untyped-def]
     items = [
         rec(
-            "gbch-co-00000001",
+            "gbch-co-99999901",
             "Company",
             "gb_companies_house",
             name="Example Group UK",
-            registrationNumber="00000001",
+            registrationNumber="99999901",
             jurisdiction="gb",
         ),
         rec(
@@ -167,26 +167,26 @@ def _d1_pair(tmp_path: Path, listed_name: str):  # type: ignore[no-untyped-def]
             "gb_fcdo_sanctions",
             topics="sanction",
             name=listed_name,
-            registrationNumber="1",
+            registrationNumber="9999-9901",
             jurisdiction="gb",
         ),
     ]
     corpus, members = members_of(tmp_path, items)
     links = rules.deterministic(corpus, members)
     assert [(x.rule, x.record_a, x.record_b) for x in links] == [
-        ("D1", "gbch-co-00000001", "uksl-gtest4")
+        ("D1", "gbch-co-99999901", "uksl-gtest4")
     ]
     return _resolve(members, det=links)
 
 
 def test_p1_d1_with_exactly_the_same_name_merges(tmp_path: Path) -> None:
     result = _d1_pair(tmp_path, "EXAMPLE GROUP UK LIMITED")
-    assert {r["canonical_id"] for r in result.canonical} == {"nr-gbch-co-00000001"}
+    assert {r["canonical_id"] for r in result.canonical} == {"nr-gbch-co-99999901"}
 
 
 def test_p1_d1_with_a_similar_name_is_only_a_possible_match(tmp_path: Path) -> None:
     result = _d1_pair(tmp_path, "Example Group")
-    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000001", "uksl-gtest4"}
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-99999901", "uksl-gtest4"}
     [candidate] = result.candidates
     assert candidate["reasons"] == ["identifier_name_mismatch"] and candidate["rule"] == "D1"
 
@@ -212,11 +212,11 @@ def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: P
     Ltd": the person key of the first would match, the organisation keys do not (7.1.2)."""
     items = [
         rec(
-            "gbch-co-00000002",
+            "gbch-co-99999902",
             "Company",
             "gb_companies_house",
             name="Example Holder Ltd",
-            registrationNumber="00000002",
+            registrationNumber="99999902",
             jurisdiction="gb",
         ),
         rec(
@@ -224,14 +224,14 @@ def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: P
             "LegalEntity",
             "icij_offshore_leaks",
             name="Holder Example",
-            registrationNumber="2",
+            registrationNumber="9999-9902",
             jurisdiction="gb",
         ),
     ]
     corpus, members = members_of(tmp_path, items)
     assert members["icij-test-2"].name_keys == {"holder example"}
     result = _resolve(members, det=rules.deterministic(corpus, members))
-    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-00000002", "icij-test-2"}
+    assert {r["canonical_id"] for r in result.canonical} == {"gbch-co-99999902", "icij-test-2"}
     [candidate] = result.candidates
     assert candidate["reasons"] == ["identifier_name_mismatch"] and candidate["rule"] == "D1"
 
@@ -239,11 +239,22 @@ def test_strict_name_check_uses_organisation_keys_for_legal_entities(tmp_path: P
 # One reviewer's `same` decision and later identifier links (phase-2-reconciliation.md 2.7, G1)
 
 
-def _syn_person(rid: str, kind: str = "synthetic", flags: tuple[str, ...] = ()) -> Member:
+def _syn_person(
+    rid: str,
+    kind: str = "synthetic",
+    flags: tuple[str, ...] = (),
+    name: str = "testa example",
+    dobs: tuple[str, ...] = (),
+    party: str | None = None,
+) -> Member:
     return Member(
-        rid, "nr_synthetic", kind, 10, "Person", "person", True,
-        flag_topics=frozenset(flags), name_keys=frozenset({"testa example"}),
+        rid, "nr_synthetic", kind, 10, "Person", "person", True, flag_topics=frozenset(flags),
+        list_party=party, birth_dates=frozenset(dobs), name_keys=frozenset({name}),
     )  # fmt: skip
+
+
+def _one(a: str, b: str) -> Link:
+    return Link(a, b, "human", "D7", reviewers=frozenset({"@example-one"}))
 
 
 def _guarded(members: list[Member], det: list[Link], same: list[Link]):  # type: ignore[no-untyped-def]
@@ -261,9 +272,8 @@ def test_one_reviewer_cannot_bring_a_flag_through_a_later_identifier_link() -> N
         _syn_person("syn-u"),
         _syn_person("syn-w", "list", ("sanction",)),
     )
-    one = Link("syn-u", "syn-v", "human", "D7", reviewers=frozenset({"@one"}))
     d5 = Link("syn-u", "syn-w", "deterministic", "D5")
-    canon, waiting = _guarded([v, u, w], [d5], [one])
+    canon, waiting = _guarded([v, u, w], [d5], [_one("syn-u", "syn-v")])
     assert canon["syn-v"] == "syn-v" and canon["syn-u"] == canon["syn-w"] == "nr-syn-u"
     assert waiting == 1
 
@@ -275,8 +285,9 @@ def test_one_reviewer_decision_does_not_depend_on_id_order(v_id: str) -> None:
         _syn_person("syn-m-u"),
         _syn_person("syn-m-w", "list", ("sanction",)),
     )
-    weak = Link(*sorted((v_id, "syn-m-u")), "human", "D7", reviewers=frozenset({"@one"}))
-    strong = Link("syn-m-u", "syn-m-w", "human", "D7", reviewers=frozenset({"@one", "@two"}))
+    weak = _one(*sorted((v_id, "syn-m-u")))
+    both = frozenset({"@example-one", "@example-two"})
+    strong = Link("syn-m-u", "syn-m-w", "human", "D7", reviewers=both)
     canon, waiting = _guarded([v, u, w], [], [weak, strong])
     assert canon[v_id] == v_id and canon["syn-m-u"] == canon["syn-m-w"] == "nr-syn-m-u"
     assert waiting == 1
@@ -284,9 +295,39 @@ def test_one_reviewer_decision_does_not_depend_on_id_order(v_id: str) -> None:
 
 def test_one_reviewer_decision_between_unflagged_clusters_applies() -> None:
     v, u = _syn_person("syn-v"), _syn_person("syn-u")
-    one = Link("syn-u", "syn-v", "human", "D7", reviewers=frozenset({"@one"}))
-    canon, waiting = _guarded([v, u], [], [one])
+    canon, waiting = _guarded([v, u], [], [_one("syn-u", "syn-v")])
     assert canon["syn-v"] == "nr-syn-u" and waiting == 0
+
+
+@pytest.mark.parametrize("blocking", ["X5", "X6"])
+def test_one_reviewer_cannot_bring_a_flag_to_a_third_record(blocking: str) -> None:
+    """The decision B-A makes the D3 link B-L2 break X5 (birth dates) or X6 (one list's two
+    parties), so R joins {A, B} by D5 without a name check before A's link brings L's flag."""
+    party = "nr_synthetic:Synthetic Authority A" if blocking == "X6" else None
+    a = _syn_person("syn-z-a", dobs=("1970",) if blocking == "X5" else (), party=party)
+    lst = ("list", ("sanction",))
+    l1 = _syn_person("syn-z-l", *lst)
+    l2 = _syn_person("syn-l2", *lst, dobs=("1980",) if blocking == "X5" else (), party=party)
+    b, r = _syn_person("syn-b"), _syn_person("syn-r", name="other example")
+    det = [
+        Link("syn-b", "syn-l2", "deterministic", "D3"),
+        Link("syn-b", "syn-r", "deterministic", "D5"),
+        Link("syn-z-a", "syn-z-l", "deterministic", "D5"),
+    ]
+    canon, waiting = _guarded([a, b, l1, l2, r], det, [_one("syn-b", "syn-z-a")])
+    assert canon["syn-r"] == "syn-r" and canon["syn-z-a"] == canon["syn-z-l"]
+    assert waiting == 1
+
+
+def test_one_reviewer_chain_stops_before_the_listed_record() -> None:
+    v, u, x = _syn_person("syn-v"), _syn_person("syn-u"), _syn_person("syn-x")
+    lst = _syn_person("syn-l", "list", ("sanction",))
+    d5 = Link("syn-l", "syn-x", "deterministic", "D5")
+    canon, waiting = _guarded(
+        [v, u, x, lst], [d5], [_one("syn-u", "syn-v"), _one("syn-u", "syn-x")]
+    )
+    assert canon["syn-v"] == canon["syn-u"] == "nr-syn-u" and canon["syn-x"] == "nr-syn-l"
+    assert waiting == 1
 
 
 @pytest.mark.parametrize(
@@ -300,17 +341,17 @@ def test_strict_name_check_outcome_depends_on_id_order(
     sorts before the list entry's (UK, OFAC, UN, ICIJ ids sort after `gbch-`), and stays a
     possible match when the list entry's sorts first (EU ids): a property of 7.1.6's order,
     recorded in ADR-0015 for the deciders."""
-    uk = {"registrationNumber": "3", "jurisdiction": "gb"}
+    uk = {"registrationNumber": "99999903", "jurisdiction": "gb"}
     items = [
-        rec("gbch-co-00000003", "Company", "gb_companies_house", name="Example Holder Ltd", **uk),
+        rec("gbch-co-99999903", "Company", "gb_companies_house", name="Example Holder Ltd", **uk),
         rec("gbch-psc-test-s1", "Company", "gb_companies_house", name="Example Holdr Ltd", **uk),
         rec(listed_id, "Organization", dataset, topics="sanction", name="Example Holder Plc", **uk),
     ]
     corpus, members = members_of(tmp_path, items)
     result = _resolve(members, det=rules.deterministic(corpus, members))
     canon = {r["record_id"]: r["canonical_id"] for r in result.canonical}
-    assert canon[listed_id] == "nr-gbch-co-00000003"
-    assert (canon["gbch-psc-test-s1"] == "nr-gbch-co-00000003") is psc_under_the_flag
+    assert canon[listed_id] == "nr-gbch-co-99999903"
+    assert (canon["gbch-psc-test-s1"] == "nr-gbch-co-99999903") is psc_under_the_flag
     if not psc_under_the_flag:
         [candidate] = result.candidates
         assert candidate["reasons"] == ["identifier_name_mismatch"]

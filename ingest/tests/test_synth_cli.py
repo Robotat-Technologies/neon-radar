@@ -244,15 +244,38 @@ def test_a_synthetic_dataset_record_with_another_id_is_refused(
     assert "T0000002" not in result.output and not (tmp_path / "o").exists()
 
 
-def test_a_resolving_profile_without_a_resolution_run_stops(data_env: Any, tmp_path: Path) -> None:
-    """#78 review: with resolution enabled, no run or no canonical.csv is exit 3."""
+def resolved_overlay(data_env: Any, tmp_path: Path, link_run: bool) -> Any:
+    """synth overlay of a resolving copy of synth-demo, optionally with a run linked elsewhere."""
     data = yaml.safe_load((data_env.profiles / "synth-demo.yaml").read_text(encoding="utf-8"))
     data["profile"] = "synth-resolved"
     data["resolution"] = {"enabled": True, "config": "resolve/config/er.yaml"}
     (data_env.profiles / "synth-resolved.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    if link_run:
+        run_id = "er-20261022T000000-abcd"
+        protected = data_env.cache / "real" / "resolution" / run_id  # the test's own tmp copy
+        protected.mkdir(parents=True)
+        (protected / "canonical.csv").write_text("record_id,canonical_id\n", encoding="utf-8")
+        runs = layout.resolution_dir("synth-resolved", run_id).parent
+        runs.mkdir(parents=True)
+        (runs / run_id).symlink_to(protected)
+        (runs / layout.LATEST).write_text(run_id + "\n", encoding="utf-8")
     base = tmp_path / "base"
     base.mkdir()
     (base / "w.ftm.jsonl").write_text(json.dumps(SYNTHETIC) + "\n", encoding="utf-8")
-    out = tmp_path / "o"
-    result = synth("overlay", "--profile", "synth-resolved", "--base", base, "--out", out)
-    assert result.exit_code == 3 and "no resolution run" in result.output and not out.exists()
+    return synth("overlay", "--profile", "synth-resolved", "--base", base, "--out", tmp_path / "o")
+
+
+def test_a_resolving_profile_without_a_resolution_run_stops(data_env: Any, tmp_path: Path) -> None:
+    """#78 review: with resolution enabled, no run or no canonical.csv is exit 3."""
+    result = resolved_overlay(data_env, tmp_path, link_run=False)
+    assert result.exit_code == 3 and "no resolution run" in result.output
+    assert not (tmp_path / "o").exists()
+
+
+def test_a_resolution_run_linked_into_a_protected_folder_is_refused(
+    data_env: Any, tmp_path: Path
+) -> None:
+    """Delta review of #72: the resolution run's canonical.csv goes through the same check."""
+    result = resolved_overlay(data_env, tmp_path, link_run=True)
+    assert result.exit_code == 3 and "the resolution run" in result.output
+    assert not (tmp_path / "o").exists()

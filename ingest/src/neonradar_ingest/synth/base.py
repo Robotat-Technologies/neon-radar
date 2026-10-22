@@ -134,6 +134,8 @@ def _ineligible(
             return "list_or_leak_record"
         if kind not in ("registry", "synthetic"):
             return "unknown_dataset_kind"
+        if kind == "synthetic" and not str(m["id"]).startswith("syn-"):
+            return "synthetic_id_prefix"  # a synthetic dataset's records carry syn- ids (R1)
         if m.get("properties", {}).get("topics"):  # any topic, not only flag topics (G1)
             return "flagged"
         prefix = REGISTRY_ID_PREFIXES.get(m["datasets"][0], "")

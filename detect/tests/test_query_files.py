@@ -45,11 +45,11 @@ PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 # a variable bound by a node or relationship pattern, as in (a:Account), (s)-[r]->(t), or by a
 # list predicate or comprehension, as in all(r IN relationships(p) ...), [n IN nodes(p) | n.id]
 BOUND = re.compile(r"[(\[]\s*([a-z_]\w*)\s*(?=[:)\]{]|\s+IN\b)")
-# labels and types: (a:Entity:Account), [:PAID], [r:OWNS|CONTROLS], WHERE n:Organization
-NAMED = re.compile(r"(?:[(\[]|\b[a-z_]\w*):([A-Z]\w*(?:[:|][A-Z]\w*)*)")
+# labels and types: (a:Entity:Account), [:PAID], [r:OWNS|CONTROLS], (n:A&!B), WHERE n:Organization
+NAMED = re.compile(r"(?:[(\[]|\b[a-z_]\w*):(!?[A-Z]\w*(?:[:|&]!?[A-Z]\w*)*)")
 ACCESS = re.compile(r"\b([a-z_]\w*)\.([a-z_]\w*)\b")
 PROJECTED = re.compile(r"[{,]\s*\.([a-z_]\w*)")  # map projections: h {.id, .synthetic}
-INLINE = re.compile(r"[(\[]\s*(?:[a-z_]\w*)?:[A-Za-z_:|]+\s*\{\s*([a-z_]\w*)\s*:")
+INLINE = re.compile(r"[(\[]\s*(?:[a-z_]\w*)?:[A-Za-z_:|&!]+\s*\{\s*([a-z_]\w*)\s*:")
 
 
 def renders(name: str) -> list[str]:
@@ -66,7 +66,7 @@ def outside_c2(text: str) -> list[str]:
     text = COMMENT.sub("", text)
     found = []
     for group in NAMED.findall(text):
-        for name in re.split(r"[:|]", group):
+        for name in re.split(r"[:|&]", group.replace("!", "")):
             if name not in LABELS | TYPES:
                 found.append(f":{name}")
     bound = set(BOUND.findall(text))
@@ -91,10 +91,10 @@ def test_a_query_reads_only_c2_labels_types_and_properties(name: str) -> None:
 
 def test_the_check_sees_what_is_not_c2() -> None:
     text = (
-        "MATCH (a:Account:Suspect)-[r:PAID|SENT]->(b:Account {risk: 1}) WHERE b:Shell"
+        "MATCH (a:Account:Suspect)-[r:PAID|SENT]->(b:Account&!Front {risk: 1}) WHERE b:Shell"
         " RETURN a.id, r.fee, b {.id, .score} // a comment may say c.anything"
     )
-    assert outside_c2(text) == [":Suspect", ":SENT", ":Shell", "r.fee", ".score", ".risk"]
+    assert outside_c2(text) == [":Suspect", ":SENT", ":Front", ":Shell", "r.fee", ".score", ".risk"]
     # parameters and function namespaces are not graph properties
     assert outside_c2("UNWIND $rows AS f RETURN f.anything, duration.inSeconds(x, y)") == []
 

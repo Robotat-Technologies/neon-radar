@@ -148,3 +148,18 @@ def test_a_failed_swap_restores_the_previous_records(
         run(writer(record("syn-co-2", "B Ltd")), "build-2")
     assert "syn-co-1" in (final / "out.ftm.jsonl").read_text(encoding="utf-8")
     assert [p.name for p in final.parent.iterdir()] == ["gleif_lei"]
+
+
+def test_the_cleanup_runs_only_after_a_successful_build_and_swap(data_env: Any) -> None:
+    calls: list[str] = []
+
+    def cleanup(profile: Any, context: BuildContext, result: BuildResult) -> None:
+        calls.append(context.run_id)
+
+    good = writer(record("syn-co-1", "A Ltd"))
+    run(Builder(good.dataset, good.build, cleanup=cleanup), "build-1")
+    broken = record("syn-co-2", "B Ltd") | {"properties": {"name": ["B"], "parent": ["syn-x-9"]}}
+    bad = writer(broken)
+    with pytest.raises(BuildError):
+        run(Builder(bad.dataset, bad.build, cleanup=cleanup), "build-2")
+    assert calls == ["build-1"]

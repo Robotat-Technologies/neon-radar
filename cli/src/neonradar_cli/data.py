@@ -137,7 +137,14 @@ def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None
                 continue
             try:
                 with spec.client() as client:
-                    results[slug] = {"status": "ok", **download.fetch(spec, client)}
+                    fetched = download.fetch(spec, client, profile=chosen)
+                if fetched.get("products_stopped"):  # the other products downloaded
+                    typer.echo(
+                        f"{slug}: {fetched['products_stopped']} product(s) stopped", err=True
+                    )
+                    failed += 1
+                results[slug] = {"status": "partial" if fetched.get("products_stopped") else "ok",
+                                 **fetched}  # fmt: skip
             except download.DownloadError as exc:  # stop this dataset, keep what it downloaded
                 typer.echo(f"{slug}: stopped: {exc}", err=True)
                 results[slug] = {"status": "stopped", "rule": exc.rule}

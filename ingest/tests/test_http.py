@@ -7,7 +7,14 @@ from typing import Any
 import httpx
 import pytest
 
-from neonradar_ingest.http import HttpClient, HttpError, RateLimiter, redact, retry_after_seconds
+from neonradar_ingest.http import (
+    HttpClient,
+    HttpError,
+    RateLimiter,
+    logged_url,
+    redact,
+    retry_after_seconds,
+)
 
 BASE = "https://api.example.test/v1"
 
@@ -164,6 +171,35 @@ def test_log_query_false_keeps_query_strings_out_of_logs_and_errors(
     server = Server(httpx.Response(200))
     server.client().get("/list", params={"page": "2"})  # the default keeps a redacted query
     assert "page=2" in caplog.text
+
+
+def test_hide_paths_and_log_query_false_together_name_only_the_hosts(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Both rules on one client (M2.3c record values in paths, M2.6 rule 4 query strings): the
+    request and the redirect it follows show only their hosts in logs and errors."""
+    caplog.set_level(logging.DEBUG)
+    signed = "https://files.example.test/company/99000010/list.xml?se=2099&sig=s1"
+    server = Server(
+        httpx.Response(302, headers={"Location": signed}), *[httpx.Response(503) for _ in range(4)]
+    )
+    client = server.client(hide_paths=True, log_query=False)
+    with pytest.raises(HttpError) as error:
+        client.get("/company/99000020/officers", params={"token": "t1", "page": "2"})
+    assert str(error.value) == "GET https://api.example.test/… failed after 4 attempt(s): HTTP 503"
+    logged = caplog.text + str(error.value)
+    assert "GET https://files.example.test/…" in caplog.text  # httpx's log of the redirect hop
+    for part in ("/v1", "/company/", "99000010", "99000020", "list.xml", "se=2099", "sig=",
+                 "s1", "token", "page=2"):  # fmt: skip
+        assert part not in logged, part
+    url = "https://user:pw@x.test/company/99000030?api_key=k1&page=2#top"
+    rules = [(True, True), (False, True), (True, False), (False, False)]
+    assert [logged_url(url, query=query, path=path) for query, path in rules] == [
+        "https://x.test/company/99000030?api_key=REDACTED&page=2#top",
+        "https://x.test/company/99000030",
+        "https://x.test/…",
+        "https://x.test/…",
+    ]
 
 
 def hint(headers: dict[str, str]) -> float | None:

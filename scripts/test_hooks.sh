@@ -309,7 +309,7 @@ CASES
 
 echo "== guard_real_data.py (PHASE-2.md M2.0, PHASE-3.md M3.0; the cases are in scripts/tests/test_guard_real_data.py)"
 (cd "$ROOT" && uv run --no-sync pytest -q scripts/tests/test_guard_real_data.py >/dev/null)
-report $? "guard_real_data.py (179 cases)"
+report $? "guard_real_data.py (213 cases)"
 
 [ "$(git -C "$ROOT" tag -l 'contracts-v*')" = "$tags_before" ]
 report $? "this repository's contracts-v* tags are unchanged by the test"

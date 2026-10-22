@@ -10,7 +10,7 @@ flowchart TB
   GEN["Synthetic generator<br/>ingest/synth"]
   LD["ingest/ loaders"]
   REC["C1 records<br/>*.ftm.jsonl + *.manifest.json"]
-  RES["graph/ resolver<br/>Phase 2"]
+  RES["resolve/ resolver<br/>Phase 2"]
   GL["graph/ loader"]
   NEO[("Neo4j 5.26<br/>C2 graph schema")]
   DET["detect/ detectors"]
@@ -32,19 +32,61 @@ flowchart TB
   API --> UI
 ```
 
-The arrows are the contracts. A squad builds its box against the contract and a synthetic fixture, without waiting for the box upstream. In Phase 1 the graph loader reads C1 records directly; entity resolution (the resolver) arrives in Phase 2.
+The arrows are the contracts. A squad builds its box against the contract and a synthetic fixture, without waiting for the box upstream. In Phase 1 the graph loader reads C1 records directly; entity resolution (the resolver) arrives in Phase 2, as the next section shows.
 
 | Box | Directory and package | What it does | Built in |
 |---|---|---|---|
 | Loaders and spikes | `ingest/` (`neonradar_ingest`) | Fetch a source and write C1 records. Phase 1 has spikes that fetch a small slice of each source (`neonradar spike <source>`, reports in [docs/data/spikes/](../data/spikes/)) on a shared HTTP client | Spikes M1.8a to M1.8d; production loaders Phase 2 |
 | Synthetic generator | `ingest/` | Seeded synthetic companies, people, accounts and payments: background activity for existing registry entities, and typology scenarios planted only among synthetic (`syn-`) entities (guardrail G1) | M1.8e; full generator Phase 3 |
 | Record contract | `contracts/` (`neonradar_contracts`) | Models, validators, JSON Schemas, the dataset registry and golden examples for all four contracts | M1.7a to M1.7d |
-| Graph | `graph/` (`neonradar_graph`) | Migrations (`neonradar graph migrate`), the mapping from records to nodes and relationships, the loader and the Neo4j client | M1.7b, M1.9a; resolver Phase 2 |
+| Graph | `graph/` (`neonradar_graph`) | Migrations (`neonradar graph migrate`), the mapping from records to nodes and relationships, the loader and the Neo4j client | M1.7b, M1.9a; resolution-aware loader M2.11 |
+| Matching keys | `keys/` (`neonradar_keys`) | Pure functions that turn names, addresses, countries and identifiers into the keys that matching compares ([docs/er/keys.md](../er/keys.md)) | M2.8 |
+| Resolver | `resolve/` (`neonradar_resolve`) | Entity resolution: deterministic rules, the Splink models, constrained clustering and the merge policy ([docs/er/README.md](../er/README.md)) | M2.10a to M2.10c |
 | Detection | `detect/` (`neonradar_detect`) | The typology catalog (`detect/typologies/`), detectors and the alert writer | M1.9b (circular flow); nine more in Phase 3 |
 | API | `api/` (`neonradar_api`) | Read-only FastAPI service on `127.0.0.1` | M1.7d (skeleton), M1.9c |
 | Copilot | `copilot/` (`neonradar_copilot`) | Placeholder until Phase 4; proposed design in [ADR-0010](../decisions/0010-copilot-local-template-first.md) | Phase 4 |
 | Explorer | `ui/` | Vue 3 app with Cytoscape.js | M1.9d (shell); Phase 5 |
 | Command line | `cli/` (`neonradar_cli`) | The `neonradar` command: `doctor`, `contracts`, `docs`, `graph`, `onboarding`, `spike`, with more groups as milestones add them | M1.3 onwards |
+
+## Phase 2 data flow
+
+Phase 2 loads real public sources and resolves their records into entities before they reach the graph ([PHASE-2.md](../build/PHASE-2.md) 4.1). A profile (`ingest/profiles/<name>.yaml`) names the sources; `make load PROFILE=<name>` (M2.13) runs the steps below in order and prints a counts-only summary.
+
+```mermaid
+flowchart TB
+  PROF["Profile<br/>ingest/profiles/name.yaml"]
+  FETCH["neonradar data fetch<br/>downloads, real profiles only"]
+  BUILD["neonradar ingest build<br/>C1 records and manifests"]
+  KEYS["keys/<br/>matching keys"]
+  ER["neonradar er run<br/>resolve/: one resolution run"]
+  LOAD["neonradar graph load<br/>canonical entities, source records,<br/>possible matches"]
+  SYN[("neo4j, the default instance<br/>synthetic data only<br/>ports 7474 and 7687")]
+  REAL[("neo4j-real, real profiles only<br/>database realdata<br/>ports 7475 and 7688")]
+  APP["API on port 8000, UI, Neo4j MCP server,<br/>end-to-end tests, the agent"]
+  HUMAN["Real-data API on port 8001<br/>a person at a terminal on an approved machine"]
+  PROF --> FETCH --> BUILD --> ER --> LOAD
+  KEYS -.-> BUILD
+  KEYS -.-> ER
+  KEYS -.-> LOAD
+  LOAD -->|synthetic profiles| SYN
+  LOAD -->|real profiles| REAL
+  SYN --> APP
+  REAL --> HUMAN
+```
+
+| Step | Command (package) | Writes |
+|---|---|---|
+| Fetch | `neonradar data fetch` (ingest) | downloads of a real profile, on an approved machine; synthetic profiles skip this step |
+| Build | `neonradar ingest build` (ingest) | C1 records of the profile, synthetic and real in separate trees under `data/cache/` |
+| Resolve | `neonradar er run` (resolve) | a resolution run: `canonical.csv`, `candidates.jsonl`, `conflicts.jsonl`, `run.json` ([entity resolution](../er/README.md)) |
+| Load | `neonradar graph load` (graph, M2.11) | canonical entities with their source records, `RESOLVED_TO` and unconfirmed `POSSIBLY_SAME_AS` links, relationships re-pointed to canonical ids (C2 1.1.0) |
+| Verify | `neonradar graph verify` (graph, M2.11) | invariants I1 to I14; on the real instance, counts only |
+
+**Two databases.** The default Neo4j instance (`neo4j`) only ever holds synthetic data. Real profiles load only into a second instance, `neo4j-real` (Compose profile `real`, its own volume, and one database named `realdata`, so a query or a load sent to the wrong instance fails because the database does not exist). The graph loader refuses real records on the default instance and a load that mixes synthetic and real records (M2.11). The API on port 8000, the UI, `make demo-mini`, `make e2e`, the Neo4j MCP server and the agent use the default instance only; the agent never reaches the real one (guardrail G9). The real instance is started with `make up-real` on an approved machine, and only a person at a terminal serves it, on port 8001 (M2.12; [real-data handling](../data/real-data-handling.md)).
+
+**Where real data lives.** Downloads, records, resolution runs, labels and logs of a real profile stay in the real-data tree of `data/cache/` on an approved machine and are purged after `access.real_data_days`; real-data commands print counts, timings and rates only. Synthetic runs live in the synthetic tree, which anyone may read.
+
+**Packages.** `keys` is shared by the loaders, the resolver and the graph loader. `resolve` depends on `keys`, `contracts` and `graph` (for the mapping tables only), plus Splink, DuckDB and PyArrow, and never imports `ingest` or `cli`; `cli` is where the pieces meet. The API depends on `graph` but not on `resolve`, so the API image stays free of Splink, DuckDB and PyArrow.
 
 ## The four contracts
 
@@ -66,7 +108,7 @@ How they connect:
 
 ## The local stack
 
-`make up` starts one `neo4j:5.26.32-community` server bound to `127.0.0.1`, with APOC Core from the image and Graph Data Science 2.13.4. The Community image does not include GDS, so `make plugins` downloads a GDS jar pinned by SHA-256 once, and `make up` never downloads anything (OD-13). Details: [local-stack.md](local-stack.md) and [ADR-0002](../decisions/0002-neo4j-5-26-lts.md). Community Edition has uniqueness constraints only and no role-based access control, which is why the API and the copilot enforce read-only access in code.
+`make up` starts one `neo4j:5.26.32-community` server bound to `127.0.0.1`, with APOC Core from the image and Graph Data Science 2.13.4. The Community image does not include GDS, so `make plugins` downloads a GDS jar pinned by SHA-256 once, and `make up` never downloads anything (OD-13). Details: [local-stack.md](local-stack.md) and [ADR-0002](../decisions/0002-neo4j-5-26-lts.md). Community Edition has uniqueness constraints only and no role-based access control, which is why the API and the copilot enforce read-only access in code. From Phase 2, approved machines can also run the separate real-data instance `neo4j-real` (`make up-real`, ports 7475 and 7688 on localhost), as the Phase 2 data flow above describes.
 
 ## Guardrails that shape the architecture
 
@@ -93,7 +135,7 @@ neon-radar/
   .devcontainer/                      devcontainer and Codespaces (M1.5)
   contracts/                          C1 to C4: models, JSON Schemas, OpenAPI snapshot,
                                       datasets.yaml, examples, contract documents
-  ingest/  graph/  detect/  copilot/  api/  cli/
+  ingest/  graph/  detect/  copilot/  api/  cli/  keys/  resolve/
                                       Python packages: <dir>/src/neonradar_<dir>/, tests in <dir>/tests/
   graph/schema/                       Cypher migrations (frozen at Gate 1)
   ui/                                 Vue 3 app (M1.9d)

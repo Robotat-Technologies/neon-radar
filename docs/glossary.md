@@ -43,9 +43,38 @@ A term in this glossary describes a structure or a pattern. Using it about a str
 | Flag | A label from source data (`:Sanctioned`, `:PEP`, `:RCA`); never set by a detection. | project (C2 graph schema) |
 | Alert, evidence subgraph | A C4 object produced by a detector, with the node and edge ids and the query that reproduce the finding. | project (C4 alert contract) |
 
+## Entity resolution and ownership
+
+Terms from Phase 2 ([PHASE-2.md](build/PHASE-2.md) 7.6). How NeonRadar uses them is explained in [docs/er/README.md](er/README.md).
+
+| Term | Definition | Sources |
+|---|---|---|
+| Entity resolution | Deciding which records from one or more sources refer to the same real person or organisation, and merging them into one node. | project |
+| Source record | One record as a source published it (a Companies House officer appointment, a sanctions list entry); `:SourceRecord` in the graph. | project (C2 graph schema) |
+| Canonical entity | The node built from one or more source records; it has an `nr-` id when it was merged from two or more. | project |
+| Possible match | Two nodes that may be the same entity but were not merged, because of the merge policy, a threshold or a source's own hint. Stored as `POSSIBLY_SAME_AS` and always described as "not confirmed"; deterministic and source-hint possible matches have no probability. A possible match never carries a flag, a topic or any other property from one node to the other. | project |
+| Deterministic rule | A merge rule based on a shared official identifier (D1 to D6), such as a UK company number or an LEI. | project |
+| Fellegi-Sunter model | The probabilistic record linkage model behind Splink: each comparison level has an m probability (how often it occurs among true matches) and a u probability (how often it occurs among non-matches), combined into a match weight [fellegi_sunter_1969] [splink_docs]. | [fellegi_sunter_1969] [splink_docs] |
+| Blocking | Restricting comparisons to pairs of records that share some key, so that not every pair of records is compared [splink_docs]. | [splink_docs] |
+| Match weight, match probability | The log-odds score of a pair (Splink uses base 2) and its conversion to a probability [splink_docs]. | [splink_docs] |
+| Precision, recall | The share of merges that are correct; the share of true matches that were merged. | project |
+| Evaluation run | The resolution run whose merges the published precision figure measures: the frozen configuration, with no review decisions applied ([PHASE-2.md](build/PHASE-2.md) 7.3). | project |
+| Wilson interval | A confidence interval for a proportion that behaves well for small samples and for proportions near 0 or 1 [wilson_1927] [nist_handbook_7_2_4_1]. | [wilson_1927] [nist_handbook_7_2_4_1] |
+| Cohen's kappa, positive and negative agreement | Measures of agreement between two labellers. Kappa corrects for chance agreement [cohen_1960]; the two specific agreements show agreement on `same` and on `different` separately, because kappa can be low when almost every label is the same [cicchetti_feinstein_1990]. | [cohen_1960] [cicchetti_feinstein_1990] |
+| PSC | Person with significant control, recorded by Companies House. A corporate PSC is a company or other legal entity recorded in that role [ch_psc_snapshot]. Each interest is recorded as a nature of control with a statutory band, for example "more than 25% but not more than 50%" of the shares [psc_regulations_2016_sch2] [ch_psc_descriptions]. | [ch_psc_snapshot] [psc_regulations_2016_sch2] [ch_psc_descriptions] |
+| Effective share | The product of the published bands along one ownership chain, as a range: a NeonRadar calculation that shows how bands combine. Sanctions ownership tests do not multiply shares down a chain: OFAC passes blocked status entity by entity [ofac_50_percent_faqs]. A band on the PSC register may already be an indirect holding [ca_2006_sch1a_para9], so multiplying it again can understate it. | [ofac_50_percent_faqs] [ca_2006_sch1a_para9] |
+| Consolidation (GLEIF) | Accounting consolidation of a child by a parent, as reported to GLEIF; not an ownership percentage [gleif_level2]. | [gleif_level2] |
+| Flag topic | A topic that is not purely descriptive, such as `sanction`, `role.pep` or `crime`; flags on nodes come only from these, and only from a node's own source records ([PHASE-2.md](build/PHASE-2.md) 7.1.1). | project |
+| Listed record | A record with at least one flag topic: on a sanctions, PEP or similar list ([PHASE-2.md](build/PHASE-2.md) 7.1.1). | project |
+
 ## Sources
 
+- [ca_2006_sch1a_para9] legislation.gov.uk, *Companies Act 2006, Schedule 1A, paragraph 9 (interests held indirectly)*, 2006. <https://www.legislation.gov.uk/ukpga/2006/46/schedule/1A/paragraph/9>
 - [cfr_31_1010_314] US Code of Federal Regulations (Legal Information Institute copy), *31 CFR 1010.314: Structured transactions*, living document. <https://www.law.cornell.edu/cfr/text/31/1010.314>
+- [ch_psc_descriptions] Companies House, *psc_descriptions.yml (natures of control enumerations)*, 2025. <https://github.com/companieshouse/api-enumerations/blob/master/psc_descriptions.yml>
+- [ch_psc_snapshot] Companies House, *People with significant control (PSC) snapshot*, living document. <https://download.companieshouse.gov.uk/en_pscdata.html>
+- [cicchetti_feinstein_1990] Domenic V. Cicchetti and Alvan R. Feinstein, *High agreement but low kappa: II. Resolving the paradoxes*, Journal of Clinical Epidemiology 43(6), 1990. <https://doi.org/10.1016/0895-4356(90)90159-M>
+- [cohen_1960] Jacob Cohen, *A Coefficient of Agreement for Nominal Scales*, Educational and Psychological Measurement 20(1), 1960. <https://doi.org/10.1177/001316446002000104>
 - [egmont_fiu] Egmont Group, *Financial Intelligence Units*, living document. <https://egmontgroup.org/about/financial-intelligence-unit>
 - [europol_efecta_2023] Europol, *European Financial and Economic Crime Threat Assessment 2023: The Other Side of the Coin*, 2023. <https://www.europol.europa.eu/cms/sites/default/files/documents/The%20Other%20Side%20of%20the%20Coin%20-%20Analysis%20of%20Financial%20and%20Economic%20Crime%20(EN).pdf>
 - [europol_money_muling] Europol, *Money Muling*, living document. <https://europol.europa.eu/operations-services-and-innovation/public-awareness-and-prevention-guides/money-muling>
@@ -59,11 +88,18 @@ A term in this glossary describes a structure or a pattern. Using it about a str
 - [fatf_peps_2013] FATF, *FATF Guidance: Politically Exposed Persons (Recommendations 12 and 22)*, 2013. <https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Peps-r12-r22.html>
 - [fatf_pml_2018] FATF, *Professional Money Laundering*, 2018. <https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/Professional-Money-Laundering.pdf.coredownload.pdf>
 - [fatf_recommendations_2026] FATF, *International Standards on Combating Money Laundering and the Financing of Terrorism and Proliferation: The FATF Recommendations*, 2026. <https://www.fatf-gafi.org/en/publications/Fatfrecommendations/Fatf-recommendations.html>
+- [fellegi_sunter_1969] Ivan P. Fellegi and Alan B. Sunter, *A Theory for Record Linkage*, Journal of the American Statistical Association 64(328), 1969. <https://doi.org/10.1080/01621459.1969.10501049>
 - [ffiec_appendix_f] FFIEC, *BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags*, living document. <https://bsaaml.ffiec.gov/manual/Appendices/07>
 - [ffiec_appendix_g] FFIEC, *BSA/AML Examination Manual, Appendix G: Structuring*, living document. <https://bsaaml.ffiec.gov/manual/Appendices/08>
 - [fincen_fin_2006_g014] FinCEN, *FinCEN Guidance FIN-2006-G014: Potential Money Laundering Risks Related to Shell Companies*, 2006. <https://www.fincen.gov/resources/statutes-regulations/guidance/potential-money-laundering-risks-related-shell-companies>
 - [fincen_fin_2014_a005] FinCEN, *FinCEN Advisory FIN-2014-A005: Update on U.S. Currency Restrictions in Mexico: Funnel Accounts and TBML*, 2014. <https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2014-a005>
 - [fincen_fin_2025_a003] FinCEN, *FinCEN Advisory FIN-2025-A003: Use of Chinese Money Laundering Networks by Mexico-Based Transnational Criminal Organizations*, 2025. <https://www.fincen.gov/system/files/2025-08/FinCEN-Advisory-CMLN-508.pdf>
+- [gleif_level2] GLEIF, *Level 2 data: who owns whom*, living document. <https://www.gleif.org/en/lei-data/access-and-use-lei-data/level-2-data-who-owns-whom>
+- [nist_handbook_7_2_4_1] NIST/SEMATECH, *e-Handbook of Statistical Methods, 7.2.4.1 Confidence intervals*, living document. <https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm>
+- [ofac_50_percent_faqs] OFAC, *FAQs 398 to 402 on the 50 Percent Rule*, 2020. <https://ofac.treasury.gov/faqs/topic/1521>
 - [openownership_thresholds] Open Ownership, *Beneficial ownership in law: Definitions and thresholds (thresholds)*, living document. <https://www.openownership.org/en/publications/beneficial-ownership-in-law-definitions-and-thresholds/thresholds/>
+- [psc_regulations_2016_sch2] legislation.gov.uk, *The Register of People with Significant Control Regulations 2016 (SI 2016/339), Schedule 2*, 2016. <https://www.legislation.gov.uk/uksi/2016/339/schedule/2>
+- [splink_docs] Ministry of Justice analytical services, *Splink documentation (version 5)*, living document. <https://moj-analytical-services.github.io/splink/>
 - [star_puppet_masters_2011] StAR (World Bank and UNODC), *The Puppet Masters: How the Corrupt Use Legal Structures to Hide Stolen Assets and What to Do About It*, 2011. <https://star.worldbank.org/sites/star/files/puppetmastersv1.pdf>
+- [wilson_1927] Edwin B. Wilson, *Probable Inference, the Law of Succession, and Statistical Inference*, Journal of the American Statistical Association 22(158), 1927. <https://doi.org/10.1080/01621459.1927.10502953>
 - [wolfsberg_correspondent_2022] Wolfsberg Group, *Financial Crime Principles for Correspondent Banking*, 2022. <https://wolfsberg-group.org/resources/203/91>

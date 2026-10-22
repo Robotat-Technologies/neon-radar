@@ -2,7 +2,7 @@
 
 Short and mandatory, because an unbounded list gets ignored ([project plan](../plan/neonradar-project-plan.md), "Learning track"). Each sprint has a list for everyone and one for the squad that needs it most. The plan's sprints map onto the build phases as each heading shows. Squad names follow [docs/team/roles.md](../team/roles.md).
 
-Every link below goes to an official page that was opened on 21 October 2026, by this milestone or, where marked, by milestone M1.10a. Where an official page could not be opened by the build, the title is given without a link and marked "link to be added". Write what you read, and what still confuses you, in your [learning log](README.md#your-learning-log).
+Every link below goes to an official page that was opened on 21 October 2026, by this milestone or, where marked, by milestone M1.10a; the Splink documentation pages added by milestone M2.14 were opened on 23 October 2026. Where an official page could not be opened by the build, the title is given without a link and marked "link to be added". Write what you read, and what still confuses you, in your [learning log](README.md#your-learning-log).
 
 ## Sprint 0 (Phase 1: foundation and contracts)
 
@@ -25,11 +25,12 @@ Every link below goes to an official page that was opened on 21 October 2026, by
 
 - **Cypher query tuning basics.** Neo4j Cypher Manual, version 5: [Query plans, tuning, and caching](https://neo4j.com/docs/cypher-manual/5/planning-and-tuning/). NeonRadar runs Neo4j 5.26 and writes Cypher 5, so use the version 5 manual, not the newer Cypher 25 pages.
 - **How indexes and constraints work in Neo4j.** Neo4j Cypher Manual, version 5: [Indexes](https://neo4j.com/docs/cypher-manual/5/indexes/) and [Constraints](https://neo4j.com/docs/cypher-manual/5/constraints/). The constraints page marks existence, type and key constraints as Enterprise Edition; NeonRadar runs Community Edition, so it uses uniqueness constraints only ([C2](../../contracts/C2-graph-schema.md), "Migrations").
+- **The Fellegi-Sunter record linkage model.** Splink's guide [The Fellegi-Sunter model](https://moj-analytical-services.github.io/splink/topic_guides/theory/fellegi_sunter.html) [splink_docs]: m and u probabilities, match weights and match probability (the same page is in the [Splink repository](https://github.com/moj-analytical-services/splink/blob/master/docs/topic_guides/theory/fellegi_sunter.md) on GitHub). The original paper is Fellegi and Sunter (1969) [fellegi_sunter_1969]; reading it is optional. Every intern reads this for [Assignment 3](../team/assignment-3.md).
+- **Entity resolution in NeonRadar.** The [entity resolution overview](../er/README.md), then the [labelling guide](../er/labelling-guide.md) before you label pairs (Assignment 3).
 
 **The Graph and entity resolution squad also reads:**
 
-- **Splink documentation.** The [Splink repository](https://github.com/moj-analytical-services/splink), whose README links the documentation site. NeonRadar uses Splink 5, whose interface changed from Splink 4 (see the known traps in [CLAUDE.md](../../CLAUDE.md)).
-- **The Fellegi-Sunter record linkage model.** Splink's topic guide [The Fellegi-Sunter model](https://github.com/moj-analytical-services/splink/blob/master/docs/topic_guides/theory/fellegi_sunter.md) (source on GitHub; the same page is on the Splink documentation site): its parameters, match weights and match probability.
+- **Splink documentation.** The [Splink documentation](https://moj-analytical-services.github.io/splink/) [splink_docs] (its source is in the [Splink repository](https://github.com/moj-analytical-services/splink)), in particular the tutorials [3. Blocking](https://moj-analytical-services.github.io/splink/demos/tutorials/03_Blocking.html) and [4. Estimating model parameters](https://moj-analytical-services.github.io/splink/demos/tutorials/04_Estimating_model_parameters.html). NeonRadar uses Splink 5, whose interface changed from Splink 4 [splink_5_release_2026] (see the known traps in [CLAUDE.md](../../CLAUDE.md)).
 
 ## Sprint 2 (Phases 3 and 4: detection and the copilot)
 
@@ -66,3 +67,6 @@ Read these alongside the list, in any sprint:
 
 - [fatf_egmont_concealment_2018] FATF and Egmont Group, *Concealment of Beneficial Ownership*, 2018. Address in the bibliography; link to be added after a person opens it in a browser. Executive summary and Annex E: <https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-Executive-summary.pdf>, <https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-annex-E.pdf>
 - [fatf_pml_2018] FATF, *Professional Money Laundering*, 2018. Address in the bibliography; link to be added after a person opens it in a browser.
+- [fellegi_sunter_1969] Ivan P. Fellegi and Alan B. Sunter, *A Theory for Record Linkage*, Journal of the American Statistical Association 64(328), 1969. <https://doi.org/10.1080/01621459.1969.10501049>
+- [splink_5_release_2026] Ministry of Justice analytical services, *Splink 5.0.0 released*, 2026. <https://moj-analytical-services.github.io/splink/blog/2026/09/28/splink-500-released.html>
+- [splink_docs] Ministry of Justice analytical services, *Splink documentation (version 5)*, living document. <https://moj-analytical-services.github.io/splink/>

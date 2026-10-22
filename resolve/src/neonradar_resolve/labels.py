@@ -151,31 +151,68 @@ def disagreements(pairs: Sequence[Pair], labels: Sequence[Label]) -> list[Pair]:
     return out
 
 
-def eligible_adjudicator(pair: Pair, by: str, barred: Iterable[str]) -> bool:
-    """Not one of the pair's labellers, and not a person who set the thresholds (7.3 rule 4)."""
-    return by not in pair.labellers and by not in set(barred)
+def answered_by(pair: Pair, labels: Iterable[Label]) -> set[str]:
+    """The pair's labellers and anyone else with an answer (not an adjudication) for it."""
+    return set(pair.labellers) | {
+        x.by for x in labels if not x.adjudication and x.pair_id == pair.pair_id
+    }
 
 
-def adjudicated(pair: Pair, labels: Iterable[Label], barred: Iterable[str]) -> Label | None:
-    """The newest adjudication of the pair by an eligible person, if any."""
+def eligible_adjudicator(
+    pair: Pair, by: str, barred: Iterable[str], labels: Iterable[Label] = ()
+) -> bool:
+    """Neither assigned the pair nor one who labelled it, and not a person who set the
+    thresholds (7.3 rule 4)."""
+    return by not in set(barred) and by not in answered_by(pair, labels)
+
+
+def check_adjudicator(by: str, barred: Iterable[str], allowed: Iterable[str] | None) -> None:
+    """`er label --adjudicate`: refuse the people who set the thresholds (the tech lead and the
+    graph mentor, ADR-0014) and, when `allowed` is given (a real profile: the project lead and
+    people.er_labellers), anyone not in it (7.3 rule 4)."""
+    if by in set(barred):
+        raise LabelsError(
+            "the tech lead and the graph mentor set the thresholds (ADR-0014), so they do not"
+            " adjudicate (7.3 rule 4)"
+        )
+    if allowed is not None and by not in set(allowed):
+        raise LabelsError("an adjudicator is the project lead or in people.er_labellers")
+
+
+def adjudicated(
+    pair: Pair,
+    labels: Iterable[Label],
+    barred: Iterable[str],
+    allowed: Iterable[str] | None = None,
+) -> Label | None:
+    """The newest adjudication of the pair by an eligible person (in `allowed`, when given)."""
+    labels = list(labels)
+    permitted = None if allowed is None else set(allowed)
     found = [
         x
         for (who, pid), x in newest(labels, adjudication=True).items()
-        if pid == pair.pair_id and eligible_adjudicator(pair, who, barred)
+        if pid == pair.pair_id
+        and eligible_adjudicator(pair, who, barred, labels)
+        and (permitted is None or who in permitted)
     ]
     return max(found, key=lambda x: (x.at, x.line), default=None)
 
 
 def adjudication_queue(
-    pairs: Sequence[Pair], labels: Sequence[Label], by: str, barred: Iterable[str]
+    pairs: Sequence[Pair],
+    labels: Sequence[Label],
+    by: str,
+    barred: Iterable[str],
+    allowed: Iterable[str] | None = None,
 ) -> tuple[list[Pair], int]:
     """Disagreements `by` may adjudicate and that nobody has, and how many `by` may not."""
     barred = set(barred)
+    allowed = None if allowed is None else set(allowed)
     queue, refused = [], 0
     for pair in disagreements(pairs, labels):
-        if adjudicated(pair, labels, barred) is not None:
+        if adjudicated(pair, labels, barred, allowed) is not None:
             continue
-        if eligible_adjudicator(pair, by, barred):
+        if eligible_adjudicator(pair, by, barred, labels):
             queue.append(pair)
         else:
             refused += 1

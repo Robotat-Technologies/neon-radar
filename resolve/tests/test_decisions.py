@@ -84,6 +84,22 @@ def test_a_decision_about_a_record_outside_the_run_is_counted_not_applied(tmp_pa
     assert decisions.load_decisions(None, RUN_IDS).on_file == 0
 
 
+def test_supporters_name_the_handles_behind_a_newest_same(tmp_path: Path) -> None:
+    path = _file(
+        tmp_path,
+        [
+            _line("syn-test-a1", "syn-test-a2", "same", "@example-one", "2026-11-02T10:00:00Z"),
+            _line("syn-test-a2", "syn-test-a1", "same", "@example-two", "2026-11-02T10:05:00Z"),
+            _line("syn-test-b1", "syn-test-b2", "same", "@example-one", "2026-11-02T10:00:00Z"),
+            _line("syn-test-b2", "syn-test-b1", "different", "@example-two", "2026-11-02T11:00Z"),
+        ],
+    )
+    both = {"@example-one", "@example-two"}
+    assert decisions.supporters(path, "syn-test-a2", "syn-test-a1") == both
+    assert decisions.supporters(path, "syn-test-b1", "syn-test-b2") == frozenset()  # X8 now
+    assert decisions.supporters(None, "syn-test-a1", "syn-test-a2") == frozenset()
+
+
 def test_append_decision_refuses_same_without_a_note(tmp_path: Path) -> None:
     path = tmp_path / "data" / "decisions.jsonl"
     for note in (None, "", "   "):

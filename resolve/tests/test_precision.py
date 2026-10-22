@@ -9,6 +9,7 @@ import subprocess
 import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -116,6 +117,49 @@ def test_adjudicators_never_set_the_thresholds_nor_labelled_the_pair(data_env: A
         encoding="utf-8",
     )
     assert er_labelling._barred(load_project()) == {TECH_LEAD, "@example-mentor"}
+
+
+def test_er_label_adjudicate_refuses_the_tech_lead_and_anyone_who_labelled_the_pair() -> None:
+    with pytest.raises(LabelsError, match="set the thresholds"):
+        labels.check_adjudicator(TECH_LEAD, {TECH_LEAD}, None)
+    with pytest.raises(LabelsError, match="project lead or in people"):
+        labels.check_adjudicator("@e", {TECH_LEAD}, {"@f"})  # a real profile's list
+    labels.check_adjudicator("@e", {TECH_LEAD}, None)
+    pairs = [_pair(1, "S1", ("@a", "@b"))]
+    found = [
+        _label("pair-0001", "same", "@a", 1),
+        _label("pair-0001", "different", "@b", 2),
+        _label("pair-0001", "unsure", "@e", 3),  # not assigned, but labelled the pair
+    ]
+    assert not labels.eligible_adjudicator(pairs[0], "@e", {TECH_LEAD}, found)
+    assert labels.adjudication_queue(pairs, found, "@e", {TECH_LEAD}) == ([], 1)
+    late = [*found, _label("pair-0001", "same", "@e", 4, adjudication=True)]
+    assert precision.final_label(pairs[0], late, {TECH_LEAD})[1] == "awaiting adjudication"
+    by_f = [*found[:2], _label("pair-0001", "same", "@f", 4, adjudication=True)]
+    assert precision.final_label(pairs[0], by_f, {TECH_LEAD})[0] == "same"
+    # on a real profile only the project lead and people.er_labellers adjudicate
+    assert precision.final_label(pairs[0], by_f, {TECH_LEAD}, {"@g"})[0] is None
+    assert labels.adjudication_queue(pairs, by_f, "@g", {TECH_LEAD}, {"@g"}) == ([pairs[0]], 0)
+
+
+def test_real_profile_commands_wait_until_people_are_named(data_env: Any) -> None:
+    # OD-22: people.er_labellers and er_senior_reviewers hold @TODO until people join
+    real, synthetic = SimpleNamespace(real_data=True), SimpleNamespace(real_data=False)
+
+    def project(labellers: list[str], seniors: list[str]) -> Any:
+        people = {"er_labellers": labellers, "er_senior_reviewers": seniors}
+        data_env.project.write_text(yaml.safe_dump({"people": people}), encoding="utf-8")
+        return load_project()
+
+    todo = project(["@TODO", "@TODO"], ["@TODO"])
+    assert er_labelling._team(todo, synthetic) == (frozenset(), frozenset())
+    for refused in (todo, project(["@example-one", "@TODO"], []), project([], [])):
+        with pytest.raises(er_labelling.Refused, match="OD-22"):
+            er_labelling._team(refused, real)
+    with pytest.raises(er_labelling.Refused):
+        er_labelling._team(project(["@example-one"], ["@TODO"]), real)
+    named = project(["@Example-One", "@example-two"], [])
+    assert er_labelling._team(named, real) == ({"@example-one", "@example-two"}, frozenset())
 
 
 def test_precision_and_the_unsure_bound_match_stats() -> None:

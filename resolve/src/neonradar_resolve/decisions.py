@@ -23,7 +23,7 @@ from neonradar_resolve.rules import DECISIONS, Decisions, DecisionsError, handle
 
 __all__ = [
     "Decisions", "DecisionsError", "append_decision", "count_on_file", "load_decisions",
-    "review_queue",
+    "review_queue", "supporters",
 ]  # fmt: skip
 
 
@@ -40,6 +40,14 @@ def load_decisions(
     different = [(a, b) for a, b in found.different if a in member_ids and b in member_ids]
     outside = len(found.same) - len(same) + len(found.different) - len(different)
     return Decisions(same, different, found.on_file, outside)
+
+
+def supporters(path: Path | None, record_a: str, record_b: str) -> frozenset[str]:
+    """The handles whose own newest line about the pair says `same`, while the pair's newest
+    line says `same` (7.1.8); empty otherwise."""
+    pair = (min(record_a, record_b), max(record_a, record_b))
+    found = read_decisions(path).same
+    return next((x.reviewers for x in found if (x.record_a, x.record_b) == pair), frozenset())
 
 
 def count_on_file(path: Path | None) -> int:

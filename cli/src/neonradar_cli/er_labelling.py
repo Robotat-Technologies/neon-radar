@@ -74,6 +74,22 @@ def _handles(values: Iterable[str | None]) -> set[str]:
     return {h for value in values if (h := handle(value))}
 
 
+def _team(project: Project, chosen: Profile) -> tuple[frozenset[str], frozenset[str]]:
+    """people.er_labellers and people.er_senior_reviewers as handles. On a real profile the
+    command is refused while either list holds a placeholder such as @TODO (or anything that
+    is not a handle) or er_labellers is empty: fail closed until people join (OD-22)."""
+    from neonradar_resolve.rules import handle
+
+    labellers = [handle(v) for v in project.people.er_labellers]
+    seniors = [handle(v) for v in project.people.er_senior_reviewers]
+    if chosen.real_data and (not labellers or None in labellers or None in seniors):
+        raise Refused(
+            "people.er_labellers or people.er_senior_reviewers in project.yaml does not name"
+            " people yet: labelling and review of real data wait until both do (OD-22)"
+        )
+    return frozenset(h for h in labellers if h), frozenset(h for h in seniors if h)
+
+
 def _barred(project: Project) -> frozenset[str]:
     """The people who set the thresholds (ADR-0014): never adjudicators (7.3 rule 4)."""
     graph = project.squads.get("graph")
@@ -128,8 +144,9 @@ def sample_command(
         adr_seed = sample.check_seed(
             adr.read_text(encoding="utf-8") if adr.is_file() else None, seed, chosen.real_data
         )
+        listed, _ = _team(project, chosen)
         handles = [_handle(h, "an item of --labellers") for h in labellers.split(",")]
-        if chosen.real_data and not set(handles) <= _handles(project.people.er_labellers):
+        if chosen.real_data and not set(handles) <= listed:
             raise Refused("every labeller of a real profile is in people.er_labellers (G10)")
         found = sample.frames(
             sample.read_canonical(folder / "canonical.csv"),
@@ -185,20 +202,20 @@ def label_command(
         _gate(project, chosen, where)
         where.step = "label"
         who = _handle(labeller, "--labeller")
+        listed, _ = _team(project, chosen)
+        barred = _barred(project)
+        allowed = (
+            listed | _handles([project.people.project_lead]) if chosen.real_data else None
+        )  # a real profile: the project lead and people.er_labellers only
+        if adjudicate:
+            labels.check_adjudicator(who, barred, allowed)
+        elif chosen.real_data and who not in listed:
+            raise Refused("a labeller of a real profile is in people.er_labellers (G10)")
         run_id, _ = _run_folder(chosen, run)
         folder = layout.labels_dir(chosen, run_id)
         pairs, _ = sample.read_sample(folder)
-        barred = _barred(project)
         if adjudicate:
-            if who in barred:
-                raise Refused(
-                    "the tech lead and the graph mentor set the thresholds (ADR-0014), so they do"
-                    " not adjudicate (7.3 rule 4)"
-                )
-            allowed = _handles([project.people.project_lead, *project.people.er_labellers])
-            if chosen.real_data and who not in allowed:
-                raise Refused("an adjudicator is the project lead or in people.er_labellers")
-            _adjudicate(chosen, project, folder, pairs, who, barred)
+            _adjudicate(chosen, project, folder, pairs, who, barred, allowed)
             return
         mine = [p for p in pairs if who in p.labellers]
         if not mine:
@@ -226,16 +243,19 @@ def _adjudicate(
     pairs: list[Pair],
     who: str,
     barred: frozenset[str],
+    allowed: frozenset[str] | None,
 ) -> None:
     from neonradar_resolve import labels
 
-    queue, refused = labels.adjudication_queue(pairs, labels.read_labels(folder), who, barred)
+    found = labels.read_labels(folder)
+    queue, refused = labels.adjudication_queue(pairs, found, who, barred, allowed)
     if not queue and refused:
         raise Refused("you labelled every pair that waits: another person adjudicates it")
     shown = _label_cards(chosen, project, queue)
     done = 0
     while True:
-        queue, _ = labels.adjudication_queue(pairs, labels.read_labels(folder), who, barred)
+        found = labels.read_labels(folder)
+        queue, _ = labels.adjudication_queue(pairs, found, who, barred, allowed)
         if not queue:
             typer.echo(f"No pair waits for adjudication ({done} adjudicated now).")
             return
@@ -282,9 +302,8 @@ def review_command(
         _gate(project, chosen, where)
         where.step = "review"
         who = _handle(reviewer, "--reviewer")
-        people = project.people
-        seniors = _handles(people.er_senior_reviewers)
-        if chosen.real_data and who not in _handles(people.er_labellers) | seniors:
+        listed, seniors = _team(project, chosen)
+        if chosen.real_data and who not in listed | seniors:
             raise Refused("a reviewer is in people.er_labellers or people.er_senior_reviewers")
         _, folder = _run_folder(chosen, run)
         path = layout.decisions_file(chosen)
@@ -317,14 +336,16 @@ def review_command(
                 note = typer.prompt(
                     "Note (optional, Enter to skip)", default="", show_default=False
                 )
+            a, b = match["record_a"], match["record_b"]
             crossing = _crossing(clusters[match["a"]], clusters[match["b"]], facts)
-            if answer == "same" and crossing and who not in seniors:
+            others = decisions.supporters(path, a, b) - {who}
+            if answer == "same" and crossing and who not in seniors and not others:
                 typer.echo(
                     "This decision joins records listed differently, or a leaked record with"
                     " another source: it waits for a second reviewer (or a senior reviewer)"
                     " before a run applies it (7.1.2, D7)."
                 )
-            decisions.append_decision(path, match["record_a"], match["record_b"], answer, who, note)
+            decisions.append_decision(path, a, b, answer, who, note)
         typer.echo("No possible match left to review in this run.")
 
 
@@ -351,8 +372,15 @@ def precision_command(
         if drawn.get("run_id") != run_id:
             raise Refused("the sample was drawn from another run")
         census = {s: bool((drawn.get("census") or {}).get(s.lower())) for s in sample.STRATA}
-        outcome = precision.measure(pairs, labels.read_labels(labelled), _barred(project), census)
+        listed, _ = _team(project, chosen)
         lead = _handles([project.people.project_lead])
+        outcome = precision.measure(
+            pairs,
+            labels.read_labels(labelled),
+            _barred(project),
+            census,
+            adjudicators=listed | lead if chosen.real_data else None,
+        )
         text = precision.report(
             outcome,
             on=datetime.now(UTC).date(),

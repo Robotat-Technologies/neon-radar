@@ -124,16 +124,21 @@ class Outcome:
 
 
 def final_label(
-    pair: Pair, labels: Sequence[Label], barred: Iterable[str]
+    pair: Pair,
+    labels: Sequence[Label],
+    barred: Iterable[str],
+    adjudicators: Iterable[str] | None = None,
 ) -> tuple[str | None, str, Label | None]:
     """The label that counts, why (`labelled`, `unlabelled`, `awaiting adjudication`) and the
-    adjudication it comes from, if any. An S4 pair with one answer counts that answer."""
+    adjudication it comes from, if any. An S4 pair with one answer counts that answer.
+    `adjudicators`, when given (a real profile), are the only people whose adjudication counts.
+    """
     given = answers(pair, labels)
     if not given:
         return None, "unlabelled", None
     if not pair.overlap or len(given) == 1 or given[0].label == given[1].label:
         return given[0].label, "labelled", None
-    decided = adjudicated(pair, labels, barred)
+    decided = adjudicated(pair, labels, barred, adjudicators)
     if decided is None:
         return None, "awaiting adjudication", None
     return decided.label, "labelled", decided
@@ -144,13 +149,15 @@ def measure(
     labels: Sequence[Label],
     barred: Iterable[str],
     census: Mapping[str, bool] | None = None,
+    adjudicators: Iterable[str] | None = None,
 ) -> Outcome:
     barred = frozenset(barred)
+    allowed = None if adjudicators is None else frozenset(adjudicators)
     final: dict[str, str | None] = {}
     states: list[str] = []
     used: set[tuple[str, str]] = set()  # (handle, pair id) of the adjudications that count
     for pair in pairs:
-        final[pair.pair_id], state, decided = final_label(pair, labels, barred)
+        final[pair.pair_id], state, decided = final_label(pair, labels, barred, allowed)
         states.append(state)
         if decided is not None:
             used.add((decided.by, decided.pair_id))

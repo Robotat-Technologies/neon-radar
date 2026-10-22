@@ -13,13 +13,20 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class IngestSettings(BaseSettings):
-    """`CH_API_KEY`: the Companies House API key; empty or absent means not available."""
+    """`CH_API_KEY`: the Companies House API key; empty or absent means not available.
+
+    `NR_REAL_DATA_MACHINE`: `approved` on a machine the data steward listed in
+    docs/data/real-data-machines.md (PHASE-2.md 1.1); the real-data gate reads it (M2.2).
+    """
 
     model_config = SettingsConfigDict(
         env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
     )
 
     ch_api_key: SecretStr | None = None
+    nr_real_data_machine: str = ""
+    nr_project_file: str = ""  # another project.yaml: tests and acceptance commands only (M2.2)
+    compose_project_name: str = ""  # Docker Compose's own override; purge --graph checks it
 
     def companies_house_key(self) -> str | None:
         key = self.ch_api_key.get_secret_value().strip() if self.ch_api_key else ""

@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help setup fmt lint typecheck test test-int contracts contracts-check cypher-lint check \
 	hygiene up down up-real down-real reset plugins smoke logs fixtures onboarding-check demo-data \
-	demo-mini demo-dev e2e gate-1
+	demo-mini demo-dev e2e gate-1 spec-check
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
@@ -106,11 +106,22 @@ down-real: ## stop the real-data instance; its volume (the real graph) is kept
 # environment or .env, so that a stray export cannot delete a database.
 CONFIRMED := $(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))
 
-reset: ## delete the local Neo4j data and logs volumes (needs CONFIRM=yes on the command line)
+# reset deletes the default instance's volumes by name (Compose project `neonradar`), never with
+# `down -v`: the Compose documentation says -v removes the named volumes declared in compose.yaml,
+# which include the real-data volume. Only `neonradar data purge --graph` deletes that one
+# (PHASE-2.md M2.2); scripts/tests/test_make_reset.py checks that reset never names it.
+DEFAULT_VOLUMES := neonradar_neo4j_data neonradar_neo4j_logs
+
+reset: ## delete the default Neo4j instance's data and logs volumes (needs CONFIRM=yes on the command line)
 	@if [ "$(CONFIRMED)" != "yes" ]; then \
 		echo "reset deletes the local Neo4j database. Run: make reset CONFIRM=yes" >&2; exit 1; \
 	fi
-	docker compose --profile app down -v
+	@name="$${COMPOSE_PROJECT_NAME:-$$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env 2>/dev/null | tail -n 1)}"; \
+	if [ -n "$$name" ] && [ "$$name" != "neonradar" ]; then \
+		echo "COMPOSE_PROJECT_NAME names another Compose project; reset knows only neonradar's volumes: unset it" >&2; \
+		exit 1; fi
+	docker compose --profile app down
+	docker volume rm --force $(DEFAULT_VOLUMES)
 
 smoke: ## print the Neo4j, APOC and GDS versions; exit 1 if any is missing
 	uv run neonradar graph smoke
@@ -178,6 +189,10 @@ demo-dev: ## the synthetic demo without Docker (devcontainer, Codespaces): API a
 
 e2e: ## the end-to-end test (Playwright, Chromium) against a running demo; E2E_BASE_URL=<url>
 	E2E_BASE_URL='$(E2E_BASE_URL)' npm run --prefix ui test:e2e
+
+spec-check: ## check a milestone's verbatim files against the code book (M=M3.x; PHASE-3.md 2.10)
+	@if [ -z "$(M)" ]; then echo "usage: make spec-check M=M3.x" >&2; exit 2; fi
+	uv run python scripts/spec_extract.py check --milestone $(M)
 
 gate-1: ## Gate 1 evidence, GC-01 to GC-17 (GATE_ARGS=--report-only or --offline)
 	uv run neonradar gate check --phase 1 $(GATE_ARGS)

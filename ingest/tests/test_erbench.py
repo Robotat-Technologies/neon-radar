@@ -25,6 +25,10 @@ OUTPUTS = (f"{STEM}.ftm.jsonl", "labels/er_truth.csv")
 RESOLVABLE = ("Person", "LegalEntity", "Company", "Organization", "PublicBody")
 NAME_PROPS = ("name", "alias", "firstName", "middleName", "lastName")
 TOLERANCE = 0.03  # 3 percentage points on `large`
+# On the committed fixture (at 41de481): 654 lastName values of exposed people and 518 list and
+# leak name tokens other than given and middle names. A bound below each catches a check that
+# silently stops looking.
+LAST_NAMES_CHECKED, TOKENS_CHECKED = 600, 450
 
 
 def _digests(folder: Path) -> dict[str, str]:
@@ -255,6 +259,8 @@ def test_people_on_or_linked_to_list_and_leak_entities_have_invented_surnames(
     exposed = _exposed(bench.truth, _links([(r.schema, r.props) for r in bench.records]))
     entity = {row[0]: row[1] for row in bench.truth}
     people = {p.entity_id: p for p in bench.people}
+    listed = {row[1] for row in bench.truth if row[2] == "person" and row[3] in ("list", "leak")}
+    assert listed < exposed  # links and twins reach beyond the list and leak records
     assert len(bench.shown) == sum(row[2] == "person" for row in bench.truth)
     for record_id, shown in bench.shown.items():
         person = people[entity[record_id]]
@@ -267,8 +273,9 @@ def test_people_on_or_linked_to_list_and_leak_entities_have_invented_surnames(
             assert not is_denied(f"{shown.given} {shown.surname}"), record_id
     for person in bench.people:
         if person.invented:
-            assert not {fold(form) for form in person.surname.latin} & faker
-            assert person.surname.native is None or fold(person.surname.native) not in faker
+            for form in person.surname.latin:
+                assert erbench.surname_ok(form), (person.entity_id, form)
+            assert person.surname.native is None or erbench.surname_ok(person.surname.native)
     assert sum(p.invented for p in bench.people) > len(bench.people) // 4
 
 
@@ -282,14 +289,14 @@ def test_the_fixture_shows_no_real_surname_for_exposed_people(
     exposed = _exposed(rows, _links([(r["schema"], r["properties"]) for r in records]))
     people = {p.entity_id: p for p in small.people}
     by_id = {r["id"]: r for r in records}
-    checked = 0
+    last_names = tokens = 0
     for record_id, entity_id, cls, style, _ in rows:
         if cls != "person" or entity_id not in exposed:
             continue
         props = by_id[record_id]["properties"]
         for value in props.get("lastName", []):
             assert erbench.surname_ok(value), record_id
-            checked += 1
+            last_names += 1
         if style not in ("list", "leak"):
             continue
         person, shown = people[entity_id], small.shown[record_id]
@@ -302,8 +309,8 @@ def test_the_fixture_shows_no_real_surname_for_exposed_people(
             for token in fold(text).split():
                 if token not in skip:
                     assert erbench.surname_ok(token), (record_id, token)
-                    checked += 1
-    assert checked > 500
+                    tokens += 1
+    assert last_names > LAST_NAMES_CHECKED and tokens > TOKENS_CHECKED
 
 
 def test_entity_shares_meet_the_targets(large: erbench.Bench) -> None:

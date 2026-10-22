@@ -17,6 +17,8 @@
   - An empty DuckDB list is not NULL; DuckDB memory and threads go on `duckdb.connect`.
   - Tests and the benchmark use one DuckDB thread; `run.guard_decisions` and
     `cluster.resolve` get one list object of probabilistic links.
+  - Every Splink comparison level needs a fixed `label_for_charts`, never a literal value:
+    Splink prints labels in its own warnings, which bypass the app's logging on real data.
   - Never read the entity from a record id: benchmark truth lives in labels/er_truth.csv.
   - Humans label (G10): never write, pre-fill or infer labels or decisions.
   - Rules in .claude/rules/er.md and .claude/rules/real-data.md.

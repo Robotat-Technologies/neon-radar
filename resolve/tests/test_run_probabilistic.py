@@ -5,6 +5,7 @@ the demo profile (data/fixtures/demo-mini and data/fixtures/er-bench) and member
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -149,7 +150,7 @@ def test_the_guard_and_the_clustering_get_one_list_of_links(
     monkeypatch.setattr(run, "guard_decisions", spy_guard)
     monkeypatch.setattr(cluster, "resolve", spy_resolve)
     folder = tmp_path / "records"
-    corpus_of(folder, [syn(f"syn-p-{n}", "Person", name="Tavi Lomerin") for n in (1, 2)])
+    corpus_of(folder, [syn(f"syn-p-{n}", "Person", name="Testa Example") for n in (1, 2)])
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
     result = run.run([folder], tmp_path / "run", run.RunConfig(resolver, sha))
     assert seen["guard"] is seen["resolve"] and len(seen["guard"]) == 1
@@ -168,9 +169,13 @@ def test_er_blocking_on_a_real_profile_prints_no_block_key(data_env: Any, one_th
     (data_env.profiles / "real-er-test.yaml").write_text(yaml.safe_dump(profile))
     data_env.allow_real("real-er-test")
     corpus = records.read([REPO_ROOT / "data" / "fixtures" / "er-bench"])
-    person, _ = features.feature_tables(corpus, features.members(corpus))
+    tables = features.feature_tables(corpus, features.members(corpus))
     with duckdb.connect() as con:
-        blocks = scoring.largest_blocks(con, "person", person)
+        blocks = [
+            r
+            for k, t in zip(scoring.KINDS, tables, strict=True)
+            for r in scoring.largest_blocks(con, k, t)
+        ]
     values = {str(v) for rule in blocks for b in rule for k, v in b.items() if k.startswith("key_")}
     # names and postcodes (years, initials and the `synthetic` flag could match other text)
     keys = {v for v in values if len(v) >= 4 and any(c.isalpha() for c in v) and v != "True"}
@@ -226,3 +231,52 @@ def test_gates_and_proposal() -> None:
         "merge_threshold.org": None,
         "candidate_threshold": 0.9,
     }
+
+
+def test_a_class_whose_model_cannot_be_trained_scores_nothing(tmp_path: Path) -> None:
+    """Two records give Splink no pair for its EM sessions: no model, no pair, a count."""
+    folder = tmp_path / "records"
+    people = [
+        syn(f"syn-p-{n}", "Person", name="Testa Example", birthDate="1970-01") for n in (1, 2)
+    ]
+    corpus_of(folder, [*people, syn("syn-o-1", "Company", name="Example Test Ltd")])
+    resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
+    config = run.RunConfig(resolver.with_threads(1), sha, temp_directory=tmp_path / "spill")
+    result = run.run([folder], tmp_path / "run", config)
+    assert result.probabilistic is not None
+    assert result.probabilistic["models_skipped"] == {"person": 1, "org": 1}
+    assert result.probabilistic["pairs_scored"] == {"person": 0, "org": 0}
+    assert result.counts["joined_by_method"] == {"identity": 3}
+    assert not (tmp_path / "spill" / "splink").exists()
+
+
+def test_untrained_levels_are_counted_from_splink_warnings() -> None:
+    """The text of splink/internals/expectation_maximisation.py (5.0.0); a Splink bump that
+    changes it makes this test fail instead of reporting 0 untrained levels."""
+    with scoring._untrained() as handler:
+        log = logging.getLogger("splink.internals.expectation_maximisation")
+        for level, comparison, value in [("same birth date", "birth", "m"),
+                                         ("same birth date", "birth", "m"),
+                                         ("surname equal", "name", "u")]:  # fmt: skip
+            log.warning(
+                "WARNING:\n"
+                f"Level {level} on comparison {comparison} not observed in dataset, "
+                f"unable to train {value} value\n"
+            )
+    assert handler.found == {("same birth date", "birth", "m"), ("surname equal", "name", "u")}
+
+
+def test_calibration_sweep_and_document() -> None:
+    """Two records of one organisation joined at 0.97: merged up to t = 0.95, apart above."""
+    members = {rid: _org(rid) for rid in ("syn-a", "syn-b")}
+    truth = {rid: bench.Truth("syn-e", "org", "registry", None) for rid in members}
+    pair = scoring.link(models.ScoredPair("syn-a", "syn-b", 0.97, 5.0, {}, True, True), "org")
+    resolver, _ = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
+    points = calibrate.sweep(truth, members, [], [pair], [], resolver)
+    assert [p.t for p in points] == list(calibrate.SWEEP)
+    recall = {p.t: p.merge.classes["org"].recall for p in points}
+    assert recall[0.95] == 1.0 and recall[0.98] == 0.0
+    assert calibrate.propose(points)["merge_threshold.org"] == 0.5
+    text = calibrate.document(points, calibrate.propose(points), resolver, "small", 7, {})
+    assert "| 0.95 | n/a | n/a | 1.0000 | 1.0000 | 0 |" in text
+    assert "| `candidate_threshold` | none passes | 0.8 |" in text

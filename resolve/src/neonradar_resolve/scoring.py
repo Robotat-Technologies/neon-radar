@@ -6,6 +6,11 @@ training), trains the Splink model of its class and predicts at the candidate th
 `link` turns a scored pair into a `cluster.Link` that names the model that scored it, so
 `cluster.resolve` applies that model's merge threshold. `write_pairs` and `read_pairs` keep the
 pairs in `pairs.parquet`, which `er calibrate` clusters again without scoring again.
+
+A class whose table has fewer than two records, whose blocking rules generate no comparison, or
+whose model Splink cannot train on the run's data (too few pairs for the prior or an EM session)
+gets no model: it scores no pair, so nothing of that class merges or becomes a possible match by
+probability, and `models_skipped` counts it (an orchestrator decision under OD-10).
 """
 
 from __future__ import annotations
@@ -26,13 +31,18 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from splink import DuckDBAPI
 from splink.blocking_analysis import count_comparisons_from_blocking_rules, n_largest_blocks
+from splink.internals.exceptions import SplinkException  # Splink 5 has no public module for it
 
 from neonradar_resolve import cluster, models
 from neonradar_resolve.config import ResolverConfig
 from neonradar_resolve.models import Kind
 
+log = logging.getLogger(__name__)
 KINDS: tuple[Kind, ...] = ("person", "org")
 LIBRARIES = ("splink", "duckdb", "pyarrow")
+# What Splink raises when a model cannot be trained on the data: no pair for an EM session,
+# a prior rule with no pair (log2 of 0) or more pairs than its recall allows, an m of 0.
+TRAINING_ERRORS = (SplinkException, ValueError, ZeroDivisionError)
 # expectation_maximisation.py (Splink 5.0.0): one warning per level and parameter it cannot train
 NOT_OBSERVED = re.compile(r"Level (.*?) on comparison (\S+) not observed in dataset, "
                           r"unable to train (m|u) value")  # fmt: skip
@@ -63,6 +73,7 @@ class Scored:
     trained: dict[str, dict[str, Any]] = field(default_factory=dict)  # save_model_to_json
     comparisons: dict[str, list[int]] = field(default_factory=dict)  # marginal count per rule
     untrained_levels: dict[str, int] = field(default_factory=dict)
+    skipped: dict[str, int] = field(default_factory=dict)  # 1 for a class without a model
     timings: dict[str, float] = field(default_factory=dict)
 
     def summary(self) -> dict[str, Any]:
@@ -76,6 +87,7 @@ class Scored:
             "comparisons": {kind: sum(c) for kind, c in self.comparisons.items()},
             "pairs_scored": {kind: len(p) for kind, p in self.pairs.items()},
             "untrained_levels": dict(self.untrained_levels),
+            "models_skipped": dict(self.skipped),
         }
 
 
@@ -102,13 +114,23 @@ def count_comparisons(con: duckdb.DuckDBPyConnection, kind: Kind, table: pa.Tabl
 def largest_blocks(
     con: duckdb.DuckDBPyConnection, kind: Kind, table: pa.Table, n: int = 5
 ) -> list[list[dict[str, Any]]]:
-    """Per blocking rule, the `n` largest blocks: their keys and record counts."""
+    """Per blocking rule, the `n` largest blocks: their keys and record counts.
+
+    Splink's `n_largest_blocks` does not explode arrays, so for a rule with
+    `arrays_to_explode` (`explodes`) a block is a group of records with the same whole list.
+    """
     sdf = DuckDBAPI(connection=con).register(table, dataset_display_name=f"{kind}_blocks")
     out = []
     for rule in models.blocking_rules(kind):
         rows = n_largest_blocks(sdf, blocking_rule=rule, link_type="dedupe_only", n_largest=n)
         out.append(rows.as_record_list())
     return out
+
+
+def explodes(kind: Kind) -> list[bool]:
+    """Per blocking rule, whether it compares the elements of a list (`arrays_to_explode`)."""
+    rules = models.blocking_rules(kind)
+    return [bool(r.create_blocking_rule_dict("duckdb").get("arrays_to_explode")) for r in rules]
 
 
 class _Untrained(logging.Handler):
@@ -134,13 +156,12 @@ def _untrained() -> Iterator[_Untrained]:
 
 def score(features_path: Path, config: ResolverConfig, temp_directory: Path) -> Scored:
     """Train both models on this run's own data and score pairs at the candidate threshold."""
-    out = Scored()
+    out = Scored(skipped=dict.fromkeys(KINDS, 0))
     tables = {kind: read_features(features_path, kind) for kind in KINDS}
-    tables = {kind: t for kind, t in tables.items() if t.num_rows >= 2}  # nothing to compare
     con = models.connect(config.duckdb.threads, config.duckdb.memory_limit, str(temp_directory))
     try:
         for kind, table in tables.items():
-            out.comparisons[kind] = count_comparisons(con, kind, table)
+            out.comparisons[kind] = count_comparisons(con, kind, table) if len(table) > 1 else []
         over = {k: sum(c) for k, c in out.comparisons.items() if sum(c) > config.max_comparisons}
         if over:
             counts = "; ".join(
@@ -157,10 +178,19 @@ def score(features_path: Path, config: ResolverConfig, temp_directory: Path) -> 
             prior_recall=config.training.prior_recall,
         )
         for kind, table in tables.items():
+            out.pairs[kind] = []
+            if not sum(out.comparisons[kind]):
+                out.skipped[kind] = 1
+                continue
             start = time.perf_counter()
             linker = models.make_linker(con, kind, table)
             with _untrained() as handler:
-                models.train(linker, kind, training)
+                try:
+                    models.train(linker, kind, training)
+                except TRAINING_ERRORS as exc:  # the message can quote SQL, never printed
+                    log.warning("the %s model could not be trained (%s)", kind, type(exc).__name__)
+                    out.skipped[kind] = 1
+                    continue
             out.untrained_levels[kind] = len(handler.found)
             out.timings[f"train_{kind}"] = round(time.perf_counter() - start, 3)
             start = time.perf_counter()

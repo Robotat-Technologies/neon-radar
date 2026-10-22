@@ -196,6 +196,15 @@ def test_er_show_config_and_bench(data_env: Any) -> None:
     assert list(layout.reports_dir("er-bench-small").glob("er-bench-*.json"))
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="G2-05 fails at the starting thresholds; the deciders choose values (ADR-0014)",
+)
+def test_er_bench_passes_the_g2_05_gates(data_env: Any) -> None:
+    """Remove the marker when er.yaml holds values that pass: strict, so it cannot be missed."""
+    _er("bench", "--size", "small")
+
+
 def _opaque_copy(source: Path, target: Path, seed: int | None) -> None:
     """The benchmark with every record and entity id replaced by an opaque id (the truth too).
 

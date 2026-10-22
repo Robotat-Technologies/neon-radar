@@ -264,6 +264,8 @@ def blocking_command(
     """Comparisons per Splink blocking rule and the sizes of the five largest blocks.
 
     On a real profile it prints sizes only, never a block key (they are names and postcodes).
+    For a rule over a list (linked organisations, name symbols, registration numbers, aliases)
+    the comparison count is per shared element, but a block is a group of identical lists.
     """
     from neonradar_cli import redact, summary
     from neonradar_cli.data import profile_or_exit, project_or_exit
@@ -306,19 +308,28 @@ def blocking_command(
                         f"rule_{n}": [int(b["count_l"]) for b in found]
                         for n, found in enumerate(blocks, 1)
                     }
-                    for n, (count, found) in enumerate(zip(counts, blocks, strict=True), 1):
-                        sizes = ", ".join(str(int(b["count_l"])) for b in found)
-                        typer.echo(f"{kind} rule {n}: {count} comparisons;"
-                                   f" largest blocks (records): {sizes or 'none'}")  # fmt: skip
-                        if not chosen.real_data:  # synthetic: the keys help tune the rules
-                            for b in found:
-                                keys = [
-                                    str(v) for k, v in sorted(b.items()) if k.startswith("key_")
-                                ]
-                                typer.echo(f"    {int(b['count_l'])}: {' | '.join(keys)}")
+                    _echo_blocks(kind, counts, blocks, keys=not chosen.real_data)
             finally:
                 con.close()
         summary.emit(chosen, "er blocking", _flatten_blocks(report), echo=False)
+
+
+def _echo_blocks(
+    kind: str, counts: list[int], blocks: list[list[dict[str, Any]]], *, keys: bool
+) -> None:
+    """One line per rule; the block keys only when `keys` (synthetic profiles: they help tune
+    the rules; on a real profile they are names and postcodes)."""
+    from neonradar_resolve import scoring
+
+    lists = scoring.explodes(kind)  # type: ignore[arg-type]
+    for n, (count, found) in enumerate(zip(counts, blocks, strict=True), 1):
+        sizes = ", ".join(str(int(b["count_l"])) for b in found)
+        whole = " (records with the same whole list)" if lists[n - 1] else ""
+        typer.echo(f"{kind} rule {n}: {count} comparisons;"
+                   f" largest blocks (records){whole}: {sizes or 'none'}")  # fmt: skip
+        for b in found if keys else []:
+            values = [str(v) for k, v in sorted(b.items()) if k.startswith("key_")]
+            typer.echo(f"    {int(b['count_l'])}: {' | '.join(values)}")
 
 
 def _flatten_blocks(report: dict[str, Any]) -> dict[str, Any]:

@@ -3,8 +3,9 @@
 `run(record_dirs, run_dir, config, decisions_file=None, probabilistic=True)` reads the records,
 builds members, feature tables, deterministic links, decisions and hints, calls
 `cluster.resolve` and writes `canonical.csv`, `candidates.jsonl`, `conflicts.jsonl` and
-`run.json`, with sorted rows so that the first three are byte-stable. The probabilistic models
-arrive in M2.10b; until then a run links records by the deterministic rules and decisions only.
+`run.json`, with sorted rows so that the first three are byte-stable. With `probabilistic`
+(M2.10b) it also trains the two Splink models on the run's feature tables (`scoring.py`), passes
+their pairs to the clustering, and writes `pairs.parquet` and `models/`.
 
 `guard_decisions` holds back a one-reviewer `same` decision whose merge would join records
 with different flag topics or a leaked record with another kind once the rules have run,
@@ -27,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from neonradar_resolve import __version__, cluster, features, records, rules, schemas
+from neonradar_resolve import __version__, cluster, features, records, rules, schemas, scoring
 from neonradar_resolve.config import ResolverConfig
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ CANONICAL_HEADER = (
 )  # fmt: skip
 SIZE_BUCKETS = ((1, 1, "1"), (2, 2, "2"), (3, 5, "3-5"), (6, 10, "6-10"), (11, 30, "11-30"))
 OUTPUTS = ("canonical.csv", "candidates.jsonl", "conflicts.jsonl", "run.json")
+PROBABILISTIC_OUTPUTS = ("pairs.parquet", "models")  # with the models (not --no-probabilistic)
 # ICIJ link names kept as hints (M2.5); any other hint is counted as source_hint:other.
 HINTS = frozenset(
     {
@@ -65,7 +67,8 @@ class RunConfig:
     # Handles allowed in the decisions file; None accepts any handle (synthetic profiles).
     reviewers: frozenset[str] | None = None
     profile: str | None = None
-    temp_directory: Path | None = None  # DuckDB spill folder: layout.duckdb_tmp_dir(...)
+    # DuckDB spill folder: layout.duckdb_tmp_dir(...); None: a folder in the run folder
+    temp_directory: Path | None = None
     keep_features: bool = False
 
 
@@ -77,6 +80,10 @@ class RunResult:
     result: cluster.Result
     counts: dict[str, Any]
     timings: dict[str, float] = field(default_factory=dict)
+    probabilistic: dict[str, Any] | None = None  # scoring.Scored.summary(), counts only
+    # What `er calibrate` clusters again: the deterministic links and the source hints
+    deterministic: list[cluster.Link] = field(default_factory=list)
+    hints: list[tuple[str, str, str]] = field(default_factory=list)
 
 
 def _cell(value: object) -> str:
@@ -186,8 +193,8 @@ def guard_decisions(
     status than that record's cluster had without the one-reviewer decisions (a decision can
     change which later links are refused, and so bring a flag to a third record), and when any
     other record changes so; this repeats until nothing changes. So the order in which
-    decisions are applied does not decide what they hold. M2.10b: pass the same probabilistic
-    links as `cluster.resolve` gets.
+    decisions are applied does not decide what they hold. `probabilistic` must be the very
+    list that `cluster.resolve` gets (`run` passes one list object to both).
     """
 
     def weak(link: cluster.Link) -> bool:
@@ -229,6 +236,34 @@ def guard_decisions(
     return strong + kept, len(pending) - len(kept)
 
 
+def resolve(
+    members: Mapping[str, cluster.Member],
+    deterministic: list[cluster.Link],
+    probabilistic: list[cluster.Link],
+    decisions: rules.Decisions,
+    hints: Iterable[tuple[str, str, str]],
+    config: cluster.Config,
+) -> tuple[cluster.Result, list[cluster.Link]]:
+    """`guard_decisions`, then `cluster.resolve`, with one list of probabilistic links for both.
+
+    Every clustering of a run goes through here (`er calibrate` too); returns the result and
+    the `same` decisions passed to the clustering.
+    """
+    same, held = guard_decisions(members, deterministic, probabilistic, decisions, config)
+    result = cluster.resolve(
+        members.values(),
+        deterministic,
+        probabilistic,
+        same,
+        decisions.different,
+        hints,
+        config,
+        schemas.common_schema,
+    )
+    result.counts["decisions_awaiting_second_review"] += held
+    return result, same
+
+
 def remove_features(path: Path) -> None:
     """`features.duckdb`, its write-ahead log and DuckDB's own spill folder beside it."""
     path.unlink(missing_ok=True)
@@ -255,9 +290,10 @@ def run(
     """Resolve the records of `record_dirs` into `run_dir` (whose name is the run id)."""
     timings: dict[str, float] = {}
     run_dir.mkdir(parents=True, exist_ok=False)
-    if probabilistic:
-        log.info("the probabilistic models arrive in M2.10b: deterministic rules only")
     features_path = run_dir / features.FEATURES_FILE
+    spill = (config.temp_directory / "splink") if config.temp_directory else run_dir / "duckdb-tmp"
+    scored: list[cluster.Link] = []  # the Splink pairs: one list for the guard and the run
+    found: scoring.Scored | None = None
     try:
         with _step(timings, "read"):
             corpus = records.read(record_dirs)
@@ -273,29 +309,26 @@ def run(
         with _step(timings, "rules"):
             links = rules.deterministic(corpus, members)
             decisions = rules.read_decisions(decisions_file, config.reviewers)
+        if probabilistic:
+            with _step(timings, "models"):
+                found = scoring.score(features_path, config.resolver, spill)
+                scored.extend(scoring.links(found))
+            timings.update(found.timings)
         with _step(timings, "cluster"):
             settings = config.resolver.cluster_config(config.senior_reviewers)
-            scored: list[cluster.Link] = []  # M2.10b: the Splink pairs, for the guard and the run
-            same, held = guard_decisions(members, links, scored, decisions, settings)
-            result = cluster.resolve(
-                members.values(),
-                links,
-                scored,
-                same,
-                decisions.different,
-                corpus.hints,
-                settings,
-                schemas.common_schema,
-            )
-            result.counts["decisions_awaiting_second_review"] += held
+            result, same = resolve(members, links, scored, decisions, corpus.hints, settings)
         counts = count(corpus, members, links, decisions, same, result)
         with _step(timings, "write"):
             write_canonical(run_dir / "canonical.csv", result.canonical)
             write_jsonl(run_dir / "candidates.jsonl", result.candidates)
             write_jsonl(run_dir / "conflicts.jsonl", result.conflicts)
+            if found is not None:
+                scoring.write_pairs(run_dir / "pairs.parquet", scored, members)
+                scoring.write_models(run_dir / "models", found)
     finally:  # the feature tables hold record values: never left behind by a failed run
         if not config.keep_features:
             remove_features(features_path)
+        shutil.rmtree(spill, ignore_errors=True)  # DuckDB spill files, even after a failure
     resolver = config.resolver
     summary = {
         "run_id": run_dir.name,
@@ -309,7 +342,8 @@ def run(
             "name_check_jaro_winkler": resolver.name_check_jaro_winkler,
         },
         "seed": resolver.seed,
-        "probabilistic": False,  # M2.10b adds the Splink models
+        "probabilistic": probabilistic,
+        "splink": found.summary() if found is not None else None,
         "decisions_used": decisions_file is not None,
         "inputs": [vars(f) for f in corpus.inputs],
         "counts": counts,
@@ -318,4 +352,14 @@ def run(
     (run_dir / "run.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    return RunResult(run_dir.name, run_dir, members, result, counts, timings)
+    return RunResult(
+        run_dir.name,
+        run_dir,
+        members,
+        result,
+        counts,
+        timings,
+        found.summary() if found is not None else None,
+        links,
+        sorted(set(corpus.hints)),
+    )

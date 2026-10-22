@@ -8,7 +8,7 @@ of its mergeable true pairs in one cluster. A policy-blocked true pair is recall
 match when its records ended up in one cluster (only a deterministic rule with the name check or
 a decision can put them there) or a line of `candidates.jsonl` joins their clusters. A hard
 negative merged is an entity with a record in one cluster with a record of its `twin_of` entity.
-Address records are not counted.
+Address records are not counted. `gate_failures` holds the G2-05 gates of `er bench` (M2.10b).
 """
 
 from __future__ import annotations
@@ -23,6 +23,10 @@ from pathlib import Path
 from neonradar_resolve.cluster import Member
 
 CLASSES = ("person", "org")
+# G2-05 (M2.10b deliverable 7): `er bench` fails below these at the thresholds in er.yaml
+MIN_PRECISION = 0.97
+MIN_RECALL = 0.80
+MIN_POLICY_BLOCKED_RECALL = 0.80
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,14 @@ class ClassScore:
     true_merged_pairs: int
     mergeable_true_pairs: int
     mergeable_recalled: int
+    policy_blocked_pairs: int = 0
+    policy_blocked_recalled: int = 0
+
+    @property
+    def policy_blocked_recall(self) -> float | None:
+        if not self.policy_blocked_pairs:
+            return None
+        return self.policy_blocked_recalled / self.policy_blocked_pairs
 
     @property
     def precision(self) -> float | None:
@@ -126,16 +138,20 @@ def measure(
 
     mergeable: dict[str, int] = dict.fromkeys(CLASSES, 0)
     recalled: dict[str, int] = dict.fromkeys(CLASSES, 0)
-    blocked = blocked_recalled = 0
+    blocked: dict[str, int] = dict.fromkeys(CLASSES, 0)
+    blocked_recalled: dict[str, int] = dict.fromkeys(CLASSES, 0)
     by_entity: dict[str, list[str]] = defaultdict(list)
     for rid in labelled:
         by_entity[truth[rid].entity].append(rid)
     for ids in by_entity.values():
         for a, b in itertools.combinations(ids, 2):
             together = cluster_of[a] == cluster_of[b]
+            name = truth[a].entity_class
             if _blocked(members[a], members[b]):
-                blocked += 1
-                blocked_recalled += together or frozenset((cluster_of[a], cluster_of[b])) in joined
+                blocked[name] += 1
+                blocked_recalled[name] += (
+                    together or frozenset((cluster_of[a], cluster_of[b])) in joined
+                )
             else:
                 mergeable[truth[a].entity_class] += 1
                 recalled[truth[a].entity_class] += together
@@ -149,9 +165,15 @@ def measure(
         for pair in twins
         if len(pair) == 2 and set.intersection(*(clusters_of_entity.get(e, set()) for e in pair))
     )
-    scores = {c: ClassScore(merged[c], true_merged[c], mergeable[c], recalled[c]) for c in CLASSES}
+    scores = {
+        c: ClassScore(
+            merged[c], true_merged[c], mergeable[c], recalled[c], blocked[c], blocked_recalled[c]
+        )
+        for c in CLASSES
+    }
     missing = sum(1 for rid in truth if rid not in cluster_of)
-    return Score(scores, cross, blocked, blocked_recalled, hard, unlabelled, missing)
+    total, total_recalled = sum(blocked.values()), sum(blocked_recalled.values())
+    return Score(scores, cross, total, total_recalled, hard, unlabelled, missing)
 
 
 def as_counts(score: Score) -> dict[str, object]:
@@ -170,6 +192,7 @@ def as_counts(score: Score) -> dict[str, object]:
             "true_merged_pairs": s.true_merged_pairs,
             "mergeable_true_pairs": s.mergeable_true_pairs,
             "mergeable_recalled": s.mergeable_recalled,
+            "policy_blocked_recall": rate(s.policy_blocked_recall),
         }
     out.update(
         cross_class_pairs_merged=score.cross_class_pairs_merged,
@@ -205,4 +228,20 @@ def lines(score: Score) -> list[str]:
         f" {score.missing_records} truth records not in the run,"
         f" {score.cross_class_pairs_merged} person-organisation pairs merged"
     )
+    return out
+
+
+def gate_failures(score: Score) -> list[str]:
+    """The G2-05 gates that fail: precision, recall, policy-blocked recall, hard negatives."""
+    out = []
+    for name, s in score.classes.items():
+        if s.precision is not None and s.precision < MIN_PRECISION:
+            out.append(f"{name} precision {s.precision:.4f} is below {MIN_PRECISION}")
+        if s.recall is not None and s.recall < MIN_RECALL:
+            out.append(f"{name} recall {s.recall:.4f} is below {MIN_RECALL}")
+    blocked = score.policy_blocked_recall
+    if blocked is not None and blocked < MIN_POLICY_BLOCKED_RECALL:
+        out.append(f"policy-blocked recall {blocked:.4f} is below {MIN_POLICY_BLOCKED_RECALL}")
+    if score.hard_negatives_merged:
+        out.append(f"{score.hard_negatives_merged} hard negatives merged")
     return out

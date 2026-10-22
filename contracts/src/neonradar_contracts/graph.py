@@ -1,5 +1,6 @@
 """C2 graph schema (`versions.GRAPH_SCHEMA`): how C1 records become Neo4j nodes and
-relationships, as data (PHASE-1.md 5.2; 1.1.0 adds entity resolution, PHASE-2.md 5.2).
+relationships, as data (PHASE-1.md 5.2; 1.1.0 adds entity resolution, PHASE-2.md 5.2; 1.2.0
+adds overlays, the bridge invariants and detection-run fields, PHASE-3.md 5.2).
 
 The tables of docs/build/PHASE-1.md 5.2, docs/build/PHASE-2.md 5.2 and
 contracts/C2-graph-schema.md, written as data so
@@ -27,6 +28,9 @@ class NodeMapping:
     labels: tuple[str, ...]
     properties: dict[str, str]
     extra_names: tuple[str, ...] = ()  # FtM properties added to `names` (Address: `full`)
+    # LIST properties set to an empty list when the record has no value (1.2.0:
+    # `Sanction.provisions`); every other absent value is left out.
+    empty_lists: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -103,6 +107,8 @@ PROPERTY_KINDS: Final[dict[str, PropertyKind]] = {
     "share_min_exclusive": "boolean", "share_max_exclusive": "boolean",
     "match_weight": "float",
     "cluster_size": "integer",
+    # 1.2.0 (PHASE-3.md 5.2)
+    "provisions": "list", "evidence_node_ids": "list", "evidence_edge_ids": "list",
 }  # fmt: skip
 
 _LEGAL_ENTITY = {
@@ -185,7 +191,9 @@ NODE_MAPPINGS: Final[dict[str, NodeMapping]] = {
             **_DATES,
             "reason": "reason",
             "country": "country",
+            "provisions": "provisions",  # 1.2.0: every value, as published
         },
+        empty_lists=("provisions",),
     ),
 }
 
@@ -400,9 +408,11 @@ SUPPORT_NODES: Final[dict[str, tuple[str, ...]]] = {
         "alert_id", "typology", "typology_version", "priority", "pattern_strength", "headline",
         "created_at", "run_id", "wording_class", "involves_real_entities", "synthetic_activity",
         "payload",
+        "evidence_node_ids", "evidence_edge_ids",  # 1.2.0: C4 evidence ids, for I17
     ),
     "DetectionRun": (
         "run_id", "started_at", "finished_at", "typologies", "detectors", "alert_count", "status",
+        "profile", "params_sha256", "summary", "window_start", "window_end",  # 1.2.0 (L19)
     ),
     "SchemaMigration": ("id", "checksum", "applied_at"),
 }  # fmt: skip
@@ -436,7 +446,15 @@ NULLABLE_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
     "SourceRecord": ("retrieved_at", "source_url"),
     "RESOLVED_TO": ("rule", "features"),
     "POSSIBLY_SAME_AS": ("match_probability", "match_weight", "rule"),
+    "DetectionRun": ("profile",),  # 1.2.0: null for a run without a profile
 }
+
+# 1.2.0 (L18): every record of an overlay load has an id with this prefix and this dataset.
+OVERLAY_ID_PREFIX: Final = "syn-ov-"
+OVERLAY_DATASET: Final = "nr_synthetic"
+# 1.2.0 (I15): the only relationship between a synthetic and a non-synthetic node, from a
+# non-synthetic :Organization to a synthetic :Account.
+BRIDGE_RELATIONSHIP: Final = ("Organization", "HOLDS_ACCOUNT", "Account")
 
 SYNTHETIC_LABEL: Final = "Synthetic"
 # Flags come only from source data, never from detections. :Synthetic goes on every node with

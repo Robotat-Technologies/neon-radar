@@ -1,12 +1,12 @@
-# C2: Graph schema v1.1.0
+# C2: Graph schema v1.2.0
 
 How C1 records become nodes and relationships in Neo4j 5.26 Community (Cypher 5), and the constraints and indexes that hold them. Every loader, detector, API query and copilot template reads the graph through this schema.
 
-- Status: version 1.1.0, **not frozen yet**: 1.0.0 plus the additive entity resolution changes in [Changes in 1.1.0](#changes-in-110) (contract-change issue #52, `docs/build/PHASE-2.md` 5.2). The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0` and tags `contracts-v1.1.0` after Phase 2's contract changes (`docs/build/PHASE-1.md` sections 5.0 and 8, `docs/build/PHASE-2.md` 5.0). After that, changes need an approved contract-change issue and a new migration file; an applied migration is never edited.
-- Code: `neonradar_contracts.graph` (the mapping as data), `neonradar_graph.mapping` (records to loader rows, no database), `neonradar_graph.migrate` (the migration runner).
-- Schema: `graph/schema/migrations/0001_init.cypher` (22 uniqueness constraints and 7 indexes) and `0002_resolution.cypher` (1.1.0: one more constraint, two more indexes, the full-text index rebuilt).
+- Status: version 1.2.0, **not frozen yet**: 1.0.0 plus the additive entity resolution changes in [Changes in 1.1.0](#changes-in-110) (contract-change issue #52, `docs/build/PHASE-2.md` 5.2) and the additive overlay and detection changes in [Changes in 1.2.0](#changes-in-120) (contract-change issue #70, `docs/build/PHASE-3.md` 5.2). The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0`, tags `contracts-v1.1.0` after Phase 2's contract changes and `contracts-v1.2.0` after Phase 3's (`docs/build/PHASE-1.md` sections 5.0 and 8, `docs/build/PHASE-2.md` 5.0, `docs/build/PHASE-3.md` 5.0). After that, changes need an approved contract-change issue and, when constraints or indexes change, a new migration file; an applied migration is never edited.
+- Code: `neonradar_contracts.graph` (the mapping as data), `neonradar_graph.mapping` (records to loader rows, no database), `neonradar_graph.migrate` (the migration runner), and from 1.2.0 `graph/src/neonradar_graph/queries/verify_overlay.cypher` (invariants I15 to I17).
+- Schema: `graph/schema/migrations/0001_init.cypher` (22 uniqueness constraints and 7 indexes) and `0002_resolution.cypher` (1.1.0: one more constraint, two more indexes, the full-text index rebuilt). 1.2.0 adds no migration.
 - Command: `uv run neonradar graph migrate`.
-- Source: `docs/build/PHASE-1.md` section 5.2 and `docs/build/PHASE-2.md` section 5.2, with the decisions in [Mapping decisions](#mapping-decisions) and in [CHANGELOG.md](CHANGELOG.md).
+- Source: `docs/build/PHASE-1.md` section 5.2, `docs/build/PHASE-2.md` section 5.2 and `docs/build/PHASE-3.md` section 5.2, with the decisions in [Mapping decisions](#mapping-decisions) and in [CHANGELOG.md](CHANGELOG.md).
 
 ## Picture
 
@@ -61,7 +61,7 @@ Dotted relationships are written by entity resolution (Phase 2) and detection ru
 | `Address` | `:Entity:Address` | `full`, `street`, `city`, `postal_code`, `region`, `country`, `address_key` (normalised key, Phase 2) |
 | `BankAccount` | `:Entity:Account` | `account_number`, `bank_name`, `currency`, `account_type`, `account_kind`, `opening_date`, `closing_date` |
 | `Position` | `:Entity:Position` | `country` |
-| `Sanction` | `:Sanction` | `authority`, `program`, `program_id`, `listing_date`, `start_date`, `end_date`, `reason`, `country` |
+| `Sanction` | `:Sanction` | `authority`, `program`, `program_id`, `listing_date`, `start_date`, `end_date`, `reason`, `country`; from 1.2.0 `provisions` (LIST<STRING>, empty when the source gives none) |
 
 The FtM property behind each graph property is in `neonradar_contracts.graph.NODE_MAPPINGS` (for example `leiCode` becomes `lei`, `nationality` becomes `nationalities`, `nr.account_kind` becomes `account_kind`).
 
@@ -69,8 +69,8 @@ Support nodes (not `:Entity`): `:SourceRecord` (entity resolution evidence, Phas
 
 | Support label | Properties |
 |---|---|
-| `:Alert` | `alert_id` (unique), `typology`, `typology_version`, `priority`, `pattern_strength` (FLOAT), `headline`, `created_at` (UTC ISO string), `run_id`, `wording_class`, `involves_real_entities` (BOOLEAN), `synthetic_activity` (BOOLEAN), `payload` (STRING: the complete C4 alert as JSON) |
-| `:DetectionRun` | `run_id` (unique), `started_at`, `finished_at` (UTC ISO strings), `typologies` (LIST<STRING>), `detectors` (STRING: JSON list of name and version), `alert_count` (INTEGER), `status` (`ok` or `failed`) |
+| `:Alert` | `alert_id` (unique), `typology`, `typology_version`, `priority`, `pattern_strength` (FLOAT), `headline`, `created_at` (UTC ISO string), `run_id`, `wording_class`, `involves_real_entities` (BOOLEAN), `synthetic_activity` (BOOLEAN), `payload` (STRING: the complete C4 alert as JSON); from 1.2.0 `evidence_node_ids`, `evidence_edge_ids` (LIST<STRING>, [Changes in 1.2.0](#changes-in-120)) |
+| `:DetectionRun` | `run_id` (unique), `started_at`, `finished_at` (UTC ISO strings), `typologies` (LIST<STRING>), `detectors` (STRING: JSON list of name and version), `alert_count` (INTEGER), `status` (`ok` or `failed`); from 1.2.0 `profile`, `params_sha256`, `summary`, `window_start`, `window_end` (STRING, [Changes in 1.2.0](#changes-in-120)) |
 | `:SchemaMigration` | `id`, `checksum`, `applied_at` |
 | `:SourceRecord` | `id` (unique), `dataset`, `schema`, `caption`, `names`, `topics`, `canonical_id`, `synthetic`, `retrieved_at`, `source_url`, `run_id` (1.1.0; see [Changes in 1.1.0](#changes-in-110)) |
 
@@ -182,7 +182,7 @@ Every statement must be idempotent (`IF NOT EXISTS`): DDL cannot be rolled back,
 C1 accepts some records that the C2 tables do not cover one to one. The mapping decides them as follows; each is listed for tech lead sign-off at Gate 1 in [CHANGELOG.md](CHANGELOG.md).
 
 1. **Ownership order.** An `Ownership` becomes `HOLDS_ACCOUNT` when its asset is a `BankAccount` in the load, else `CONSOLIDATES` when `nr.consolidation` is set, else `OWNS`. So an account holding wins over consolidation, and its `nr.consolidation` is not stored. Share bands (`nr.share_pct_*`) of an `Ownership` are stored only on `OWNS`; from 1.1.0 the voting-rights band of a `Control` is stored on `CONTROLS`, which the ownership endpoint never traverses (a voting-rights band is control, not a share).
-2. **One value per property.** A graph property of type STRING or FLOAT takes the first value of the FtM property, in FtM's stored value order (the order of the record's list). LIST properties (`names`, `countries`, `topics`, `datasets`, `nationalities`, `natures_of_control`) keep every value. Absent values are left out, not set to null.
+2. **One value per property.** A graph property of type STRING or FLOAT takes the first value of the FtM property, in FtM's stored value order (the order of the record's list). LIST properties (`names`, `countries`, `topics`, `datasets`, `nationalities`, `natures_of_control`; from 1.2.0 `Sanction.provisions`) keep every value. Absent values are left out, not set to null, except `Sanction.provisions` (1.2.0), which is an empty list when the record has none (`NodeMapping.empty_lists`).
 3. **Person properties** are exactly the three in the node table; LegalEntity properties such as `registration_number` are not copied onto persons.
 4. **Flags** follow the table above: `:PEP` and `:RCA` include sub-topics, `:Sanctioned` does not, and `:Synthetic` is also set on `:Sanction` nodes.
 5. **PAID** keeps no payer or beneficiary: the holders are found through `HOLDS_ACCOUNT`. C1 does not check that the payer holds the payer account.
@@ -208,7 +208,7 @@ Integration tests run them against the demo-mini load (M1.9a and M1.9b):
 | I5 | Every `OWNS` with share bounds has `0 <= share_pct_min <= share_pct_max <= 100`. |
 | I6 | No `:Alert` with `wording_class = 'synthetic_scenario'` flags a node where `synthetic = false`. |
 
-Invariants I7 to I14 (1.1.0) are in [Changes in 1.1.0](#changes-in-110).
+Invariants I7 to I14 (1.1.0) are in [Changes in 1.1.0](#changes-in-110), and I15 to I17 (1.2.0) in [Changes in 1.2.0](#changes-in-120).
 
 ## Changes in 1.1.0
 
@@ -305,6 +305,51 @@ PHASE-1.md rule 6 still holds through the generic relationship query of M2.11: `
 | I12 | No `OWNS` or `CONTROLS` relationship starts and ends at the same node |
 | I13 | No `:Entity` has an `id` equal to the `id` of a `:SourceRecord` (a record that joined a merged entity has no node of its own left over) |
 | I14 | Every `CONTROLS` with share bounds has `0 <= share_pct_min <= share_pct_max <= 100` |
+
+## Changes in 1.2.0
+
+Additive (`docs/build/PHASE-3.md` 5.2, contract-change issue #70): every graph valid under 1.1.0 stays valid, nothing is renamed or removed, and no constraint or index changes, so there is no migration (after 0001 and 0002 still 23 constraints and 9 own indexes). M3.1 changes this document, the mapping data (`neonradar_contracts.graph`), the record mapping (`Sanction.provisions` in `neonradar_graph.mapping`) and adds `verify_overlay.cypher` with its tests; the overlay loader (L18) and the wiring of I15 to I17 into `neonradar graph verify` come with PHASE-3.md M3.4, and the detection store (L19 and the two `:Alert` properties) with M3.2.
+
+Synthetic payments now sit next to real companies: an overlay attaches synthetic accounts and payments to the organisations of a loaded base (synthetic or real). Overlay records are ordinary C1 1.1.0 records of the dataset `nr_synthetic` whose ids start `syn-ov-` (`OVERLAY_ID_PREFIX`, `OVERLAY_DATASET`). 1.2.0 says what an overlay load may write, which relationship may join a synthetic and a non-synthetic node (`BRIDGE_RELATIONSHIP`), and what a detection run records.
+
+**New node properties.**
+
+| Label | Property | Type | Rule |
+|---|---|---|---|
+| `:Sanction` | `provisions` | LIST<STRING> | every value of FtM `Sanction.provisions`, as published (for example `Asset freeze`, `Travel ban`); the UK sanctions test counts only asset-freeze designations (PHASE-3.md 7.3.10). Empty when the source gives none |
+| `:DetectionRun` | `profile` | STRING | the profile the run belongs to, or null for a run without one (`NULLABLE_PROPERTIES`) |
+| `:DetectionRun` | `params_sha256` | STRING | SHA-256 of the parameters every detector actually used, as canonical JSON (`runner.params_sha256`) |
+| `:DetectionRun` | `window_start`, `window_end` | STRING | the detection window, UTC ISO datetimes |
+| `:DetectionRun` | `summary` | STRING | the run summary as JSON (PHASE-3.md 7.5.3): per typology the findings, alerts, duplicates, withheld counts by reason and the detector's own counts; the totals. Counts only, on every profile |
+| `:Alert` | `evidence_node_ids`, `evidence_edge_ids` | LIST<STRING> | the alert's `evidence.node_ids` and `evidence.edge_ids` (C4), so that I17 can check the evidence of every alert without parsing `payload` |
+
+A query that may meet a graph loaded or detected under 1.1.0 reads the new lists with `coalesce(x, [])`.
+
+**Loader rules added** (numbered after L8 to L17):
+
+- **L18. Overlay loads.** `neonradar graph load --overlay DIR` (or `--profile NAME --overlay latest`) loads one overlay folder onto the base already loaded for its profile:
+  1. Before connecting: every record's id starts with `syn-ov-` and its dataset is `nr_synthetic`; `overlay.json` names the profile; and the bridge check passes on the records: the only records that name a non-overlay id are `Ownership` records with role `account holder` whose asset is an overlay `BankAccount`, and `Payment` records whose `payer` or `beneficiary` is the holder of the account the payment names (C1 R7; `PAID` joins the accounts, so these names create no relationship); and no `Payment` joins two accounts whose holders are both non-overlay ids. Otherwise exit 2, nothing written.
+  2. The target is the base's instance: the default instance for synthetic profiles, `neo4j-real` for real profiles. This is the one exception to L17's rule that the real-data instance refuses synthetic records, and it holds only for profiles in `access.real_overlay_profiles` (exit 3 otherwise, before connecting) and after the real-data gate of PHASE-2.md M2.2.
+  3. Every reference to a non-overlay id (account holders, and the payers and beneficiaries that are those holders) must resolve in the target, directly or through `:SourceRecord` (L13): `overlay_unresolved.cypher` counts the ones that do not, and a non-zero count stops the load (exit 1) before anything is written. For C1 R4 and R8 the base counts as part of the same load.
+  4. `overlay_purge.cypher` then removes the previous overlay (every `:Entity` and `:Sanction` whose id starts with `syn-ov-`, with its relationships) and every `:Alert` and `:DetectionRun`.
+  5. Nodes, then relationships, through the Phase 2 queries; the account holdings go through the resolving query of L13, so a holding of a merged record lands on its canonical node.
+  6. After the load, I15 and I16 hold, and loading the same overlay twice leaves every count unchanged.
+  7. A base load invalidates the overlay: on the real-data instance L9 removes every `:Entity`, the overlay's included; on the default instance a superseded base node takes its account holdings with it. `make load` therefore always loads the overlay after the base, and an overlay is reloaded, never patched.
+- **L19. Detection loads.** `neonradar detect run` on Neo4j (the default engine) writes the run folder first (`alerts.jsonl`, `summary.json`, `run.json`), then replaces the detection results on the instance it read; with `--engine memory` it writes the run folder only and opens no database. The load deletes every `:Alert` and `:DetectionRun` (detections are a function of the graph; `--keep-previous` keeps them, for comparisons), then MERGEs the `:DetectionRun` with its 1.2.0 properties, the `:Alert` nodes with their two 1.2.0 properties, `FLAGS` and `PRODUCED`, as in 1.0.0. After the load I6 and I17 hold. On a real profile the alerts stay in the real-data instance and `data/cache/real/runs/`; what is printed and written to `data/cache/reports/` is the counts-only summary.
+
+The overlay purge seeks `syn-ov-` ids through the existing uniqueness constraints (a range index answers `STARTS WITH`), so no index is added.
+
+**Invariants added** (`graph/src/neonradar_graph/queries/verify_overlay.cypher`, three statements, each returning one row with a `violations` count that must be 0; integration tests in `graph/tests/test_invariants.py`; `neonradar graph verify` runs them after I1 to I14 from PHASE-3.md M3.4):
+
+| Invariant | Check |
+|---|---|
+| I15 | The only relationship between a synthetic and a non-synthetic node is `HOLDS_ACCOUNT` from a non-synthetic `:Organization` to a synthetic `:Account` (the bridge rule; support nodes have no `synthetic` property and never count) |
+| I16 | No `PAID` joins two accounts that are both held by non-synthetic entities |
+| I17 | No `:Alert` names a non-synthetic person (a `:LegalEntity` that is not an `:Organization`) through `FLAGS` or among its `evidence_node_ids`, and no `:Alert` with `involves_real_entities` has a `PAID` among its `evidence_edge_ids` (PHASE-3.md G12, rule R-REAL) |
+
+A person, for I17, is any `:LegalEntity` that is not an `:Organization`, because some sources do not state what kind of entity a record is. I15 makes a `POSSIBLY_SAME_AS` between a synthetic and a non-synthetic node a violation, which I10 already excludes.
+
+**What the detectors read.** Detection queries read only labels, types and properties defined in C2. Of the ones they read, all exist in 1.1.0 except `:Sanction.provisions`.
 
 ## Cypher conventions
 

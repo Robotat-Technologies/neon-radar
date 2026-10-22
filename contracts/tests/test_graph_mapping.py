@@ -17,7 +17,9 @@ from neonradar_contracts.records import (
 
 pytestmark = pytest.mark.contract
 
-MIGRATIONS = Path(__file__).resolve().parents[2] / "graph/schema/migrations"
+REPO = Path(__file__).resolve().parents[2]
+MIGRATIONS = REPO / "graph/schema/migrations"
+C2_DOC = REPO / "contracts/C2-graph-schema.md"
 HEADERS = {
     "0001_init": "// 0001_init: NeonRadar graph schema v1.0.0",
     "0002_resolution": "// 0002_resolution: NeonRadar graph schema v1.1.0 (entity resolution)",
@@ -113,7 +115,13 @@ def check_sources(schema_name: str, properties: dict[str, str]) -> None:
 
 
 def test_version() -> None:
-    assert graph.SCHEMA_VERSION == versions.GRAPH_SCHEMA == "1.1.0"
+    assert graph.SCHEMA_VERSION == versions.GRAPH_SCHEMA == "1.2.0"
+    # 1.2.0 changes C2 only (PHASE-3.md 5); the others keep Phase 2's versions.
+    assert versions.CONTRACTS == "1.2.0"
+    assert (versions.RECORD, versions.API, versions.ALERT) == ("1.1.0", "1.1.0", "1.0.0")
+    changelog = (REPO / "contracts/CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## 1.2.0" in changelog and "### C2: Graph schema 1.2.0" in changelog
+    assert C2_DOC.read_text(encoding="utf-8").startswith("# C2: Graph schema v1.2.0\n")
 
 
 def test_every_allowed_schema_maps_to_labels_or_relationships() -> None:
@@ -339,6 +347,45 @@ def test_every_default_names_a_mapped_property() -> None:
     for mappings in graph.RELATIONSHIP_MAPPINGS.values():
         for mapping in mappings:
             assert set(mapping.defaults) <= set(mapping.properties.values()), mapping.type
+    for name, node in graph.NODE_MAPPINGS.items():  # 1.2.0: empty lists, not absent values
+        assert set(node.empty_lists) <= set(node.properties.values()), name
+        assert all(graph.PROPERTY_KINDS[p] == "list" for p in node.empty_lists), name
+
+
+def test_sanction_provisions_from_c2_1_2() -> None:
+    sanction = graph.NODE_MAPPINGS["Sanction"]
+    assert sanction.properties["provisions"] == "provisions"
+    assert "provisions" in model["Sanction"].properties
+    assert graph.PROPERTY_KINDS["provisions"] == "list"
+    assert sanction.empty_lists == ("provisions",)
+    assert all(m.empty_lists == () for n, m in graph.NODE_MAPPINGS.items() if n != "Sanction")
+
+
+def test_detection_run_and_alert_properties_from_c2_1_2() -> None:
+    run = graph.SUPPORT_NODES["DetectionRun"]
+    new_run = ("profile", "params_sha256", "summary", "window_start", "window_end")
+    assert run[-5:] == new_run and run[0] == "run_id"
+    alert = graph.SUPPORT_NODES["Alert"]
+    assert alert[-2:] == ("evidence_node_ids", "evidence_edge_ids") and alert[0] == "alert_id"
+    kinds = graph.PROPERTY_KINDS
+    assert kinds["evidence_node_ids"] == kinds["evidence_edge_ids"] == "list"
+    assert not set(new_run) & set(kinds)  # STRING
+    assert graph.NULLABLE_PROPERTIES["DetectionRun"] == ("profile",)
+    # The C2 document's tables name every new property (PHASE-3.md 5.4).
+    text = C2_DOC.read_text(encoding="utf-8")
+    for prop in (*new_run, "evidence_node_ids", "evidence_edge_ids", "provisions"):
+        assert f"`{prop}`" in text, prop
+    for rule in ("L18", "L19", "I15", "I16", "I17"):
+        assert f"**{rule}." in text or f"| {rule} |" in text, rule
+
+
+def test_overlay_constants_from_c2_1_2() -> None:
+    assert graph.OVERLAY_ID_PREFIX == "syn-ov-"
+    assert graph.OVERLAY_DATASET == "nr_synthetic"
+    holder, type_, account = graph.BRIDGE_RELATIONSHIP
+    assert (holder, type_, account) == ("Organization", "HOLDS_ACCOUNT", "Account")
+    assert graph.RELATIONSHIP_ENDPOINTS[type_] == ("LegalEntity", account)
+    assert holder in graph.NODE_LABELS
 
 
 def test_resolution_nodes_and_relationships_as_data() -> None:
@@ -358,7 +405,7 @@ def test_resolution_nodes_and_relationships_as_data() -> None:
     assert graph.RELATIONSHIP_ENDPOINTS["POSSIBLY_SAME_AS"] == ("LegalEntity", "LegalEntity")
     assert graph.POSSIBLY_SAME_AS_ID_INFIX == "psa"
     nullable = graph.NULLABLE_PROPERTIES
-    assert set(nullable) == {"SourceRecord", "RESOLVED_TO", "POSSIBLY_SAME_AS"}
+    assert set(nullable) == {"SourceRecord", "RESOLVED_TO", "POSSIBLY_SAME_AS", "DetectionRun"}
     assert {"match_probability", "rule"} <= set(nullable["POSSIBLY_SAME_AS"])
     assert nullable["SourceRecord"] == ("retrieved_at", "source_url")
     for owner, props in nullable.items():

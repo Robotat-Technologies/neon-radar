@@ -30,7 +30,7 @@ sources:
   gleif_lei:
     enabled: true
     scope: slice
-  icij_offshore_leaks:
+  icij_offshore_leaks:                    # archive measured on 9 Sep 2026: 71,935,075 bytes zipped, 626 MB unzipped (docs/data/spikes/icij.md)
     enabled: true
     mode: district-linked                 # addresses in the districts above, their entities and officers, one hop more (M2.5)
     max_nodes: 50000

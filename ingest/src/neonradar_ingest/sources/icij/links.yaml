@@ -21,7 +21,6 @@ ownership:
   - beneficial owner
   - ultimate beneficial owner
   - ubo
-  - person of significant control
   - partner
   - partner of
 nominee_ownership:
@@ -53,7 +52,6 @@ directorship:
 nominee_directorship:
   - nominee director
   - nominee director of
-  - nominee name of
 unknown_link:
   - beneficiary
   - beneficiary of
@@ -73,3 +71,7 @@ unknown_link:
   - connected to
   - linked to
   - underlying company of
+  # OpenSanctions maps these two to Ownership and Directorship (C.1), but neither says shares
+  # or a directorship: a PSC may control through votes or appointments only. Mentor to review.
+  - person of significant control
+  - nominee name of

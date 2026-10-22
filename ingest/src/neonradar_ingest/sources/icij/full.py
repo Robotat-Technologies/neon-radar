@@ -5,10 +5,11 @@ the last download's `ETag` and `Last-Modified`; the version is the `Last-Modifie
 the download date). `build` reads the six CSV members straight from the downloaded zip, never
 extracting it, selects the profile's slice (`slice.py`), and writes one C1 record file with
 its manifest and `icij_offshore_leaks-<yyyymmdd>-hints.csv`: ICIJ's own duplicate hints
-between two kept non-address records, which the resolver reads as possible matches and which
-never merge anything by themselves. Relationships are read before node records are written, so
-`registered_address` links become `addressEntity` on the right record. The free-text `note`
-column and every other column the mapping does not name are never read into records.
+between two kept non-address records, which the resolver reads as possible matches (not
+confirmed) and which never merge anything by themselves. Relationships are read before node
+records are written, so `registered_address` links become `addressEntity` on the right
+record. The free-text `note` column and every other column the mapping does not name are never
+read into records.
 """
 
 import csv
@@ -108,6 +109,7 @@ QUESTION_MARKS = re.compile(r"[?\s]+\Z")
 GENERATED_ON = re.compile(r"GENERATED_ON_(\d{4})(\d{2})(\d{2})\.txt\Z")
 SUMMARY_VALUE = re.compile(r"[^a-z0-9 ._#:/()&,'-]+")
 HINT_COUNTS = ("hints_written", "hints_repeated", "address_hints_dropped", "hints_outside_slice")
+FIELD_LIMIT = 1 << 24
 SKIP_DUPLICATE_NODE = "duplicate node rows"
 SKIP_NO_ID = "rows without a node id or relationship type"
 SKIP_OUTSIDE = "relationships with an end outside the slice"
@@ -133,6 +135,8 @@ def link_table() -> dict[str, tuple[str, bool]]:
     table: dict[str, tuple[str, bool]] = {}
     for group, values in data.items():
         for value in values:
+            if value != link_key(value):
+                raise ValueError(f"links.yaml: {value!r} is not lower case with single spaces")
             if value in table:
                 raise ValueError(f"links.yaml lists {value!r} twice")
             table[value] = LINK_CLASSES[group]
@@ -213,6 +217,9 @@ class Archive:
 
     def __init__(self, zf: zipfile.ZipFile) -> None:
         self.zf = zf
+        # The default 131,072-character field limit would stop the build on one long `note`
+        # (read by the parser, never loaded); the limit is process-wide.
+        csv.field_size_limit(max(csv.field_size_limit(), FIELD_LIMIT))
         self.absent: list[str] = []
         self.extra: dict[str, int] = {}
 
@@ -240,7 +247,7 @@ class Archive:
         with self.zf.open(info) as raw, io.TextIOWrapper(raw, encoding="utf-8", newline="") as text:
             reader = csv.DictReader(text)
             try:
-                header = [name.strip() for name in reader.fieldnames or []]
+                header = [name.replace("\ufeff", "").strip() for name in reader.fieldnames or []]
                 reader.fieldnames = header
                 self._header(member, header)
                 yield from reader
@@ -302,7 +309,7 @@ class Mapper:
             self.hints["address_hints_dropped"] += 1
         elif start not in kept or end not in kept or start == end:
             self.hints["hints_outside_slice"] += 1
-        elif (key := (node_id(start), node_id(end), rel)) in seen:
+        elif (key := (*sorted((node_id(start), node_id(end))), rel)) in seen:
             self.hints["hints_repeated"] += 1
         else:
             seen.add(key)
@@ -317,10 +324,6 @@ class Mapper:
             roles.setdefault(node_id(end), address_role(row.get("link")))
             self.links["address"] += 1
             return
-        if rel == "officer_of" and link_key(row.get("link")) not in link_table():
-            self.unknown_links[summary_value(link_key(row.get("link")))] += 1
-        elif rel not in KNOWN_REL_TYPES:
-            self.unknown_rel_types[summary_value(rel)] += 1
         kind = fit(kind if kind != "address" else "UnknownLink", source, target)
         parts = "|".join(
             row.get(c) or "" for c in (*REQUIRED[RELATIONSHIPS], *OPTIONAL[RELATIONSHIPS])
@@ -331,6 +334,10 @@ class Mapper:
             self.skipped[SKIP_DUPLICATE_LINK] += 1
             return
         self.edge_ids.add(rid)
+        if rel == "officer_of" and link_key(row.get("link")) not in link_table():
+            self.unknown_links[summary_value(link_key(row.get("link")))] += 1
+        elif rel not in KNOWN_REL_TYPES:
+            self.unknown_rel_types[summary_value(rel)] += 1
         link = ValueEntity(model[kind], {"id": rid, "datasets": [DATASET]})
         link.add(link.schema.edge_source or "", node_id(start))
         link.add(link.schema.edge_target or "", node_id(end))
@@ -441,6 +448,7 @@ def discover(client: HttpClient) -> list[RemoteFile]:
         headers["If-None-Match"] = latest[2]["etag"]
     if latest and latest[2].get("last_modified"):
         headers["If-Modified-Since"] = latest[2]["last_modified"]
+    headers["Accept-Encoding"] = "identity"  # the size `fetch` checks is the file's own
     response = client.head(ARCHIVE_URL, headers=headers)
     if response.status_code == 304 and latest:  # not modified: `fetch` skips the file
         entry = latest[2]

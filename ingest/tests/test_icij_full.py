@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 import pytest
+import yaml
 
 from neonradar_contracts.records import Manifest, manifest_path, validate_files
 from neonradar_ingest.data import layout, sources
@@ -51,31 +52,34 @@ I1, X1 = "9940000001", "9950000001"
 TRUST = ("settlor", "founder", "beneficiary of", "grantor", "protector of")
 ROWS: dict[str, list[dict[str, str]]] = {
     "nodes-entities.csv": [
-        {"node_id": E1, "name": "Quarry Synthetic Holdings Ltd", "original_name": "Quarry "
-         "Synthetic Holdings Limited", "former_name": "Quarry Sample Ltd", "jurisdiction": "XYZ",
+        {"node_id": E1, "name": "Synthetic Entity One Ltd", "original_name":
+         "Synthetic Entity Four Corp", "former_name": "Synthetic Entity One Former Ltd",
+         "jurisdiction": "XYZ",
          "jurisdiction_description": "British Virgin Islands", "company_type": "SYN TYPE",
          "address": "SYN ADDRESS TEXT", "internal_id": "SYN-1", "incorporation_date":
          "22-MAY-2006", "struck_off_date": "01-JAN-99", "closed_date": "02-FEB-2003",
          "status": "Defaulted", "ibcRUC": "SYN-IBC", "country_codes": "GBR;VGB",
          "sourceID": SOURCE, "valid_until": "SYN VALID", "note": NOTE},
-        {"node_id": E2, "name": "Marsh Example Trading SA", "original_name": "Marsh Example "
-         "Trading SA", "incorporation_date": "13/04/2010", "inactivation_date": "21-AUG-0200",
+        {"node_id": E2, "name": "Synthetic Entity Two S.A.", "original_name":
+         "Synthetic Entity Two S.A.", "incorporation_date": "13/04/2010",
+         "inactivation_date": "21-AUG-0200",
          "struck_off_date": "2011-03-04", "sourceID": SOURCE, "note": NOTE},
         {"node_id": E3, "name": "? ?"},  # junk name: skipped
     ],
     "nodes-officers.csv": [
-        {"node_id": O1, "name": "Petra Kestrane", "country_codes": "GBR", "sourceID": SOURCE,
-         "note": NOTE},
-        {"node_id": O2, "name": "Ivo Braske", "sourceID": SOURCE},
-        {"node_id": O5, "name": "Oren Quillan"},
-        {"node_id": I1, "name": "Synthetic Agents Ltd"},  # also an intermediary: one record
+        {"node_id": O1, "name": "Synthetic Officer Alpha", "country_codes": "GBR",
+         "sourceID": SOURCE, "note": NOTE},
+        {"node_id": O2, "name": "Synthetic Officer Beta", "sourceID": SOURCE},
+        {"node_id": O5, "name": "Synthetic Nominee Officer Ltd"},
+        {"node_id": I1, "name": "Synthetic Agent Services Ltd"},  # also an intermediary
     ],
     "nodes-intermediaries.csv": [
-        {"node_id": I1, "name": "Synthetic Agents Ltd", "status": "ACTIVE", "country_codes":
+        {"node_id": I1, "name": "Synthetic Agent Services Ltd", "status": "ACTIVE", "country_codes":
          "VGB", "address": "SYN ADDRESS TEXT", "note": NOTE},
     ],
     "nodes-others.csv": [
-        {"node_id": X1, "name": "Sample Foundation", "type": "SYN TYPE", "incorporation_date":
+        {"node_id": X1, "name": "Synthetic Foundation Gamma", "type": "SYN TYPE",
+         "incorporation_date":
          "2001-02-03", "closed_date": "31-DEC-2010", "jurisdiction_description": "Anguilla",
          "country_codes": "AIA", "note": NOTE},
     ],
@@ -162,8 +166,6 @@ def install(body: bytes, version: str = "2099-01-01") -> Path:
 
 
 def companies_house() -> dict[str, Any]:
-    import yaml
-
     text = (REPO_ROOT / "ingest" / "profiles" / "uk-sample.yaml").read_text(encoding="utf-8")
     block: dict[str, Any] = yaml.safe_load(text)["sources"]["gb_companies_house"]
     block["companies"]["postcode_districts"] = ["QQ1"]
@@ -212,9 +214,9 @@ def test_nodes_map_to_the_c1_table_and_note_is_never_read(data_env: Any) -> None
     e1 = found[rid(E1)]
     assert (e1["schema"], e1["datasets"]) == ("Company", ["icij_offshore_leaks"])
     assert e1["properties"] == {
-        "name": ["Quarry Synthetic Holdings Ltd"],
-        "alias": ["Quarry Synthetic Holdings Limited"],
-        "previousName": ["Quarry Sample Ltd"],
+        "name": ["Synthetic Entity One Ltd"],
+        "alias": ["Synthetic Entity Four Corp"],
+        "previousName": ["Synthetic Entity One Former Ltd"],
         "jurisdiction": ["vg"],  # from the description, never the code column
         "country": ["gb", "vg"],
         "incorporationDate": ["2006-05-22"],
@@ -426,3 +428,39 @@ def test_discover_takes_the_version_from_last_modified_and_asks_conditionally(
     assert spec is not None and fetch(spec, client(answer))["files_skipped"] == 1
     with pytest.raises(HttpError, match="HTTP 404"):
         full.discover(client(lambda request: httpx.Response(404)))
+
+
+def test_unreadable_members_stop_the_build_without_quoting_a_value(data_env: Any) -> None:
+    body = io.BytesIO()
+    with (
+        zipfile.ZipFile(io.BytesIO(zip_body(ROWS))) as source,
+        zipfile.ZipFile(body, "w") as target,
+    ):
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "nodes-officers.csv":
+                data += b"9930000009,Synthetic \xff Officer\n"  # not UTF-8
+            if name != "nodes-others.csv":
+                target.writestr(name, data)
+    install(body.getvalue())
+    with pytest.raises(BuildError) as stopped:
+        run(data_env)
+    assert stopped.value.counts_only and "Synthetic" not in str(stopped.value)
+    assert str(stopped.value) in (
+        "nodes-officers.csv is not a readable UTF-8 CSV file (UnicodeDecodeError)",
+        "the archive has no nodes-others.csv",
+    )
+
+
+def test_committed_profiles_never_use_full_mode() -> None:
+    for path in (REPO_ROOT / "ingest" / "profiles").glob("*.yaml"):
+        block = yaml.safe_load(path.read_text(encoding="utf-8"))["sources"].get(
+            "icij_offshore_leaks", {}
+        )
+        assert block.get("mode") != "full", path.name
+
+
+def test_the_link_table_is_lower_case_and_each_value_appears_once() -> None:
+    table = full.link_table()
+    assert all(value == full.link_key(value) for value in table)
+    assert table["person of significant control"] == ("UnknownLink", False)

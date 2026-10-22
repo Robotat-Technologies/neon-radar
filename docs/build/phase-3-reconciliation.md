@@ -237,7 +237,28 @@ What each milestone waits for on 22 October, beyond its Phase 3 dependencies (PH
 
 Each question blocks only the milestones named in its row.
 
-## 7. Checked again in M3.3 (generator v1)
+## 7. Checked again in M3.1 (22 October 2026)
+
+Built on the open Phase 2 contract branches (#59 C1 1.1.0, #61 C2 1.1.0, #60 C3 1.1.0, at `03b320f` of `p2/m2-1c-api-1-1`) with `main` at `b4adfdf` merged in, before the tags `contracts-v1.0.0` and `contracts-v1.1.0` exist and before contract-change issue #70 is approved (OD-23; the orchestrator started it under OD-10). The merge waits for #59, #61, #60, the tag `contracts-v1.1.0` and the approval of #70.
+
+| # | Item | Class | Found in M3.1 |
+|---|---|---|---|
+| K1 | `contracts/tests/test_wording.py` and the Phase 3 typology files | D | Changed as the issue text allows, test-only: `wording_texts()` lints every template under `wording`, including `detail` and each template of every entry under `wording.variants`, and refuses any other shape; `names_with_detector()` lints `shape_name` as well as `name`; a new test shows a forbidden word inside a variant is caught. The Phase 1 typology files on `main` still pass (no file with variants is on `main` yet) |
+| K2 | `contracts/tests/test_alert.py` | None | Unchanged, as K2 found |
+| K3 | The issue text names `contracts/C2-graph.md` | M | The file is `contracts/C2-graph-schema.md`; issue #70 keeps the spec's text verbatim and the pull request says so |
+| K4 | The version tests | M | `contracts/tests/test_graph_mapping.py::test_version` checks `GRAPH_SCHEMA == CONTRACTS == "1.2.0"`, the other three unchanged, the 1.2.0 entry in `CHANGELOG.md` and the C2 document's title; `test_records.py::test_record_contract_is_1_1_0` now checks `RECORD == "1.1.0"` and `CONTRACTS == "1.2.0"`; `api/tests/test_reference.py` expects 1.2.0 from `GET /meta` |
+| K5 | Invariants I15 to I17 | D | `graph/src/neonradar_graph/queries/verify_overlay.cypher` verbatim (`spec_extract check`: 1 of 1); `graph/tests/test_invariants.py` runs the three statements directly. `graph verify` is still pending M2.11; M3.4 wires them in |
+| K6 | C2 1.2.0 on top of 1.1.0 | P | Built on the 1.1.0 branches; pending the merge of #59, #61, #60 and the tag `contracts-v1.1.0` |
+| G4 | `:PEP` and `:RCA` on sub-topics (with phase-2 E2) | D (OD-10, for the tech lead) | C2 1.2.0 does not change the flag rule: C2 1.1.0 (the authority, OD-17) sets `:PEP` and `:RCA` for `role.pep.*` and `role.rca.*` too, and `:Sanctioned` only for the exact topic. The oracle (`graphrows.py`) reads the exact topics only. Synthetic records carry only the exact topics (C1 R9), so the parity tests on synthetic data cannot differ. If M3.2's Neo4j mode or M3.6's world parity test ever meets a sub-topic, the fix is a recorded deviation in `graphrows.py` that follows C2, never a test change (7.1.5). I11 matching sub-topics stays with M2.11 (phase-2 E2) |
+| G5 | `:Sanction.provisions` | D | In C2 1.2.0 and the mapping: a LIST of every value, an empty list when the record has none (`NodeMapping.empty_lists`). The oracle leaves the property out when absent and `neo4jsource.py` reads `coalesce(s.provisions, [])`, so detectors see the same values either way |
+| S1 | L19 replaces all earlier detection results | P | Written into C2 1.2.0; M3.2 builds it |
+| S2 | The new `:DetectionRun` and `:Alert` properties | D | In C2 1.2.0 and `SUPPORT_NODES`; `PROPERTY_KINDS` gives the two evidence id lists as LIST. After the contract review of #75 (orchestrator decision), `NULLABLE_PROPERTIES["DetectionRun"]` is `profile`, `params_sha256`, `window_start` and `window_end`: absent for a run without a profile, a failed run, a graph with no window to read (registry-only, without `PAID`) and runs written under 1.1.0; `summary` is set by every 1.2.0 detection load. M3.2 writes them |
+| A1 (again) | Where the hashes of each detector's query files go | D (orchestrator, contract review of #75) | **In the run folder's `run.json` only.** `:DetectionRun.detectors` stays "JSON list of name and version" (C2 unchanged). M3.2 follows this: `detect run` passes the SHA-256 of `evidence.cypher` as `detector.query_sha256` (C4 1.0.0, unchanged) and writes the per-module query-file hashes to `run.json`, not to `:DetectionRun` |
+| A2 | `evidence.window` of registry alerts | Q tech lead (M3.2), no contract change | M3.1 changes no C4 file: the issue text names none. The recommended answer (a recorded mechanical deviation in `alerts.py`, `"window": null` when the finding has none, M3.2) needs no contract change |
+| R1 | Phase 1's headline formatting | Q tech lead (M3.2), no contract change | Under the recommended answer (keep Phase 1's `render_headline` and `format_metric` in `wording.py` as one recorded deviation, M3.2), `contracts/C4-alert.md`'s "Code" line stays true, so M3.1 leaves it unchanged. Only the alternative (moving them) would change that line, in a later contract-change session |
+| L18 | Overlay loads | D | Written into C2 1.2.0 with `OVERLAY_ID_PREFIX` (`syn-ov-`), `OVERLAY_DATASET` (`nr_synthetic`) and `BRIDGE_RELATIONSHIP` as data for M3.3 and M3.4; M3.4 builds the loader, `overlay_purge.cypher` and `overlay_unresolved.cypher` |
+
+## 8. Checked again in M3.3 (generator v1)
 
 Seams N1 to N3, T3, L3 and Y1, checked on the M3.3 branch after merging `main` at 43a8a3e (#48, M3.0) and the M2.1a branch `p2/m2-1a-record-1-1` at 7c03266 (C1 1.1.0, not yet merged).
 

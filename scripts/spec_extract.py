@@ -15,8 +15,10 @@ read).
 `check` exits 1 when a verbatim file in the repository differs from the code book (or is
 missing), so a pull request shows exactly which copied files it changed. A mechanical deviation
 (PHASE-3.md 2.2 step 6b) passes when `docs/build/phase-3-deviations.json` records it: the path,
-the SHA-256 of the repository's file, the milestone and the reason. Test files, the CI baseline
-and the freeze file never deviate. `update` writes the repository's current file into its code
+the SHA-256 of the repository's file, the milestone and the reason. Test files, the CI baseline,
+the freeze file and the copilot's benchmark (PHASE-4.md 2.10) never deviate. Phase 4 passes
+`--book docs/build/PHASE-4-CODE.md --deviations docs/build/phase-4-deviations.json` (or
+`make spec-check M=M4.x`). `update` writes the repository's current file into its code
 book block and recomputes the block's SHA-256: the way an accepted change to a verbatim file
 reaches the code book (2.10), in the same pull request as the change. Every command first checks
 each block against its stated SHA-256 and stops on a mismatch: the code book is damaged.
@@ -44,7 +46,14 @@ from pathlib import Path
 
 DEFAULT_BOOK = Path("docs/build/PHASE-3-CODE.md")
 DEFAULT_DEVIATIONS = Path("docs/build/phase-3-deviations.json")
-NEVER_DEVIATE = ("eval/baselines/", "eval/freeze.json")
+NEVER_DEVIATE = (
+    "eval/baselines/",
+    "eval/freeze.json",
+    # the copilot's benchmark (PHASE-4.md 2.10, M4.0): a change is a benchmark-change
+    "copilot/bench/",
+    "data/fixtures/copilot-bench/",
+    "docs/benchmark-questions.md",
+)
 MILESTONE = re.compile(r"^## (M\d+\.\d+[a-z]?)\b")
 ENTRY = re.compile(r"^### `([^`]+)`\s*$")
 STATUS = re.compile(r"^(Verbatim|Reference)\.(?:.*)SHA-256 `([0-9a-f]{64})`\.?\s*$")

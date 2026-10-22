@@ -152,7 +152,7 @@ Each pair scored at or above the **candidate threshold** is kept. A pair at or a
 
 ## Constrained clustering
 
-Splink's own clustering joins every chain of links above a threshold and cannot refuse a merge, so NeonRadar builds clusters with its own union-find, which checks the cannot-link rules and the policy before every merge (`resolve/src/neonradar_resolve/cluster.py`, [PHASE-2.md](../build/PHASE-2.md) 7.1.6). The order is fixed, so the same records, settings and seed always give byte-identical outputs:
+Splink's own clustering joins every chain of links above a threshold and cannot refuse a merge [splink_docs], so NeonRadar builds clusters with its own union-find, which checks the cannot-link rules and the policy before every merge (`resolve/src/neonradar_resolve/cluster.py`, [PHASE-2.md](../build/PHASE-2.md) 7.1.6). The order is fixed, so the same records, settings and seed always give byte-identical outputs:
 
 1. Human `same` decisions (D7), with the second-reviewer rule below.
 2. Deterministic links, in rule order D1 to D6, then by record ids.

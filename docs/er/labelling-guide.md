@@ -24,12 +24,12 @@ The pairs mix merges NeonRadar made with possible matches it did not make, in on
 
 **A person** is one human being. Two records are the same entity when they describe the same person, whatever the source, the role, the date or the spelling: an officer appointment and a shareholding of one person are the same entity. A person and a company they own or direct are two entities.
 
-**An organisation** is one legal entity: one company, partnership or other body with its own legal personality and, in the UK register, its own company number.
+**An organisation** is one legal entity, such as one company or one limited liability partnership; in the UK register each has its own company number.
 
 - **A subsidiary is not its parent**, even when the parent owns all of it, they share directors or an address, or their names differ only by a word such as "Holdings" or "UK" ([example 10](#example-10-a-parent-and-the-company-it-owns)).
 - **A trading name is the same company.** A company that trades under another name is still one legal entity.
 - **A renamed company is the same company.** The register keeps a company's previous names, with the date of each change, under its one company number [ch_free_company_data]. An old record with the former name and a new one with the current name describe one entity (see [A name change](#a-name-change)).
-- **The same name in two countries is two companies**: each registration creates its own legal entity, even inside one group.
+- **Companies incorporated in different countries are different companies**, even with the same name and inside one group.
 
 Some records do not say whether they describe a person or an organisation (a leak record of schema `LegalEntity`, for example). Judge such a record against the other card: if the other card is a person, ask whether the record describes that person.
 
@@ -39,7 +39,7 @@ Being linked to each other is not being the same. Two records that point at each
 
 Records are rarely complete: an officer record gives a birth month but no day, a list entry gives a full date but no address, a leak record may give only a name. Read both cards completely, then work through the evidence in this order.
 
-1. **Identifiers.** The same official identifier on both cards (a company number, an LEI, a UN reference number, a passport number) is strong evidence of the same entity when the names are compatible. Two different identifiers of a kind an entity has only one of (two company numbers, two LEIs) are strong evidence of two entities. Two exceptions: one person can hold several Companies House person numbers, and the UK Sanctions List gives a person one Unique ID per regime, so "there may be different Unique IDs for one designated person" [fcdo_format_guide]. A different number of those kinds proves nothing.
+1. **Identifiers.** The same official identifier on both cards (a company number, an LEI, a UN reference number, a passport number) is strong evidence of the same entity when the names are compatible. Two different identifiers of a kind an entity has only one of (two company numbers, two LEIs) are strong evidence of two entities. Two exceptions: one person can hold several Companies House person numbers ([PHASE-2.md](../build/PHASE-2.md) 7.1.2, rule D3), and the UK Sanctions List gives a person one Unique ID per regime, so "there may be different Unique IDs for one designated person" [fcdo_format_guide]. A different number of those kinds proves nothing. A list entry can also carry the number of a related company, which is why the names must agree too.
 2. **Dates.** Birth dates that differ at a precision both cards give (June 1996 against October 1996) mean two people. A month on one card and a full date on the other agree if the month agrees. A list entry may give a range of years or two possible dates; any one of them can agree.
 3. **Names.** Compare the names after allowing for the variations under [Common traps](#common-traps). A difference that no variation explains (another given name, a middle name that cannot match the other card's initial) is a conflict.
 4. **Ties.** Look for something a different person or company with the same name would be unlikely to share: the same identifier, the same full postcode, a role in the same company, a full birth date (day, month and year) on both cards, or the same incorporation date.

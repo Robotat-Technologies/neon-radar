@@ -32,7 +32,9 @@ def normalise_uk_postcode(text: str) -> str | None:
 
 def find_uk_postcode(text: str) -> tuple[str | None, str]:
     """The last UK postcode in a text, normalised, and the text without it."""
-    upper = text.upper()
+    # Upper case letter by letter, keeping letters such as "ß" whose upper case is longer, so
+    # that match positions also index `text` (RULES_VERSION 2).
+    upper = "".join(c.upper() if len(c.upper()) == 1 else c for c in text)
     matches = list(POSTCODE_RE.finditer(upper))
     if not matches:
         return None, text

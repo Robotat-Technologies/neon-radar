@@ -38,9 +38,12 @@ Once M2.10c has merged, you can try the tool on the synthetic `demo` profile on 
 
 ```bash
 uv run neonradar er run --profile demo --no-decisions
-uv run neonradar er sample --profile demo --run latest --seed 7 --labellers @your-handle
-uv run neonradar er label --profile demo --run latest --labeller @your-handle
+RUN="$(cat data/cache/synthetic/resolution/demo/LATEST)"
+uv run neonradar er sample --profile demo --run "$RUN" --seed 7 --labellers @your-handle
+uv run neonradar er label --profile demo --run "$RUN" --labeller @your-handle
 ```
+
+The `demo` records are invented, but practise the habits of a real session anyway: no screenshots, and notes in features only.
 
 ## 3. Label at least 20 pairs in one session
 

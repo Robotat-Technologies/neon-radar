@@ -585,7 +585,7 @@ entries:
     url: https://www.legislation.gov.uk/ukpga/2022/10/schedule/2/paragraph/6
     extra_urls: []
     verified: 2026-10-18
-    note: "Conditions for registrable beneficial owners of overseas entities (the register of overseas entities), including holding more than 25% of the shares or of the voting rights, and holdings as a trustee or as a member of a firm. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B31) on 2026-10-18; not re-opened by the build."
+    note: "Conditions for a 'registrable beneficial owner' (the Act's term) of an overseas entity (the register of overseas entities), including holding more than 25% of the shares or of the voting rights, and holdings as a trustee or as a member of a firm. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B31) on 2026-10-18; not re-opened by the build."
   - key: ch_psc_descriptions
     title: psc_descriptions.yml (natures of control enumerations)
     publisher: Companies House

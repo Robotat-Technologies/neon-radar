@@ -133,10 +133,11 @@ Try each example yourself before you read the answer.
 | Nationality | Egyptian (`eg`) | not given |
 | Postcode and town | QQ65 3AG, Bristol | QQ68 4HJ, Birmingham |
 | Linked companies | director of BIRCH & SEDGE FREIGHT LTD. | director of BIRCH & SEDGE FREIGHT LTD. |
+| Identifiers | Companies House person number SYN794820007 | Companies House person number SYN794820004 |
 
 **Right answer:** `same`. **Benchmark truth:** `same`.
 
-Why: Salah al-Din and Salah Eddine are two Latin spellings of one Arabic given name, and BERQANYUN and BERKANYUN differ only in Q and K, two common renderings of the letter qaf; their consonant skeletons are identical. The birth month agrees, a missing nationality counts for nothing, and the tie is a role in the same company. The different postcodes are a moved service address, not a conflict.
+Why: Salah al-Din and Salah Eddine are two Latin spellings of one Arabic given name, and BERQANYUN and BERKANYUN differ only in Q and K, two common renderings of the letter qaf; their consonant skeletons are identical. The birth month agrees, a missing nationality counts for nothing, and the tie is a role in the same company. The different postcodes are a moved service address, not a conflict. The two person numbers differ, which proves nothing (step 1). NeonRadar's rule D3 reads their shared first eight characters as one person, a reading Companies House has not confirmed ([PHASE-2.md](../build/PHASE-2.md) 3.3), so this guide does not count it as a tie.
 
 ### Example 2: Russian and Ukrainian forms of one name
 
@@ -181,10 +182,11 @@ Why: card B writes the surname first, and each card's other spellings include th
 | Nationality | Moroccan (`ma`) | not given |
 | Postcode and town | QQ42 0HG, Manchester | QQ42 0HG, Manchester |
 | Linked companies | holds 25 to 50 percent of the shares of LICHEN HOLM HOLDINGS LTD. | director of THE ELDER THORPE PACKAGING LTD |
+| Identifiers | not given | Companies House person number SYN370370008 |
 
 **Right answer:** `same`. **Benchmark truth:** `same`.
 
-Why: the initial H fits the middle name Husayn, the birth month agrees, and the tie is the same full postcode. Keep card B in mind for example 6.
+Why: the initial H fits the middle name Husayn, the birth month agrees, and the tie is the same full postcode. A person number on one card only counts for nothing. Keep card B in mind for example 6.
 
 ### Example 5: a moved address
 
@@ -213,6 +215,7 @@ Why: the full names agree, the birth month and the nationality agree, and the ti
 | Nationality | not given | Egyptian (`eg`) |
 | Postcode and town | QQ42 0HG, Manchester | QQ42 4WA, Manchester |
 | Linked companies | director of THE ELDER THORPE PACKAGING LTD | director of THE BRIAR SIKE ENGINEERING LTD |
+| Identifiers | Companies House person number SYN370370008 | not given |
 
 **Right answer:** `different`. **Benchmark truth:** `different`.
 
@@ -229,10 +232,11 @@ Why: card A is card B of example 4. The surname, the first given name, the birth
 | Nationality | not given | British (`gb`) |
 | Postcode and town | QQ3 5XS, Manchester | QQ3 2GX, Leeds |
 | Linked companies | secretary of BASALT LEAT LOGISTICS LTD | director of SEDGE LEA VENTURES LIMITED |
+| Identifiers | Companies House person number SYN241810003 | Companies House person number SYN797490001 |
 
 **Right answer:** `unsure`. **Benchmark truth:** `different`.
 
-Why: the names are compatible (card A gives no middle name), the birth month agrees and the postcodes share a district, so nothing conflicts. But nothing ties the cards either: different full postcodes, different companies, and every agreement is one that near twins share. The cards do not decide, so the honest label is `unsure`, with a note such as "names and birth month agree, nothing else connects them". The answer key shows why guessing would be wrong: these are two different people, near twins, and a `same` here would count against the published precision.
+Why: the names are compatible (card A gives no middle name), the birth month agrees and the postcodes share a district, so nothing conflicts; the person numbers differ, which proves nothing, because one person can hold several (step 1). But nothing ties the cards either: different full postcodes, different companies, and every agreement is one that near twins share. The cards do not decide, so the honest label is `unsure`, with a note such as "names and birth month agree, nothing else connects them". The answer key shows why guessing would be wrong: these are two different people, near twins, and a `same` here would count against the published precision.
 
 ### Example 8: two companies with the same name core
 

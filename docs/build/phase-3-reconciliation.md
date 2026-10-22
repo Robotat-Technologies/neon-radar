@@ -236,3 +236,18 @@ What each milestone waits for on 22 October, beyond its Phase 3 dependencies (PH
 **Data steward:** N3 (OD-12 searches for the names the Phase 3 verbatim files commit).
 
 Each question blocks only the milestones named in its row.
+
+## 7. Checked again in M3.3 (generator v1)
+
+Seams N1 to N3, T3, L3 and Y1, checked on the M3.3 branch after merging `main` at 43a8a3e (#48, M3.0) and the M2.1a branch `p2/m2-1a-record-1-1` at 7c03266 (C1 1.1.0, not yet merged).
+
+| # | Found | Class | Done in M3.3 |
+|---|---|---|---|
+| N1 | M2.9 has not started: no `variants.py` | P | `namesource.py` uses the code book reference's syllable table (16 syllables in Latin, Cyrillic and Arabic script), redrawing while a surname is a surname of the three Faker locales or of Phase 1's curated lists, or the name is on the denylist. When M2.9 lands, the name source should draw from `variants.py` (names only: no structural draw moves) |
+| N2 | The reference's word lists can spell the OD-12 name | D | The adapter's word lists hold neither "Cedar" nor "Gate", `denylist.txt` gains "Cedar Gate Holdings" (so `is_denied` and `synth check-names` refuse it too), and `company()` redraws every denylisted name; `test_synth_namesource.py::test_od12_company_name_is_never_produced` checks both, with word lists that could only spell it |
+| N3 | Still open: the agent cannot run the Companies House search. M3.3 commits no generated name (worlds and overlays are never committed); its verbatim and test files commit the fixed names listed under "Needs human check (OD-12)" in the pull request | Q data steward | Unchanged; the data steward's check of `synth-demo` names before the demo is published stays in M3.8 |
+| N4 | The verbatim `world.py` gave its PEP personas realistic names (`person`), against PHASE-3.md 2.9 and 7.2.3 | M | A recorded deviation: the world's PEP personas draw `invented_person` from their own name stream; no structural draw moves (`docs/build/phase-3-deviations.json`) |
+| T3 | `writer.py` exists (verbatim) | D | M3.2's `neo4j_mode.py` can import it |
+| L3 | `synth world` and `synth overlay` | D | Added; the overlay drops only the R4 issues whose missing id is a base id and the R8 issues whose account's holder is a base LegalEntity, matching R4's message text, because the validator under `contracts/` does not change |
+| Y1 | Profiles and layout | D | The three synthetic profiles (verbatim), the world, overlay and detection blocks in the profile model, and the five layout functions |
+| V1 | C1 1.0.0 refuses the generator's records (`nr.v` "1.1", `synthetic_kind` `list`, the exclusive share flags, `accounts_category`) | P | Pending M2.1a: with its branch merged, every record of a `synth-eval` world and overlay validates in strict mode |

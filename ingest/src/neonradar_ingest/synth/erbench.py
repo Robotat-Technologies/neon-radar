@@ -250,7 +250,7 @@ class Person:
     leaked: bool
     has_middle: bool
     invented: bool = False
-    linked: bool = False  # officer or PSC of an organisation with a list or leak record
+    linked: bool = False  # officer or PSC of an organisation in `exposed_orgs`
     twin_of: int | None = None
     given: Part = Part(("",))
     middle: Part | None = None
@@ -387,10 +387,19 @@ def _name_orgs(seed: int, orgs: list[Org]) -> None:
         org.form = pick(rng, [form for form, _ in FORMS if form != original.form])
 
 
+def exposed_orgs(orgs: list[Org]) -> set[int]:
+    """Organisations with a list or leak record, and their near twins in either direction:
+    a twin shares the name core, so its officers and PSCs count as linked too."""
+    flagged = {o.number for o in orgs if o.listed or o.leaked}
+    pairs = [(o.number, o.twin_of) for o in orgs if o.twin_of is not None]
+    return flagged | {a for a, b in pairs if b in flagged} | {b for a, b in pairs if a in flagged}
+
+
 def plan_people(seed: int, n: int, orgs: list[Org]) -> list[Person]:
     """People, their records' plan and names. Invented surnames go to every person with a list
-    or leak record, every officer or PSC of an organisation that has one, and their near twins:
-    Faker surnames only for registry-only people with no such link (G1)."""
+    or leak record, every officer or PSC of an organisation that has one or whose near twin has
+    one, and their near twins: Faker surnames only for registry-only people with no such link
+    (G1)."""
     n_orgs = len(orgs)
     rng = _rng(seed, PLAN, 2)
     origins = _quota(rng, n, ORIGINS)
@@ -419,9 +428,9 @@ def plan_people(seed: int, n: int, orgs: list[Org]) -> list[Person]:
         if authorities and chance(p_rng, RATES["unsc"]):
             person.unsc = f"ZZi.{int(unsc[i])}"
         people.append(person)
+    exposed = exposed_orgs(orgs)
     for person in people:
-        exposed = [orgs[o - 1] for o in person.portfolio]
-        person.linked = any(org.listed or org.leaked for org in exposed)
+        person.linked = any(o in exposed for o in person.portfolio)
         person.invented = bool(person.authorities or person.leaked or person.linked)
     by_number = {p.number: p for p in people}
     for twin in people:

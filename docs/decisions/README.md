@@ -25,6 +25,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0012](0012-docs-site.md) | Documentation site | M1.10c | proposed (decided in Phase 6) | technical writer, tech lead |
 | [0013](0013-data-profiles-and-sources.md) | Data profiles and production sources | M2.2 | proposed | data steward, tech lead |
 | [0018](0018-real-data-handling.md) | Real-data handling | M2.0 | proposed | data steward |
+| [0020](0020-detector-design.md) | Detector design: candidate steps, hop expansion and the oracle | M3.2 | proposed | detect mentor, tech lead |
 | [0023](0023-generator-v1.md) | Generator v1 and its look-alikes | M3.3 | proposed | ingest mentor, data steward, a typology researcher |
 
 The roles resolve to people in `docs/build/project.yaml` (`people`); until the team joins, @robotat-com holds every role.

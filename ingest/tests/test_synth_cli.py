@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-import time
+import resource
 from itertools import chain
 from pathlib import Path
 from typing import Any
@@ -22,6 +22,15 @@ runner = CliRunner()
 
 def synth(*args: str | Path) -> Any:
     return runner.invoke(app, ["synth", *map(str, args)])
+
+
+def cpu_seconds() -> float:
+    """CPU time of this process and its finished workers: the 30-second budget measures the
+    work, so a busy shared machine cannot fail the test (wall time varies with load)."""
+    own, workers = (
+        resource.getrusage(who) for who in (resource.RUSAGE_SELF, resource.RUSAGE_CHILDREN)
+    )
+    return own.ru_utime + own.ru_stime + workers.ru_utime + workers.ru_stime
 
 
 def one(folder: Path, pattern: str) -> Path:
@@ -83,13 +92,13 @@ def test_a_small_world_in_the_profile_folders_runs_quickly(data_env: Any) -> Non
     data["profile"] = "synth-small"
     data["sources"]["nr_synthetic"]["world"].update(name="small", companies=30, seed=3)
     (data_env.profiles / "synth-small.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
-    started = time.monotonic()
+    started = cpu_seconds()
     result = synth("world", "--profile", "synth-small")
     assert result.exit_code == 0, result.output
     assert one(layout.worlds_dir("small", 3), "*.ftm.jsonl").stat().st_size > 0
     result = synth("overlay", "--profile", "synth-small")
     assert result.exit_code == 0, result.output
-    assert time.monotonic() - started < 30
+    assert cpu_seconds() - started < 30
     overlay_id = layout.latest_overlay("synth-small")
     assert overlay_id is not None and overlay_id.startswith("ov-")
     folder = layout.overlay_dir("synth-small", overlay_id)

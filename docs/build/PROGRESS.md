@@ -86,7 +86,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M3.11 | todo | - | - | 2026-10-22 | - | - |
 | M3.12 | todo | - | - | 2026-10-22 | - | - |
 | M3.13 | todo | - | - | 2026-10-22 | - | - |
-| M4.0 | todo | - | - | 2026-10-22 | - | - |
+| M4.0 | pr-open | p4/m4-0-handover | #64 | 2026-10-22 | after merging main at 43a8a3e (M3.0 #48): make spec-check M=M4.0: 2 of 2 verbatim files match, 0 recorded deviations; spec_extract list: 114 entries (110 verbatim, 4 reference); test_guard_real_data.py: 250 passed; test_hooks.sh: 174 passed, 0 failed (guard_real_data.py 250 cases); make spec-check M=M3.0: 4 of 4; ruff check and make check: pass (1763 passed, contracts 382, UI 56, cypher-lint 0 problems); make hygiene: pass (358 counted lines); sync_labels: 34 of 34; CLAUDE.md 198 lines | Built before Gate 1 (OD-23) in a worktree; reconciliation questions for the tech lead (A1 context ids, A2 the 1.0.0 CopilotAnswer validator, A3 evidence nodes with the data steward, X4 Starlette pin) block only M4.1 and M4.2; deviations: CLAUDE.md names PHASE-2 to PHASE-4 and shortens rules 9 to 11 (G8 to G10) and two repeated traps to stay under 200 lines, ruff ignores in pyproject.toml, project-root deny rule, guard covers bypass forms and fixes the empty-argument split, mentor role in generate_codeowners.py; heldout_owner stays @TODO (OD-25); other deviations in PR #64 |
 | M4.1 | todo | - | - | 2026-10-22 | - | - |
 | M4.2 | todo | - | - | 2026-10-22 | - | - |
 | M4.3a | todo | - | - | 2026-10-22 | - | - |

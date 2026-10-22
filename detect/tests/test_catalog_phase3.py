@@ -107,9 +107,10 @@ def test_the_shape_name_passes_the_lint() -> None:
         TypologyFile.model_validate({**phase3(), "shape_name": "laundering loops"})
 
 
-def test_a_detector_is_the_packages_module_for_the_slug() -> None:
-    with pytest.raises(ValueError, match=r"detector must be neonradar_detect\.detectors"):
-        TypologyFile.model_validate({**phase3(), "detector": "os.path"})
+def test_a_detector_is_the_packages_module_for_the_slug(tmp_path: Path) -> None:
+    write(tmp_path, {**phase3(), "detector": "os.path"})
+    with pytest.raises(CatalogError, match=r"detector must be neonradar_detect\.detectors"):
+        load(tmp_path)
 
 
 def test_list_and_boolean_defaults_need_no_bounds() -> None:

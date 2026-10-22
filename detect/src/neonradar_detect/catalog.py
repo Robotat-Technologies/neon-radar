@@ -12,7 +12,8 @@ Phase 3 (PHASE-3.md M3.2 deliverable 3, 7.5.2) adds `shape_name`, `wording.varia
 `{name|n:noun[:plural]}`. `load()` validates every file with `TypologyFile` and returns the
 frozen `Typology` view the detection runner reads; it also refuses what the Phase 3 renderer
 cannot render (a detector typology without a shape name, a format spec or a stray brace), so a
-run never emits a summary without its shape or a template with a placeholder left in it.
+run never emits a summary without its shape or a template with a placeholder left in it, and a
+`detector` other than `neonradar_detect.detectors.<slug>`, the only module the runner imports.
 `params_for` builds a detector's `Params` from the file's defaults and a profile's overrides.
 """
 
@@ -210,10 +211,6 @@ class TypologyFile(_Strict):
         if self.wording is not None:
             self._check_wording(self.wording)
         self._lint()
-        # The runner imports the module a file names (PHASE-3.md 7.5.3): only the package's own
-        # module for this slug, so a file never makes it import anything else.
-        if self.detector is not None and self.detector != f"{DETECTOR_PACKAGE}.{self.slug}":
-            raise ValueError(f"detector must be {DETECTOR_PACKAGE}.{self.slug} or null")
         return self
 
     def _check_wording(self, wording: Wording) -> None:
@@ -327,6 +324,10 @@ def _view(item: TypologyFile) -> Typology:
 def _renderable(item: TypologyFile) -> list[str]:
     """Why the Phase 3 renderer cannot run this typology (empty when it can)."""
     problems = []
+    # The runner imports the module a file names (PHASE-3.md 7.5.3): only the package's own
+    # module for this slug, so a file never makes it import anything else.
+    if item.detector is not None and item.detector != f"{DETECTOR_PACKAGE}.{item.slug}":
+        problems.append(f"detector must be {DETECTOR_PACKAGE}.{item.slug} or null")
     if item.detector is not None and item.shape_name is None:
         problems.append("a typology with a detector needs shape_name")
     if item.wording is not None:
@@ -338,8 +339,8 @@ def _renderable(item: TypologyFile) -> list[str]:
 
 def load(directory: Path = CATALOG_DIR) -> dict[str, Typology]:
     """Every typology file, validated with `TypologyFile`, as the frozen `Typology` view; a
-    `CatalogError` when one cannot be rendered by the Phase 3 code (no shape name for a
-    detector, a format spec, a stray brace)."""
+    `CatalogError` when one cannot be run by the Phase 3 code (a detector outside the package,
+    no shape name for a detector, a format spec, a stray brace)."""
     out = {}
     for slug, item in load_catalog(directory).items():
         problems = _renderable(item)

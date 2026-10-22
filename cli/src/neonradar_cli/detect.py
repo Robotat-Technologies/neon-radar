@@ -8,6 +8,7 @@ come with M3.4: here they are refused before anything is read.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from contextlib import ExitStack
 from functools import partial
@@ -27,6 +28,13 @@ if TYPE_CHECKING:
 app = typer.Typer(help="Detection runs.", no_args_is_help=True)
 
 QUERY_TIMEOUT_S = 600.0  # PHASE-3.md 7.1.2 rule 6
+
+
+def _quiet_notifications() -> None:
+    """The server's query notifications (for example 01N52, a property no node has on this
+    graph) go to the driver's log at WARNING with the query text; the query-plan test checks
+    them in CI (PHASE-3.md 7.1.6), so a run prints only errors."""
+    logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
 
 
 def _fail(message: str, code: int = 1) -> typer.Exit:
@@ -216,6 +224,7 @@ def run_command(
         if engine == "memory":
             source = _memory_source(profile, overlay)
         else:
+            _quiet_notifications()
             settings = _settings()
             driver = stack.enter_context(_connected(settings, timeout))
             source = Neo4jSource(driver, settings.database, timeout_s=QUERY_TIMEOUT_S)
@@ -286,6 +295,7 @@ def verify_alert_command(
         raise _fail("give one ALERT_ID or --run RUN_ID (or --run latest)", 2)
     if profile_name:
         _profile(profile_name, "neo4j")
+    _quiet_notifications()
     settings = _settings()
     with _connected(settings, timeout) as driver:
         try:

@@ -1,11 +1,15 @@
-"""The `project.yaml` keys the data manager reads (PHASE-2.md 1.3, M2.2 deliverable 1).
+"""The `project.yaml` keys the data manager reads (PHASE-2.md 1.3, M2.2 deliverable 1), and
+the Phase 3 keys (PHASE-3.md 1.3, M3.0 deliverable 7) that later milestones read through it.
 
 `load_project()` reads docs/build/project.yaml, or the file named in `NR_PROJECT_FILE` (for
 tests and acceptance commands only). Other keys are allowed and ignored. Missing access keys
-fail closed: no real profile, no data protection documents, no list, no PEP source.
+fail closed: no real profile, no data protection documents, no list, no PEP source, no real
+overlay, no registry alert about a real organisation (G12's stricter option). Missing
+schedule dates are None: they are informational (OD-1).
 """
 
 import hashlib
+from datetime import date
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -35,6 +39,9 @@ class Access(BaseModel):
     sanctions_lists: list[SanctionsList] = []
     pep_sources: list[PepSource] = []
     pep_former_months: NonNegativeInt = 12
+    # Phase 3 (PHASE-3.md 1.2 and 1.3; values in operator-decisions.md OD-25)
+    real_overlay_profiles: list[str] = []
+    real_registry_alerts: bool = False
 
 
 class People(BaseModel):
@@ -42,15 +49,29 @@ class People(BaseModel):
 
     er_labellers: list[str] = []
     er_senior_reviewers: list[str] = []
+    freeze_deciders: list[str] = []  # ADR-0022 (PHASE-3.md M3.11)
+
+
+class Schedule(BaseModel):
+    """`schedule`: the Phase 3 dates (PHASE-3.md 1.3), informational (OD-1)."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    phase_3_start: date | None = None
+    assignment_4_due: date | None = None
+    detection_freeze: date | None = None
+    holdout_run: date | None = None
+    teach_back_detection: date | None = None
 
 
 class Project(BaseModel):
-    """The keys Phase 2 reads, plus the file they came from and its SHA-256."""
+    """The keys Phases 2 and 3 read, plus the file they came from and its SHA-256."""
 
     model_config = ConfigDict(extra="ignore", frozen=True)
 
     access: Access = Access()
     people: People = People()
+    schedule: Schedule = Schedule()
     path: Path
     sha256: str
 
@@ -105,7 +126,7 @@ def load_project(path: Path | None = None) -> Project:
     data = yaml.safe_load(raw)
     if not isinstance(data, dict):
         raise ValueError(f"{path.name} is not a YAML mapping")
-    fields = {"access": data.get("access") or {}, "people": data.get("people") or {}}
+    fields = {key: data.get(key) or {} for key in ("access", "people", "schedule")}
     return Project.model_validate(
         {**fields, "path": path, "sha256": hashlib.sha256(raw).hexdigest()}
     )

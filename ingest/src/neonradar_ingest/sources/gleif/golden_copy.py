@@ -62,9 +62,11 @@ NR_VERSION = "1.1"
 PUBLISHES_URL = "https://goldencopy.gleif.org/api/v2/golden-copies/publishes/latest"
 HOST = "goldencopy.gleif.org"
 CDF = {"lei2": "LEI_3.1", "rr": "RR_2.1"}  # file type: the CDF version the mapping is for
-FILE_RE = re.compile(r"(\d{8}-\d{4})-gleif-goldencopy-(lei2|rr)-golden-copy\.csv\.zip\Z")
-PUBLISH_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})")
-ISO_RE = re.compile(r"\s*(\d{4})-(\d{2})-(\d{2})(?:T[\d:.]+)?(?:Z|[+-]\d{2}:?\d{2})?\s*\Z")
+FILE_RE = re.compile(r"([0-9]{8}-[0-9]{4})-gleif-goldencopy-(lei2|rr)-golden-copy\.csv\.zip\Z")
+PUBLISH_RE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})[ T]([0-9]{2}):([0-9]{2})")
+ISO_RE = re.compile(
+    r"\s*([0-9]{4})-([0-9]{2})-([0-9]{2})(?:T[0-9:.]+)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?\s*\Z"
+)
 VOCAB_RE = re.compile(r"[a-z][a-z_-]{0,47}\Z")  # no digits: never an LEI or a number
 HEADER_RE = re.compile(r"[A-Za-z0-9 ._:/+()#,'&-]{1,80}\Z")  # what a summary list may hold
 UK_AUTHORITIES = ("RA000585", "RA000586", "RA000587")  # Companies House: E&W, NI, Scotland
@@ -73,6 +75,9 @@ ENTITY_ID = "Entity.RegistrationAuthority.RegistrationAuthorityEntityID"
 REGISTRATION = "Registration.RegistrationStatus"
 CREATION = "Entity.EntityCreationDate"
 SKIPPED_REGISTRATIONS = ("ANNULLED", "DUPLICATE")
+SOLE_PROPRIETOR = "SOLE_PROPRIETOR"  # skipped until the data steward answers C7 (fail closed)
+LEGAL_FORM_OTHER = "8888"  # the ELF code for "other": the OtherLegalForm text says which
+RR_REGISTRATION = "Registration.RegistrationStatus"  # optional in the RR file
 LEI_COLUMNS = (  # the enforced set of note 6.2
     "LEI", "Entity.LegalName", "Entity.LegalName.xmllang", "Entity.LegalJurisdiction",
     "Entity.EntityStatus", "Entity.EntityCategory", "Entity.LegalForm.EntityLegalFormCode",
@@ -103,11 +108,13 @@ CONSOLIDATION = {
     "IS_DIRECTLY_CONSOLIDATED_BY": "direct",
     "IS_ULTIMATELY_CONSOLIDATED_BY": "ultimate",
 }
-# Address parts in the order that makes up `Address.full` (and its key, M2.3a deliverable 7).
-# Region (an ISO 3166-2 code) is kept as `region` but left out of the key, as are the house
-# number fields and MailRouting, which can hold a person's name.
-ADDRESS_PARTS = ("FirstAddressLine", "AdditionalAddressLine.1", "AdditionalAddressLine.2",
-                 "AdditionalAddressLine.3", "City", "PostalCode", "Country")  # fmt: skip
+# Address parts in the order that makes up `Address.full` (and its key, M2.3a deliverable 7),
+# after the number within the building and the street line (`AddressNumber` before
+# `FirstAddressLine`, as the Phase 1 spike does). Region (an ISO 3166-2 code) is kept as
+# `region` but left out of the key; MailRouting, which can hold a person's name, is never read.
+ADDRESS_PARTS = ("AdditionalAddressLine.1", "AdditionalAddressLine.2", "AdditionalAddressLine.3",
+                 "City", "PostalCode", "Country")  # fmt: skip
+STREET_PARTS = ("AddressNumberWithinBuilding", "AddressNumber", "FirstAddressLine")
 ROLES = {"LegalAddress": "registered", "HeadquartersAddress": "business"}
 SOURCE_URL = "https://search.gleif.org/#/record/{}"
 RECORD_FILE = "golden-copy.ftm.jsonl"
@@ -276,16 +283,34 @@ def in_scope(
         counts["uk_authority_leis"] += uk
         number = uk_company_number(row[ENTITY_ID]) if uk and scope == "slice" else None
         if scope == "all" or (uk and scope == "uk"):
-            found.setdefault(lei, scope)
+            reason = scope
         elif number is not None and number in numbers:
-            found.setdefault(lei, "slice")
+            reason = "slice"
             matched.add(number)
+        else:
+            continue
+        if sole_proprietor(row):
+            counts["sole_proprietors_skipped"] += 1
+        else:
+            found.setdefault(lei, reason)
     counts["slice_companies_with_lei"] = len(matched)
     return found
 
 
+def sole_proprietor(row: Row) -> bool:
+    """A sole proprietor's legal name can be a person's name (reconciliation C7)."""
+    return row["Entity.EntityCategory"].strip().upper() == SOLE_PROPRIETOR
+
+
+def rr_skipped(row: Row) -> bool:
+    """An RR record whose own registration is annulled or a duplicate (when the column exists)."""
+    return row.get(RR_REGISTRATION, "").strip().upper() in SKIPPED_REGISTRATIONS
+
+
 def consolidation(row: Row) -> tuple[str, str, str] | None:
     """(child, parent, `direct` or `ultimate`) for an active consolidation between two LEIs."""
+    if rr_skipped(row):
+        return None
     level = CONSOLIDATION.get(row[TYPE].strip())
     if level is None or row[STATUS].strip().upper() != "ACTIVE":
         return None
@@ -303,6 +328,14 @@ def add_parents(rr_file: Table, wanted: dict[str, str]) -> None:
 
 
 # --- records ---------------------------------------------------------------------------------
+
+
+def legal_form(row: Row) -> str | None:
+    """The ELF code, else the text; the code 8888 ("other") counts as absent."""
+    code = text(row["Entity.LegalForm.EntityLegalFormCode"])
+    return (
+        code if code and code != LEGAL_FORM_OTHER else text(row["Entity.LegalForm.OtherLegalForm"])
+    )
 
 
 class Writer:
@@ -348,14 +381,17 @@ class Writer:
 
     def address(self, row: Row, kind: str) -> str | None:
         """The `Address` id of the legal or headquarters address, or None (no key)."""
-        part = {name: text(row.get(f"Entity.{kind}.{name}")) for name in ADDRESS_PARTS}
+        part = {name: text(row.get(f"Entity.{kind}.{name}"))
+                for name in (*STREET_PARTS, *ADDRESS_PARTS)}  # fmt: skip
+        within, number, first = (part[name] for name in STREET_PARTS)
+        line = " ".join(p for p in (number, first) if p) or None
+        street = ", ".join(p for p in (within, line) if p) or None
+        self.counts["address_numbers_folded"] += bool(within or number)
         country = country_code(part["Country"])
         raw_postcode = part["PostalCode"]
         postcode = normalise_uk_postcode(raw_postcode) if raw_postcode and country == "gb" else None
-        parts = [part[name] for name in ADDRESS_PARTS[:5]] + [
-            postcode or raw_postcode,
-            part["Country"],
-        ]
+        parts = [within, line, *(part[name] for name in ADDRESS_PARTS[:4])]
+        parts += [postcode or raw_postcode, part["Country"]]
         # FtM cleans `full`, and the graph loader recomputes the key from it (C2 L15, M2.3a).
         full = registry.address.clean(", ".join(p for p in parts if p))
         key = address_key(full) if full else None
@@ -365,7 +401,7 @@ class Writer:
         if key not in self.addresses:
             values = {
                 "full": full,
-                "street": part["FirstAddressLine"],
+                "street": street,
                 "street2": part["AdditionalAddressLine.1"],
                 "city": part["City"],
                 "region": text(row.get(f"Entity.{kind}.Region")),
@@ -390,8 +426,7 @@ class Writer:
             "jurisdiction": text(row["Entity.LegalJurisdiction"]),
             "registrationNumber": number,
             "status": text(row["Entity.EntityStatus"]),
-            "legalForm": text(row["Entity.LegalForm.EntityLegalFormCode"])
-            or text(row["Entity.LegalForm.OtherLegalForm"]),
+            "legalForm": legal_form(row),
             "incorporationDate": iso_date(row.get(CREATION), self.counts, "creation"),
             "sourceUrl": SOURCE_URL.format(lei),
         }
@@ -486,7 +521,9 @@ def write_relationships(
             counts["relationships_outside_scope"] += 1
             continue
         link = consolidation(row)
-        if row[TYPE].strip() not in CONSOLIDATION:
+        if rr_skipped(row):
+            counts[f"rr_registration_skipped.{vocab(row[RR_REGISTRATION])}"] += 1
+        elif row[TYPE].strip() not in CONSOLIDATION:
             counts[f"skipped_type.{vocab(row[TYPE])}"] += 1  # branches and funds among them
         elif row[STATUS].strip().upper() != "ACTIVE":
             counts[f"skipped_status.{vocab(row[STATUS])}"] += 1
@@ -555,6 +592,9 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             if text(row["Entity.LegalName"]) is None:
                 counts["rows_without_name"] += 1  # a Company needs a name (C1 R3)
                 continue
+            if sole_proprietor(row):  # a parent; scoped ones were left out in the first pass
+                counts["sole_proprietors_skipped"] += 1
+                continue
             written.add(lei)
             by_reason[wanted[lei]] += 1
             categories[vocab(row["Entity.EntityCategory"] or "none")] += 1
@@ -589,6 +629,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
              "rr_headers": header_list(rr_file.header, counts)}  # fmt: skip
     groups = {"registration_skipped": "registration_skipped",
               "names_skipped": "names_skipped_by_value", "skipped_type": "skipped_type_by_value",
+              "rr_registration_skipped": "rr_registration_skipped_by_value",
               "skipped_status": "skipped_status_by_value"}  # fmt: skip
     whole_file = ("invalid_leis", "registration_skipped", "uk_authority_leis")
     for key, value in counts.items():

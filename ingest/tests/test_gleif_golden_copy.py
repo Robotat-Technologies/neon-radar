@@ -49,6 +49,8 @@ CHILD, SIBLING, OUTSIDE, ODD = lei("CHILD1"), lei("CHILD2"), lei("UKOUT1"), lei(
 PARENT, ULTIMATE, INACTIVE_PARENT = lei("PARENT1"), lei("ULTIM1"), lei("PARENT2")
 ANNULLED, DUPLICATE, FUND, GHOST = lei("ANNUL1"), lei("DUPL1"), lei("FUND1"), lei("GHOST1")
 OTHER_A, OTHER_B = lei("OTHERA"), lei("OTHERB")
+SOLE, SOLE_PARENT, NONAME = lei("SOLE1"), lei("SOLEP1"), lei("NONAME1")
+NODE = "SYNNODE0001"  # a relationship end that is not an LEI
 INVALID = CHILD[:-1] + str((int(CHILD[-1]) + 1) % 10)
 CH_VERSION = "2026-10-01"
 
@@ -64,7 +66,8 @@ OPTIONAL = [
     *(f"Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.{n}{x}"
       for n in (1, 2) for x in ("", ".type")),
     *(f"Entity.{k}.{p}" for k in ("LegalAddress", "HeadquartersAddress")
-      for p in ("AdditionalAddressLine.1", "Region", "PostalCode")),
+      for p in ("AddressNumber", "AddressNumberWithinBuilding", "AdditionalAddressLine.1",
+                "Region", "PostalCode")),
 ]  # fmt: skip
 LEI_HEADER = [*gc.LEI_COLUMNS[:5], *OPTIONAL, *gc.LEI_COLUMNS[5:]]
 RR_HEADER = [
@@ -119,15 +122,19 @@ LEI_ROWS = [
             "MYRTLE LEAT FORMATIONS",
         "Entity.TransliteratedOtherEntityNames.TransliteratedOtherEntityName.2.type":
             "AUTO_ASCII_TRANSLITERATED_LEGAL_NAME",
-        "Entity.HeadquartersAddress.PostalCode": "qq1  1aa"}),
+        "Entity.HeadquartersAddress.PostalCode": "qq1  1aa",
+        "Entity.LegalAddress.Region": "GB-ENG"}),  # kept as region, never in the key
     entity(SIBLING, "BRACKEN DALE FREIGHT LTD", "990 00002", "RA000587", **{
         gc.CREATION: "06/06/2012", "Entity.LegalForm.EntityLegalFormCode": "",
         "Entity.LegalForm.OtherLegalForm": "PRIVATE LIMITED COMPANY",
-        "Entity.HeadquartersAddress.FirstAddressLine": "2 SAMPLE ROAD",
+        "Entity.HeadquartersAddress.AddressNumber": "2",
+        "Entity.HeadquartersAddress.FirstAddressLine": "SAMPLE ROAD",
         "Entity.HeadquartersAddress.PostalCode": "QQ2 2BB"}),
     entity(OUTSIDE, "COPPER ACRE INTERIORS LTD", "99000009"),
     entity(ODD, "BASALT HOLM FOODS LTD", "XY123456", "RA000586"),
     entity(PARENT, "TANSY TARN VENTURES LIMITED", "123", "RA888888", **{
+        "Entity.LegalForm.EntityLegalFormCode": "8888",
+        "Entity.LegalForm.OtherLegalForm": "LIMITED LIABILITY COMPANY",
         "Entity.LegalJurisdiction": "US-DE", "Entity.LegalAddress.Country": "US",
         "Entity.LegalAddress.PostalCode": "00000", "Entity.HeadquartersAddress.Country": "US",
         "Entity.HeadquartersAddress.PostalCode": "00000"}),
@@ -140,6 +147,13 @@ LEI_ROWS = [
     entity(FUND, "KESTREL SCAR FINANCE LTD", "", "RA888888", **{"Entity.EntityCategory": "FUND"}),
     entity(OTHER_A, "LINNET WOLD FOODS LTD", "99000010"),
     entity(OTHER_B, "LARCH MERE SERVICES LTD", "99000011"),
+    entity(SOLE, "ALDER HOLM CATERING LTD", "99000012",
+           **{"Entity.EntityCategory": "SOLE_PROPRIETOR"}),
+    entity(SOLE_PARENT, "PLOVER BRAE TEXTILES LTD", "", "RA888888",
+           **{"Entity.EntityCategory": "SOLE_PROPRIETOR"}),
+    entity(NONAME, "", "99000013"),
+    entity(ULTIMATE, "UMBER GARTH FOODS LTD", "99000003", "RA000587",
+           **{"Entity.LegalJurisdiction": "GB-SCT"}),  # the same LEI twice
 ]  # fmt: skip
 RR_ROWS = [
     link(CHILD, PARENT, **{
@@ -156,6 +170,10 @@ RR_ROWS = [
     link(CHILD, PARENT, "IS_INTERNATIONAL_BRANCH_OF"),
     link(FUND, CHILD, "IS_FUND-MANAGED_BY"),
     link(OTHER_A, OTHER_B),
+    link(SIBLING, SOLE_PARENT),  # a sole proprietor parent: skipped (C7)
+    link(CHILD, NODE, **{gc.END_TYPE: "NOT_LEI"}),
+    link(CHILD, PARENT, "IS_ULTIMATELY_CONSOLIDATED_BY", **{gc.RR_REGISTRATION: "ANNULLED"}),
+    link(SIBLING, OTHER_A, **{gc.RR_REGISTRATION: "DUPLICATE"}),  # never makes OTHER_A a parent
 ]  # fmt: skip
 
 
@@ -190,7 +208,8 @@ def download(lei_header: Sequence[str] = LEI_HEADER, rr_header: Sequence[str] = 
 
 
 def profile(env: Any, scope: str = "slice", numbers: Sequence[str] | None = ("99000001",
-            "99000002", "99000004", "99000006", "99000007")) -> None:  # fmt: skip
+            "99000002", "99000004", "99000006", "99000007", "99000012", "99000013")
+            ) -> None:  # fmt: skip
     env.write_profile(PROFILE, real_data=True,
                       sources={gc.DATASET: {"enabled": True, "scope": scope}})  # fmt: skip
     if numbers is not None:
@@ -229,12 +248,13 @@ def test_the_lei_helper_gives_valid_check_digits() -> None:
 
 
 def test_discover_takes_the_two_csv_files_of_the_combined_publish() -> None:
-    def entry(kind: str, cdf: str, stamp: str = "20261021-1600") -> dict[str, Any]:
+    def entry(kind: str, cdf: str, stamp: str = "20261021-1600",
+              published: str = "2026-10-21 16:00:00") -> dict[str, Any]:  # fmt: skip
         folder = "https://goldencopy.gleif.org/storage/golden-copy-files/2026/10/21/1"
         url = f"{folder}/{stamp}-gleif-goldencopy-{kind}-golden-copy.csv.zip"
         csv_file = {"type": kind, "format": "csv", "record_count": 3, "size": 1234, "url": url,
                     "delta_type": "GoldenCopy", "cdf_version": cdf}  # fmt: skip
-        return {"type": kind, "publish_date": "2026-10-21 16:00:00",
+        return {"type": kind, "publish_date": published,
                 "full_file": {"csv": csv_file, "json": {}}, "delta_files": {}}  # fmt: skip
 
     def client(body: Any) -> HttpClient:
@@ -259,6 +279,7 @@ def test_discover_takes_the_two_csv_files_of_the_combined_publish() -> None:
         ({"rr": entry("rr", "RR_2.2")}, "not RR_2.1"),
         ({"rr": entry("rr", "RR_2.1", "20261020-1600")}, "not a Golden Copy CSV"),
         ({"lei2": {}}, "no lei2 CSV"),
+        ({"rr": entry("rr", "RR_2.1", published="2026-10-21 08:00:00")}, "from another publish"),
         ({"publish_date": None}, "no publish_date"),
     ):
         with pytest.raises(DownloadError, match=message):
@@ -305,6 +326,32 @@ def test_reading_maps_dotted_columns_and_keeps_line_breaks(tmp_path: Path) -> No
     with pytest.raises(BuildError, match=r"y\.csv\.zip: not valid UTF-8") as stopped:
         list(bad.rows())
     assert stopped.value.counts_only
+    limit = csv.field_size_limit(16)  # a field over the limit is a csv.Error
+    try:
+        long = gc.Table(zipped(tmp_path / "z.csv.zip", csv_bytes(LEI_HEADER, LEI_ROWS[:1])),
+                        gc.LEI_COLUMNS, stats)  # fmt: skip
+        with pytest.raises(BuildError, match=r"z\.csv\.zip: not readable as CSV near line"):
+            list(long.rows())
+    finally:
+        csv.field_size_limit(limit)
+
+
+def test_address_numbers_are_part_of_the_street_line() -> None:
+    counts: Counter[str] = Counter()
+    writer = gc.Writer([], counts)
+    office = {"Entity.LegalAddress.FirstAddressLine": "TEST STREET",
+              "Entity.LegalAddress.City": "TESTTOWN", "Entity.LegalAddress.PostalCode": "QQ1 1AA",
+              "Entity.LegalAddress.Country": "GB"}  # fmt: skip
+    five = writer.address(office | {"Entity.LegalAddress.AddressNumber": "5"}, "LegalAddress")
+    seven = writer.address(office | {"Entity.LegalAddress.AddressNumber": "7",
+                           "Entity.LegalAddress.AddressNumberWithinBuilding": "FLAT 3"},
+                           "LegalAddress")  # fmt: skip
+    assert five and seven and five != seven and len(writer.addresses) == 2
+    by_id = {record["id"]: record["properties"] for record in writer.addresses.values()}
+    assert by_id[five]["street"] == ["5 TEST STREET"]
+    assert by_id[seven]["street"] == ["FLAT 3, 7 TEST STREET"]
+    assert address_key(by_id[five]["full"][0]) == "QQ1 1AA|5 TEST STREET TESTTOWN"
+    assert counts["address_numbers_folded"] == 2
 
 
 def test_dates_keep_the_written_date_and_bad_ones_are_counted() -> None:
@@ -327,12 +374,14 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     assert companies == {rid(c) for c in (CHILD, SIBLING, PARENT, ULTIMATE)}
     counts = result.counts
     assert counts["by_reason"] == {"slice": 2, "uk": 0, "all": 0, "parent": 2}
-    assert counts["slice_companies"] == 5 and counts["slice_companies_with_lei"] == 2
+    assert counts["slice_companies"] == 7 and counts["slice_companies_with_lei"] == 4
     whole = counts["lei_file"]  # counted over the whole LEI file, not the scope
     assert whole["registration_skipped"] == {"annulled": 1, "duplicate": 1}
-    assert whole["invalid_leis"] == 1 and whole["uk_authority_leis"] == 8
+    assert whole["invalid_leis"] == 1 and whole["uk_authority_leis"] == 11  # rows
     assert whole["rows_read"] == len(LEI_ROWS) and counts["rr_file"]["rows_read"] == len(RR_ROWS)
-    assert counts["parents_not_loaded"] == 1 and counts["scoped_leis"] == 2
+    assert counts["parents_not_loaded"] == 2 and counts["scoped_leis"] == 3  # with NONAME
+    assert counts["sole_proprietors_skipped"] == 2  # one in the slice, one parent (C7)
+    assert counts["rows_without_name"] == 1 and counts["duplicate_leis"] == 1
     assert (
         result.strings["slice_version"] == CH_VERSION and len(result.strings["slice_sha256"]) == 64
     )
@@ -355,6 +404,7 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     assert address_key(full) == "QQ1 1AA|1 TEST STREET TESTTOWN"
     assert office == gc.hashed_id("addr", address_key(full) or "")
     assert found[office]["properties"]["postalCode"] == ["QQ1 1AA"]
+    assert found[office]["properties"]["region"] == ["GB-ENG"]  # region kept, not in the key
 
     sibling = found[rid(SIBLING)]
     assert sibling["properties"]["registrationNumber"] == ["99000002"]  # normalised (RA000587)
@@ -364,6 +414,10 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
     assert sibling["nr"]["address_roles"][office] == "registered"  # shared with the child
     parent = found[rid(PARENT)]["properties"]
     assert parent["jurisdiction"] == ["us"] and parent["registrationNumber"] == ["123"]  # raw
+    assert parent["legalForm"] == ["LIMITED LIABILITY COMPANY"]  # code 8888 means "other"
+    business = [a for a, role in sibling["nr"]["address_roles"].items() if role == "business"]
+    assert found[business[0]]["properties"]["street"] == ["2 SAMPLE ROAD"]
+    assert counts["address_numbers_folded"] == 1
     assert found[rid(ULTIMATE)]["properties"]["jurisdiction"] == ["gb-sct"]
     assert counts["records"] == {"company": 4, "address": 3, "ownership": 3}
     assert counts["dates_dropped.creation"] == 1
@@ -387,7 +441,10 @@ def test_the_slice_scope_keeps_slice_companies_and_their_parents(data_env: Any) 
         "is_fund-managed_by": 1,
     }
     assert counts["skipped_status_by_value"] == {"inactive": 1}
-    assert counts["relationships_end_not_loaded"] == 2  # the missing parent, the outside child
+    # the missing parent, the outside child, the sole proprietor parent
+    assert counts["relationships_end_not_loaded"] == 3
+    assert counts["relationships_not_lei"] == 1
+    assert counts["rr_registration_skipped_by_value"] == {"annulled": 1, "duplicate": 1}
     assert counts["relationships_outside_scope"] == 1
     assert counts["optional_columns_absent"] == dict.fromkeys(OPTIONAL_GROUPS, 0)
     assert result.lists == {"lei_headers": LEI_HEADER, "rr_headers": RR_HEADER}
@@ -425,7 +482,8 @@ def test_the_uk_scope_and_a_header_without_optional_columns(data_env: Any) -> No
     child = found[rid(CHILD)]["properties"]
     assert "alias" not in child and "incorporationDate" not in child
     assert result.counts["optional_columns_absent"] == dict.fromkeys(OPTIONAL_GROUPS, 1)
-    assert result.counts["relationships"] == {"direct": 4, "ultimate": 1}
+    # Without the RR registration column the annulled and duplicate records load (spec rule).
+    assert result.counts["relationships"] == {"direct": 5, "ultimate": 2}
     assert result.counts["headers_too_long"] == 1
     assert result.lists["lei_headers"] == list(gc.LEI_COLUMNS)
 

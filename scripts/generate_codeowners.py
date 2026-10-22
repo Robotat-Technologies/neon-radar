@@ -1,6 +1,7 @@
 """Generate .github/CODEOWNERS from docs/build/project.yaml and the ownership map.
 
-The ownership map is docs/build/PHASE-1.md section 4.3 plus PHASE-2.md 4.3 and PHASE-3.md 4.3.
+The ownership map is docs/build/PHASE-1.md section 4.3 plus the 4.3 sections of PHASE-2.md,
+PHASE-3.md and PHASE-4.md.
 GitHub applies the
 last matching line, so rows keep the tables' order, adjusted so that every path comes after any
 broader path containing it.
@@ -21,7 +22,8 @@ PROJECT_FILE = ROOT / "docs" / "build" / "project.yaml"
 CODEOWNERS_FILE = ROOT / ".github" / "CODEOWNERS"
 COMMAND = "uv run --no-project --with pyyaml python scripts/generate_codeowners.py"
 
-# PHASE-1.md 4.3, then PHASE-2.md 4.3 and PHASE-3.md 4.3, in table order: (paths, owner roles).
+# PHASE-1.md 4.3, then PHASE-2.md, PHASE-3.md and PHASE-4.md 4.3, in table order: (paths, owner
+# roles). "mentor:<squad>" is that squad's mentor in project.yaml.
 # "/*" means files in
 # the root directory.
 OWNERSHIP_MAP: list[tuple[list[str], list[str]]] = [
@@ -68,6 +70,30 @@ OWNERSHIP_MAP: list[tuple[list[str], list[str]]] = [
     (["/ingest/src/neonradar_ingest/synth/scenarios/"], ["squad:ingest", "typology_researchers"]),
     (["/docs/detection/", "/docs/data/detection/"], ["squad:detect"]),
     (["/.claude/rules/detect.md", "/.claude/rules/synth.md"], ["tech_lead"]),
+    # PHASE-4.md 4.3 additions
+    (
+        ["/copilot/bench/", "/data/fixtures/copilot-bench/", "/docs/benchmark-questions.md"],
+        ["squad:copilot", "mentor:copilot"],
+    ),
+    (
+        [
+            "/copilot/src/neonradar_copilot/policy.py",
+            "/copilot/src/neonradar_copilot/evidence.py",
+            "/copilot/src/neonradar_copilot/audit.py",
+            "/contracts/wording/copilot-notice-v1.txt",
+        ],
+        ["squad:copilot", "data_steward"],
+    ),
+    (
+        [
+            "/graph/src/neonradar_graph/readonly.py",
+            "/copilot/src/neonradar_copilot/queries/",
+            "/api/src/neonradar_api/queries/",
+        ],
+        ["squad:graph", "squad:copilot"],
+    ),
+    (["/api/src/neonradar_api/hardening.py"], ["squad:copilot", "tech_lead"]),
+    (["/docs/copilot/", "/docs/team/assignment-5.md"], ["squad:docs", "squad:copilot"]),
 ]
 
 
@@ -80,6 +106,8 @@ def resolve_owners(roles: list[str], project: dict) -> list[str]:
             found = [project["maintainers_team"]]
         elif role.startswith("squad:"):
             found = [project["squads"][role.removeprefix("squad:")]["team"]]
+        elif role.startswith("mentor:"):
+            found = [project["squads"][role.removeprefix("mentor:")]["mentor"]]
         else:
             value = people[role]
             found = value if isinstance(value, list) else [value]

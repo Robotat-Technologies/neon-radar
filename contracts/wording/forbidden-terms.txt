@@ -22,3 +22,22 @@
 \brisk[\s-]+scor\w*
 \baccomplice\w*
 \bwrongdo\w*
+
+# Phase 2 additions (PHASE-2.md 7.2)
+\bidentified\s+as\b
+\bis\s+really\b
+\bproven\s+to\s+be\s+the\s+same\b
+\bis\s+the\s+same\s+person\s+as\b
+\bmatches\s+the\s+sanctioned\s+person\b
+\bsanctions\s+hit\b
+\bis\s+the\s+same\s+company\s+as\b
+\bholds\s+an\s+indirect\s+interest\s+of\b
+\bfalls\s+under\s+the\s+50\s+Percent\s+Rule\b
+\bcorrupt\b
+\bhigh\s+risk\b
+\bsuspicious\b
+\bnot\s+sanctioned\b
+\bnot\s+a\s+PEP\b
+\bno\s+sanctions\s+exposure\b
+\bcleared\b
+\bpassed\s+screening\b

@@ -102,7 +102,8 @@ def person_key(name: str, given: str | None = None, family: str | None = None) -
     tokens = _tokens(name)
     given_tokens = tuple(_tokens(given)) if given else ()
     family_tokens = tuple(_tokens(family)) if family else ()
-    symbols = set(_rigour_symbols(name))
+    # NFKC first, so that NFD and fullwidth forms get the same name groups (RULES_VERSION 2).
+    symbols = set(_rigour_symbols(nfkc(name)))
     if "Arabic" in scripts(name):
         symbols |= arabic_symbols(tokens)
     phonetic = tuple(sorted({metaphone(t) for t in tokens if t.isascii() and metaphone(t)}))

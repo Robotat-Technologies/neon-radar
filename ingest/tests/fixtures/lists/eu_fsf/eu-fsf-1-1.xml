@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic EU Financial Sanctions Files (XML 1.1) fixture for PHASE-2.md M2.6d.
+     Every name, number, date, reference and URL is invented; the structure follows
+     docs/research/2026-10-18/sanctions-peps.md section 4.3. Never copy a real list value. -->
+<export xmlns="http://eu.europa.ec/fpi/fsd/export" generationDate="2026-10-20T10:20:00.000+02:00" globalFileId="990999">
+  <sanctionEntity designationDetails="" unitedNationId="" euReferenceNumber="EU.99001.11" logicalId="990001" designationDate="2022-03-15">
+    <remark>Synthetic remark for a test.</remark>
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2022-03-15" entryIntoForceDate="2022-03-16" numberTitle="9901/2022 (OJ L 901)" programme="SYNA" logicalId="991001">
+      <publicationUrl>https://example.invalid/oj/zz-9901-2022</publicationUrl>
+    </regulation>
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2021-07-01" entryIntoForceDate="2021-06-30" numberTitle="9902/2021 (OJ L 902)" programme="SYNB" logicalId="991002">
+      <publicationUrl>https://example.invalid/oj/zz-9902-2021</publicationUrl>
+    </regulation>
+    <subjectType code="person" classificationCode="P"/>
+    <nameAlias firstName="Zafer" middleName="" lastName="QANDELOUNI" wholeName="Zafer QANDELOUNI" function="Synthetic function one" gender="M" title="" nameLanguage="FR" strong="true" regulationLanguage="en" logicalId="992101">
+      <regulationSummary regulationType="regulation" publicationDate="2022-03-15" numberTitle="9901/2022 (OJ L 901)" publicationUrl="https://example.invalid/oj/zz-9901-2022"/>
+    </nameAlias>
+    <nameAlias firstName="Zafir" middleName="Yazan" lastName="Qandelouni" wholeName="Zafir Yazan Qandelouni" function="Synthetic function two" gender="M" title="Synthetic title" nameLanguage="" strong="true" regulationLanguage="en" logicalId="992102">
+      <regulationSummary regulationType="regulation" publicationDate="2022-03-15" numberTitle="9901/2022 (OJ L 901)" publicationUrl="https://example.invalid/oj/zz-9901-2022"/>
+      <remark>Synthetic name remark</remark>
+    </nameAlias>
+    <nameAlias firstName="Зафир" middleName="" lastName="Канделуни" wholeName="Зафир Канделуни" function="" gender="M" title="" nameLanguage="RU" strong="true" regulationLanguage="en" logicalId="992103"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="ظافر قنديلوني" function="" gender="M" title="" nameLanguage="AR" strong="true" regulationLanguage="en" logicalId="992112"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="Zafo" function="" gender="M" title="" nameLanguage="" strong="false" regulationLanguage="en" logicalId="992104"/>
+    <citizenship region="" countryIso2Code="CY" countryDescription="CYPRUS" regulationLanguage="en" logicalId="992105"/>
+    <citizenship region="" countryIso2Code="00" countryDescription="UNKNOWN" regulationLanguage="en" logicalId="992106"/>
+    <birthdate circa="false" calendarType="GREGORIAN" city="Tarnbury" zipCode="" birthdate="1961-04-12" dayOfMonth="12" monthOfYear="4" year="1961" region="" place="" countryIso2Code="CY" countryDescription="CYPRUS" regulationLanguage="en" logicalId="992107"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SYNP 000201" region="" countryIso2Code="CY" countryDescription="CYPRUS" identificationTypeCode="passport" identificationTypeDescription="National passport" regulationLanguage="en" logicalId="992108">
+      <remark>Synthetic document remark</remark>
+    </identification>
+    <identification diplomatic="false" knownExpired="false" knownFalse="true" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SYNP000202" region="" countryIso2Code="CY" countryDescription="CYPRUS" identificationTypeCode="passport" identificationTypeDescription="National passport" regulationLanguage="en" logicalId="992109"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="SYNN000201" nameOnDocument="" number="" region="" countryIso2Code="CY" countryDescription="CYPRUS" identificationTypeCode="id" identificationTypeDescription="National identification card" regulationLanguage="en" logicalId="992110"/>
+    <address city="Limassol" street="1 Sedge Lane" poBox="" zipCode="QQ1 1QQ" region="Synthetic Region" place="" asAtListingTime="false" countryIso2Code="CY" countryDescription="CYPRUS" regulationLanguage="en" logicalId="992111">
+      <contactInfo key="PHONE" value="+00 0000 0000"/>
+      <contactInfo key="EMAIL" value="nobody@example.invalid"/>
+    </address>
+  </sanctionEntity>
+  <sanctionEntity designationDetails="" unitedNationId="ZZi.001" euReferenceNumber="" logicalId="990002" designationDate="">
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2023-05-10" entryIntoForceDate="2023-05-11" numberTitle="9903/2023 (OJ L 903)" programme="SYNA" logicalId="991003">
+      <publicationUrl>https://example.invalid/oj/zz-9903-2023</publicationUrl>
+    </regulation>
+    <subjectType code="person" classificationCode="P"/>
+    <nameAlias firstName="Rakan" middleName="" lastName="Velqasimi" wholeName="Rakan Velqasimi" function="" gender="F" title="" nameLanguage="EN" strong="true" regulationLanguage="en" logicalId="992201"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="Raqan" function="" gender="F" title="" nameLanguage="" strong="false" regulationLanguage="en" logicalId="992202"/>
+    <citizenship region="" countryIso2Code="GB" countryDescription="UNITED KINGDOM" regulationLanguage="en" logicalId="992203"/>
+    <birthdate circa="true" calendarType="GREGORIAN" city="" zipCode="" birthdate="1975-06-01" dayOfMonth="1" monthOfYear="6" year="1975" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992204"/>
+  </sanctionEntity>
+  <sanctionEntity designationDetails="" unitedNationId="" euReferenceNumber="EU.99003.33" logicalId="990003" designationDate="2024-01-20">
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2024-01-20" entryIntoForceDate="2024-01-21" numberTitle="9904/2024 (OJ L 904)" programme="SYNB" logicalId="991004">
+      <publicationUrl>https://example.invalid/oj/zz-9904-2024</publicationUrl>
+    </regulation>
+    <subjectType code="person" classificationCode="P"/>
+    <nameAlias firstName="Nadim" middleName="" lastName="Ulvarasi" wholeName="Nadim Ulvarasi" function="" gender="" title="" nameLanguage="DE" strong="true" regulationLanguage="en" logicalId="992301"/>
+    <nameAlias firstName="Nadim" middleName="" lastName="Ulvarazi" wholeName="Nadim Ulvarazi" function="" gender="X" title="" nameLanguage="FR" strong="true" regulationLanguage="en" logicalId="992302"/>
+    <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" yearRangeFrom="1958" yearRangeTo="1960" region="" place="Synthetic Place" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992303"/>
+    <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" yearRangeFrom="1930" yearRangeTo="1970" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992304"/>
+    <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" monthOfYear="5" year="1957" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992305"/>
+    <birthdate circa="false" calendarType="GREGORIAN" city="" zipCode="" birthdate="circa 1950" region="" place="" countryIso2Code="" countryDescription="" regulationLanguage="en" logicalId="992306"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SY000301" region="" countryIso2Code="CY" countryDescription="CYPRUS" identificationTypeCode="tradelic" identificationTypeDescription="Trade licence" regulationLanguage="en" logicalId="992307"/>
+  </sanctionEntity>
+  <sanctionEntity designationDetails="" unitedNationId="" euReferenceNumber="EU.99004.44" logicalId="990004" designationDate="2022-03-15">
+    <remark>Synthetic remark for an enterprise.</remark>
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2022-03-15" entryIntoForceDate="2022-03-15" numberTitle="9901/2022 (OJ L 901)" programme="SYNA" logicalId="991005">
+      <publicationUrl>https://example.invalid/oj/zz-9901-2022</publicationUrl>
+    </regulation>
+    <subjectType code="enterprise" classificationCode="E"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="Lichen Heath Logistics Ltd" function="" gender="" title="" nameLanguage="" strong="true" regulationLanguage="en" logicalId="992401"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="Lichen Heath Logistics Limited" function="" gender="" title="" nameLanguage="EN" strong="true" regulationLanguage="en" logicalId="992402"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="LHL" function="" gender="" title="" nameLanguage="" strong="false" regulationLanguage="en" logicalId="992403"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="99000123" region="" countryIso2Code="GB" countryDescription="UNITED KINGDOM" identificationTypeCode="regnumber" identificationTypeDescription="Registration Number" regulationLanguage="en" logicalId="992404"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SY000123" region="" countryIso2Code="GB" countryDescription="UNITED KINGDOM" identificationTypeCode="regnumber" identificationTypeDescription="Registration Number" regulationLanguage="en" logicalId="992405"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SY000401" region="" countryIso2Code="CY" countryDescription="CYPRUS" identificationTypeCode="regnumber" identificationTypeDescription="Registration Number" regulationLanguage="en" logicalId="992406"/>
+    <identification diplomatic="false" knownExpired="false" knownFalse="false" reportedLost="false" revokedByIssuer="false" issuedBy="" latinNumber="" nameOnDocument="" number="SY000402" region="" countryIso2Code="GB" countryDescription="UNITED KINGDOM" identificationTypeCode="tradelic" identificationTypeDescription="Trade licence" regulationLanguage="en" logicalId="992407"/>
+    <address city="London" street="2 Teasel Row" poBox="PO Box 0" zipCode="QQ2 2QQ" region="" place="" asAtListingTime="false" countryIso2Code="GB" countryDescription="UNITED KINGDOM" regulationLanguage="en" logicalId="992408">
+      <contactInfo key="WEB" value="https://www.example.invalid"/>
+      <contactInfo key="FAX" value="+00 1111 1111"/>
+    </address>
+  </sanctionEntity>
+  <sanctionEntity designationDetails="" unitedNationId="ZZe.002" euReferenceNumber="EU.99005.55" logicalId="990005" designationDate="2023-05-10">
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2023-05-10" entryIntoForceDate="2023-05-11" numberTitle="9903/2023 (OJ L 903)" programme="SYNC" logicalId="991006">
+      <publicationUrl>https://example.invalid/oj/zz-9903-2023</publicationUrl>
+    </regulation>
+    <subjectType code="enterprise" classificationCode="E"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="Marram Tarn Supplies Ltd" function="" gender="" title="" nameLanguage="" strong="true" regulationLanguage="en" logicalId="992501"/>
+    <citizenship region="" countryIso2Code="CY" countryDescription="CYPRUS" regulationLanguage="en" logicalId="992502"/>
+  </sanctionEntity>
+  <sanctionEntity designationDetails="" unitedNationId="" euReferenceNumber="EU.99006.66" logicalId="990006" designationDate="2023-05-10">
+    <regulation regulationType="regulation" organisationType="council" publicationDate="2023-05-10" entryIntoForceDate="2023-05-11" numberTitle="9903/2023 (OJ L 903)" programme="SYNC" logicalId="991007">
+      <publicationUrl>https://example.invalid/oj/zz-9903-2023</publicationUrl>
+    </regulation>
+    <subjectType code="vessel" classificationCode="V"/>
+    <nameAlias firstName="" middleName="" lastName="" wholeName="LINNET WOLD" function="" gender="" title="" nameLanguage="" strong="true" regulationLanguage="en" logicalId="992601"/>
+  </sanctionEntity>
+</export>

@@ -104,8 +104,8 @@ class HttpClient(httpx.Client):
     After a 429, 500, 502, 503 or 504 or a transport error, a GET, HEAD or OPTIONS request is
     retried up to `retries` times (other methods are sent once). It waits what `retry_hint`
     reads from the response (default `Retry-After`; Companies House can read
-    `X-Ratelimit-Reset`), or else 1, 2, 4 ... seconds. A hint over `max_hint` seconds raises
-    HttpError instead of retrying before the server allows it.
+    `X-Ratelimit-Reset`), or else `backoff` times 1, 2, 4 ... seconds (at most 60). A hint
+    over `max_hint` seconds raises HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
     """
 
@@ -116,6 +116,7 @@ class HttpClient(httpx.Client):
         follow_redirects: bool,
         limiter: RateLimiter,
         retries: int = 3,
+        backoff: float = BACKOFF_BASE,
         retry_hint: RetryHint = retry_after_seconds,
         max_hint: float = 300.0,
         sleep: Sleep = time.sleep,
@@ -128,6 +129,7 @@ class HttpClient(httpx.Client):
         )
         self.headers["User-Agent"] = USER_AGENT
         self.limiter, self.retries, self.max_hint = limiter, retries, max_hint
+        self.backoff = backoff
         self._retry_hint, self._sleep = retry_hint, sleep
         self.requests = self.retried = self.throttled = 0
 
@@ -159,7 +161,7 @@ class HttpClient(httpx.Client):
             hint = self._retry_hint(response) if response is not None else None
             if hint is not None and hint > self.max_hint:  # never retry before the server allows
                 raise HttpError(f"{where}: {problem}; asked to wait {hint:.0f} s", status)
-            backoff = min(BACKOFF_BASE * 2**attempt, BACKOFF_MAX)
+            backoff = min(self.backoff * 2**attempt, BACKOFF_MAX)
             delay = backoff if hint is None else max(hint, 0.0)
             logger.warning("%s: %s; retry %d in %.1f s", where, problem, attempt + 1, delay)
             self.retried += 1

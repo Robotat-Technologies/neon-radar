@@ -32,7 +32,7 @@ function wording(id: string): string {
 export const disclaimers: Disclaimers = {
   standing: wording('standing-v1'),
   synthetic_demo: wording('synthetic-demo-v1'),
-  real_data: wording('real-data-v1'),
+  real_data: wording('real-data-v2'),
 }
 
 export function dataset(

@@ -577,7 +577,7 @@
       },
       "Disclaimers": {
         "additionalProperties": false,
-        "description": "The texts of contracts/wording/ (PHASE-1.md 7.1, verbatim).",
+        "description": "The texts of contracts/wording/, verbatim: PHASE-1.md 7.1, and from C3 1.1.0 the real\ndata notice version 2 (`real-data-v2`, PHASE-2.md 5.3).",
         "properties": {
           "real_data": {
             "minLength": 1,
@@ -674,7 +674,8 @@
                 "LINKED_TO",
                 "SUCCEEDED_BY",
                 "HOLDS_POSITION",
-                "SUBJECT_OF"
+                "SUBJECT_OF",
+                "POSSIBLY_SAME_AS"
               ]
             },
             "title": "Relationship Counts",
@@ -982,7 +983,8 @@
               "LINKED_TO",
               "SUCCEEDED_BY",
               "HOLDS_POSITION",
-              "SUBJECT_OF"
+              "SUBJECT_OF",
+              "POSSIBLY_SAME_AS"
             ],
             "title": "Type",
             "type": "string"
@@ -1266,7 +1268,7 @@
       },
       "PathRef": {
         "additionalProperties": false,
-        "description": "A path as C2 ids: `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`. The effective\nshare is the product of the OWNS share bands along an ownership path (Phase 2).",
+        "description": "A path as C2 ids: `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`. The effective\nshare range is the product of the OWNS share bands along an ownership path (PHASE-2.md 5.3);\neach bound's flag says whether it is open (\"more than\", \"less than\") or closed (\"at least\",\n\"at most\"), and is null exactly when the bound is.",
         "properties": {
           "edge_ids": {
             "items": {
@@ -1287,7 +1289,20 @@
                 "type": "null"
               }
             ],
+            "description": "The product of the upper share bounds (each / 100) along the path, times 100, rounded to 4 decimals; null when a relationship has no upper bound. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.",
             "title": "Effective Share Max"
+          },
+          "effective_share_max_exclusive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when any relationship's upper bound is exclusive (say \"less than\"), false when all are inclusive (say \"at most\"); null when effective_share_max is null. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.",
+            "title": "Effective Share Max Exclusive"
           },
           "effective_share_min": {
             "anyOf": [
@@ -1300,7 +1315,20 @@
                 "type": "null"
               }
             ],
+            "description": "The product of the lower share bounds (each / 100) along the path, times 100, rounded to 4 decimals; null when a relationship has no lower bound. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.",
             "title": "Effective Share Min"
+          },
+          "effective_share_min_exclusive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when any relationship's lower bound is exclusive (say \"more than\"), false when all are inclusive (say \"at least\"); null when effective_share_min is null. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.",
+            "title": "Effective Share Min Exclusive"
           },
           "node_ids": {
             "items": {
@@ -1316,7 +1344,9 @@
           "node_ids",
           "edge_ids",
           "effective_share_min",
-          "effective_share_max"
+          "effective_share_max",
+          "effective_share_min_exclusive",
+          "effective_share_max_exclusive"
         ],
         "title": "PathRef",
         "type": "object"
@@ -1352,6 +1382,79 @@
           "subgraph"
         ],
         "title": "PathsResponse",
+        "type": "object"
+      },
+      "PossibleMatch": {
+        "additionalProperties": false,
+        "description": "Another entity that may describe the same person or company: never confirmed, never\nmerged, and flags never cross it (PHASE-2.md 0.5 item 3, guardrail G8).",
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/EntitySummary"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "explanation": {
+            "minLength": 1,
+            "title": "Explanation",
+            "type": "string"
+          },
+          "match_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Probability"
+          },
+          "method": {
+            "enum": [
+              "probabilistic",
+              "deterministic",
+              "source_hint"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "pattern": "^D[1-9][0-9]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "required": [
+          "entity",
+          "match_probability",
+          "method",
+          "rule",
+          "reasons",
+          "evidence",
+          "explanation"
+        ],
+        "title": "PossibleMatch",
         "type": "object"
       },
       "Problem": {
@@ -1440,6 +1543,203 @@
           "source_url"
         ],
         "title": "ProvenanceRecord",
+        "type": "object"
+      },
+      "ResolutionMember": {
+        "additionalProperties": false,
+        "description": "One source record of an entity and how it joined: a single-record entity has one member\nwith method `identity`; a merged entity has one `anchor` and members joined by a D rule\n(`deterministic`, `human` for D7), or by `probabilistic` matching.",
+        "properties": {
+          "caption": {
+            "minLength": 1,
+            "title": "Caption",
+            "type": "string"
+          },
+          "dataset": {
+            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+            "title": "Dataset",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 20,
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "explanation": {
+            "minLength": 1,
+            "title": "Explanation",
+            "type": "string"
+          },
+          "match_probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Probability"
+          },
+          "method": {
+            "enum": [
+              "identity",
+              "anchor",
+              "deterministic",
+              "probabilistic",
+              "human"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "array"
+          },
+          "record_id": {
+            "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9]$",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "pattern": "^D[1-9][0-9]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "schema": {
+            "enum": [
+              "Person",
+              "Company",
+              "Organization",
+              "PublicBody",
+              "LegalEntity",
+              "Address",
+              "BankAccount",
+              "Position",
+              "Sanction"
+            ],
+            "title": "Schema",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record_id",
+          "dataset",
+          "schema",
+          "caption",
+          "names",
+          "method",
+          "rule",
+          "match_probability",
+          "decided_at",
+          "explanation"
+        ],
+        "title": "ResolutionMember",
+        "type": "object"
+      },
+      "ResolutionResponse": {
+        "additionalProperties": false,
+        "description": "How an entity was resolved: its source records and its possible matches. `canonical` is\ntrue for an entity merged from two or more records (`cluster_size`, one member each).",
+        "properties": {
+          "canonical": {
+            "title": "Canonical",
+            "type": "boolean"
+          },
+          "cluster_size": {
+            "minimum": 1.0,
+            "title": "Cluster Size",
+            "type": "integer"
+          },
+          "entity_id": {
+            "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9]$",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionMember"
+            },
+            "minItems": 1,
+            "title": "Members",
+            "type": "array"
+          },
+          "possible_matches": {
+            "items": {
+              "$ref": "#/components/schemas/PossibleMatch"
+            },
+            "maxItems": 50,
+            "title": "Possible Matches",
+            "type": "array"
+          },
+          "resolution": {
+            "enum": [
+              "identity",
+              "deterministic",
+              "probabilistic",
+              "human",
+              "mixed"
+            ],
+            "title": "Resolution",
+            "type": "string"
+          },
+          "resolver_version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolver Version"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "maxLength": 23,
+                "minLength": 23,
+                "pattern": "^er-[0-9]{8}T[0-9]{6}-[0-9a-f]{4}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          }
+        },
+        "required": [
+          "entity_id",
+          "canonical",
+          "resolution",
+          "cluster_size",
+          "members",
+          "possible_matches",
+          "resolver_version",
+          "run_id"
+        ],
+        "title": "ResolutionResponse",
         "type": "object"
       },
       "SearchHit": {
@@ -1793,7 +2093,7 @@
     "description": "Serves the NeonRadar graph, alerts and typologies to the UI and the copilot. Errors are RFC 9457 problem details. A pattern match is not evidence of wrongdoing; the disclaimers are served by `GET /api/v1/meta`.",
     "summary": "Read-only API over the NeonRadar graph (contract C3).",
     "title": "NeonRadar API",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2193,7 +2493,8 @@
                       "LINKED_TO",
                       "SUCCEEDED_BY",
                       "HOLDS_POSITION",
-                      "SUBJECT_OF"
+                      "SUBJECT_OF",
+                      "POSSIBLY_SAME_AS"
                     ],
                     "type": "string"
                   },
@@ -2270,7 +2571,7 @@
     },
     "/api/v1/entities/{entity_id}/ownership": {
       "get": {
-        "description": "Ownership chains up (owners) or down (holdings), with effective share bands.",
+        "description": "Chains of `OWNS` relationships that end at the entity (`up`: its owners, their owners, and so on) or start at it (`down`). `entity_id` is a canonical id or any id in its `referents`; an unknown id answers a 404 problem. Paths have 1 to `max_hops` relationships and never repeat a node. A path's `effective_share_min` and `effective_share_max` are the products of `share_pct_min / 100` and `share_pct_max / 100` over its relationships, times 100, rounded to 4 decimals, and null when any relationship lacks that bound; a bound is exclusive when any relationship's bound is. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test. At most 200 paths, ordered by `effective_share_max` descending (nulls last), then by length, then by the list of node ids; `subgraph` holds their nodes and relationships, at most 500 nodes, and `truncated` is set when either limit cut something. Only `OWNS` is traversed: `CONTROLS` and `CONSOLIDATES` are reachable through `/paths` and `/network`. Runs read-only with a 5-second transaction timeout; a query that times out answers a 503 problem whose detail suggests a smaller `max_hops` or fewer relationship types.",
         "operationId": "get_ownership",
         "parameters": [
           {
@@ -2286,10 +2587,12 @@
             }
           },
           {
+            "description": "`up`: chains that end at the entity; `down`: chains that start at it.",
             "in": "query",
             "name": "direction",
             "required": true,
             "schema": {
+              "description": "`up`: chains that end at the entity; `down`: chains that start at it.",
               "enum": [
                 "up",
                 "down"
@@ -2299,11 +2602,13 @@
             }
           },
           {
+            "description": "Paths have 1 to `max_hops` relationships.",
             "in": "query",
             "name": "max_hops",
             "required": false,
             "schema": {
               "default": 6,
+              "description": "Paths have 1 to `max_hops` relationships.",
               "maximum": 8,
               "minimum": 1,
               "title": "Max Hops",
@@ -2311,6 +2616,7 @@
             }
           },
           {
+            "description": "Absent or 0 keeps every path. Above 0, keeps the paths whose effective share can reach it: `effective_share_max` above `min_share`, or equal to it with a closed upper bound, compared after rounding. Paths whose maximum is unknown are dropped.",
             "in": "query",
             "name": "min_share",
             "required": false,
@@ -2325,6 +2631,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Absent or 0 keeps every path. Above 0, keeps the paths whose effective share can reach it: `effective_share_max` above `min_share`, or equal to it with a closed upper bound, compared after rounding. Paths whose maximum is unknown are dropped.",
               "title": "Min Share"
             }
           }
@@ -2387,6 +2694,72 @@
         ]
       }
     },
+    "/api/v1/entities/{entity_id}/resolution": {
+      "get": {
+        "description": "The source records an entity was built from, how each joined it, and the other entities it may describe (possible matches, never confirmed and never merged). `entity_id` is a canonical id or any id in its `referents`; an unknown id answers a 404 problem. A single-record entity has one member with method `identity`. `PossibleMatch.match_probability` is null for `deterministic` and `source_hint` possible matches, and `rule` names the D rule of a `deterministic` one; every possible-match explanation says \"not confirmed\". At most 50 possible matches, the highest match probability first, then those without a probability, by entity id.",
+        "operationId": "get_resolution",
+        "parameters": [
+          {
+            "description": "A C2 node id.",
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "description": "A C2 node id.",
+              "pattern": "^[a-z][a-z0-9]{1,15}-[A-Za-z0-9.-]{0,99}[A-Za-z0-9]$",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Resolution",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "description": "Neo4j connectivity and versions; always 200, `degraded` unless Neo4j, APOC and GDS answer.",
@@ -2433,7 +2806,7 @@
     },
     "/api/v1/paths": {
       "get": {
-        "description": "Shortest paths between two nodes.",
+        "description": "Up to 5 shortest paths between `from_id` and `to_id`, ignoring direction, with 1 to `max_hops` relationships of the types in `rel_types`. Each id is a canonical id or any id in its `referents`; an unknown id answers a 404 problem. Effective shares and their two flags are set only for a path made entirely of `OWNS` relationships that all point the same way along it; otherwise all four are null. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test. Runs read-only with a 5-second transaction timeout; a query that times out answers a 503 problem whose detail suggests a smaller `max_hops` or fewer relationship types.",
         "operationId": "find_paths",
         "parameters": [
           {
@@ -2469,7 +2842,7 @@
             }
           },
           {
-            "description": "Repeatable; all record types if absent.",
+            "description": "Repeatable. When absent: OWNS, CONTROLS, CONSOLIDATES, DIRECTOR_OF, REPRESENTS, FAMILY_OF, ASSOCIATE_OF, MEMBER_OF, EMPLOYED_BY, SUCCEEDED_BY, HOLDS_POSITION, SUBJECT_OF, HOLDS_ACCOUNT, PAID. HAS_ADDRESS, LINKED_TO and POSSIBLY_SAME_AS are used only when asked for; FLAGS, PRODUCED and RESOLVED_TO are never allowed (422).",
             "in": "query",
             "name": "rel_types",
             "required": false,
@@ -2493,7 +2866,8 @@
                       "LINKED_TO",
                       "SUCCEEDED_BY",
                       "HOLDS_POSITION",
-                      "SUBJECT_OF"
+                      "SUBJECT_OF",
+                      "POSSIBLY_SAME_AS"
                     ],
                     "type": "string"
                   },
@@ -2503,7 +2877,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Repeatable; all record types if absent.",
+              "description": "Repeatable. When absent: OWNS, CONTROLS, CONSOLIDATES, DIRECTOR_OF, REPRESENTS, FAMILY_OF, ASSOCIATE_OF, MEMBER_OF, EMPLOYED_BY, SUCCEEDED_BY, HOLDS_POSITION, SUBJECT_OF, HOLDS_ACCOUNT, PAID. HAS_ADDRESS, LINKED_TO and POSSIBLY_SAME_AS are used only when asked for; FLAGS, PRODUCED and RESOLVED_TO are never allowed (422).",
               "title": "Rel Types"
             }
           }

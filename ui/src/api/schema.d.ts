@@ -113,9 +113,29 @@ export interface paths {
         };
         /**
          * Get Ownership
-         * @description Ownership chains up (owners) or down (holdings), with effective share bands.
+         * @description Chains of `OWNS` relationships that end at the entity (`up`: its owners, their owners, and so on) or start at it (`down`). `entity_id` is a canonical id or any id in its `referents`; an unknown id answers a 404 problem. Paths have 1 to `max_hops` relationships and never repeat a node. A path's `effective_share_min` and `effective_share_max` are the products of `share_pct_min / 100` and `share_pct_max / 100` over its relationships, times 100, rounded to 4 decimals, and null when any relationship lacks that bound; a bound is exclusive when any relationship's bound is. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test. At most 200 paths, ordered by `effective_share_max` descending (nulls last), then by length, then by the list of node ids; `subgraph` holds their nodes and relationships, at most 500 nodes, and `truncated` is set when either limit cut something. Only `OWNS` is traversed: `CONTROLS` and `CONSOLIDATES` are reachable through `/paths` and `/network`. Runs read-only with a 5-second transaction timeout; a query that times out answers a 503 problem whose detail suggests a smaller `max_hops` or fewer relationship types.
          */
         get: operations["get_ownership"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/entities/{entity_id}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Resolution
+         * @description The source records an entity was built from, how each joined it, and the other entities it may describe (possible matches, never confirmed and never merged). `entity_id` is a canonical id or any id in its `referents`; an unknown id answers a 404 problem. A single-record entity has one member with method `identity`. `PossibleMatch.match_probability` is null for `deterministic` and `source_hint` possible matches, and `rule` names the D rule of a `deterministic` one; every possible-match explanation says "not confirmed". At most 50 possible matches, the highest match probability first, then those without a probability, by entity id.
+         */
+        get: operations["get_resolution"];
         put?: never;
         post?: never;
         delete?: never;
@@ -173,7 +193,7 @@ export interface paths {
         };
         /**
          * Find Paths
-         * @description Shortest paths between two nodes.
+         * @description Up to 5 shortest paths between `from_id` and `to_id`, ignoring direction, with 1 to `max_hops` relationships of the types in `rel_types`. Each id is a canonical id or any id in its `referents`; an unknown id answers a 404 problem. Effective shares and their two flags are set only for a path made entirely of `OWNS` relationships that all point the same way along it; otherwise all four are null. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test. Runs read-only with a 5-second transaction timeout; a query that times out answers a 503 problem whose detail suggests a smaller `max_hops` or fewer relationship types.
          */
         get: operations["find_paths"];
         put?: never;
@@ -441,7 +461,8 @@ export interface components {
         };
         /**
          * Disclaimers
-         * @description The texts of contracts/wording/ (PHASE-1.md 7.1, verbatim).
+         * @description The texts of contracts/wording/, verbatim: PHASE-1.md 7.1, and from C3 1.1.0 the real
+         *     data notice version 2 (`real-data-v2`, PHASE-2.md 5.3).
          */
         Disclaimers: {
             /** Real Data */
@@ -580,7 +601,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "OWNS" | "CONTROLS" | "CONSOLIDATES" | "DIRECTOR_OF" | "HOLDS_ACCOUNT" | "PAID" | "HAS_ADDRESS" | "REPRESENTS" | "FAMILY_OF" | "ASSOCIATE_OF" | "MEMBER_OF" | "EMPLOYED_BY" | "LINKED_TO" | "SUCCEEDED_BY" | "HOLDS_POSITION" | "SUBJECT_OF";
+            type: "OWNS" | "CONTROLS" | "CONSOLIDATES" | "DIRECTOR_OF" | "HOLDS_ACCOUNT" | "PAID" | "HAS_ADDRESS" | "REPRESENTS" | "FAMILY_OF" | "ASSOCIATE_OF" | "MEMBER_OF" | "EMPLOYED_BY" | "LINKED_TO" | "SUCCEEDED_BY" | "HOLDS_POSITION" | "SUBJECT_OF" | "POSSIBLY_SAME_AS";
         };
         /**
          * GraphNode
@@ -673,15 +694,33 @@ export interface components {
         /**
          * PathRef
          * @description A path as C2 ids: `edge_ids[i]` joins `node_ids[i]` and `node_ids[i + 1]`. The effective
-         *     share is the product of the OWNS share bands along an ownership path (Phase 2).
+         *     share range is the product of the OWNS share bands along an ownership path (PHASE-2.md 5.3);
+         *     each bound's flag says whether it is open ("more than", "less than") or closed ("at least",
+         *     "at most"), and is null exactly when the bound is.
          */
         PathRef: {
             /** Edge Ids */
             edge_ids: string[];
-            /** Effective Share Max */
+            /**
+             * Effective Share Max
+             * @description The product of the upper share bounds (each / 100) along the path, times 100, rounded to 4 decimals; null when a relationship has no upper bound. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.
+             */
             effective_share_max: number | null;
-            /** Effective Share Min */
+            /**
+             * Effective Share Max Exclusive
+             * @description True when any relationship's upper bound is exclusive (say "less than"), false when all are inclusive (say "at most"); null when effective_share_max is null. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.
+             */
+            effective_share_max_exclusive: boolean | null;
+            /**
+             * Effective Share Min
+             * @description The product of the lower share bounds (each / 100) along the path, times 100, rounded to 4 decimals; null when a relationship has no lower bound. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.
+             */
             effective_share_min: number | null;
+            /**
+             * Effective Share Min Exclusive
+             * @description True when any relationship's lower bound is exclusive (say "more than"), false when all are inclusive (say "at least"); null when effective_share_min is null. An effective share is NeonRadar's calculation from the published bands, not a figure any register records, and not the result of a sanctions ownership test.
+             */
+            effective_share_min_exclusive: boolean | null;
             /** Node Ids */
             node_ids: string[];
         };
@@ -694,6 +733,29 @@ export interface components {
             subgraph: components["schemas"]["Subgraph"];
             /** To Id */
             to_id: string;
+        };
+        /**
+         * PossibleMatch
+         * @description Another entity that may describe the same person or company: never confirmed, never
+         *     merged, and flags never cross it (PHASE-2.md 0.5 item 3, guardrail G8).
+         */
+        PossibleMatch: {
+            entity: components["schemas"]["EntitySummary"];
+            /** Evidence */
+            evidence: string[];
+            /** Explanation */
+            explanation: string;
+            /** Match Probability */
+            match_probability: number | null;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "probabilistic" | "deterministic" | "source_hint";
+            /** Reasons */
+            reasons: string[];
+            /** Rule */
+            rule: string | null;
         };
         /**
          * Problem
@@ -724,6 +786,66 @@ export interface components {
             retrieved_at: string | null;
             /** Source Url */
             source_url: string | null;
+        };
+        /**
+         * ResolutionMember
+         * @description One source record of an entity and how it joined: a single-record entity has one member
+         *     with method `identity`; a merged entity has one `anchor` and members joined by a D rule
+         *     (`deterministic`, `human` for D7), or by `probabilistic` matching.
+         */
+        ResolutionMember: {
+            /** Caption */
+            caption: string;
+            /** Dataset */
+            dataset: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Explanation */
+            explanation: string;
+            /** Match Probability */
+            match_probability: number | null;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "identity" | "anchor" | "deterministic" | "probabilistic" | "human";
+            /** Names */
+            names: string[];
+            /** Record Id */
+            record_id: string;
+            /** Rule */
+            rule: string | null;
+            /**
+             * Schema
+             * @enum {string}
+             */
+            schema: "Person" | "Company" | "Organization" | "PublicBody" | "LegalEntity" | "Address" | "BankAccount" | "Position" | "Sanction";
+        };
+        /**
+         * ResolutionResponse
+         * @description How an entity was resolved: its source records and its possible matches. `canonical` is
+         *     true for an entity merged from two or more records (`cluster_size`, one member each).
+         */
+        ResolutionResponse: {
+            /** Canonical */
+            canonical: boolean;
+            /** Cluster Size */
+            cluster_size: number;
+            /** Entity Id */
+            entity_id: string;
+            /** Members */
+            members: components["schemas"]["ResolutionMember"][];
+            /** Possible Matches */
+            possible_matches: components["schemas"]["PossibleMatch"][];
+            /**
+             * Resolution
+             * @enum {string}
+             */
+            resolution: "identity" | "deterministic" | "probabilistic" | "human" | "mixed";
+            /** Resolver Version */
+            resolver_version: string | null;
+            /** Run Id */
+            run_id: string | null;
         };
         /**
          * SearchHit
@@ -1068,7 +1190,7 @@ export interface operations {
             query?: {
                 depth?: number;
                 /** @description Repeatable; all record types if absent. */
-                rel_types?: ("OWNS" | "CONTROLS" | "CONSOLIDATES" | "DIRECTOR_OF" | "HOLDS_ACCOUNT" | "PAID" | "HAS_ADDRESS" | "REPRESENTS" | "FAMILY_OF" | "ASSOCIATE_OF" | "MEMBER_OF" | "EMPLOYED_BY" | "LINKED_TO" | "SUCCEEDED_BY" | "HOLDS_POSITION" | "SUBJECT_OF")[] | null;
+                rel_types?: ("OWNS" | "CONTROLS" | "CONSOLIDATES" | "DIRECTOR_OF" | "HOLDS_ACCOUNT" | "PAID" | "HAS_ADDRESS" | "REPRESENTS" | "FAMILY_OF" | "ASSOCIATE_OF" | "MEMBER_OF" | "EMPLOYED_BY" | "LINKED_TO" | "SUCCEEDED_BY" | "HOLDS_POSITION" | "SUBJECT_OF" | "POSSIBLY_SAME_AS")[] | null;
                 max_nodes?: number;
             };
             header?: never;
@@ -1121,8 +1243,11 @@ export interface operations {
     get_ownership: {
         parameters: {
             query: {
+                /** @description `up`: chains that end at the entity; `down`: chains that start at it. */
                 direction: "up" | "down";
+                /** @description Paths have 1 to `max_hops` relationships. */
                 max_hops?: number;
+                /** @description Absent or 0 keeps every path. Above 0, keeps the paths whose effective share can reach it: `effective_share_max` above `min_share`, or equal to it with a closed upper bound, compared after rounding. Paths whose maximum is unknown are dropped. */
                 min_share?: number | null;
             };
             header?: never;
@@ -1163,6 +1288,56 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_resolution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A C2 node id. */
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolutionResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1227,8 +1402,8 @@ export interface operations {
                 from_id: string;
                 to_id: string;
                 max_hops?: number;
-                /** @description Repeatable; all record types if absent. */
-                rel_types?: ("OWNS" | "CONTROLS" | "CONSOLIDATES" | "DIRECTOR_OF" | "HOLDS_ACCOUNT" | "PAID" | "HAS_ADDRESS" | "REPRESENTS" | "FAMILY_OF" | "ASSOCIATE_OF" | "MEMBER_OF" | "EMPLOYED_BY" | "LINKED_TO" | "SUCCEEDED_BY" | "HOLDS_POSITION" | "SUBJECT_OF")[] | null;
+                /** @description Repeatable. When absent: OWNS, CONTROLS, CONSOLIDATES, DIRECTOR_OF, REPRESENTS, FAMILY_OF, ASSOCIATE_OF, MEMBER_OF, EMPLOYED_BY, SUCCEEDED_BY, HOLDS_POSITION, SUBJECT_OF, HOLDS_ACCOUNT, PAID. HAS_ADDRESS, LINKED_TO and POSSIBLY_SAME_AS are used only when asked for; FLAGS, PRODUCED and RESOLVED_TO are never allowed (422). */
+                rel_types?: ("OWNS" | "CONTROLS" | "CONSOLIDATES" | "DIRECTOR_OF" | "HOLDS_ACCOUNT" | "PAID" | "HAS_ADDRESS" | "REPRESENTS" | "FAMILY_OF" | "ASSOCIATE_OF" | "MEMBER_OF" | "EMPLOYED_BY" | "LINKED_TO" | "SUCCEEDED_BY" | "HOLDS_POSITION" | "SUBJECT_OF" | "POSSIBLY_SAME_AS")[] | null;
             };
             header?: never;
             path?: never;

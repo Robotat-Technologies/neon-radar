@@ -113,16 +113,22 @@ def iter_part(path: Path, stats: Counter[str], columns: Sequence[str] = COLUMNS)
             if member.endswith("/"):
                 continue
             with archive.open(member) as raw:
-                text = io.TextIOWrapper(raw, encoding="utf-8", errors="strict", newline="")
+                text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="strict", newline="")
+                reader = csv.reader(text)
                 try:
-                    yield from _rows(csv.reader(text), path.name, stats, columns)
+                    yield from _rows(reader, path.name, stats, columns)
                 except UnicodeDecodeError:
                     message = f"{path.name}: not valid UTF-8 (a mis-encoded release); stopped"
                     raise BuildError(message, "encoding", counts_only=True) from None
+                except csv.Error:
+                    message = f"{path.name}: malformed CSV at line {reader.line_num}; stopped"
+                    raise BuildError(message, "csv", counts_only=True) from None
 
 
 def _rows(reader: Iterator[list[str]], part: str, stats: Counter[str], columns: Sequence[str]
           ) -> Iterator[Row]:  # fmt: skip
+    for key in ("rows_read", "empty_rows", "bad_field_count_rows", "extra_columns"):
+        stats.setdefault(key, 0)  # always in the summary, also when zero
     header = [cell.strip() for cell in next(reader, [])]
     if not header:
         raise BuildError(f"{part}: no header line", "header", counts_only=True)
@@ -179,15 +185,19 @@ def district(postcode: str | None) -> str | None:
     return postcode_parts(normalised).district if normalised else None
 
 
-def build_index(parts: Sequence[Path], path: Path) -> dict[str, int]:
-    """The `index` step: every company's number, name, district, category, status and origin."""
-    stats: Counter[str] = Counter()
+def build_index(parts: Sequence[Path], path: Path, version: str) -> dict[str, int]:
+    """The `index` step: every company's number, name, district, category, status and origin,
+    and the snapshot `version` in table `meta`."""
+    stats: Counter[str] = Counter(rows_without_number=0, rows_without_district=0)
     temporary = path.with_name(path.name + ".tmp")
     temporary.unlink(missing_ok=True)
     connection = sqlite3.connect(temporary)
     try:
         connection.execute("PRAGMA journal_mode=OFF")
         connection.execute("PRAGMA synchronous=OFF")
+        connection.execute("PRAGMA temp_store=MEMORY")  # sorting never spills real rows to TMPDIR
+        connection.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)")
+        connection.execute("INSERT INTO meta VALUES ('version', ?)", (version,))
         connection.execute(
             "CREATE TABLE company(number TEXT PRIMARY KEY, name TEXT, district TEXT,"
             " category TEXT, status TEXT, origin TEXT)"
@@ -222,3 +232,15 @@ def build_index(parts: Sequence[Path], path: Path) -> dict[str, int]:
     counts = {"parts": len(parts), "companies_indexed": indexed}
     counts["duplicate_numbers"] = stats["rows_read"] - stats["rows_without_number"] - indexed
     return counts | dict(sorted(stats.items()))
+
+
+def index_version(path: Path) -> str | None:
+    """The snapshot version an index was built from (table `meta`), else None."""
+    connection = sqlite3.connect(path.absolute().as_uri() + "?mode=ro", uri=True)
+    try:
+        row = connection.execute("SELECT value FROM meta WHERE key = 'version'").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    finally:
+        connection.close()
+    return str(row[0]) if row else None

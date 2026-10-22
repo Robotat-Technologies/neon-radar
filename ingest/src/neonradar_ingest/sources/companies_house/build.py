@@ -4,10 +4,12 @@
 merged sub-milestones in order: `index`, `slice` and `companies` (M2.3a), with `psc-index`
 and `psc` (M2.3b) when the profile's `psc` block is enabled; M2.3c adds `officers`. Each step
 reads the previous steps' work files in `layout.work_dir(profile, dataset)`; a missing input
-stops the step with exit code 2 and names the step to run first. A build that runs the
-`companies` or `psc` step deletes the work indexes at its end unless `--keep-work` is given;
-`slice.csv` stays until the next `slice` step. A `psc` step run without the `companies` step
-keeps the previous company records, which its links point to.
+stops the step with exit code 2 and names the step to run first. After a successful build
+(records validated and swapped in) that ran the `companies` or `psc` step, the work indexes
+are deleted unless `--keep-work` is given; `slice.csv` and `slice.json` stay until the next
+`slice` step. The `companies` step refuses (exit 2) a slice built from another snapshot than
+the newest download. A `psc` step run without the `companies` step keeps the previous company
+records, which its links point to.
 """
 
 import json
@@ -40,6 +42,7 @@ PSC_STEPS = ("psc-index", "psc")  # only with an enabled `psc` block
 INDEX = "companies.sqlite"
 PSC_INDEX = "corporate_pscs.sqlite"  # written by the psc-index step
 SLICE = "slice.csv"
+SLICE_META = "slice.json"  # the snapshot version, sample seed and SHA-256 of slice.csv
 NUMBER_RE = re.compile(r"[A-Z0-9]{8}\Z")
 
 
@@ -116,6 +119,8 @@ def latest_download(product: str) -> tuple[str, list[Path], list[str]]:
     product_dir = layout.sources_dir(bulk.DATASET, product, "latest").parent
     complete: list[tuple[str, dict[str, Any]]] = []
     for folder in sorted(product_dir.iterdir()) if product_dir.is_dir() else []:
+        if not folder.is_dir():
+            continue  # a stray file such as .DS_Store
         try:
             record = json.loads((folder / RECORD).read_text(encoding="utf-8"))
         except FileNotFoundError, ValueError:
@@ -137,7 +142,8 @@ def latest_download(product: str) -> tuple[str, list[Path], list[str]]:
     ]
     folder = layout.sources_dir(bulk.DATASET, product, version)
     parts = sorted(
-        (folder / e["name"] for e in files), key=lambda p: bulk.part_number(p, PARTS[product])
+        (folder / entry["name"] for entry in files),
+        key=lambda path: bulk.part_number(path, PARTS[product]),
     )
     return version, parts, [str(entry.get("url", "")) for entry in files]
 
@@ -164,13 +170,21 @@ def _carry(profile: Profile, out_dir: Path, name: str) -> Path:
     return _need(path, name)
 
 
+def _steps(options: CompaniesHouseSource, context: BuildContext) -> tuple[str, ...]:
+    """The steps to run: the PSC steps only with an enabled `psc` block."""
+    enabled = options.psc is not None and options.psc.enabled
+    return context.steps or tuple(s for s in STEPS if enabled or s not in PSC_STEPS)
+
+
 def build(profile: Profile, context: BuildContext) -> BuildResult:
     options: CompaniesHouseSource = profile.options(bulk.DATASET)
+    steps = _steps(options, context)
     block = options.psc if options.psc is not None and options.psc.enabled else None
-    steps = context.steps or tuple(s for s in STEPS if block is not None or s not in PSC_STEPS)
     if block is None and set(steps) & set(PSC_STEPS):
-        raise BuildError(f"{profile.profile}: the psc block is not enabled", "profile",
-                         counts_only=True)  # fmt: skip
+        message = f"{profile.profile}: the psc block is not enabled"
+        raise BuildError(message, "profile", counts_only=True)
+    if "slice" in steps and options.companies is None:  # before the long index pass
+        raise BuildError(f"{profile.profile}: no companies block", "profile", counts_only=True)
     work = context.work_dir
     work.mkdir(parents=True, exist_ok=True)
     counts: dict[str, Any] = {}
@@ -181,23 +195,38 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     if block is not None and ("psc-index" in steps or "psc" in steps):
         strings["snapshot_date"], psc_parts, psc_urls = latest_download(psc.PRODUCT)
     if "index" in steps:
-        counts["index"] = bulk.build_index(parts, work / INDEX)
+        counts["index"] = bulk.build_index(parts, work / INDEX, version)
     if block is not None and "psc-index" in steps:
         counts["psc-index"], strings["totals_check"] = psc.build_index(
             psc_parts, work / PSC_INDEX, _need(work / INDEX, "index"), block.include_ceased
         )
-    if "slice" in steps:
-        if options.companies is None:
-            raise BuildError(f"{profile.profile}: no companies block", "profile", counts_only=True)
+    if "slice" in steps and options.companies is not None:
+        index = _need(work / INDEX, "index")
         expansion = None
         if block is not None:
-            expansion = psc.expansion(_need(work / PSC_INDEX, "psc-index"), work / INDEX,
-                                      block.parent_depth, block.child_depth,
-                                      options.companies.sample_seed)  # fmt: skip
+            expansion = psc.expansion(
+                _need(work / PSC_INDEX, "psc-index"),
+                index,
+                block.parent_depth,
+                block.child_depth,
+                options.companies.sample_seed,
+            )
         counts["slice"], strings["slice_sha256"] = slices.build_slice(
-            _need(work / INDEX, "index"), options.companies, work / SLICE, expansion
+            index, options.companies, work / SLICE, expansion
         )
+        slices.write_meta(work / SLICE_META, version=bulk.index_version(index),
+                          sample_seed=options.companies.sample_seed,
+                          sha256=strings["slice_sha256"])  # fmt: skip
     if "companies" in steps:
+        meta = slices.read_meta(_need(work / SLICE_META, "slice"))
+        if meta.get("version") != version:
+            raise StepInputMissing(
+                f"{bulk.DATASET}: slice.csv comes from snapshot {meta.get('version')}, the newest"
+                f" download is {version}; run --step index --step slice first",
+                "snapshot",
+                counts_only=True,
+            )
+        strings["slice_sha256"] = str(meta.get("slice_sha256"))
         counts["companies"], strings["statements"] = records.write_companies(
             parts,
             _need(work / SLICE, "slice"),
@@ -216,10 +245,16 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             version=strings["snapshot_date"],
             urls=psc_urls,
         )
-    if not context.keep_work and ("companies" in steps or "psc" in steps):
-        for name in (INDEX, PSC_INDEX):  # only after every step of the build has run
-            (work / name).unlink(missing_ok=True)
     return BuildResult(counts=counts, strings=strings)
+
+
+def cleanup(profile: Profile, context: BuildContext, result: BuildResult) -> None:
+    """After a successful build that ran the `companies` or `psc` step: delete the work
+    indexes (unless `--keep-work`); `slice.csv` and `slice.json` stay for the later steps."""
+    steps = _steps(profile.options(bulk.DATASET), context)
+    if {"companies", "psc"} & set(steps) and not context.keep_work:
+        for name in (INDEX, PSC_INDEX):
+            (context.work_dir / name).unlink(missing_ok=True)
 
 
 register_builder(
@@ -228,5 +263,6 @@ register_builder(
         build,
         steps=STEPS,
         string_keys=("slice_sha256", "statements", "snapshot_date", "totals_check"),
+        cleanup=cleanup,
     )
 )

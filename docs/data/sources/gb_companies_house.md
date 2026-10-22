@@ -30,20 +30,25 @@ more with `--step`):
   snapshot into `corporate_pscs.sqlite`: every corporate and legal-person PSC with its
   company, outcome (below) and normalised number, and every PSC statement value without
   `ceased_on`, super-secure kind and exemption key, by company.
-- `slice`: the profile's companies in `slice.csv` (below).
+- `slice`: the profile's companies in `slice.csv` (below), and `slice.json` with the snapshot
+  date, the sample seed and the SHA-256; the `companies` step refuses (exit 2) a slice built
+  from another snapshot than the newest download.
 - `companies`: a `Company` record per company in the slice (`gbch-co-<number>`) with its
   name, number, category (`legalForm`), status, jurisdiction, incorporation date, SIC codes
   (`sector`), previous names, accounts category (`nr.accounts_category`) and, once M2.3b has
   merged, its PSC statements (`nr.psc_statements`); and one `Address` record per distinct
-  registered office address key (`gbch-addr-<hash of the key>`), linked with the role
+  registered office address key (`gbch-addr-<hash of the key>`, the key computed from the
+  `full` text as FollowTheMoney cleans it, as the graph loader does), linked with the role
   `registered`. The care-of line is never loaded: it can name a person.
 - `psc` (when the `psc` block is enabled): a second pass over the snapshot, writing the
   PSCs of the slice companies and their interests (below). Lines of other companies are
   counted, not loaded.
 
-The work indexes are deleted at the end of a build that runs the `companies` or `psc` step,
-unless `--keep-work` is given; `slice.csv` stays. A `psc` step run on its own keeps the
-previous company records, which its links point to.
+The work indexes are deleted after a successful build (records validated and swapped in)
+that ran the `companies` or `psc` step, unless `--keep-work` is given; `slice.csv` and
+`slice.json` stay. A `psc` step run on its own keeps the previous company records, which its
+links point to. A PSC's address gets the same key rule as a registered office, so a PSC at a
+slice company's registered office links to that company's `Address` record.
 
 Reading follows note 2.2 to 2.4: header cells are stripped (14 start with a space) and
 columns mapped by name; a missing column stops the build; empty rows and rows with the wrong
@@ -143,7 +148,9 @@ and neither are the `etag` or the links other than the PSC's own id.
 
 ## Personal data
 
-The PSC and officer products (M2.3b, M2.3c) hold names, months of birth and nationalities.
+The company file itself can hold personal data: a company name or a previous name can be a
+person's name, and a registered office can be a home address. The PSC and officer products
+(M2.3b, M2.3c) hold names, months of birth and nationalities.
 Companies House's personal information charter says that organisations using register data
 "then become controllers of your personal data" and "must establish how they comply with the
 data protection law" (note 10, source B12). Every real run therefore passes the real-data gate

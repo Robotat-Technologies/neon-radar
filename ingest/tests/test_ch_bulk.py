@@ -75,16 +75,16 @@ def csv_bytes(rows: Sequence[dict[str, str] | list[str]], header: str = HEADER) 
 
 
 def write_part(folder: Path, n: int, m: int, data: bytes) -> Path:
-    stem = f"BasicCompanyData-{VERSION}-part{n}_{m}"
+    stem = f"BasicCompanyData-{folder.name}-part{n}_{m}"
     folder.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(folder / f"{stem}.zip", "w") as archive:
         archive.writestr(f"{stem}.csv", data)
     return folder / f"{stem}.zip"
 
 
-def download(*parts: bytes) -> list[Path]:
+def download(*parts: bytes, version: str = VERSION) -> list[Path]:
     """The parts as a complete download of the `companies` product (as `data fetch` leaves it)."""
-    folder = layout.sources_dir(DATASET, "companies", VERSION)
+    folder = layout.sources_dir(DATASET, "companies", version)
     paths = [write_part(folder, n, len(parts), data) for n, data in enumerate(parts, 1)]
     files = [{"name": p.name, "url": f"https://download.example/{p.name}", "product": "companies"}
              for p in paths]  # fmt: skip
@@ -129,6 +129,21 @@ def test_the_header_with_leading_spaces_is_mapped_by_name(tmp_path: Path) -> Non
     assert rows[0]["PreviousName_10.CompanyName"] == ""
     assert stats["rows_read"] == 1
     assert stats["extra_columns"] == len(set(COLUMNS) - set(bulk.COLUMNS))
+    assert (stats["empty_rows"], stats["bad_field_count_rows"]) == (0, 0)
+    assert "empty_rows" in stats and "bad_field_count_rows" in stats  # shown also when zero
+    with_bom, _ = rows_of(tmp_path / "bom", b"\xef\xbb\xbf" + csv_bytes([company("T0000001")]))
+    assert with_bom[0]["CompanyName"] == "MYRTLE LEAT FORMATIONS LTD"
+
+
+def test_a_malformed_csv_stops_the_build_with_the_part_and_line(tmp_path: Path) -> None:
+    huge = company("T0000001", CompanyName="X" * 2_000)
+    limit = csv.field_size_limit(1_000)  # followthemoney raises the limit when imported
+    try:
+        with pytest.raises(BuildError, match=r"part1_1\.zip: malformed CSV at line 2") as stopped:
+            rows_of(tmp_path, csv_bytes([huge]))
+    finally:
+        csv.field_size_limit(limit)
+    assert (stopped.value.rule, stopped.value.counts_only) == ("csv", True)
 
 
 def test_a_missing_column_stops_the_build_with_its_name(tmp_path: Path) -> None:
@@ -219,7 +234,7 @@ def test_the_profile_block_is_validated(data_env: Any) -> None:
     profile(data_env, colour="red")
     with pytest.raises(ValueError, match="colour"):
         load_profile("ch-test")
-    profile(data_env, seeds=["1800000"])
+    profile(data_env, seeds=["T000001"])
     with pytest.raises(ValueError, match="8-character"):
         load_profile("ch-test")
     for name in ("uk-tiny", "uk-sample"):
@@ -250,7 +265,33 @@ def test_a_full_build_keeps_slice_csv_and_deletes_the_indexes(data_env: Any) -> 
     assert (work / ch_build.INDEX).is_file() and (work / ch_build.PSC_INDEX).is_file()
     assert result.strings["version"] == VERSION
     build()
-    assert sorted(p.name for p in work.iterdir()) == ["slice.csv"]
+    assert sorted(p.name for p in work.iterdir()) == ["slice.csv", "slice.json"]
+    assert json.loads((work / "slice.json").read_text())["version"] == VERSION
+
+
+def test_a_failed_validation_keeps_the_work_indexes(data_env: Any) -> None:
+    profile(data_env)
+    download(csv_bytes([company("T0000001")]))
+    builder = sources.builder_for(DATASET)
+    assert builder is not None
+    with pytest.raises(BuildError, match="C1 issue"):
+        build_dataset(builder, load_profile("ch-test"), load_project(), lambda paths: 1,
+                      run_id="build-1")  # fmt: skip
+    work = layout.work_dir("ch-test", DATASET)
+    assert sorted(p.name for p in work.iterdir()) == ["companies.sqlite", "slice.csv", "slice.json"]
+
+
+def test_the_companies_step_refuses_a_slice_from_another_snapshot(data_env: Any) -> None:
+    profile(data_env)
+    download(csv_bytes([company("T0000001")]))
+    build(("index", "slice"))
+    newer = "2026-11-01"
+    download(csv_bytes([company("T0000001")]), version=newer)
+    (layout.sources_dir(DATASET, "companies", newer).parent / ".DS_Store").write_bytes(b"")
+    with pytest.raises(BuildError, match="snapshot 2026-10-01, the newest download is 2026-11-01"):
+        build(("companies",))
+    result = build()  # index and slice again from the newest snapshot
+    assert result.strings["version"] == newer and result.counts["companies"]["records"]
 
 
 def statement_table(path: Path, rows: list[tuple[str, str]]) -> None:
@@ -275,6 +316,7 @@ def test_company_and_address_records(data_env: Any) -> None:
                     **{"RegAddress.AddressLine1": "-", "RegAddress.PostTown": ""}),
             company("SFT00001", CountryOfOrigin="GERMANY"),
             company("NFT00001", CountryOfOrigin="IRELAND"),
+            company("SY000001"),  # no Companies House prefix: gb, and counted
         ]),
         csv_bytes([company("OET00001", CountryOfOrigin="NOT A COUNTRY")]),
     )  # fmt: skip
@@ -318,13 +360,54 @@ def test_company_and_address_records(data_env: Any) -> None:
     assert jurisdictions["gbch-co-OET00001"] is None
     assert "addressEntity" not in found["gbch-co-FCT00001"]["properties"]
     counts = result.counts["companies"]
-    assert counts["records"] == {"company": 6, "address": 1}
+    assert counts["records"] == {"company": 7, "address": 1}
+    assert jurisdictions["gbch-co-SY000001"] == ["gb"] and counts["numbers_without_ch_prefix"] == 1
     assert counts["overseas_origin_unmapped"] == 1
     assert counts["companies_without_address_key"] == 1
     assert counts["sic_without_code"] == 1
     assert counts["dates_dropped.dissolution"] == 1
-    assert counts["top10_address_share"] == round(5 / 6, 4)
+    assert counts["top10_address_share"] == round(6 / 7, 4)
+    assert counts["duplicate_numbers"] == 0 and counts["rows_without_name"] == 0
     assert result.strings["statements"] == "present"
+
+
+def test_the_address_key_comes_from_the_full_text_ftm_keeps(data_env: Any) -> None:
+    profile(data_env)
+    lines = {
+        "RegAddress.AddressLine1": "1 TEST STREET<BR>FLOOR 2",
+        "RegAddress.AddressLine2": "ESQ.,",
+    }
+    plain = {"RegAddress.AddressLine1": "1 TEST STREET", "RegAddress.AddressLine2": "FLOOR 2"}
+    download(csv_bytes([company("T0000001", **lines), company("T0000002", **plain)]))
+    build()
+    found = records()
+    office = found["gbch-co-T0000001"]["properties"]["addressEntity"][0]
+    assert found["gbch-co-T0000002"]["properties"]["addressEntity"] == [office]
+    full = found[office]["properties"]["full"][0]
+    assert "<BR>" not in full and "ESQ" not in full
+    key = address_key(full)
+    assert key == "QQ1 1AA|1 TEST STREET FLOOR 2 TESTTOWN"
+    assert office == records_module.address_id(key)  # what the graph loader recomputes (L15)
+
+
+def test_the_care_of_line_is_never_loaded(data_env: Any) -> None:
+    from neonradar_cli.main import app
+
+    profile(data_env)
+    download(csv_bytes([company("T0000001", **{"RegAddress.CareOf": "CAREOF SENTINEL"})]))
+    data_env.allow_real("ch-test")
+    command = ["ingest", "build", "--profile", "ch-test", "--dataset", DATASET, "--keep-work"]
+    result = CliRunner().invoke(app, command)
+    assert result.exit_code == 0, result.output
+    work = layout.work_dir("ch-test", DATASET)
+    written = [
+        layout.records_dir("ch-test", DATASET) / "companies.ftm.jsonl",
+        work / "companies.sqlite",
+        *layout.reports_dir("ch-test").glob("*.json"),
+    ]
+    for path in written:
+        assert b"SENTINEL" not in path.read_bytes(), path.name
+    assert "SENTINEL" not in result.output
 
 
 def test_without_the_psc_index_statements_are_absent(data_env: Any) -> None:

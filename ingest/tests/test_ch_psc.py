@@ -629,7 +629,7 @@ def test_steps_inputs_work_files_and_the_psc_block(data_env: Any) -> None:
     assert {"gbch-co-99000010", "gbch-psc-SYNP1"} <= set(records())
     assert result.counts["psc"]["slice_companies"] == 1
     work = layout.work_dir("ch-test", DATASET)
-    assert sorted(p.name for p in work.iterdir()) == ["slice.csv"]
+    assert sorted(p.name for p in work.iterdir()) == ["slice.csv", "slice.json"]
     for name in ("uk-tiny", "uk-sample"):
         block = load_profile(name).options(DATASET).psc
         assert block is not None and block.enabled and block.parent_depth == 4

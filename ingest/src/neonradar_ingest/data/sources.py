@@ -98,11 +98,15 @@ class BuildResult:
 
 @dataclass(frozen=True, slots=True)
 class Builder:
+    """`cleanup`, when given, runs only after a successful build and swap (for example to
+    delete work indexes), so a failed validation leaves the work files in place."""
+
     dataset: str
     build: Callable[[Profile, BuildContext], BuildResult]
     steps: tuple[str, ...] = ()
     string_keys: tuple[str, ...] = ()
     list_keys: tuple[str, ...] = ()
+    cleanup: Callable[[Profile, BuildContext, BuildResult], None] | None = None
 
 
 class BuildError(Exception):

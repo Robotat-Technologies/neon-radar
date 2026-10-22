@@ -44,7 +44,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.1b | todo | - | - | 2026-10-22 | - | - |
 | M2.1c | todo | - | - | 2026-10-22 | - | - |
 | M2.2 | pr-open | p2/m2-2-data-manager | #47 | 2026-10-22 | acceptance on synthetic data after merging main at 38714cd and the review fixes (data-guardian B1, S2 to S6; general B2, B3, S1 to S3; notes): data profiles lists 3 profiles, uk-sample and uk-tiny "may run on this machine: no"; test_data_gate.py 18 passed; data fetch --profile uk-tiny exit=3 (rule access.real_data_profiles), nothing written under data/cache/real/; data status 0 versions, summary in data/cache/reports/all-profiles/; ingest build --profile demo 454 records, summary in data/cache/reports/demo/; data tests 141 passed; make check exit 0 (1560 passed); make hygiene LABELS=size-exception | Plan first: plan in the PR body (OD-10). Size exception (header). Review fixes: a synthetic profile enables only nr_synthetic, the gate always checks a real dataset, real datasets always land under data/cache/real/; the gate runs per dataset in data fetch and per dataset and step in ingest build; strict Range resumption; the redaction guard never fails on its log and prints only plain names; neo4j-real gets a logs volume and purge --graph deletes both volumes after the container; make reset never runs down -v and refuses another COMPOSE_PROJECT_NAME. Deviations listed in PR #47. No real-data run |
-| M2.3a | pr-open (real-data run pending) | p2/m2-3a-ch-companies | #63 | 2026-10-22 | synthetic only, stacked on M2.1a (#59, merged in at ec05df6): pytest test_ch_bulk.py test_ch_slice.py: 24 passed; ingest build --profile demo: 454 records, exit 0; ingest build --profile uk-tiny --dataset gb_companies_house --step index: exit 3 (access.real_data_profiles); make check pass (1740 passed, contracts 434, cypher-lint 0 problems, UI 56); make hygiene LABELS=size-exception: OK, size warns (1,199 own counted lines) | Draft, depends on M2.1a (#59); Plan first: plan in the PR body (OD-10); size-exception under OD-15; real-data run for the operator (OD-22: real_data_profiles []); decisions: missing seeds stay in slice.csv and are counted, indexes deleted after a build that runs the companies step (before validation: no after-swap hook in M2.2), gb for every non-overseas prefix, SIC without a code dropped and counted, references decoded in address fields too, street2 and postOfficeBox on Address, nameless rows skipped and counted; overseas prefix meanings read in the URI customer guide (B16) on 22 Oct; test names reused from demo-mini (OD-12 checked), 99-prefixed and T look-alike numbers; data_env loads the loader plugins first; own reviewer and data-guardian reviews applied; built in a worktree |
+| M2.3a | pr-open (real-data run pending) | p2/m2-3a-ch-companies | #63 | 2026-10-22 | synthetic only, stacked on M2.1a (#59, merged in at 9e3edfd) with main merged: pytest test_ch_bulk.py test_ch_slice.py: 27 passed; ingest build --profile demo: 454 records, exit 0; ingest build --profile uk-tiny --dataset gb_companies_house --step index: exit 3 (access.real_data_profiles); make check pass (1811 passed, contracts 444, cypher-lint 0 problems, UI 56); make hygiene LABELS=size-exception: OK, size warns (about 1,385 own counted lines) | Draft, depends on M2.1a (#59); Plan first: plan in the PR body (OD-10); size-exception granted under OD-15; real-data run for the operator (OD-22: real_data_profiles []); decisions: missing seeds stay in slice.csv and are counted, Builder.cleanup (new, optional) deletes the indexes only after a successful build and swap that ran the companies step, slice.json records the snapshot and the companies step refuses another snapshot (exit 2), address keys from Address.full as FtM cleans it (C2 L15), gb for every non-overseas prefix, SIC without a code dropped and counted, references decoded in address fields too, street2 and postOfficeBox on Address, care-of never read, nameless rows skipped and counted, digit-only foreign postcodes count as missing (spec); overseas prefix meanings read in the URI customer guide (B16) on 22 Oct; test names reused from demo-mini (OD-12 checked), 99 and SY numbers on the gb path, T look-alikes in structural tests; data_env loads the loader plugins first; two review rounds (reviewer, data-guardian) applied; built in a worktree |
 | M2.3b | todo | - | - | 2026-10-22 | - | - |
 | M2.3c | todo | - | - | 2026-10-22 | - | - |
 | M2.4 | todo | - | - | 2026-10-22 | - | - |
@@ -66,3 +66,23 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M2.14 | todo | - | - | 2026-10-22 | - | - |
 | M2.15 | todo | - | - | 2026-10-22 | - | - |
 | M2.16 | todo | - | - | 2026-10-22 | - | - |
+| M3.0 | pr-open | p3/m3-0-handover | #48 | 2026-10-22 | after merging main at eaa01ee (#47, #49, #50) and the review fixes: spec_extract check --milestone M3.0: 4 of 4 verbatim files match, 0 recorded deviations; test_spec_extract.py: 8 passed; test_hooks.sh: 174 passed, 0 failed (guard_real_data.py 213 cases, case variants included); sync_labels: 31 of 31, freeze-change listed; make check: pass (1721 passed); make hygiene: pass (size-exception) | Built before Gate 1 (OD-23) in a worktree; project model keys added after M2.2 merged; security fix to M2.0's hook: protected paths compared without regard to case (macOS); the reconciliation finds that C4 1.0.0 refuses the code book's alerts (A1 query hash, A2 window key: stop-and-ask for M3.2; A3 boolean metrics answered by #50); other deviations listed in PR #48 |
+| M3.1 | todo | - | - | 2026-10-22 | - | - |
+| M3.2 | todo | - | - | 2026-10-22 | - | - |
+| M3.3 | todo | - | - | 2026-10-22 | - | - |
+| M3.4-1 | todo | - | - | 2026-10-22 | - | - |
+| M3.4-2 | todo | - | - | 2026-10-22 | - | - |
+| M3.5a | todo | - | - | 2026-10-22 | - | - |
+| M3.5b | todo | - | - | 2026-10-22 | - | - |
+| M3.5c | todo | - | - | 2026-10-22 | - | - |
+| M3.5d | todo | - | - | 2026-10-22 | - | - |
+| M3.5e | todo | - | - | 2026-10-22 | - | - |
+| M3.5f | todo | - | - | 2026-10-22 | - | - |
+| M3.6 | todo | - | - | 2026-10-22 | - | - |
+| M3.7 | todo | - | - | 2026-10-22 | - | - |
+| M3.8 | todo | - | - | 2026-10-22 | - | - |
+| M3.9 | todo | - | - | 2026-10-22 | - | - |
+| M3.10 | todo | - | - | 2026-10-22 | - | - |
+| M3.11 | todo | - | - | 2026-10-22 | - | - |
+| M3.12 | todo | - | - | 2026-10-22 | - | - |
+| M3.13 | todo | - | - | 2026-10-22 | - | - |

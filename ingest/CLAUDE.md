@@ -26,15 +26,6 @@
     `nr_synthetic`; records of every other dataset always go under `data/cache/real/`. Its
     tests use the `data_env` fixture (root conftest.py): cache, profiles, project file
     (`NR_PROJECT_FILE`) and `.env` at tmp paths, and real httpx transports refused.
-  - Official sanctions lists (`sources/lists/`, PHASE-2.md M2.6): `common.py` is verbatim from
-    the spec (pure functions); `shared.py` holds the builder plumbing every list uses
-    (`ListOptions`, `latest_download`, `check_size` with exit code 4, `write_records`,
-    namespace-agnostic XML helpers). Parse with `defusedxml` one record element at a time;
-    fixtures are invented and validated against the publisher's committed XSD. A list URL
-    that redirects to a signed URL or carries a token uses `shared.list_client`
-    (`log_query=False`: no query string in any log). `un_sc.py` refuses fetch and build
-    (exit 3) until `docs/data/licences/un_sc_sanctions.md` exists; only the data steward
-    files it, with the UN's written permission.
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use
     `httpx.MockTransport` with synthetic bodies; the one real run is `@pytest.mark.network`.
   - Output goes to `data/cache/` (gitignored); never commit real data or API responses.

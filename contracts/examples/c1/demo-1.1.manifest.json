@@ -41,6 +41,6 @@
   "synthetic": true,
   "seed": null,
   "notes": [
-    "C1 v1.1.0 golden example: the seven example lines of PHASE-2.md 5.1, with every person and company name replaced by names already checked on the Companies House company and officer searches (OD-12; contracts/CHANGELOG.md 1.1.0). Synthetic."
+    "C1 v1.1.0 golden example: the seven example lines of PHASE-2.md 5.1, with every person and company name replaced by names already checked (OD-12): the company on the Companies House company search (#27), and the surnames Velqasimi, Zubeirono and Ulvarazi alone on the officer and company searches, 21 Oct 2026, recorded in the body of #17; the alias Raqan Zubeirono is a given-name spelling variant with a checked surname (contracts/CHANGELOG.md 1.1.0). Synthetic."
   ]
 }

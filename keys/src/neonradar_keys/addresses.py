@@ -65,6 +65,17 @@ _ABBREVIATIONS = {
     "HWY": "HIGHWAY",
 }
 _CARE_OF = re.compile(r"^(C\s*/\s*O|CARE OF)\b")
+# A street line (RULES_VERSION 2): a token that starts with a digit, a thoroughfare or building
+# word after a name in its segment ("HIGH STREET", "EXAMPLE HOUSE"; "ROAD TOWN" is a place), or a
+# unit word before its number or letter ("FLAT A"). Place names alone ("DUBAI") are not one.
+_STREET_WORDS = frozenset(
+    {
+        "STREET", "ROAD", "AVENUE", "LANE", "DRIVE", "COURT", "CRESCENT", "PLACE", "SQUARE",
+        "GARDENS", "CLOSE", "TERRACE", "PARADE", "WAY", "HIGHWAY", "MEWS", "BOULEVARD", "HOUSE",
+        "BUILDING", "BUILDINGS", "CENTRE", "ESTATE", "TOWER", "CHAMBERS",
+    }
+)  # fmt: skip
+_UNIT_WORDS = frozenset({"FLAT", "SUITE", "UNIT", "FLOOR", "OFFICE", "ROOM"})
 
 
 def address_key(text: str) -> str | None:
@@ -97,14 +108,21 @@ def address_key(text: str) -> str | None:
     for group in grouped:
         count += len(group)
         ends.add(count - 1)
+    starts = {0} | {end + 1 for end in ends}
     out: list[str] = []
     for i, word in enumerate(flat):
         if word == "ST":
-            street = (i in ends or i == len(flat) - 2) and i > 0 and not flat[i - 1].isdigit()
-            out.append("STREET" if street else "SAINT")
+            # SAINT when it starts a segment ("12 Main St, St Albans"; RULES_VERSION 2).
+            street = (i in ends or i == len(flat) - 2) and i not in starts
+            out.append("STREET" if street and not flat[i - 1].isdigit() else "SAINT")
         else:
             out.append(_ABBREVIATIONS.get(word, word))
-    has_street_line = any(t.isdigit() or t[:1].isdigit() for t in out) or len(out) >= 3
+    has_street_line = any(
+        t[:1].isdigit()
+        or (t in _STREET_WORDS and i not in starts)
+        or (t in _UNIT_WORDS and i + 1 < len(out) and i + 1 not in starts)
+        for i, t in enumerate(out)
+    )
     if not postcode and not has_street_line:
         return None
     return (postcode or "NOPC") + "|" + " ".join(out)

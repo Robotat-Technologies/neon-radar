@@ -435,6 +435,7 @@ class ScenarioCtx:
         self.created: set[str] = set()
         # Payments and relationships it made: kept apart from `created`, which a scenario module
         # may read (cash_commingling keys a stream on its size), so owning them moves no draw.
+        # Only a label may name one; an endpoint never may (`_check` is the code book's).
         self.links: set[str] = set()
         self.core_payments: list[tuple[str, str, bool]] = []  # (payment id, role, is_core)
         self.roles: dict[str, tuple[str, bool]] = {}  # object id -> (role, is_core)
@@ -449,8 +450,13 @@ class ScenarioCtx:
 
     def _check(self, *ids: str) -> None:
         for i in ids:
-            if i not in self.created and i not in self.links and i not in self.ctx.branches:
+            if i not in self.created and i not in self.ctx.branches:
                 raise PermissionError(f"scenario {self.scenario_id} may not use {i}")
+
+    def _check_label(self, object_id: str) -> None:
+        """A label may also name a payment or relationship this scenario made (M3.3 review S1)."""
+        if object_id not in self.links:
+            self._check(object_id)
 
     def _own(self, rid: str) -> str:
         self.created.add(rid)
@@ -538,7 +544,7 @@ class ScenarioCtx:
         """Mark a payment as part of the pattern (labels/transactions.csv)."""
         if payment_id not in self.ctx.payments:
             raise ValueError(f"not a payment of this overlay: {payment_id}")
-        self._check(payment_id)  # only a payment this scenario made (G1)
+        self._check_label(payment_id)  # only a payment this scenario made (G1)
         self.core_payments.append((payment_id, role, core))
         return payment_id
 
@@ -546,7 +552,7 @@ class ScenarioCtx:
         """Mark a participant with its role (labels/participants.csv): an entity, account or
         address this scenario created, or a relationship record between two of them."""
         record = self.ctx.records.get(object_id)
-        self._check(object_id)  # anything this scenario did not create is refused (G1)
+        self._check_label(object_id)  # anything this scenario did not create is refused (G1)
         if record is None:
             raise ValueError(f"unknown object {object_id}")
         self.roles[object_id] = (role, core)

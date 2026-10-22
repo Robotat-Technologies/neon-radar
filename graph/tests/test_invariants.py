@@ -131,9 +131,8 @@ def overlay_violations(db: Neo4jTarget) -> dict[str, int]:
 
 
 def test_overlay_invariants_hold_on_demo_mini(demo_mini: Neo4jTarget, tmp_path: Path) -> None:
-    from neonradar_detect.runs import (
-        detect_on_graph,
-    )  # I17 is about the alerts a detection run writes
+    # I17 is about the alerts a detection run writes
+    from neonradar_detect.runs import detect_on_graph
 
     report = detect_on_graph(demo_mini.driver, demo_mini.database, runs_dir=tmp_path)
     assert report.alerts, "the run found no alerts, so I17 would pass vacuously"

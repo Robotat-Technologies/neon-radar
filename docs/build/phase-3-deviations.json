@@ -4,6 +4,16 @@
     "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics)",
     "sha256": "9c1c47b78bb5d1748e099c31e1168cba41f8859ddaf08210e217df019e14273d"
   },
+  "ingest/src/neonradar_ingest/synth/ctx.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S1: ScenarioCtx owns the ids pay and the relationship methods return, and label_payment and label refuse anything the scenario did not create (relationships included)",
+    "sha256": "65d58cb6ab8c6a8819552f8495a5854cc7d60db9543abbb925d5a791e33b7b07"
+  },
+  "ingest/src/neonradar_ingest/synth/overlay.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S2: check_bridge takes the eligible organisation ids and requires every base holder of an account holding to be one, and refuses a payment whose payerAccount or beneficiaryAccount is a base id",
+    "sha256": "9d61c53d50c648029bfdbe70cedf2b8300bdd85db6b43ad2b704aaa0e5d39673"
+  },
   "ingest/src/neonradar_ingest/synth/world.py": {
     "milestone": "M3.3",
     "reason": "PEP personas of the world draw invented_person, not person, so they carry invented surnames as PHASE-3.md 2.9 and 7.2.3 require; names only (the names stream), no structural draw moves",

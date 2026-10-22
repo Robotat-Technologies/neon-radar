@@ -171,6 +171,7 @@ def generate(
         chain(ctx.records.values(), (json.loads(text) for text in ctx.payments.values())),
         view.ids,
         ctx.base_accounts,
+        {org.id for org in view.eligible},
     )
     stats = {
         "background": bg,
@@ -206,15 +207,20 @@ def check_bridge(
     records: Iterable[Mapping[str, Any]],
     base_ids: frozenset[str] | set[str],
     base_accounts: set[str],
+    eligible: Iterable[str] = (),
 ) -> None:
     """I15 and I16 on the overlay's own records: the only record that names a base entity is the
     account holding of a base organisation (`base_accounts` are the accounts such holdings
     hold), a payment names a base entity only as the payer or beneficiary of one of those
     accounts, and no payment joins two of them. Every property that can name an entity counts,
-    `addressEntity` included."""
+    `addressEntity` included. A holding's base owner must be one of the `eligible` organisations,
+    and no payment names a base record as an account (M3.3 review)."""
+    allowed = frozenset(eligible)
     for r in records:
         p = r["properties"]
         if r["schema"] == "Payment":
+            if {p["payerAccount"][0], p["beneficiaryAccount"][0]} & base_ids:
+                raise ValueError(f"payment {r['id']} names a base record as an account (I15)")
             if (
                 p["payerAccount"][0] in base_accounts
                 and p["beneficiaryAccount"][0] in base_accounts
@@ -233,6 +239,7 @@ def check_bridge(
                 r["schema"] == "Ownership"
                 and p.get("role") == ["account holder"]
                 and p["asset"][0] in base_accounts
+                and set(p["owner"]) <= allowed
             )
             if not holding:
                 raise ValueError(f"record {r['id']} links a base entity (I15)")

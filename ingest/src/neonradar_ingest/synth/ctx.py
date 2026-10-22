@@ -479,46 +479,48 @@ class ScenarioCtx:
 
     def pay(self, src: str, dst: str, amount: float, moment: datetime, **kw: Any) -> str:
         self._check(src, dst)
-        return self.ctx.pay(self._key("pay"), src, dst, amount, moment, **kw)
+        return self._own(self.ctx.pay(self._key("pay"), src, dst, amount, moment, **kw))
 
     def owns(self, owner: str, asset: str, **kw: Any) -> str:
         self._check(owner, asset)
-        return self.ctx.owns(self._key("own"), owner, asset, **kw)
+        return self._own(self.ctx.owns(self._key("own"), owner, asset, **kw))
 
     def director(self, person: str, org: str, **kw: Any) -> str:
         self._check(person, org)
-        return self.ctx.director(self._key("dir"), person, org, **kw)
+        return self._own(self.ctx.director(self._key("dir"), person, org, **kw))
 
     def represents(self, agent: str, client: str) -> str:
         self._check(agent, client)
-        return self.ctx.represents(self._key("rep"), agent, client)
+        return self._own(self.ctx.represents(self._key("rep"), agent, client))
 
     def family(self, person: str, relative: str, relationship: str = "sibling") -> str:
         self._check(person, relative)
-        return self.ctx.family(self._key("fam"), person, relative, relationship)
+        return self._own(self.ctx.family(self._key("fam"), person, relative, relationship))
 
     def control(self, controller: str, controlled: str, **kw: Any) -> str:
         self._check(controller, controlled)
-        return self.ctx.control(self._key("ctl"), controller, controlled, **kw)
+        return self._own(self.ctx.control(self._key("ctl"), controller, controlled, **kw))
 
     def associate(self, person: str, other: str, relationship: str = "business partner") -> str:
         self._check(person, other)
-        return self.ctx.associate(self._key("assoc"), person, other, relationship)
+        return self._own(self.ctx.associate(self._key("assoc"), person, other, relationship))
 
     def position(self, name: str, *, country: str) -> str:
         return self._own(self.ctx.position(self._key("pos"), name, country=country))
 
     def occupancy(self, person: str, position: str, *, start: date, end: date | None = None) -> str:
         self._check(person, position)
-        return self.ctx.occupancy(self._key("occ"), person, position, start=start, end=end)
+        return self._own(
+            self.ctx.occupancy(self._key("occ"), person, position, start=start, end=end)
+        )
 
     def consolidates(self, parent: str, child: str) -> str:
         self._check(parent, child)
-        return self.ctx.consolidates(self._key("cons"), parent, child)
+        return self._own(self.ctx.consolidates(self._key("cons"), parent, child))
 
     def sanction(self, entity: str, *, start: date) -> str:
         self._check(entity)
-        return self.ctx.sanction(self._key("san"), entity, start=start)
+        return self._own(self.ctx.sanction(self._key("san"), entity, start=start))
 
     # labels ------------------------------------------------------------------------------------
 
@@ -526,6 +528,7 @@ class ScenarioCtx:
         """Mark a payment as part of the pattern (labels/transactions.csv)."""
         if payment_id not in self.ctx.payments:
             raise ValueError(f"not a payment of this overlay: {payment_id}")
+        self._check(payment_id)  # only a payment this scenario made (G1)
         self.core_payments.append((payment_id, role, core))
         return payment_id
 
@@ -533,8 +536,7 @@ class ScenarioCtx:
         """Mark a participant with its role (labels/participants.csv): an entity, account or
         address this scenario created, or a relationship record between two of them."""
         record = self.ctx.records.get(object_id)
-        if record is None or record["schema"] not in RELATIONSHIP_SCHEMAS:
-            self._check(object_id)  # anything this scenario did not create is refused (G1)
+        self._check(object_id)  # anything this scenario did not create is refused (G1)
         if record is None:
             raise ValueError(f"unknown object {object_id}")
         self.roles[object_id] = (role, core)

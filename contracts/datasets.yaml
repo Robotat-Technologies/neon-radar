@@ -3,6 +3,8 @@ reserved_prefixes: [nr]          # canonical resolved entities, Phase 2
 datasets:
   - slug: gb_companies_house
     id_prefix: gbch
+    kind: registry
+    anchor_priority: 1
     title: UK Companies House public register
     publisher: Companies House
     url: https://developer.company-information.service.gov.uk/
@@ -13,13 +15,15 @@ datasets:
     personal_data: true              # officers and PSCs; the user who loads them is a UK GDPR controller
     synthetic: false
     access: api-key
-    status: spike
+    status: active
     notes: >-
       Register data is made available under the Companies Act 2006 and section 47 approvals of the
       Copyright, Designs and Patents Act 1988, with no Companies House rules on reuse; Companies
       House's own material is under OGL v3.0, which does not cover personal data.
   - slug: gleif_lei
     id_prefix: gleif
+    kind: registry
+    anchor_priority: 2
     title: GLEIF Global LEI Index
     publisher: Global Legal Entity Identifier Foundation
     url: https://www.gleif.org/
@@ -30,12 +34,14 @@ datasets:
     personal_data: false
     synthetic: false
     access: none
-    status: spike
+    status: active
     notes: >-
       No attribution required. GLEIF's terms forbid using its logo or implying endorsement, with
       liquidated damages of CHF 100,000 per breach.
   - slug: icij_offshore_leaks
     id_prefix: icij
+    kind: leak
+    anchor_priority: 9
     title: ICIJ Offshore Leaks Database
     publisher: International Consortium of Investigative Journalists
     url: https://offshoreleaks.icij.org/
@@ -46,7 +52,7 @@ datasets:
     personal_data: true
     synthetic: false
     access: none
-    status: spike
+    status: active
     notes: >-
       Produced works (screenshots, reports) carry a notice that the content came from the ICIJ
       Offshore Leaks Database under ODbL 1.0 (clause 4.3); a publicly used derived database must be
@@ -54,6 +60,8 @@ datasets:
       Never publish a database that merges ICIJ data with OpenSanctions data.
   - slug: opensanctions_default
     id_prefix: os
+    kind: list
+    anchor_priority: 8
     title: OpenSanctions (default collection)
     publisher: OpenSanctions Datenbanken GmbH
     url: https://www.opensanctions.org/
@@ -71,6 +79,8 @@ datasets:
       public institutions of Ukraine, Georgia and Moldova. Every commercial user needs their own licence.
   - slug: nr_synthetic
     id_prefix: syn
+    kind: synthetic
+    anchor_priority: 10
     title: NeonRadar synthetic data
     publisher: NeonRadar
     url: https://neonradar.com/
@@ -82,3 +92,115 @@ datasets:
     synthetic: true
     access: none
     status: active
+  # Added in C1 1.1.0 (PHASE-2.md 5.1, verbatim)
+  - slug: gb_fcdo_sanctions
+    id_prefix: uksl
+    kind: list
+    anchor_priority: 3
+    title: UK Sanctions List
+    publisher: Foreign, Commonwealth and Development Office (FCDO)
+    url: https://www.gov.uk/government/publications/the-uk-sanctions-list
+    licence: { id: OGL-UK-3.0, url: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" }
+    attribution: "Contains public sector information licensed under the Open Government Licence v3.0. Source: UK Sanctions List, Foreign, Commonwealth and Development Office. Converted to FollowTheMoney records by NeonRadar."
+    commercial_use: allowed
+    redistribution: loaders-only
+    personal_data: true
+    synthetic: false
+    access: none
+    status: active                   # runs only when access.sanctions_lists includes it (1.2)
+    notes: >-
+      The only UK sanctions list since 28 January 2026 ("The OFSI Consolidated List has closed.").
+      OGL v3.0 does not cover "personal data in the Information": whoever loads the list is a
+      controller under UK GDPR. No endorsement by the FCDO is implied. One person can have
+      several Unique IDs, one per regime; the loader groups them by OFSI Group ID, which
+      designations made since 28 January 2026 do not have (M2.6a).
+  - slug: us_ofac_sdn
+    id_prefix: ofac
+    kind: list
+    anchor_priority: 6
+    title: OFAC Specially Designated Nationals and Blocked Persons List
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    url: https://ofac.treasury.gov/sanctions-list-service
+    licence: { id: CC0-1.0, url: "https://creativecommons.org/publicdomain/zero/1.0/" }
+    attribution: "Source: US Department of the Treasury, Office of Foreign Assets Control, Specially Designated Nationals and Blocked Persons List (public domain). NeonRadar is not affiliated with OFAC. Converted to FollowTheMoney records by NeonRadar."
+    commercial_use: allowed
+    redistribution: loaders-only
+    personal_data: true
+    synthetic: false
+    access: none
+    status: active                   # runs only when access.sanctions_lists includes it (1.2)
+    notes: >-
+      OFAC's data catalogue (data.json) marks the list files CC0 1.0 with the rights statement
+      "No restrictions on public access"; the data.gov record for the SDN files says "This data
+      is in the public domain and may be used without restriction." Public-domain status does not
+      remove data protection duties: whoever loads the list is a controller under UK GDPR.
+      Requests need a User-Agent header. OFAC does not confirm matches; NeonRadar output is not a
+      screening result.
+  - slug: un_sc_sanctions
+    id_prefix: unsc
+    kind: list
+    anchor_priority: 4
+    title: United Nations Security Council Consolidated List
+    publisher: United Nations Security Council
+    url: https://main.un.org/securitycouncil/en/content/un-sc-consolidated-list
+    licence: { id: LicenseRef-UN-Terms-of-Use, url: "https://www.un.org/en/about-us/terms-of-use" }
+    attribution: "Source: United Nations Security Council Consolidated List. Converted to FollowTheMoney records by NeonRadar."
+    commercial_use: permission-required
+    redistribution: loaders-only
+    personal_data: true
+    synthetic: false
+    access: none
+    status: active                   # runs only when access.sanctions_lists includes it, which needs the UN's written permission (1.1)
+    notes: >-
+      The UN website terms allow download "for the User's personal, non-commercial use", and no
+      licence for the list was found. Load it only with written permission from
+      sc-sanctionslists@un.org, filed in docs/data/licences/un_sc_sanctions.md. The loader is
+      built and tested on synthetic data and runs only when access.sanctions_lists includes this
+      dataset, so the status needs no contract change when permission arrives. Whoever loads the
+      list is a controller under UK GDPR. The UK list carries UN listings with their UN reference
+      numbers.
+  - slug: eu_fsf
+    id_prefix: eufsf
+    kind: list
+    anchor_priority: 5
+    title: EU Financial Sanctions Files (consolidated list)
+    publisher: European Commission
+    url: https://webgate.ec.europa.eu/fsd/fsf/public/rss
+    licence: { id: LicenseRef-EC-Reuse-Decision-2011-833, url: "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32011D0833" }
+    attribution: "Source: European Commission, Financial Sanctions Files, reused under the Commission's reuse policy (Decision 2011/833/EU). Only the information published in the Official Journal of the EU is deemed authentic. Converted to FollowTheMoney records by NeonRadar."
+    commercial_use: allowed
+    redistribution: loaders-only
+    personal_data: true
+    synthetic: false
+    access: none
+    status: active                   # runs only when access.sanctions_lists includes it (1.2)
+    notes: >-
+      Decision 2011/833/EU allows reuse "for commercial or non-commercial purposes", with
+      acknowledgement of the source and without distorting the meaning. The Commission's default
+      licence for its own content since 2019 is CC BY 4.0 ("reuse is allowed, provided
+      appropriate credit is given and changes are indicated"), but no licence statement attached
+      to the FSF files themselves was found. Whoever loads the list is a controller under UK GDPR.
+      The public download token can be revoked, so it is configurable (NR_EU_FSF_TOKEN), and
+      stored URLs never include it.
+  - slug: gb_parliament_members
+    id_prefix: ukparl
+    kind: list
+    anchor_priority: 7
+    title: UK Parliament members and ministers
+    publisher: UK Parliament
+    url: https://members-api.parliament.uk/
+    licence: { id: LicenseRef-Open-Parliament-Licence-3.0, url: "https://www.parliament.uk/site-information/copyright-parliament/open-parliament-licence/" }
+    attribution: "Contains Parliamentary information licensed under the Open Parliament Licence v3.0. Converted to FollowTheMoney records by NeonRadar."
+    commercial_use: allowed
+    redistribution: loaders-only
+    personal_data: true
+    synthetic: false
+    access: none
+    status: active                   # runs only when access.pep_sources includes it (M2.6e)
+    notes: >-
+      Current members of either House are politically exposed persons under MLR 2017 regulation
+      35(14)(b); regulation 35(9) asks firms to keep enhanced measures for at least 12 months after
+      a person leaves office, so the loader keeps former members only for
+      access.pep_former_months (M2.6e). The Open Parliament Licence does not cover personal data:
+      whoever loads it is a controller under UK GDPR. No endorsement by Parliament is implied.
+      Photographs are outside the licence and are not loaded.

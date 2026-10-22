@@ -26,9 +26,10 @@ from neonradar_contracts.records import (
 from neonradar_ingest.synth import GENERATOR, GENERATOR_VERSION
 
 SCHEMA_ORDER = (
-    "Company", "Organization", "Person", "Address", "Ownership", "Directorship",
-    "Representation", "BankAccount", "Payment",
+    "Company", "Organization", "Person", "LegalEntity", "Address", "Ownership", "Directorship",
+    "Representation", "BankAccount", "Payment", "Sanction",
 )  # fmt: skip
+Kind = Literal["registry", "activity", "list", "leak"]  # nr.synthetic_kind (C1 1.1.0)
 CSV_MARKER = "# synthetic: true\n"
 TRANSACTION_COLUMNS = ("tx_id", "scenario_id", "typology", "step", "role", "is_illicit")
 SCENARIO_COLUMNS = (
@@ -46,7 +47,7 @@ class Rec:
 
     id: str
     schema: str
-    kind: Literal["registry", "activity"]
+    kind: Kind
     props: dict[str, list[str]]
     nr: dict[str, Any] = field(default_factory=dict)
 
@@ -80,12 +81,12 @@ class Scenario:
     participants: tuple[tuple[str, str], ...]  # (role, record id)
 
 
-def _write_text(path: Path, text: str) -> None:
+def write_text(path: Path, text: str) -> None:
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)
 
 
-def _write_csv(path: Path, columns: tuple[str, ...], rows: list[tuple[str, ...]]) -> None:
+def write_csv(path: Path, columns: tuple[str, ...], rows: list[tuple[str, ...]]) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         handle.write(CSV_MARKER)
         writer = csv.writer(handle, lineterminator="\n")
@@ -106,8 +107,8 @@ def write_labels(folder: Path, scenarios: list[Scenario]) -> None:
             (sc.scenario_id, sc.typology, sc.variant, str(sc.is_lookalike).lower(),
              sc.steps[0][2], sc.steps[-1][2], participants)
         )  # fmt: skip
-    _write_csv(folder / "transactions.csv", TRANSACTION_COLUMNS, tx_rows)
-    _write_csv(folder / "scenarios.csv", SCENARIO_COLUMNS, scenario_rows)
+    write_csv(folder / "transactions.csv", TRANSACTION_COLUMNS, tx_rows)
+    write_csv(folder / "scenarios.csv", SCENARIO_COLUMNS, scenario_rows)
 
 
 def write_load(
@@ -123,7 +124,7 @@ def write_load(
     """Write `<stem>.ftm.jsonl`, its manifest and `labels/`; return the record file's path."""
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"{stem}.ftm.jsonl"
-    _write_text(path, "".join(rec.to_json() + "\n" for rec in ordered(records)))
+    write_text(path, "".join(rec.to_json() + "\n" for rec in ordered(records)))
     write_labels(out / "labels", scenarios)
     producer = Producer(name=GENERATOR, version=GENERATOR_VERSION, git_sha=None)
     write_manifest(
@@ -146,4 +147,4 @@ def amend_manifest(record_file: Path, seed: int) -> None:
     data["dependencies"] = dict(sorted(data["dependencies"].items()))
     manifest = Manifest.model_validate(data)
     text = json.dumps(manifest.model_dump(mode="json"), indent=2, ensure_ascii=False)
-    _write_text(manifest_file, text + "\n")
+    write_text(manifest_file, text + "\n")

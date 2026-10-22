@@ -19,6 +19,7 @@ COMPONENTS = {
     "background": 5,
     "scenario": 6,
     "join": 7,
+    "erbench": 8,
 }
 
 

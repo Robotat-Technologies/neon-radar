@@ -78,6 +78,12 @@ def test_registry_has_the_planned_structures(demo_mini: Load) -> None:
         ["vg", "cy", "gb"]
     ]  # the PEP -> vg -> cy -> gb
     assert all("share_pct_min" in r["nr"] and "share_pct_max" in r["nr"] for r in shares)
+    open_bounds = {  # the statutory bands (25, 50], (50, 75), [75, 100] (PHASE-2.md 5.1, M2.9)
+        "25-50": (True, None), "50-75": (True, True), "75-100": (None, None),
+    }  # fmt: skip
+    for r in shares:
+        flags = (r["nr"].get("share_pct_min_exclusive"), r["nr"].get("share_pct_max_exclusive"))
+        assert flags == open_bounds[r["properties"]["percentage"][0]]
     for r in shares:  # a company's stake never starts before the company exists
         owner = r["properties"]["owner"][0]
         if demo_mini.by_id[owner]["schema"] == "Company":

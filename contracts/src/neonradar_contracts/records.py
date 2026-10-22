@@ -1,4 +1,4 @@
-"""C1 NeonRadar Record v1.0.0: the `nr` extension, the validator and the manifest (5.1).
+"""C1 NeonRadar Record v1.1.0: the `nr` extension, the validator and the manifest (5.1).
 
 `validate_record` checks one record; `validate_batch` checks the rules that need the whole
 load (R4 references and duplicate ids, R8 account holders). Issue codes are R1 to R10, plus
@@ -67,6 +67,22 @@ SYNTHETIC_ONLY_LINKS = {
     "Associate": "ASSOCIATE_OF would make a real person a close associate of someone",
     "Occupancy": "HOLDS_POSITION would give a real person a post",
 }
+# R6, C1 1.1.0 (orchestrator decision under OD-10, for the tech lead at the M2.1a review): the
+# placements 1.1.0 adds that describe the entities they name. A synthetic Ownership with
+# nr.is_nominee, or a synthetic Control with a share band, references only synthetic records.
+SHARE_KEYS = (
+    "share_pct_min",
+    "share_pct_max",
+    "share_pct_min_exclusive",
+    "share_pct_max_exclusive",
+)
+SYNTHETIC_ONLY_NR = {
+    ("Ownership", "is_nominee"): "OWNS.is_nominee would call a real owner a nominee",
+    **{
+        ("Control", key): "a CONTROLS voting band would describe a real entity's control"
+        for key in SHARE_KEYS
+    },
+}
 LABEL_KEY_RE = re.compile(r"typolog|scenario|illicit|lookalike|ground.?truth|label", re.IGNORECASE)
 ENVELOPE_KEYS = ("id", "schema", "properties", "datasets")
 OPTIONAL_KEYS = ("referents", "caption", "first_seen", "last_seen", "last_change", "nr")
@@ -78,10 +94,20 @@ NR_USED_ON: dict[str, tuple[str, ...]] = {
     "account_kind": ("BankAccount",),
     "address_roles": ("LegalEntity",),
     "natures_of_control": ("Ownership", "Control"),
-    "share_pct_min": ("Ownership",),
-    "share_pct_max": ("Ownership",),
-    "is_nominee": ("Directorship",),
+    "share_pct_min": ("Ownership", "Control"),  # Control since 1.1.0 (voting-rights bands)
+    "share_pct_max": ("Ownership", "Control"),
+    "share_pct_min_exclusive": ("Ownership", "Control"),  # 1.1.0
+    "share_pct_max_exclusive": ("Ownership", "Control"),  # 1.1.0
+    "is_nominee": ("Directorship", "Ownership"),  # Ownership since 1.1.0 (nominee shareholders)
     "consolidation": ("Ownership",),
+    "ch_person_number": ("LegalEntity",),  # 1.1.0; Person is a LegalEntity in FtM
+    "psc_statements": ("Company",),  # 1.1.0
+    "accounts_category": ("Company",),  # 1.1.0
+}
+# Keys that only records of these datasets may carry (C1 1.1.0): the Companies House person
+# number feeds deterministic rule D3, so a list or leak record must not carry one.
+NR_DATASETS: dict[str, tuple[str, ...]] = {
+    "ch_person_number": ("gb_companies_house", SYNTHETIC_DATASET),
 }
 # R4 in strict mode: a reference points to a record of its property's FtM range, except that
 # an Ownership asset may also be any LegalEntity (C2 builds OWNS between legal entities).
@@ -99,15 +125,17 @@ AddressRole = Literal["registered", "service", "residential", "business", "unkno
 class NrExtension(BaseModel):
     """The closed `nr` extension object (5.1). Unknown keys fail validation.
 
-    `v` is the record contract's major.minor. It is "1.0" for every 1.0.x release; a minor
-    release (for example 1.1.0, a new optional key) adds "1.1" here and keeps accepting "1.0".
+    `v` is the record contract's major.minor: "1.0" for every 1.0.x release, and "1.1" since
+    1.1.0, which keeps accepting "1.0" (PHASE-2.md 5.1). Every key, including those added in
+    1.1.0, is accepted under both values, so a 1.0 file stays valid.
     """
 
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
-    v: Literal["1.0"]
+    v: Literal["1.0", "1.1"]
     synthetic: bool | None = None
-    synthetic_kind: Literal["registry", "activity"] | None = None
+    # "list" and "leak" (1.1.0): a synthetic record in the style of a list entry or a leak record.
+    synthetic_kind: Literal["registry", "activity", "list", "leak"] | None = None
     channel: Literal["wire", "card", "cash_deposit", "cash_withdrawal", "internal"] | None = None
     account_kind: Literal["customer", "cash_ledger"] | None = None
     address_roles: dict[str, AddressRole] | None = None
@@ -117,6 +145,13 @@ class NrExtension(BaseModel):
     share_pct_max: float | None = Field(default=None, ge=0, le=100)
     is_nominee: bool | None = None
     consolidation: Literal["direct", "ultimate"] | None = None
+    # Added in 1.1.0 (PHASE-2.md 5.1). The exclusive flags say a share bound is open ("more
+    # than 25%"); absent means the bound is included.
+    ch_person_number: str | None = None
+    psc_statements: list[str] | None = None
+    accounts_category: str | None = None
+    share_pct_min_exclusive: bool | None = None
+    share_pct_max_exclusive: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,12 +324,14 @@ def _check_properties(schema: Schema, props: dict[str, list[str]], add: Add) -> 
                     add("R4", f"{name} value {value!r} is not a record id; {ID_ALPHABET_HINT}")
 
 
-def _check_nr(raw: Any, schema: Schema | None, props: dict[str, Any], add: Add) -> None:
+def _check_nr(
+    raw: Any, schema: Schema | None, props: dict[str, Any], dataset: Dataset | None, add: Add
+) -> NrExtension | None:
     if raw is None:
-        return
+        return None
     if not isinstance(raw, dict):
         add("NR", "nr must be an object")
-        return
+        return None
     try:
         nr = NrExtension.model_validate(raw)
     except ValidationError as exc:
@@ -304,7 +341,11 @@ def _check_nr(raw: Any, schema: Schema | None, props: dict[str, Any], add: Add) 
                 add("R9", _label_issue("nr key", path))
             else:
                 add("NR", f"nr.{path}: {error['msg']}")
-        return
+        return None
+    if dataset is not None:  # a dataset that failed R2 decides nothing
+        for key, slugs in NR_DATASETS.items():
+            if getattr(nr, key) is not None and dataset.slug not in slugs:
+                add("NR", f"nr.{key} is only used on records of {' or '.join(slugs)}")
     if schema is not None:  # placement needs a valid schema and properties (R3)
         for key, used_on in NR_USED_ON.items():
             if getattr(nr, key) is not None and not any(schema.is_a(s) for s in used_on):
@@ -315,6 +356,18 @@ def _check_nr(raw: Any, schema: Schema | None, props: dict[str, Any], add: Add) 
     low, high = nr.share_pct_min, nr.share_pct_max
     if low is not None and high is not None and low > high:
         add("NR", "nr.share_pct_min is greater than nr.share_pct_max")
+    return nr
+
+
+def _synthetic_only(schema: Schema, nr: NrExtension | None) -> tuple[str, str] | None:
+    """What a synthetic record of this schema and `nr` is, and why it may name only synthetic
+    records (R6, G1); None when it may name real ones (background activity)."""
+    if schema.name in SYNTHETIC_ONLY_LINKS:
+        return schema.name, SYNTHETIC_ONLY_LINKS[schema.name]
+    for (name, key), reason in SYNTHETIC_ONLY_NR.items():
+        if schema.is_a(name) and nr is not None and getattr(nr, key) is not None:
+            return f"{schema.name} with nr.{key}", reason
+    return None
 
 
 def _check_synthetic(
@@ -404,14 +457,15 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
         props = raw_props
         _check_properties(schema, props, add)
 
-    _check_nr(data.get("nr"), schema, props, add)
+    nr = _check_nr(data.get("nr"), schema, props, dataset, add)
     synthetic = _check_synthetic(data, dataset, match, add)
     if schema is not None and schema.is_a("Payment"):
         _check_payment(props, data.get("nr"), synthetic, add)
-    reason = SYNTHETIC_ONLY_LINKS.get(schema.name) if synthetic and schema is not None else None
-    if schema is not None and reason is not None:
+    only = _synthetic_only(schema, nr) if synthetic and schema is not None else None
+    if schema is not None and only is not None:
         # The prefix decides (R1, R6), so this needs no other record and holds in strict and
         # non-strict mode. Malformed references are R4's.
+        what, reason = only
         for reference in schema.properties.values():
             if reference.type != registry.entity:
                 continue
@@ -420,7 +474,7 @@ def validate_record(data: dict[str, Any]) -> list[RecordIssue]:
                 if ref and ref["prefix"] != SYNTHETIC_PREFIX:
                     add(
                         "R6",
-                        f"a synthetic {schema.name} references only synthetic records (prefix"
+                        f"a synthetic {what} references only synthetic records (prefix"
                         f" syn) in {reference.name}, not {value!r}: {reason} (G1)",
                     )
     if synthetic:  # R9: only the topics that set C2 flags; others could carry labels

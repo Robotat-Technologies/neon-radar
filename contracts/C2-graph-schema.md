@@ -1,12 +1,12 @@
-# C2: Graph schema v1.0.0
+# C2: Graph schema v1.1.0
 
 How C1 records become nodes and relationships in Neo4j 5.26 Community (Cypher 5), and the constraints and indexes that hold them. Every loader, detector, API query and copilot template reads the graph through this schema.
 
-- Status: version 1.0.0, **not frozen yet**. The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0` (`docs/build/PHASE-1.md` sections 5.0 and 8). After that, changes need an approved contract-change issue and a new migration file; an applied migration is never edited.
+- Status: version 1.1.0, **not frozen yet**: 1.0.0 plus the additive entity resolution changes in [Changes in 1.1.0](#changes-in-110) (contract-change issue #52, `docs/build/PHASE-2.md` 5.2). The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0` and tags `contracts-v1.1.0` after Phase 2's contract changes (`docs/build/PHASE-1.md` sections 5.0 and 8, `docs/build/PHASE-2.md` 5.0). After that, changes need an approved contract-change issue and a new migration file; an applied migration is never edited.
 - Code: `neonradar_contracts.graph` (the mapping as data), `neonradar_graph.mapping` (records to loader rows, no database), `neonradar_graph.migrate` (the migration runner).
-- Schema: `graph/schema/migrations/0001_init.cypher` (22 uniqueness constraints and 7 indexes).
+- Schema: `graph/schema/migrations/0001_init.cypher` (22 uniqueness constraints and 7 indexes) and `0002_resolution.cypher` (1.1.0: one more constraint, two more indexes, the full-text index rebuilt).
 - Command: `uv run neonradar graph migrate`.
-- Source: `docs/build/PHASE-1.md` section 5.2, with the decisions in [Mapping decisions](#mapping-decisions) and in [CHANGELOG.md](CHANGELOG.md).
+- Source: `docs/build/PHASE-1.md` section 5.2 and `docs/build/PHASE-2.md` section 5.2, with the decisions in [Mapping decisions](#mapping-decisions) and in [CHANGELOG.md](CHANGELOG.md).
 
 ## Picture
 
@@ -42,19 +42,20 @@ flowchart LR
   P -- HOLDS_POSITION --> POS
   ENT -- SUBJECT_OF --> SAN
   SR -. RESOLVED_TO .-> ENT
+  LE -. POSSIBLY_SAME_AS .- LE
   AL -. FLAGS .-> ENT
   DR -. PRODUCED .-> AL
 ```
 
-Dotted relationships are written by entity resolution (Phase 2) and detection runs, not built from records.
+Dotted relationships are written by entity resolution (Phase 2) and detection runs, not built from records. `POSSIBLY_SAME_AS` (1.1.0) is an unconfirmed possible match between two separate nodes, read as undirected; it merges nothing and carries no flag.
 
 ## Node labels
 
 | FtM schema | Labels | Schema-specific properties (snake_case) |
 |---|---|---|
 | `Person` | `:Entity:LegalEntity:Person` | `birth_date`, `nationalities`, `gender` |
-| `Company` | `:Entity:LegalEntity:Organization:Company` | `registration_number`, `jurisdiction`, `lei`, `status`, `legal_form`, `sector`, `incorporation_date`, `dissolution_date` |
-| `Organization` | `:Entity:LegalEntity:Organization` | as Company where present |
+| `Company` | `:Entity:LegalEntity:Organization:Company` | `registration_number`, `jurisdiction`, `lei`, `status`, `legal_form`, `sector`, `incorporation_date`, `dissolution_date`; from 1.1.0 `psc_statements` (LIST<STRING>), `accounts_category` |
+| `Organization` | `:Entity:LegalEntity:Organization` | as Company where present, without the two 1.1.0 properties |
 | `PublicBody` | `:Entity:LegalEntity:Organization:PublicBody` | as Organization |
 | `LegalEntity` | `:Entity:LegalEntity` | `registration_number`, `jurisdiction`, `lei`, `status`, `sector` |
 | `Address` | `:Entity:Address` | `full`, `street`, `city`, `postal_code`, `region`, `country`, `address_key` (normalised key, Phase 2) |
@@ -71,7 +72,7 @@ Support nodes (not `:Entity`): `:SourceRecord` (entity resolution evidence, Phas
 | `:Alert` | `alert_id` (unique), `typology`, `typology_version`, `priority`, `pattern_strength` (FLOAT), `headline`, `created_at` (UTC ISO string), `run_id`, `wording_class`, `involves_real_entities` (BOOLEAN), `synthetic_activity` (BOOLEAN), `payload` (STRING: the complete C4 alert as JSON) |
 | `:DetectionRun` | `run_id` (unique), `started_at`, `finished_at` (UTC ISO strings), `typologies` (LIST<STRING>), `detectors` (STRING: JSON list of name and version), `alert_count` (INTEGER), `status` (`ok` or `failed`) |
 | `:SchemaMigration` | `id`, `checksum`, `applied_at` |
-| `:SourceRecord` | defined in Phase 2 |
+| `:SourceRecord` | `id` (unique), `dataset`, `schema`, `caption`, `names`, `topics`, `canonical_id`, `synthetic`, `retrieved_at`, `source_url`, `run_id` (1.1.0; see [Changes in 1.1.0](#changes-in-110)) |
 
 The API reads alerts only from Neo4j: it filters on the scalar properties and parses `payload` for `AlertDetail`. The files in `data/runs/<run_id>/` are the run's audit copy, not an API source.
 
@@ -104,6 +105,7 @@ A flag says what a source published about an entity. It is a fact about the sour
 | `synthetic` | BOOLEAN | Equals the dataset's `synthetic` flag; mirrors the `:Synthetic` label |
 | `first_seen`, `last_seen` | STRING | ISO datetimes when the source provides them |
 | `source_url` | STRING | Optional, from FtM `sourceUrl` |
+| `cluster_size`, `resolution`, `names_latin`, `names_latin_text` | INTEGER, STRING, LIST<STRING>, STRING | `:Entity` only, 1.1.0: computed by the resolution-aware loader (M2.11), see [Changes in 1.1.0](#changes-in-110) |
 
 Dates on entities and relationships are ISO 8601 strings and may be partial. Only transaction timestamps (`PAID.ts`) are Neo4j `DATETIME` values in UTC.
 
@@ -111,8 +113,8 @@ Dates on entities and relationships are ISO 8601 strings and may be partial. Onl
 
 | Type | From | To | Built from | Specific properties |
 |---|---|---|---|---|
-| `OWNS` | `LegalEntity` | `LegalEntity` | `Ownership` whose asset is not a `BankAccount` and without `nr.consolidation` | `share_pct_min`, `share_pct_max` (FLOAT), `percentage_raw`, `ownership_type`, `role`, `natures_of_control`, `start_date`, `end_date`, `status` |
-| `CONTROLS` | `LegalEntity` | `LegalEntity` | `Control` | `control_type`, `legal_basis`, `natures_of_control`, `start_date`, `end_date` |
+| `OWNS` | `LegalEntity` | `LegalEntity` | `Ownership` whose asset is not a `BankAccount` and without `nr.consolidation` | `share_pct_min`, `share_pct_max` (FLOAT), `percentage_raw`, `ownership_type`, `role`, `natures_of_control`, `start_date`, `end_date`, `status`; from 1.1.0 `share_min_exclusive`, `share_max_exclusive`, `is_nominee` (BOOLEAN, `false` when absent) |
+| `CONTROLS` | `LegalEntity` | `LegalEntity` | `Control` | `control_type`, `legal_basis`, `natures_of_control`, `start_date`, `end_date`; from 1.1.0 the voting-rights band `share_pct_min`, `share_pct_max` (FLOAT, null when absent) and `share_min_exclusive`, `share_max_exclusive` (BOOLEAN, `false` when absent) |
 | `CONSOLIDATES` | `Organization` (parent) | `Organization` (child) | `Ownership` with `nr.consolidation` | `level` (`direct` or `ultimate`), `start_date`, `end_date`, `status` |
 | `DIRECTOR_OF` | `LegalEntity` | `Organization` | `Directorship` | `role`, `is_nominee`, `start_date`, `end_date` |
 | `HOLDS_ACCOUNT` | `LegalEntity` | `Account` | `Ownership` whose asset is a `BankAccount` | `role`, `start_date`, `end_date` |
@@ -127,26 +129,29 @@ Dates on entities and relationships are ISO 8601 strings and may be partial. Onl
 | `SUCCEEDED_BY` | `LegalEntity` | `LegalEntity` | `Succession` (predecessor to successor) | `date` |
 | `HOLDS_POSITION` | `Person` | `Position` | `Occupancy` (holder to post) | `status`, `start_date`, `end_date` |
 | `SUBJECT_OF` | `Entity` | `Sanction` | `Sanction.entity` | none |
-| `RESOLVED_TO` | `SourceRecord` | `Entity` | Entity resolution (Phase 2) | `match_probability`, `method`, `resolver_version`, `decided_at` |
+| `RESOLVED_TO` | `SourceRecord` | `Entity` | Entity resolution (Phase 2) | `match_probability`, `method`, `resolver_version`, `decided_at`; from 1.1.0 `rule`, `run_id`, `features` |
+| `POSSIBLY_SAME_AS` | `LegalEntity` | `LegalEntity` | Entity resolution (1.1.0): a line of `candidates.jsonl` | `id`, `match_probability`, `match_weight`, `method`, `rule`, `reasons`, `features`, `run_id`, `resolver_version`, `datasets`, `synthetic` |
 | `FLAGS` | `Alert` | `Entity` | Alert subjects: one per alert and subject entity (`MERGE` on the pair, `SET` the `role`); a re-run removes `FLAGS` to entities that are no longer subjects | `role` |
 | `PRODUCED` | `DetectionRun` | `Alert` | Detection runs | none |
 
-Common relationship properties (all types except `RESOLVED_TO`, `FLAGS`, `PRODUCED`): `id` (STRING, unique per type: the FtM interval entity id, or `<record id of the entity>|addr|<address record id>` for `HAS_ADDRESS`, or `<record id of the entity>|sanction|<sanction record id>` for `SUBJECT_OF`), `datasets`, `synthetic`, `source_url` (optional).
+Common relationship properties (all types except `RESOLVED_TO`, `POSSIBLY_SAME_AS`, `FLAGS`, `PRODUCED`; `POSSIBLY_SAME_AS` has its own `id`, `datasets` and `synthetic`, and no `source_url`): `id` (STRING, unique per type: the FtM interval entity id, or `<record id of the entity>|addr|<address record id>` for `HAS_ADDRESS`, or `<record id of the entity>|sanction|<sanction record id>` for `SUBJECT_OF`), `datasets`, `synthetic`, `source_url` (optional).
 
-Relationship ids are unique across all types and never equal a node id (derived ids contain `|`, which the C1 id alphabet excludes); they do not change after entity resolution.
+Relationship ids are unique across all types and never equal a node id (derived ids contain `|`, which the C1 id alphabet excludes). The ids of relationships built from records (including the derived `HAS_ADDRESS` and `SUBJECT_OF` ids, built from record ids) do not change after entity resolution; a `POSSIBLY_SAME_AS` id (1.1.0) is built from the two node ids, which are canonical ids after resolution.
 
 Every edge schema runs in FtM's edge direction (`schema.edge_source` to `schema.edge_target`), except `PAID`, which joins the two accounts of a `Payment` rather than its payer and beneficiary.
 
 ## Migrations
 
-`graph/schema/migrations/0001_init.cypher` (Neo4j 5.26 Community, Cypher 5; one statement per line ending with `;`) creates:
+`graph/schema/migrations/0001_init.cypher` (Neo4j 5.26 Community, Cypher 5; one statement per line ending with `;`) creates the 1.0.0 schema:
 
 - 6 node uniqueness constraints: `:Entity(id)`, `:Sanction(id)`, `:SourceRecord(id)`, `:Alert(alert_id)`, `:DetectionRun(run_id)`, `:SchemaMigration(id)`;
 - 16 relationship uniqueness constraints, one on `id` for every type built from records (`owns_id` to `subject_of_id`);
 - 6 range indexes: `Company.registration_number`, `LegalEntity.lei`, `Address.address_key`, `Account.account_number`, `PAID.ts`, `Alert.typology`;
 - 1 full-text index `entity_names` on `names_text` of `:LegalEntity` and `:Address` (analyzer `standard-no-stop-words`).
 
-A uniqueness constraint creates its own backing index, so no separate index on `id` is needed. Community Edition has no existence, type or key constraints; the loader, the mapping and the invariant tests enforce required properties instead. `SHOW INDEXES` lists 31 rows on a migrated database: the 22 constraint-backed indexes, the 7 above and the 2 built-in lookup indexes.
+`graph/schema/migrations/0002_resolution.cypher` (1.1.0) adds the constraint `possibly_same_as_id` on `POSSIBLY_SAME_AS.id`, the range indexes `source_record_canonical_id` and `source_record_dataset`, and rebuilds `entity_names` (same name, same analyzer) over `names_text` and `names_latin_text`, so the API's search query does not change. Every statement is idempotent: the index is dropped with `IF EXISTS` and created with `IF NOT EXISTS`.
+
+A uniqueness constraint creates its own backing index, so no separate index on `id` is needed. Community Edition has no existence, type or key constraints; the loader, the mapping and the invariant tests enforce required properties instead. After 0001 and 0002, `SHOW INDEXES` lists 34 rows on a migrated database: the 23 constraint-backed indexes, the 9 own indexes (8 range, 1 full-text) and the 2 built-in lookup indexes.
 
 **Runner** (`neonradar graph migrate`, `neonradar_graph.migrate`):
 
@@ -176,7 +181,7 @@ Every statement must be idempotent (`IF NOT EXISTS`): DDL cannot be rolled back,
 
 C1 accepts some records that the C2 tables do not cover one to one. The mapping decides them as follows; each is listed for tech lead sign-off at Gate 1 in [CHANGELOG.md](CHANGELOG.md).
 
-1. **Ownership order.** An `Ownership` becomes `HOLDS_ACCOUNT` when its asset is a `BankAccount` in the load, else `CONSOLIDATES` when `nr.consolidation` is set, else `OWNS`. So an account holding wins over consolidation, and its `nr.consolidation` is not stored. Share bands (`nr.share_pct_*`) are stored only on `OWNS`.
+1. **Ownership order.** An `Ownership` becomes `HOLDS_ACCOUNT` when its asset is a `BankAccount` in the load, else `CONSOLIDATES` when `nr.consolidation` is set, else `OWNS`. So an account holding wins over consolidation, and its `nr.consolidation` is not stored. Share bands (`nr.share_pct_*`) of an `Ownership` are stored only on `OWNS`; from 1.1.0 the voting-rights band of a `Control` is stored on `CONTROLS`, which the ownership endpoint never traverses (a voting-rights band is control, not a share).
 2. **One value per property.** A graph property of type STRING or FLOAT takes the first value of the FtM property, in FtM's stored value order (the order of the record's list). LIST properties (`names`, `countries`, `topics`, `datasets`, `nationalities`, `natures_of_control`) keep every value. Absent values are left out, not set to null.
 3. **Person properties** are exactly the three in the node table; LegalEntity properties such as `registration_number` are not copied onto persons.
 4. **Flags** follow the table above: `:PEP` and `:RCA` include sub-topics, `:Sanctioned` does not, and `:Synthetic` is also set on `:Sanction` nodes.
@@ -187,8 +192,8 @@ C1 accepts some records that the C2 tables do not cover one to one. The mapping 
    - `addressEntity` on a record that is not a `LegalEntity` (FtM allows it on every thing; `HAS_ADDRESS` starts at a `LegalEntity`); the node itself is kept;
    - a duplicate id in the load (C1 R4 already rejects it; the first record is kept).
 7. **Endpoints outside the load** are not checked by the mapping; the loader's label-checked `MATCH` counts them as dangling. An `Ownership` whose asset is outside the load is treated as `OWNS`.
-8. **Not mapped in v1** (C1 accepts them, C2 stores nothing): the references `parent`, `riskSource`, `BankAccount.bank`, `Position.organization`, `Payment.payer`, `Payment.beneficiary`, `Payment.contract`, `Payment.project` and `proof`; on `HOLDS_ACCOUNT` and `CONSOLIDATES`, the Ownership's `percentage`, `ownershipType`, `nr.natures_of_control` and `nr.share_pct_*` (they are stored only on `OWNS`); every other FtM property that `neonradar_contracts.graph` does not name; the record keys `last_change` and `referents`; and `nr.v`, `nr.source_ref` and `nr.synthetic_kind`. Phase 2's `:SourceRecord` keeps the full record.
-9. **Not set in Phase 1:** `Address.address_key` (Phase 2 computes it), and `account_kind` or `is_nominee` when the record has no `nr` value for them (no default is invented).
+8. **Not mapped in v1** (C1 accepts them, C2 stores nothing): the references `parent`, `riskSource`, `BankAccount.bank`, `Position.organization`, `Payment.payer`, `Payment.beneficiary`, `Payment.contract`, `Payment.project` and `proof`; on `HOLDS_ACCOUNT` and `CONSOLIDATES`, the Ownership's `percentage`, `ownershipType`, `nr.natures_of_control`, `nr.share_pct_*` and (1.1.0) `nr.is_nominee` (they are stored only on `OWNS`); every other FtM property that `neonradar_contracts.graph` does not name; the record keys `last_change` and `referents`; and `nr.v`, `nr.synthetic`, `nr.source_ref`, `nr.synthetic_kind` and (1.1.0) `nr.ch_person_number`. Records stay unchanged in their files (C1 R10); from 1.1.0 a `:SourceRecord` keeps only the properties in [Changes in 1.1.0](#changes-in-110), and only for members of merged entities.
+9. **Not set in Phase 1:** `Address.address_key` (Phase 2 computes it), and `account_kind` or `DIRECTOR_OF.is_nominee` when the record has no `nr` value for them (no default is invented). From 1.1.0, `OWNS.is_nominee` and the bound flags of `OWNS` and `CONTROLS` are `false` when the record has no value (PHASE-2.md 5.2); `DIRECTOR_OF.is_nominee` keeps the 1.0.0 rule.
 
 ## Graph invariants
 
@@ -202,6 +207,104 @@ Integration tests run them against the demo-mini load (M1.9a and M1.9b):
 | I4 | Every `:Account` has at least one incoming `HOLDS_ACCOUNT`. |
 | I5 | Every `OWNS` with share bounds has `0 <= share_pct_min <= share_pct_max <= 100`. |
 | I6 | No `:Alert` with `wording_class = 'synthetic_scenario'` flags a node where `synthetic = false`. |
+
+Invariants I7 to I14 (1.1.0) are in [Changes in 1.1.0](#changes-in-110).
+
+## Changes in 1.1.0
+
+Additive (`docs/build/PHASE-2.md` 5.2, contract-change issue #52): every graph valid under 1.0.0 stays valid, no property or type is renamed or removed, and a load without a resolution run (L8) behaves as in 1.0.0, except that `OWNS` and `CONTROLS` now carry their `false` defaults and companies carry the two new properties when a record has their `nr` keys (C1 1.1.0). M2.1b changes the schema, the mapping data (`neonradar_contracts.graph`) and the record mapping (`neonradar_graph.mapping`); the resolution-aware loader (L8 to L17), `neonradar graph verify` and the tests of I7 to I14 come with M2.11.
+
+In `neonradar_contracts.graph`: `SUPPORT_NODES["SourceRecord"]`, `SUPPORT_RELATIONSHIPS["RESOLVED_TO"]` and `["POSSIBLY_SAME_AS"]` (with `POSSIBLY_SAME_AS_ID_INFIX`), `RELATIONSHIP_ENDPOINTS["POSSIBLY_SAME_AS"]`, `ENTITY_RESOLUTION_PROPERTIES`, the value sets `ENTITY_RESOLUTIONS`, `RESOLVED_TO_METHODS`, `POSSIBLY_SAME_AS_METHODS` and `CERTAIN_METHODS`, `NULLABLE_PROPERTIES`, the company mapping of `nr.psc_statements` and `nr.accounts_category`, and the `OWNS` and `CONTROLS` mappings with their `defaults`. `POSSIBLY_SAME_AS` is a support relationship (written by entity resolution, not built from records), so C3's record-built relationship types stay the 16 of 1.0.0 until C3 1.1.0 decides how the API returns it.
+
+Migration 0002 changes no data. Relationships loaded under 1.0.0 get the new `OWNS` and `CONTROLS` flags only when they are loaded again, so a query that may meet a graph loaded under 1.0.0 reads them with `coalesce(r.share_min_exclusive, false)` (likewise `share_max_exclusive` and `is_nominee`). `graph load` refuses a database until `neonradar graph migrate` has applied 0002.
+
+**`:SourceRecord`** (one node per member of an entity merged from two or more records; never for single-record entities):
+
+| Property | Type | Rule |
+|---|---|---|
+| `id` | STRING | the record id (unique, constraint from 0001) |
+| `dataset`, `schema`, `caption` | STRING | from the record |
+| `names` | LIST<STRING> | the record's names, original scripts |
+| `topics` | LIST<STRING> | the record's own topics (invariant I11 recomputes flags from these) |
+| `canonical_id` | STRING | the id of the entity it resolved to (indexed) |
+| `synthetic` | BOOLEAN | the dataset's flag |
+| `retrieved_at`, `source_url` | STRING | when the source provides them |
+| `run_id` | STRING | the resolution run |
+
+**`RESOLVED_TO`** (from `:SourceRecord` to `:Entity`; Phase 1 defined `match_probability`, `method`, `resolver_version`, `decided_at`): `method` takes the values `anchor`, `deterministic`, `probabilistic`, `human`; `match_probability` is 1.0 for `anchor`, `deterministic` and `human`; adds `rule` (STRING, D rule or null), `run_id` (STRING) and `features` (STRING: the `features` column of `canonical.csv`, a JSON object of comparison name to level label for the link through which the record joined; probabilistic links only, else null). The loader reads everything from `canonical.csv` (PHASE-2.md 7.1.8) and never needs `pairs.parquet`.
+
+**`POSSIBLY_SAME_AS`** (new relationship type):
+
+| From | To | Built from | Properties |
+|---|---|---|---|
+| `LegalEntity` | `LegalEntity` | a line of `candidates.jsonl` whose two records are of class `person`, `org` or `legal_entity` (L14); stored from the node with the smaller id to the node with the larger id, read as undirected | `id` (`<a>\|psa\|<b>`), `match_probability` (FLOAT, or null for `deterministic` and `source_hint` possible matches), `match_weight` (FLOAT or null), `method` (`probabilistic`, `deterministic`, `source_hint`), `rule` (STRING or null: the D rule of a `deterministic` possible match, for example `D1` when two records share a UK company number but their names differ), `reasons` (LIST<STRING>), `features` (STRING, JSON), `run_id`, `resolver_version`, `datasets` (LIST<STRING>, the union of both nodes' datasets), `synthetic` (BOOLEAN) |
+
+It carries no other meaning. Detectors (Phase 3) never traverse it; the API's network endpoint returns it like any other relationship, and the UI draws it as unconfirmed. Queries that sort possible matches put null probabilities last (`ORDER BY p.match_probability IS NULL, p.match_probability DESC`).
+
+**New node properties.**
+
+| Label | Property | Type | Rule |
+|---|---|---|---|
+| `:Entity` (all) | `cluster_size` | INTEGER | number of source records (1 for single-record entities) |
+| `:Entity` (all) | `resolution` | STRING | `identity`, `deterministic`, `probabilistic`, `human` or `mixed` |
+| `:Entity` (all) | `names_latin` | LIST<STRING> | Latin-script forms of `names` from `neonradar_keys.names.latin_forms` (search aid; never shown as a name) |
+| `:Entity` (all) | `names_latin_text` | STRING | `names_latin` joined with `" \| "` (full-text index) |
+| `:Company` | `psc_statements` | LIST<STRING> | from `nr.psc_statements` |
+| `:Company` | `accounts_category` | STRING | from `nr.accounts_category` |
+
+**New relationship properties.**
+
+| Type | Property | Type | Rule |
+|---|---|---|---|
+| `OWNS` | `share_min_exclusive`, `share_max_exclusive` | BOOLEAN | from `nr.share_pct_min_exclusive` and `nr.share_pct_max_exclusive`; `false` when absent |
+| `OWNS` | `is_nominee` | BOOLEAN | from `nr.is_nominee` on the `Ownership`; `false` when absent |
+| `CONTROLS` | `share_pct_min`, `share_pct_max` | FLOAT | from `nr.share_pct_min` and `nr.share_pct_max` on the `Control` (the voting-rights band); null when absent |
+| `CONTROLS` | `share_min_exclusive`, `share_max_exclusive` | BOOLEAN | from the two exclusive flags on the `Control`; `false` when absent |
+
+PHASE-1.md invariant I5 is unchanged; I14 checks the `CONTROLS` bounds the same way. The ownership endpoint still traverses only `OWNS` (PHASE-2.md 5.3): a voting-rights band is control, not a share.
+
+`Address.address_key`, declared in 1.0.0, is now always set by the loader (`neonradar_keys.addresses.address_key`).
+
+**Migration `graph/schema/migrations/0002_resolution.cypher`** (one statement per line):
+
+```cypher
+// 0002_resolution: NeonRadar graph schema v1.1.0 (entity resolution)
+CREATE CONSTRAINT possibly_same_as_id IF NOT EXISTS FOR ()-[r:POSSIBLY_SAME_AS]-() REQUIRE r.id IS UNIQUE;
+CREATE INDEX source_record_canonical_id IF NOT EXISTS FOR (n:SourceRecord) ON (n.canonical_id);
+CREATE INDEX source_record_dataset IF NOT EXISTS FOR (n:SourceRecord) ON (n.dataset);
+DROP INDEX entity_names IF EXISTS;
+CREATE FULLTEXT INDEX entity_names IF NOT EXISTS FOR (n:LegalEntity|Address) ON EACH [n.names_text, n.names_latin_text] OPTIONS { indexConfig: { `fulltext.analyzer`: 'standard-no-stop-words' } };
+```
+
+After 0001 and 0002: 23 constraints, and 9 indexes that are neither constraint-backed nor token lookups (`SHOW INDEXES YIELD type, owningConstraint WHERE owningConstraint IS NULL AND type <> 'LOOKUP' RETURN count(*)`). The full-text index keeps its name, so the API's search query does not change. Both Neo4j instances (L17) get the same migrations.
+
+**Loader rules added** (numbered after PHASE-1.md 5.2 rules 1 to 7):
+
+- L8. `neonradar graph load PATH... --resolution RUN_DIR` reads `canonical.csv` into a map from record id to canonical id. Without `--resolution`, every record is its own entity, exactly as in Phase 1.
+- L9. A load with a resolution run first removes what that run replaces, in batches with `CALL (n) { DETACH DELETE n } IN TRANSACTIONS OF 10000 ROWS` sent through `session.run()`: on the real-data instance (L17), every `:Entity`, `:Sanction` and `:SourceRecord` with their relationships; on the default instance, every synthetic `:Entity` and `:SourceRecord` whose `id` or `referents` include a record id of this load (the nodes an earlier resolution of the same records left behind, so I13 holds after a re-run); on both, every `:Alert` and `:DetectionRun` (detections are re-run after a load). `--no-replace` skips this for additive loads (for example Phase 3's overlay against an already loaded resolution).
+- L10. Member records are grouped by canonical id and merged into one node row with the rules in PHASE-2.md 7.1.6; labels come from the merged schema and flags from the merged topics.
+- L11. For every entity with two or more members, one `:SourceRecord` per member and one `RESOLVED_TO` from it to the entity, with properties from `canonical.csv` (`method`, `rule`, `match_probability`, `features`).
+- L12. Every entity reference in a relationship record is re-pointed through the map. A relationship whose two ends land on the same node is not loaded and is counted as `self_loops_dropped`.
+- L13. A reference that is neither a loaded entity id nor in the map is looked up in the database as `(:SourceRecord {id: $ref})-[:RESOLVED_TO]->(e)` before it counts as dangling. This is what lets Phase 3's overlay, which references record ids, load against a resolved graph.
+- L14. One `POSSIBLY_SAME_AS` per line of `candidates.jsonl`. A line whose records are not of class `person`, `org` or `legal_entity` in `canonical.csv` stops the load (exit 1): an address never has a possible match (PHASE-2.md 7.1).
+- L15. `names_latin`, `names_latin_text` and `Address.address_key` are computed at load time with `neonradar_keys`; records are never changed (C1 R10).
+- L16. Loading the same records with the same resolution run twice leaves every count unchanged (tested).
+- L17. Real data lives in its own Neo4j instance: the Compose service `neo4j-real` (profile `real`, bolt on `127.0.0.1:7688`, its own volume `neo4j-real-data`), reached through `NR_NEO4J_REAL_URI` (its only database is `realdata`). A load with any non-synthetic record goes there; the loader refuses (exit 2) to write a non-synthetic record to the default instance (`NEO4J_URI`), and refuses a load that mixes synthetic and non-synthetic records. The default instance, which the API on port 8000, the UI, the end-to-end tests and the Neo4j MCP server use, therefore only ever holds synthetic data.
+
+PHASE-1.md rule 6 still holds through the generic relationship query of M2.11: `PAID.ts` is written as a `DATETIME` in UTC (the loader passes a timezone-aware datetime).
+
+**Invariants added** (integration tests in `graph/tests/test_invariants.py`, and `neonradar graph verify`):
+
+| Invariant | Check |
+|---|---|
+| I7 | Every `:SourceRecord` has exactly one outgoing `RESOLVED_TO`, to an `:Entity` whose `id` starts with `nr-` and whose `referents` contain the source record's `id` |
+| I8 | Every `:Entity` with `cluster_size >= 2` has exactly `cluster_size` incoming `RESOLVED_TO` and `size(referents) = cluster_size`; every other `:Entity` has `referents = [id]` |
+| I9 | No `:Entity` has source records whose `synthetic` values differ from its own |
+| I10 | Every `POSSIBLY_SAME_AS` joins two different `:LegalEntity` nodes with the same `synthetic` value, from the smaller id to the larger, and no two nodes have more than one |
+| I11 | For every merged entity, `topics` equals the union of its source records' `topics`; for every entity, the flag labels are exactly those its `topics` imply (PHASE-1.md 5.2) |
+| I12 | No `OWNS` or `CONTROLS` relationship starts and ends at the same node |
+| I13 | No `:Entity` has an `id` equal to the `id` of a `:SourceRecord` (a record that joined a merged entity has no node of its own left over) |
+| I14 | Every `CONTROLS` with share bounds has `0 <= share_pct_min <= share_pct_max <= 100` |
 
 ## Cypher conventions
 

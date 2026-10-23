@@ -1,28 +1,72 @@
 slug: rapid_pass_through
-name: Rapid pass-through (funnel or transit accounts)
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Rapid pass-through
+shape_name: funds paid on soon after they arrive
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Funds arrive in an account and leave it again within hours or days, keeping little
-  balance behind, so that the account works as a conduit rather than a store of value.
+summary: An account that pays on what it receives within hours or days, from several sources.
 doc: docs/typologies/rapid-pass-through.md
-citations: [fincen_fin_2014_a005, fatf_egmont_tbml_indicators_2021, fatf_cyber_fraud_2023, ffiec_appendix_f, fatf_egmont_concealment_2018]
-graph_pattern: >
-  An Account whose inbound PAID total within a window leaves again through outbound PAID
-  within hours or a few days (a dwell-time parameter), keeping a small residual; inbound
-  from several unrelated accounts, outbound to few beneficiaries.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- ffiec_appendix_f
+- fincen_fin_2014_a005
+- fatf_pml_2018
+graph_pattern: >-
+  Inflows to one Account from at least three accounts in a 7-day window, at least 90 percent of which leave within
+  72 hours (first in, first out, after earlier balances).
+parameters:
+  window_days:
+    default: 7
+    min: 1
+    max: 70
+  max_dwell_hours:
+    default: 72
+    min: 1
+    max: 720
+  min_inflow:
+    default: 10000.0
+    min: 0.0
+    max: 100000.0
+  min_pass_ratio:
+    default: 0.9
+    min: 0.0
+    max: 1.0
+  min_sources:
+    default: 3
+    min: 1
+    max: 30
+  max_beneficiaries:
+    default: 3
+    min: 1
+    max: 30
+  history_days:
+    default: 90
+    min: 1
+    max: 900
+  max_candidates:
+    default: 100000
+    min: 1
+    max: 1000000
+metrics:
+- inflow_amount
+- passed_amount
+- pass_ratio
+- currency
+- sources
+- beneficiaries
+- median_dwell_hours
+- window_days
+wording:
+  headline_structural: >-
+    {pass_ratio|pct} of {inflow_amount|money} received from {sources|n:account} paid on within {window_days|n:day}
+  headline_synthetic: >-
+    Synthetic scenario: {pass_ratio|pct} of {inflow_amount|money} received from {sources|n:account} paid on within
+    {window_days|n:day}
 false_positives:
-  - Payment service providers and remittance aggregators
-  - Payroll bureaus
-  - Escrow and client accounts of law firms and estate agents
-  - Marketplace settlement accounts
-  - Treasury sweep accounts
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null
+- Payroll bureaus funding salaries
+- Marketplaces settling with sellers
+- Escrow and client accounts
+synthetic_support: high
+generator_scenario: rapid_pass_through
+detector: neonradar_detect.detectors.rapid_pass_through

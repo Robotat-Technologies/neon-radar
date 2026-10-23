@@ -17,7 +17,7 @@ from typer.testing import CliRunner
 
 from neonradar_cli import detect, graph
 from neonradar_cli.main import app
-from neonradar_detect import catalog, runs
+from neonradar_detect import catalog, runner, runs
 from neonradar_detect.source import Window
 from neonradar_ingest.data import profiles
 from neonradar_ingest.data.project import load_project
@@ -48,7 +48,8 @@ def invoke(*args: str) -> Any:
 
 
 def test_memory_run_on_demo_mini_finds_the_round_trip(tmp_path: Path) -> None:
-    result = invoke("run", "--engine", "memory", "--run-id", "run-20261021T101500-7f3a")
+    run_id = "run-20261021T101500-7f3a"
+    result = invoke("run", "--engine", "memory", "--run-id", run_id, "--typology", "circular_flow")
     assert result.exit_code == 0, result.output
     lines = result.output.splitlines()
     assert lines[0] == "run-20261021T101500-7f3a  1 alerts  (circular_flow)  engine memory"
@@ -64,8 +65,18 @@ def test_memory_run_on_demo_mini_finds_the_round_trip(tmp_path: Path) -> None:
     assert json.loads(alert)["alert_id"] == meta["alert_ids"][0]
 
 
+def test_a_run_without_typology_runs_every_detector_in_order() -> None:
+    slugs = list(runner.detectors(catalog.load()))
+    result = invoke("run", "--engine", "memory")
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert f"({', '.join(slugs)})  engine memory" in lines[0]
+    assert [line.split(":")[0].strip() for line in lines[1 : 1 + len(slugs)]] == slugs
+
+
 def test_the_window_option_bounds_the_starts(tmp_path: Path) -> None:
-    result = invoke("run", "--engine", "memory", "--window", "2026-01-01", "2026-01-02")
+    window = ["--window", "2026-01-01", "2026-01-02"]
+    result = invoke("run", "--engine", "memory", *window, "--typology", "circular_flow")
     assert result.exit_code == 0, result.output
     assert " 0 alerts " in result.output.splitlines()[0]
     result = invoke("run", "--engine", "memory", "--window", "2026-02-01", "2026-01-01")
@@ -80,7 +91,7 @@ def test_the_window_option_bounds_the_starts(tmp_path: Path) -> None:
         (["--profile", "no-such-profile"], 2, "no profile"),
         (["--engine", "spark"], 2, "--engine must be neo4j or memory"),
         (["--typology", "nope"], 1, "unknown typology 'nope'"),
-        (["--typology", "structuring"], 1, "has no detector yet"),
+        (["--typology", "trade_based_ml"], 1, "has no detector yet"),
         (["--run-id", "run-1"], 1, "must look like run-"),
     ],
 )
@@ -130,7 +141,7 @@ def test_the_neo4j_engine_hands_the_store_to_the_run(monkeypatch: pytest.MonkeyP
     )
     assert seen["window_known"] is True and seen["profile"] is None
     assert seen["real_registry_alerts"] is load_project().access.real_registry_alerts
-    assert list(seen["params"]) == ["circular_flow"]
+    assert list(seen["params"]) == list(runner.detectors(catalog.load()))
 
 
 def test_the_overlay_window_comes_from_overlay_json(tmp_path: Path) -> None:
@@ -151,7 +162,10 @@ def test_list_shows_every_typology_with_its_tier_and_detector() -> None:
         "circular_flow  0.2.0  draft  core  neonradar_detect.detectors.circular_flow 0.2.0" in lines
     )
     assert "trade_based_ml  0.1.0  draft  explainer_only  no detector" in lines
-    assert lines[-1] == "1 of 15 typologies have a detector"
+    files = catalog.load_catalog()
+    named = [slug for slug, item in files.items() if item.detector]
+    assert named and not [line for line in lines if line.endswith(" missing")]
+    assert lines[-1] == f"{len(named)} of {len(files)} typologies have a detector"
 
 
 @pytest.mark.parametrize("args", [[], ["alr-0123456789abcdef0123", "--run", "latest"]])

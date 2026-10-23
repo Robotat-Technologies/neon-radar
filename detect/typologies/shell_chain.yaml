@@ -1,40 +1,75 @@
 slug: shell_chain
-name: Layered company ownership with nominee directors
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Layered company ownership
+shape_name: ownership layered through companies
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Layers of companies with few or no operations own one another, often across jurisdictions,
-  and nominee directors or shareholders appear on the record, so the natural person who
-  controls the companies does not appear in public records.
+summary: >-
+  Ownership of a company layered through other companies, with at least two of the Annex E indicators, or an ownership
+  loop.
 doc: docs/typologies/shell-chain.md
 citations:
-  - fatf_egmont_concealment_2018
-  - fatf_bo_legal_persons_2023
-  - fatf_tcsp_2010
-  - fatf_corporate_vehicles_2006
-  - star_puppet_masters_2011
-  - fincen_fin_2006_g014
-  - europol_shadow_money_2021
-graph_pattern: >
-  An OWNS chain of two or more company layers above the subject, often across jurisdictions,
-  that ends at a Person, at a Company with no recorded owner, or loops back on itself; nominee
-  directorships (DIRECTOR_OF with is_nominee true) or directors with many appointments across
-  unrelated companies; and companies in the chain that move money (HOLDS_ACCOUNT and PAID) but
-  show no payroll or supplier payments. CONTROLS relationships can add control without
-  ownership.
-parameters: {}
-metrics: []
-wording: null
+- fatf_egmont_concealment_2018
+- fincen_fin_2006_g014
+- europol_shadow_money_2021
+- fatf_pml_2018
+graph_pattern: >-
+  A maximal OWNS path through at least two organisations to a leaf company, with at least two of: a nominee, a director
+  with many appointments, no recorded owner at the top, a widely shared registered address, a PO box; or an OWNS
+  cycle.
+parameters:
+  min_company_layers:
+    default: 2
+    min: 1
+    max: 20
+  min_indicators:
+    default: 2
+    min: 1
+    max: 20
+  professional_appointments:
+    default: 10
+    min: 1
+    max: 100
+  mass_address_companies:
+    default: 25
+    min: 1
+    max: 250
+  max_hops:
+    default: 6
+    min: 1
+    max: 8
+  max_paths:
+    default: 200000
+    min: 1
+    max: 2000000
+metrics:
+- company_layers
+- jurisdictions
+- jurisdiction_list
+- indicators
+- indicator_text
+- nominee_links
+- professional_directors
+- unknown_owner_statements
+- top_kind
+- paths
+wording:
+  headline_structural: >-
+    Ownership layered through {company_layers|n:company:companies} in {jurisdictions|n:jurisdiction}, with {indicator_text}
+  headline_synthetic: >-
+    Synthetic scenario: ownership layered through {company_layers|n:company:companies} in {jurisdictions|n:jurisdiction},
+    with {indicator_text}
+  variants:
+    loop:
+      headline_structural: Ownership loop through {company_layers|n:company:companies} with no outside owner recorded
+      headline_synthetic: >-
+        Synthetic scenario: ownership loop through {company_layers|n:company:companies} with no outside owner recorded
 false_positives:
-  - Holding companies and ordinary corporate groups
-  - Special purpose vehicles in securitisation and in aircraft or ship leasing
-  - Investment funds with corporate directors
-  - Joint ventures
-  - Start-ups that have not begun trading
-  - Professional directors in fund jurisdictions
-synthetic_support: medium     # high | medium | low | none
-generator_scenario: null
-detector: null                # null until implemented
+- Holding company groups with a person at the top
+- Funds and special purpose vehicles with professional directors
+- Subsidiaries of foreign groups whose owners are not on the UK register
+synthetic_support: medium
+generator_scenario: shell_chain
+detector: neonradar_detect.detectors.shell_chain

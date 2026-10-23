@@ -1,37 +1,73 @@
 slug: mass_registration_address
-name: Mass registration addresses
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Mass registration address
+shape_name: many companies registered at one address
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Many companies list the same address as their registered address. Most such addresses
-  belong to service providers that offer registered addresses as a business; the pattern
-  becomes more specific when the companies at one address also pay each other.
+summary: >-
+  Many active organisations registered at one address, with the signals that set a formation factory apart from
+  an ordinary registered agent.
 doc: docs/typologies/mass-registration-address.md
 citations:
-  - fatf_egmont_concealment_2018
-  - fatf_egmont_tbml_indicators_2021
-  - fincen_fin_2006_g014
-  - fatf_tcsp_2010
-  - fatf_glossary
-  - star_puppet_masters_2011
-  - ffiec_appendix_f
-graph_pattern: >
-  An Address with many incoming HAS_ADDRESS relationships with role registered (threshold
-  parameter); stronger when Companies registered at that Address pay each other (PAID between
-  Accounts they hold through HOLDS_ACCOUNT), share directors, or were formed through the same
-  agent.
-parameters: {}
-metrics: []
-wording: null
+- fatf_egmont_concealment_2018
+- fatf_egmont_tbml_indicators_2021
+- fatf_tcsp_2010
+- fincen_fin_2006_g014
+- ca_registered_office_s86_2006
+- ch_default_address_rules_2024
+graph_pattern: >-
+  An Address with at least 25 active organisations whose HAS_ADDRESS role is registered (Companies House default
+  addresses excepted), scored by incorporation bursts, shared directors, payments among them and PO boxes.
+parameters:
+  min_companies:
+    default: 25
+    min: 1
+    max: 250
+  top_share:
+    default: 0.001
+    min: 0.0
+    max: 0.1
+  active_only:
+    default: true
+  exclude_postcodes:
+    default:
+    - CF14 8LH
+    - EH7 9HR
+    - BT1 9DY
+  burst_days:
+    default: 30
+    min: 1
+    max: 300
+  max_evidence_companies:
+    default: 100
+    min: 1
+    max: 1000
+  max_candidates:
+    default: 50000
+    min: 1
+    max: 500000
+metrics:
+- companies
+- companies_shown
+- incorporated_in_burst
+- burst_days
+- shared_directors
+- companies_with_shared_director
+- paying_pairs
+- po_box
+wording:
+  headline_structural: >-
+    {companies} active companies registered at one address, {incorporated_in_burst} of them incorporated within
+    {burst_days} days
+  headline_synthetic: >-
+    Synthetic scenario: {companies} active companies registered at one address, {incorporated_in_burst} of them
+    incorporated within {burst_days} days
 false_positives:
-  - Registered agents and corporate service firms
-  - Serviced offices and business centres
-  - Law and accounting firms that act as registered office for clients
-  - Clusters created by address normalisation errors, such as missing unit numbers or transliteration variants
-  - Errors in the source register
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null                # null until implemented
+- Registered agents and company secretarial firms
+- Serviced offices
+- Accountants and law firms
+synthetic_support: medium
+generator_scenario: mass_registration_address
+detector: neonradar_detect.detectors.mass_registration_address

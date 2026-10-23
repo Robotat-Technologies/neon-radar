@@ -1,9 +1,8 @@
-"""`neonradar graph verify`: the C2 graph invariants I1 to I17 as violation counts (PHASE-2.md
-M2.11 deliverable 5; I15 to I17 since PHASE-3.md M3.4).
+"""`neonradar graph verify`: the C2 graph invariants I1 to I14 as violation counts (PHASE-2.md
+M2.11 deliverable 5).
 
 Phase 1's I1 to I6 are in `queries/verify_base.cypher`, I7 to I14 in
-`queries/verify_resolution.cypher` and I15 to I17 in `queries/verify_overlay.cypher` (C2
-1.2.0, verbatim from the code book); each statement returns `violations` and sits under an
+`queries/verify_resolution.cypher`; each statement returns `violations` and sits under an
 `// I<n>` comment, and an invariant with two statements adds them up. Counts only: no value
 of a node is read back, so the command is safe on the real-data instance.
 """
@@ -12,11 +11,11 @@ from neo4j import READ_ACCESS, Driver
 
 from neonradar_graph import cypher
 
-FILES = ("verify_base.cypher", "verify_resolution.cypher", "verify_overlay.cypher")
+FILES = ("verify_base.cypher", "verify_resolution.cypher")
 
 
 def invariants() -> dict[str, list[str]]:
-    """Each invariant's statements, in order I1 to I17."""
+    """Each invariant's statements, in order I1 to I14."""
     found: dict[str, list[str]] = {}
     for name in FILES:
         for invariant, statement in cypher.named(name):

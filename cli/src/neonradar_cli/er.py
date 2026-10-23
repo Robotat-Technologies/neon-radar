@@ -101,7 +101,7 @@ def run_command(
     from neonradar_resolve import run
 
     project, chosen = project_or_exit(), profile_or_exit(profile)
-    if not chosen.resolution.enabled:
+    if not chosen.resolution.enabled or chosen.resolution.config is None:
         typer.echo(f"FAIL  profile {chosen.profile} has resolution.enabled: false", err=True)
         raise typer.Exit(code=2)
     with redact.guard(chosen, "er run") as where:
@@ -159,6 +159,9 @@ def show_config_command(
     from neonradar_resolve.config import load_config
 
     relative = profile_or_exit(profile).resolution.config if profile else str(DEFAULT_CONFIG)
+    if relative is None:  # a profile without resolution names no settings file (M3.3)
+        typer.echo(f"FAIL  profile {profile} names no resolution.config", err=True)
+        raise typer.Exit(code=2)
     try:
         config, sha = load_config(REPO_ROOT / relative)
     except (OSError, ValueError) as exc:

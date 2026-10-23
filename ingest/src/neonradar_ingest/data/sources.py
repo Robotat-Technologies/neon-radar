@@ -16,7 +16,10 @@ from neonradar_ingest.data.profiles import DATASETS, Profile
 from neonradar_ingest.data.project import Project
 from neonradar_ingest.http import HttpClient, RateLimiter
 
-PLUGINS: tuple[str, ...] = ("neonradar_ingest.data.synthetic",)
+PLUGINS: tuple[str, ...] = (
+    "neonradar_ingest.data.synthetic",
+    "neonradar_ingest.sources.companies_house.build",
+)
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {
     "nr_synthetic": "M2.2",
@@ -95,11 +98,15 @@ class BuildResult:
 
 @dataclass(frozen=True, slots=True)
 class Builder:
+    """`cleanup`, when given, runs only after a successful build and swap (for example to
+    delete work indexes), so a failed validation leaves the work files in place."""
+
     dataset: str
     build: Callable[[Profile, BuildContext], BuildResult]
     steps: tuple[str, ...] = ()
     string_keys: tuple[str, ...] = ()
     list_keys: tuple[str, ...] = ()
+    cleanup: Callable[[Profile, BuildContext, BuildResult], None] | None = None
 
 
 class BuildError(Exception):

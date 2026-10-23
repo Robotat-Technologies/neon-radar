@@ -2,11 +2,13 @@
 
 `load_overlay` loads an overlay folder (`syn-ov-` records and `overlay.json`) onto its profile's
 base and checks everything before it writes: the real-data instance only for a profile in the
-`real_overlay_profiles` its caller passes after the gate (exit 3, folder unread); the record and
-bridge checks (`plan_overlay`, exit 2, counts only); L17 on the default instance; every base
-reference resolves (`overlay_unresolved.cypher`) to an `:Organization` without a topic
-(`overlay_holders.cypher`, OD-10) (exit 1). Then `overlay_purge.cypher` and Phase 2's queries; a
-holding takes the resolving query of L13, so it lands on a merged record's canonical node.
+`real_overlay_profiles` its caller passes after the gate, and no folder in a protected cache folder
+(exit 3, folder unread); the record and bridge checks (`plan_overlay`, exit 2, counts only); L17
+on the default instance; every base reference resolves (`overlay_unresolved.cypher`) to an
+organisation that may hold an account (`overlay_holders.cypher`, OD-10) (exit 1); L17 on the rows.
+Then `overlay_purge.cypher` and Phase 2's queries; a holding takes the resolving query of L13, so
+it lands on a merged record's canonical node. Step 6 (I15 and I16 after the load) is checked by
+`graph verify` and the integration tests.
 """
 
 import json
@@ -21,6 +23,7 @@ from typing import Any
 from followthemoney import model, registry
 from neo4j import Driver, RoutingControl
 
+from neonradar_contracts.datasets import load_registry
 from neonradar_contracts.graph import OVERLAY_DATASET, OVERLAY_ID_PREFIX
 from neonradar_contracts.records import RecordIssue, validate_batch, validate_record
 from neonradar_graph import cypher
@@ -32,6 +35,7 @@ from neonradar_graph.loader import (
     LoadPlan,
     LoadReport,
     Record,
+    check_rows,
     execute_plan,
     read_input,
     require_migrated,
@@ -43,8 +47,9 @@ PARTIES = ("payer", "beneficiary")
 MISSING = re.compile(r"points to '([^']+)', which is not in this load")  # C1 R4's message
 CHECKS = (  # step 3: each query file counts the base references that fail it
     ("overlay_unresolved.cypher", "resolve to no node, directly or through a :SourceRecord"),
-    ("overlay_holders.cypher", "resolve to a node that is not an :Organization without a topic"),
+    ("overlay_holders.cypher", "resolve to a node that may hold no account (G1, 7.2.4)"),
 )
+PROTECTED = ("real", "spikes", "holdout", "heldout")  # data/cache/ folders (G9, G11)
 
 
 class OverlayRefused(LoadError):
@@ -88,15 +93,20 @@ def references(record: Record) -> list[tuple[str, str]]:
 def bridge_issues(records: Sequence[Record]) -> tuple[Counter[str], dict[str, set[str]]]:
     """The bridge check of L18 step 1 on records that pass C1, as counts by issue, and each
     account's base holders. Only an account holding (an Ownership with role `account holder`
-    whose asset is a BankAccount of the overlay) may name a base entity, as its owner; a Payment
-    may name one only as the payer or beneficiary that holds the account it names; and no
-    Payment joins two accounts that base entities hold (I15, I16)."""
+    whose asset is a BankAccount of the overlay) may name a base entity, as its only owner, and
+    that account has no other holder; a Payment on such an account names exactly that holder
+    on that side, and names a base entity on no other; and no Payment joins two accounts that
+    base entities hold (I15, I16; OD-10, reconciliation L18f)."""
     accounts = {r["id"] for r in records if r["schema"] == "BankAccount"}
     holders: dict[str, set[str]] = {}
+    owners: dict[str, set[str]] = {}  # every owner of every Ownership of an overlay account
     found: Counter[str] = Counter()
     for record in records:
         props, schema = record["properties"], record["schema"]
         named = [(name, value) for name, value in references(record) if _base(value)]
+        if schema == "Ownership":
+            for asset in (a for a in props.get("asset", []) if a in accounts):
+                owners.setdefault(asset, set()).update(props.get("owner", []))
         if schema == "Payment" and {name for name, _ in named} <= set(PARTIES):
             continue  # its parties are checked below, once every holding is known
         assets = props.get("asset", [])
@@ -108,8 +118,13 @@ def bridge_issues(records: Sequence[Record]) -> tuple[Counter[str], dict[str, se
             and assets[0] in accounts
         ):
             holders.setdefault(assets[0], set()).update(value for _, value in named)
+            if len(props.get("owner", [])) != 1:
+                found["a base holding names more than one owner"] += 1
         elif named:
             found["a record other than an account holding or a payment names a base entity"] += 1
+    found["an account a base entity holds has another holder"] += sum(
+        len(owners[account]) > 1 for account in holders
+    )
     for record in (r for r in records if r["schema"] == "Payment"):
         props = record["properties"]
         held = {
@@ -119,9 +134,11 @@ def bridge_issues(records: Sequence[Record]) -> tuple[Counter[str], dict[str, se
         for party in PARTIES:
             if any(_base(v) and v not in held[party] for v in props.get(party, [])):
                 found["a payment names a base entity that does not hold its account"] += 1
+            elif held[party] and sorted(held[party]) != sorted(props.get(party, [])):
+                found["a payment on a base holder's account names another party on its side"] += 1
         if held["payer"] and held["beneficiary"]:
             found["a payment joins two accounts that base entities hold (I16)"] += 1
-    return found, holders
+    return +found, holders
 
 
 def _refused(issues: Sequence[RecordIssue]) -> OverlayRefused:
@@ -179,10 +196,12 @@ def read_meta(folder: Path) -> dict[str, Any]:
 
 def _failing(driver: Driver, name: str, refs: list[str], database: str, size: int) -> int:
     query = cypher.query(name)
+    excluded = sorted(d.slug for d in load_registry().datasets if d.kind in ("list", "leak"))
     total = 0
     for chunk in batched(refs, size, strict=False):
+        params = {"refs": list(chunk), "excluded": excluded}
         rows, _, _ = driver.execute_query(
-            query, {"refs": list(chunk)}, database_=database, routing_=RoutingControl.READ
+            query, params, database_=database, routing_=RoutingControl.READ
         )
         total += int(rows[0][0])
     return total
@@ -191,7 +210,9 @@ def _failing(driver: Driver, name: str, refs: list[str], database: str, size: in
 def _execute(
     driver: Driver, plan: LoadPlan, refs: list[str], report: LoadReport, database: str, size: int
 ) -> None:
-    """Steps 3 to 5 on a connected driver."""
+    """Steps 3 to 5 on a connected driver. L17's row check runs before the purge too, so a
+    refused plan never leaves the previous overlay removed."""
+    check_rows(plan, database, overlay=True)
     require_migrated(driver, database)
     for name, failure in CHECKS:
         if count := _failing(driver, name, refs, database, size):
@@ -205,8 +226,27 @@ def _execute(
         ]
     report.overlay_removed, report.detection_results_removed = sum(removed[:-1]), removed[-1]
     execute_plan(
-        driver, plan, report, database=database, replace=False, batch_size=size, synthetic=True
+        driver, plan, report, database=database, replace=False, batch_size=size, overlay=True
     )
+
+
+def refuse_protected(folder: Path, instance: Instance) -> None:
+    """Exit 3 before anything is read when the folder, or an entry of it, resolves into a
+    protected data/cache folder: on the default instance real data, spike output and the holdout
+    and held-out runs; on the real-data instance the last three (G9, G11). Only names are
+    compared (case-folded, as APFS and NTFS are case-insensitive); no file is opened."""
+    protected = PROTECTED if instance is Instance.DEFAULT else PROTECTED[1:]
+    paths = [folder, *(sorted(folder.iterdir()) if folder.is_dir() else [])]
+    for path in paths:
+        parts = [part.casefold() for part in path.resolve().parts]
+        if any(
+            parts[i : i + 2] == ["data", "cache"] and parts[i + 2] in protected
+            for i in range(len(parts) - 2)
+        ):
+            raise OverlayInstanceRefused(
+                f"the overlay lies in a protected data/cache folder for the {instance} instance"
+                " (G9, G11); nothing was read"
+            )
 
 
 def load_overlay(
@@ -223,6 +263,8 @@ def load_overlay(
     """Load one overlay folder onto its profile's base in `instance` (L18 steps 1 to 5).
     `driver` (not closed) and `database`, which must belong to `instance`, are for tests."""
     started = time.monotonic()
+    if isinstance(real_overlay_profiles, str):  # `in` would test substrings
+        raise TypeError("real_overlay_profiles is a collection of profile names, not a str")
     if instance is Instance.REAL and profile not in real_overlay_profiles:
         raise OverlayInstanceRefused(
             f"{profile} is not in access.real_overlay_profiles: the real-data instance takes no"
@@ -231,6 +273,7 @@ def load_overlay(
     database = database or instance.database
     if for_database(database) is not instance:
         raise InstanceRefused(f"the database does not belong to the {instance} instance (L17)")
+    refuse_protected(folder, instance)
     meta = read_meta(folder)
     loaded = read_input([folder])
     plan, refs = plan_overlay(loaded.records, meta, profile)

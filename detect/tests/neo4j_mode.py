@@ -10,7 +10,9 @@ database with a 60-second timeout. What changed: no second container and no plug
 the code `neonradar graph load --strict` runs) instead of through a temporary file and the
 command line. Records that are not all synthetic cannot be loaded into the default instance (C2
 L17), so a test that builds a non-synthetic look-alike is skipped in this mode: R-REAL is decided
-after the Source, and the in-memory run of the same test covers it.
+after the Source, and the in-memory run of the same test covers it. Added for M3.5c: when the
+session ends, `assert_no_projections` checks that `gds.graph.list()` is empty on the test database
+(the M3.5c acceptance check: the ring step drops its projection in `finally`).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from neo4j import RoutingControl
 from nr_test_neo4j import Neo4jTarget
 
 from neonradar_detect.neo4jsource import Neo4jSource
@@ -28,6 +31,16 @@ from neonradar_graph.migrate import migrate
 
 Record = dict[str, Any]
 TIMEOUT_S = 60.0
+GDS_GRAPHS = "CALL gds.graph.list() YIELD graphName RETURN graphName ORDER BY graphName"
+
+
+def assert_no_projections(target: Neo4jTarget) -> None:
+    """No GDS projection is left behind on the test database (M3.5c acceptance)."""
+    records, _, _ = target.driver.execute_query(
+        GDS_GRAPHS, database_=target.database, routing_=RoutingControl.READ
+    )
+    names = [record["graphName"] for record in records]
+    assert names == [], f"GDS projections left behind: {names}"
 
 
 def load(target: Neo4jTarget, records: list[Record]) -> None:

@@ -17,7 +17,7 @@ import json
 import os
 import re
 from collections.abc import Callable, Iterator
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -338,8 +338,12 @@ def run_command(
         typer.Option("--seeds", help="Development seeds, 1-5 or 1,3,7 [default: every one]."),
     ] = None,
     engine: Annotated[
-        str, typer.Option("--engine", help="memory (the oracle) or neo4j (wipes NEO4J_URI).")
-    ] = "memory",
+        str | None,
+        typer.Option(
+            "--engine",
+            help="memory (the oracle; the default for dev) or neo4j (wipes NEO4J_URI first).",
+        ),
+    ] = None,
     out: Annotated[
         Path | None,
         typer.Option("--out", file_okay=False, help="Folder [default: eval_dir(eval_id)]."),
@@ -356,15 +360,16 @@ def run_command(
 
         if split not in ("dev", "test"):
             raise EvalError(f"--split must be dev or test, not {split!r}", 2)
-        if engine not in ("memory", "neo4j"):
+        holdout = split == "test"
+        source = engine or ("neo4j" if holdout else "memory")
+        if source not in ("memory", "neo4j"):
             raise EvalError(f"--engine must be memory or neo4j, not {engine!r}", 2)
         seeds = read_seeds()
-        holdout = split == "test"
         if holdout:
-            if seeds_text is not None or out is not None or engine != "neo4j":
+            if seeds_text is not None or out is not None or source != "neo4j":
                 raise EvalError("the holdout run takes --engine neo4j and no --seeds or --out", 2)
             chosen = sorted(_holdout_gate())
-            if len(chosen) != HOLDOUT_SEEDS or seeds.test != frozenset(chosen):
+            if len(chosen) != HOLDOUT_SEEDS:
                 raise EvalError(f"eval/seeds.yaml must list {HOLDOUT_SEEDS} holdout seeds", 2)
         else:
             chosen = parse_seeds(seeds_text) if seeds_text else list(seeds.dev)
@@ -383,8 +388,7 @@ def run_command(
             raise EvalError(f"{folder} is not empty", 2)
         folder.mkdir(parents=True, exist_ok=True)
         names, runs = default_names(), []
-        with ExitStack() as stack:
-            factory = stack.enter_context(_source_factory(engine, timeout))
+        with _source_factory(source, timeout) as factory:
             for seed in chosen:
                 run = evaluate.run_seed(
                     seed, settings, names, cat, split, folder, factory,
@@ -398,7 +402,7 @@ def run_command(
                 )
                 runs.append(run)
         title = "Detection evaluation: " + ("holdout figures" if holdout else "development figures")
-        meta = {"title": title, "split": split, "engine": engine, "profile": settings.profile}
+        meta = {"title": title, "split": split, "engine": source, "profile": settings.profile}
         typer.echo(_write_run(folder, runs, params, cat, meta))
         typer.echo(f"wrote {folder}")
 

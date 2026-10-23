@@ -6,7 +6,7 @@
 - Depends on: C1 records (input) and C2 graph schema (output).
 - Commands: `uv run pytest graph/tests`, `make test-int`, `make up`, `make smoke`,
   `uv run neonradar graph migrate`, `graph load --profile demo --resolution latest` and
-  `graph verify` (I1 to I14; `--real` on migrate, verify, stats and wipe runs the real-data gate).
+  `graph verify` (I1 to I17; `--real` on migrate, verify, stats and wipe runs the real-data gate).
 - Modules: `mapping` (C1 records plus an optional resolution run to C2 loader rows, pure; the
   mapping data lives in `neonradar_contracts.graph`), `migrate` (the migration runner),
   `client`, `smoke`, `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of
@@ -15,7 +15,8 @@
   `wipe`, `stats`), `resolution` (`ResolutionMap.load(run_dir)`: canonical.csv,
   candidates.jsonl, run.json), `instances` (`Instance.DEFAULT` and `Instance.REAL`, L17),
   `cypher` (reads `queries/*.cypher` and fills `{{rel_type}}`-style placeholders with C2 names
-  only), `verify` (`graph verify`). Every new Cypher statement lives in `queries/`; the files
+  only), `verify` (`graph verify`), `overlay` (`load_overlay`: C2 1.2.0 L18, an overlay folder
+  onto its profile's base; PHASE-3.md M3.4). Every new Cypher statement lives in `queries/`; the files
   PHASE-2.md M2.11 gives are verbatim except three (phase-2-reconciliation 2.9, J1 and J2).
 - Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
   a pytest plugin the root `conftest.py` registers once; fixtures `neo4j`, `empty_neo4j`,
@@ -57,6 +58,13 @@
     `nr-<anchor>` plus one `:SourceRecord` and `RESOLVED_TO` per member. A load with a run first
     purges what it replaces (`--no-replace` skips it), so `written` is not 0 on a reload; the
     counts are (L16). Run `graph verify` after a load.
+  - Overlay loads (L18, `overlay.py`): every check runs before anything is written, in order:
+    the real-data instance only for a profile in the `real_overlay_profiles` the caller passes
+    (exit 3, folder unread), the record and bridge checks (exit 2, counts only: a base id may be
+    real), L17 on the default instance, then `overlay_unresolved.cypher` and
+    `overlay_holders.cypher` (exit 1: every base reference resolves, to an `:Organization`
+    without a topic). Then `overlay_purge.cypher` (the previous overlay and every detection
+    result; never a base node) and Phase 2's queries; a holding takes the resolving query (L13).
   - `PAID.ts` is a timezone-aware `datetime` in the row's props, never a string.
   - `followthemoney.ValueEntity.from_dict` pops keys from the dict it gets: pass a copy.
   - The neo4j driver imports PyArrow when it is installed; the graph package itself never

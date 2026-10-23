@@ -466,5 +466,5 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
 
 
 register_source_model(DATASET, shared.ListOptions)
-register_source(SourceSpec(DATASET, discover, make_client))
+register_source(SourceSpec(DATASET, discover, client=make_client))
 register_builder(Builder(DATASET, build, string_keys=("list_generated", "global_file_id")))

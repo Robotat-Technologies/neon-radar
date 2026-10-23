@@ -7,6 +7,7 @@ and writes the run id into `LATEST` last. On a real profile it runs the real-dat
 and works inside the redaction guard; every summary holds counts only (M2.2). `er blocking`
 counts the comparisons of the Splink blocking rules; `er bench` checks the G2-05 gates and
 `er calibrate` writes the threshold table, both on the synthetic benchmark with one DuckDB thread.
+`er sample`, `er label`, `er review` and `er precision` (M2.10c) live in `er_labelling.py`.
 """
 
 import json
@@ -16,10 +17,20 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
+from neonradar_cli import er_labelling
+
 if TYPE_CHECKING:  # imported inside the commands, so `neonradar --help` stays fast
     from neonradar_resolve.run import RunConfig, RunResult
 
-app = typer.Typer(help="Entity resolution: runs, settings and the benchmark.", no_args_is_help=True)
+app = typer.Typer(
+    help="Entity resolution: runs, settings, the benchmark, sampling, labelling and review.",
+    no_args_is_help=True,
+)
+# M2.10c (PHASE-2.md 7.3): er_labelling.py; `er label` and `er review` are for people only
+app.command(name="sample")(er_labelling.sample_command)
+app.command(name="label")(er_labelling.label_command)
+app.command(name="review")(er_labelling.review_command)
+app.command(name="precision")(er_labelling.precision_command)
 
 DEFAULT_CONFIG = Path("resolve/config/er.yaml")
 BENCH_FIXTURE = Path("data/fixtures/er-bench")
@@ -118,7 +129,7 @@ def run_command(
         where.step, where.dataset = "resolve", None
         run_id = layout.new_run_id("er")
         run_dir = layout.resolution_dir(chosen, run_id)
-        decisions = None if no_decisions else layout.decisions_file(chosen)
+        decisions = layout.decisions_file(chosen)  # only counted with --no-decisions
         with retention.spill_dir(chosen, run_id) as temp:
             config = _run_config(
                 REPO_ROOT / chosen.resolution.config,
@@ -134,6 +145,7 @@ def run_command(
                 config,
                 decisions_file=decisions,
                 probabilistic=not no_probabilistic,
+                use_decisions=not no_decisions,
             )
         (run_dir.parent / layout.LATEST).write_text(f"{run_id}\n", encoding="utf-8")
         report = {
@@ -144,7 +156,7 @@ def run_command(
             "config_sha256": config.config_sha256,
             "thresholds": _thresholds(config),
             "seed": config.resolver.seed,
-            "decisions_used": decisions is not None,
+            "decisions_used": not no_decisions,
             "probabilistic": not no_probabilistic,
             "splink": result.probabilistic,
             "counts": _lower_keys(result.counts),

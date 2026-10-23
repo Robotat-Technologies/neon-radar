@@ -149,8 +149,12 @@ def test_er_run_counts_decisions_and_no_decisions_ignores_them(data_env: Any) ->
     _er("run", "--profile", "demo", "--no-probabilistic", "--no-decisions")
     info = json.loads((_latest_run(data_env) / "run.json").read_text(encoding="utf-8"))
     assert info["decisions_used"] is False
-    assert info["counts"]["decisions_on_file"] == 0
+    # counted, never applied (M2.10c: the evaluation run reports the decisions on file, 7.3)
+    assert info["counts"]["decisions_on_file"] == 3
     assert info["counts"]["decisions_applied"] == 0
+    assert info["counts"]["decisions_not_applicable"] == 0
+    assert info["counts"]["decisions_awaiting_second_review"] == 0
+    assert "D7" not in info["counts"]["links_by_rule"]
 
 
 def test_er_run_refuses_a_profile_without_resolution(data_env: Any) -> None:

@@ -1,7 +1,8 @@
 """One resolution run (PHASE-2.md 7.1.8, M2.10a deliverable 7).
 
-`run(record_dirs, run_dir, config, decisions_file=None, probabilistic=True)` reads the records,
-builds members, feature tables, deterministic links, decisions and hints, calls
+`run(record_dirs, run_dir, config, decisions_file=None, probabilistic=True, use_decisions=True)`
+reads the records, builds members, feature tables, deterministic links, decisions
+(`decisions.load_decisions`, M2.10c) and hints, calls
 `cluster.resolve` and writes `canonical.csv`, `candidates.jsonl`, `conflicts.jsonl` and
 `run.json`, with sorted rows so that the first three are byte-stable. With `probabilistic`
 (M2.10b) it also trains the two Splink models on the run's feature tables (`scoring.py`), passes
@@ -30,6 +31,7 @@ from typing import Any
 
 from neonradar_resolve import __version__, cluster, features, records, rules, schemas, scoring
 from neonradar_resolve.config import ResolverConfig
+from neonradar_resolve.decisions import count_on_file, load_decisions
 
 log = logging.getLogger(__name__)
 
@@ -261,6 +263,7 @@ def resolve(
         schemas.common_schema,
     )
     result.counts["decisions_awaiting_second_review"] += held
+    result.counts["decisions_not_applicable"] += decisions.not_applicable
     return result, same
 
 
@@ -286,8 +289,14 @@ def run(
     config: RunConfig,
     decisions_file: Path | None = None,
     probabilistic: bool = True,
+    use_decisions: bool = True,
 ) -> RunResult:
-    """Resolve the records of `record_dirs` into `run_dir` (whose name is the run id)."""
+    """Resolve the records of `record_dirs` into `run_dir` (whose name is the run id).
+
+    Without `use_decisions` (`er run --no-decisions`, the evaluation run of 7.3) the decisions
+    file is only counted (`decisions_on_file`), never applied, and `decisions_used` is false.
+    """
+    used = use_decisions and decisions_file is not None
     timings: dict[str, float] = {}
     run_dir.mkdir(parents=True, exist_ok=False)
     features_path = run_dir / features.FEATURES_FILE
@@ -308,7 +317,10 @@ def run(
             features.write_features(features_path, person, org, config.temp_directory)
         with _step(timings, "rules"):
             links = rules.deterministic(corpus, members)
-            decisions = rules.read_decisions(decisions_file, config.reviewers)
+            if used:
+                decisions = load_decisions(decisions_file, members.keys(), config.reviewers)
+            else:
+                decisions = rules.Decisions([], [], count_on_file(decisions_file))
         if probabilistic:
             with _step(timings, "models"):
                 found = scoring.score(features_path, config.resolver, spill)
@@ -344,7 +356,7 @@ def run(
         "seed": resolver.seed,
         "probabilistic": probabilistic,
         "splink": found.summary() if found is not None else None,
-        "decisions_used": decisions_file is not None,
+        "decisions_used": used,
         "inputs": [vars(f) for f in corpus.inputs],
         "counts": counts,
         "timings": timings,

@@ -202,6 +202,42 @@ def test_hide_paths_and_log_query_false_together_name_only_the_hosts(
     ]
 
 
+@pytest.mark.parametrize(
+    ("rules", "where"),
+    [
+        ({}, "GET https://api.example.test/v1/company/99000020"),
+        ({"log_query": False}, "GET https://api.example.test/v1/company/99000020"),
+        ({"hide_paths": True}, "GET https://api.example.test/…"),
+    ],
+)
+def test_transport_errors_never_quote_what_the_server_sent(
+    caplog: pytest.LogCaptureFixture, rules: dict[str, bool], where: str
+) -> None:
+    """h11 quotes a malformed header line in a protocol error, and a `Location` can hold a
+    company number or a signed query: a protocol error shows only its class, and under either
+    rule every transport error does."""
+    caplog.set_level(logging.DEBUG)
+    text = "" if rules else ": down"  # a transport error's own text, shown only without a rule
+    quoted = "illegal header line: b'Location: /company/99000010?sig=s1'"
+    server = Server(
+        httpx.ConnectError("down"), *[httpx.RemoteProtocolError(quoted) for _ in range(3)]
+    )
+    with pytest.raises(HttpError) as error:
+        server.client(**rules).get("/company/99000020")
+    assert str(error.value) == f"{where} failed after 4 attempt(s): RemoteProtocolError"
+    assert [r.getMessage() for r in caplog.records if r.name == "neonradar_ingest.http"] == [
+        f"{where}: ConnectError{text}; retry 1 in 1.0 s",
+        f"{where}: RemoteProtocolError; retry 2 in 2.0 s",
+        f"{where}: RemoteProtocolError; retry 3 in 4.0 s",
+    ]
+    for part in ("illegal", "Location", "99000010", "sig="):
+        assert part not in caplog.text + str(error.value), part
+    server = Server(httpx.UnsupportedProtocol("down"))
+    with pytest.raises(HttpError) as error:
+        server.client(**rules).get("/company/99000020")
+    assert str(error.value) == f"{where}: UnsupportedProtocol{text}"
+
+
 def hint(headers: dict[str, str]) -> float | None:
     return retry_after_seconds(httpx.Response(429, headers=headers))
 

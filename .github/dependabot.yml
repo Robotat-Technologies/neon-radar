@@ -15,8 +15,15 @@ updates:
     directory: "/ui"
     schedule: { interval: weekly }
     commit-message: { prefix: build, include: scope }
+    groups:
+      # eslint-plugin-oxlint needs the same oxlint minor as a peer (~x.y.0), so a bump
+      # of either one alone fails npm ci: they always arrive in one pull request.
+      oxlint: { patterns: [oxlint, eslint-plugin-oxlint] }
     ignore:
       - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      # track Node 24 until the Node-version review after Node 26 LTS
+      - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: "/"

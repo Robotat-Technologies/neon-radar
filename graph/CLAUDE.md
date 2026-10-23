@@ -59,12 +59,17 @@
     purges what it replaces (`--no-replace` skips it), so `written` is not 0 on a reload; the
     counts are (L16). Run `graph verify` after a load.
   - Overlay loads (L18, `overlay.py`): every check runs before anything is written, in order:
-    the real-data instance only for a profile in the `real_overlay_profiles` the caller passes
-    (exit 3, folder unread), the record and bridge checks (exit 2, counts only: a base id may be
-    real), L17 on the default instance, then `overlay_unresolved.cypher` and
-    `overlay_holders.cypher` (exit 1: every base reference resolves, to an `:Organization`
-    without a topic). Then `overlay_purge.cypher` (the previous overlay and every detection
-    result; never a base node) and Phase 2's queries; a holding takes the resolving query (L13).
+    the real-data instance only for a profile in the `real_overlay_profiles` the caller passes,
+    and no folder in a protected `data/cache/` folder (exit 3, folder unread), the record and
+    bridge checks (exit 2, counts only: a base id may be real; a base-held account has one
+    holder, and its payments name that holder on its side), L17 on the default instance, then
+    `overlay_unresolved.cypher` and `overlay_holders.cypher` (exit 1: every base reference
+    resolves, to an `:Organization` that may hold an account: no `:PublicBody`, topic,
+    dissolution date or list or leak dataset), then L17 on the rows (`check_rows`). Then
+    `overlay_purge.cypher` (the previous overlay and every detection result; never a base node)
+    and Phase 2's queries; a holding takes the resolving query (L13). `execute_plan(...,
+    overlay=True)` is the only way synthetic rows reach the real-data instance; the default
+    instance takes synthetic rows only, whatever the arguments.
   - `PAID.ts` is a timezone-aware `datetime` in the row's props, never a string.
   - `followthemoney.ValueEntity.from_dict` pops keys from the dict it gets: pass a copy.
   - The neo4j driver imports PyArrow when it is installed; the graph package itself never

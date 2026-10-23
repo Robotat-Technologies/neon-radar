@@ -6,7 +6,7 @@
 - Depends on: C1 records (input) and C2 graph schema (output).
 - Commands: `uv run pytest graph/tests`, `make test-int`, `make up`, `make smoke`,
   `uv run neonradar graph migrate`, `graph load --profile demo --resolution latest` and
-  `graph verify` (I1 to I14; `--real` on migrate, verify, stats and wipe runs the real-data gate).
+  `graph verify` (I1 to I17; `--real` on migrate, verify, stats and wipe runs the real-data gate).
 - Modules: `mapping` (C1 records plus an optional resolution run to C2 loader rows, pure; the
   mapping data lives in `neonradar_contracts.graph`), `migrate` (the migration runner),
   `client`, `smoke`, `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of

@@ -181,6 +181,31 @@ def test_overlay_invariants_hold_on_demo_mini(demo_mini: Neo4jTarget, tmp_path: 
     assert overlay_violations(demo_mini) == {"I15": 0, "I16": 0, "I17": 0}
 
 
+def test_graph_verify_prints_i15_to_i17_after_i1_to_i14(
+    demo_mini: Neo4jTarget, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`neonradar graph verify` on the test database: one line per invariant, I1 to I17 (M3.4)."""
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    from typer.testing import CliRunner
+
+    from neonradar_cli import graph as graph_cli
+    from neonradar_cli.main import app
+
+    @contextmanager
+    def connected(*args: Any, **kwargs: Any) -> Any:
+        yield demo_mini.driver
+
+    settings = SimpleNamespace(database=demo_mini.database)
+    monkeypatch.setattr(graph_cli, "_settings", lambda *args: settings)
+    monkeypatch.setattr(graph_cli, "_connected", connected)
+    result = CliRunner().invoke(app, ["graph", "verify"])
+    assert result.exit_code == 0, result.output
+    lines = [f"I{n}: 0" for n in range(1, 18)]
+    assert result.output.splitlines() == [*lines, "OK  0 violation(s) of 17 invariants"]
+
+
 # Non-synthetic look-alikes, built here at run time and never committed (PHASE-3.md 2.9),
 # with the labels the loader gives them; the violating nodes and relationships are written
 # with test-only Cypher, never through the loader (M3.1 deliverable 4).

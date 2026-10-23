@@ -470,3 +470,55 @@ entries:
       - https://eur-lex.europa.eu/eli/reg/2016/679/oj
     verified: 2026-10-21
     note: "Articles 4(1), 4(7) and 10 in the text as adopted, read on legislation.gov.uk on 2026-10-21 (url and first extra URL). EUR-Lex (extra URL) answered with a bot challenge; re-open in a browser. The current consolidated EU text was not opened; the data steward is to confirm that these articles are unchanged."
+  # Sanctions ownership and control (PHASE-2.md 7.5 and PHASE-3.md 7.8; cited by the
+  # sanctions_exposure typology 0.2.0, M3.5e). M2.14 adds the three Phase 2 keys as well:
+  # whichever pull request merges second keeps one entry per key.
+  - key: ofac_50_percent_faqs
+    title: FAQs 398 to 402 on the 50 Percent Rule
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: 2020
+    url: https://ofac.treasury.gov/faqs/topic/1521
+    extra_urls: []
+    verified: 2026-10-18
+    note: "FAQ 399: the rule applies to entities owned 50 percent or more in the aggregate by one or more blocked persons. FAQ 401: indirect ownership passes blocked status down a chain entity by entity (X holds 50 percent of A and A holds 50 percent of B, so B is blocked). FAQ 398 (11 August 2020): the rule 'speaks only to ownership and not to control'. FAQ 402: when combined ownership falls below 50 percent the entity 'is no longer considered automatically to be a blocked entity', but property already blocked stays blocked. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S30) and docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T13) on 2026-10-18; not re-opened by the build."
+  - key: ofsi_general_guidance_2026
+    title: UK financial sanctions general guidance
+    publisher: Office of Financial Sanctions Implementation (HM Treasury)
+    year: 2026
+    url: https://www.gov.uk/government/publications/financial-sanctions-general-guidance/uk-financial-sanctions-general-guidance
+    extra_urls: []
+    verified: 2026-10-18
+    note: "A name match 'does not necessarily mean' that the person is the one on the list; matching all the information on the list is likely to be a target match. Section 4 (ownership and control; 4.1 updated 12 May 2026): the three ownership circumstances of the regulations and examples of control; 4.1.4: OFSI 'would not simply aggregate different designated persons' holdings in a company, unless, for example, the shares or rights are subject to a joint arrangement between the designated parties or one party controls the rights of another'; owned or controlled entities 'may not be designated in their own right'. Quoted in docs/research/2026-10-18/sanctions-peps.md section 9 and docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T36); not re-opened by the build."
+  - key: eu_best_practices_2024
+    title: EU Best Practices for the effective implementation of restrictive measures (11623/24)
+    publisher: Council of the European Union
+    year: 2024
+    url: https://data.consilium.europa.eu/doc/document/ST-11623-2024-INIT/en/pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "3 July 2024. Ownership is 'the possession of 50% or more of the proprietary rights of an entity', aggregated across designated persons (paragraph 63). Paragraph 64 lists control criteria, among them (a) the right to appoint or remove a majority of the administrative, management or supervisory body and (g) managing a business on a unified basis while publishing consolidated accounts; paragraphs 65 and 66: the criteria hold 'unless the contrary can be established on a case by case basis'. On identification: 'as many specific identifiers as possible', ICAO-standard transliteration 'should be present at all times and in all language versions', and cooperation to refute a match that rests on too few identifiers. Read for docs/research/2026-10-18/sanctions-peps.md sections 2 and 9 (source S45) and docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T61) on 2026-10-18; not re-opened by the build."
+  - key: russia_sanctions_regs_2019
+    title: The Russia (Sanctions) (EU Exit) Regulations 2019, regulation 7 and Schedule 1
+    publisher: legislation.gov.uk
+    year: 2019
+    url: https://www.legislation.gov.uk/uksi/2019/855/regulation/7
+    extra_urls:
+      - https://www.legislation.gov.uk/uksi/2019/855/schedule/1
+    verified: 2026-10-18
+    note: "S.I. 2019/855. Regulation 7(2), the first condition: more than 50% of the shares or of the voting rights, or the right to appoint or remove a majority of the board, held directly or indirectly; 7(4), the second condition: control 'by whatever means'. Schedule 1 paragraph 9: a share is held indirectly through a chain of majority stakes; paragraph 10: a share held as nominee 'is to be treated as held by the other (and not by the nominee)'. Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T37); not re-opened by the build. Only the Russia regulations were read; other UK regimes are expected to use the same wording (not verified for each regime)."
+  - key: eu_reg_2580_2001
+    title: Council Regulation (EC) No 2580/2001, Article 1
+    publisher: EUR-Lex
+    year: 2001
+    url: https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32001R2580
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Article 1(5): ownership is 'being in possession of 50 % or more of the proprietary rights of a legal person, group or entity, or having a majority interest therein'; Article 1(6): control. The Council's Best Practices tie their ownership criterion to Article 1(5). Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T62). eur-lex.europa.eu answers automated clients with a bot challenge; not re-opened by the build; re-open in a browser."
+  - key: ec_asset_freeze_faq_2026
+    title: "Frequently asked questions: asset freeze and prohibition to make funds and economic resources available (Council Regulation 269/2014); FAQs 8, 9, 17 and 43"
+    publisher: European Commission
+    year: 2026
+    url: https://finance.ec.europa.eu/system/files/2023-07/faqs-sanctions-russia-assets-freezes_en.pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "As of 6 May 2026; FAQs 8, 9, 17 and 43. FAQ 8: holdings of designated persons are aggregated; FAQ 9: control over one entity 'would impact its own subsidiaries, but not other subsidiaries in the wider group'; FAQ 17: sanctions on listed entities 'do not automatically extend to their board members'; FAQ 43: control is 'a factual assessment to be carried out by the relevant national competent authorities'. Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T63); not re-opened by the build."

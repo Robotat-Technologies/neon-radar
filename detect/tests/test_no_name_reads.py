@@ -44,6 +44,9 @@ NAMES = (
     "weakAlias",
 )
 TOKEN = re.compile(rf"(?<![\w$])(?:{'|'.join(NAMES)})(?!\w)")
+# Wording sentences of verbatim detectors that use a name word as plain English, never as a
+# property or key. Each phrase is removed exactly before the check; nothing else is exempt.
+PROSE = ("whom these records do not name",)  # sanctions_exposure UK_NOMINEE (M3.5e)
 PACKAGE = Path(memsource.__file__).parent
 DETECTORS = sorted((PACKAGE / "detectors").glob("*.py"))
 
@@ -60,7 +63,10 @@ def _reads(tree: ast.AST) -> list[str]:
         if isinstance(node, ast.Attribute) and node.attr in NAMES:
             found.append(f".{node.attr}")
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            found += [m.group(0) for m in TOKEN.finditer(node.value)]
+            text = node.value
+            for phrase in PROSE:
+                text = text.replace(phrase, "")
+            found += [m.group(0) for m in TOKEN.finditer(text)]
     return found
 
 
@@ -114,5 +120,8 @@ def test_the_check_sees_a_name_read() -> None:
     """The checks above would catch a detector that compared captions or spellings."""
     bad = ast.parse('info = source.node_info(ids)\nif info[x].caption.endswith("ov"):\n    pass\n')
     assert _reads(bad) == [".caption"]
+    prose = ast.parse('A = "held for, whom these records do not name."\nb = row["name"]\n')
+    assert _reads(prose) == ["name"]
+    assert _reads(ast.parse('c = "whom these records do not name: n.name"\n')) == ["name"]
     assert TOKEN.findall(_cypher("MATCH (p:Person) WHERE p.names_text CONTAINS $x RETURN p.id"))
     assert not TOKEN.findall(_cypher("RETURN g.graphName AS graph_name // the caption"))

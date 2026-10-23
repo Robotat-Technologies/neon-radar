@@ -63,20 +63,39 @@ _ABBREVIATIONS = {
     "MT": "MOUNT",
     "WY": "WAY",
     "HWY": "HIGHWAY",
+    "BLVD": "BOULEVARD",  # RULES_VERSION 3
 }
 _CARE_OF = re.compile(r"^(C\s*/\s*O|CARE OF)\b")
-# A street line (RULES_VERSION 2): a token that starts with a digit, or, in a text of three or more
-# tokens (the spec's floor), a thoroughfare or building word after a name in its segment ("EXAMPLE
-# HOUSE"; "ROAD TOWN" is a place) or a unit word before a one-letter unit ("FLAT A"; "FLAT ROCK" is
-# a place). Place names alone ("DUBAI, UNITED ARAB EMIRATES") are not one.
+# A street line (RULES_VERSION 2, words added in 3): a token that starts with a digit, or, in a
+# text of three or more tokens (the spec's floor, so never a key the spec did not give), a
+# thoroughfare or building word after a name in its segment ("EXAMPLE HOUSE"; "ROAD TOWN" is a
+# place), a German compound ending in STRASSE, a word that comes before the street's name ("RUE
+# EXEMPLE"), or a unit word before a one-letter unit ("FLAT A"; "FLAT ROCK" is a place).
 _STREET_WORDS = frozenset(
     {
         "STREET", "ROAD", "AVENUE", "LANE", "DRIVE", "COURT", "CRESCENT", "PLACE", "SQUARE",
         "GARDENS", "CLOSE", "TERRACE", "PARADE", "WAY", "HIGHWAY", "MEWS", "BOULEVARD", "HOUSE",
         "BUILDING", "BUILDINGS", "CENTRE", "ESTATE", "TOWER", "CHAMBERS",
+        # RULES_VERSION 3
+        "PARK", "GREEN", "TOWERS", "PLAZA", "HALL", "QUAY", "WHARF", "ROW", "WALK", "GROVE",
+        "HILL", "MANSIONS", "LODGE", "STRASSE",
     }
 )  # fmt: skip
+# Before the name (RULES_VERSION 3): calle, rue, and улица, ул. and شارع as anyascii writes them.
+_PREFIX_WORDS = frozenset({"CALLE", "RUE", "ULITSA", "UL", "SHR"})
 _UNIT_WORDS = frozenset({"FLAT", "SUITE", "UNIT", "FLOOR", "OFFICE", "ROOM"})
+
+
+def _street_word(i: int, out: list[str], starts: set[int]) -> bool:
+    """Whether token i names a street or a building (see _STREET_WORDS)."""
+    word = out[i]
+    followed = i + 1 < len(out) and i + 1 not in starts
+    return (
+        (word in _STREET_WORDS and i not in starts)
+        or (word.endswith("STRASSE") and len(word) > len("STRASSE"))
+        or (word in _PREFIX_WORDS and followed)
+        or (word in _UNIT_WORDS and followed and len(out[i + 1]) == 1)
+    )
 
 
 def address_key(text: str) -> str | None:
@@ -119,17 +138,7 @@ def address_key(text: str) -> str | None:
         else:
             out.append(_ABBREVIATIONS.get(word, word))
     has_street_line = any(t[:1].isdigit() for t in out) or (
-        len(out) >= 3
-        and any(
-            (t in _STREET_WORDS and i not in starts)
-            or (
-                t in _UNIT_WORDS
-                and i + 1 < len(out)
-                and i + 1 not in starts
-                and len(out[i + 1]) == 1
-            )
-            for i, t in enumerate(out)
-        )
+        len(out) >= 3 and any(_street_word(i, out, starts) for i in range(len(out)))
     )
     if not postcode and not has_street_line:
         return None

@@ -47,8 +47,8 @@ def uk_company_number(value: str | None, *, synthetic: bool = False) -> str | No
 
 
 def has_ch_prefix(number: str) -> bool:
-    """True for an all-digit (ASCII) number or one that starts with a Companies House prefix."""
-    return (number.isascii() and number.isdigit()) or number[:2] in CH_PREFIXES
+    """True for an ASCII number that is all digits or starts with a Companies House prefix."""
+    return number.isascii() and (number.isdigit() or number[:2] in CH_PREFIXES)
 
 
 def is_valid_lei(value: str | None) -> bool:

@@ -1,29 +1,72 @@
 slug: recycled_directors
-name: Recycled and professional directors
+name: Recycled directors
+shape_name: one person directing many companies
 version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: extended                # core | extended | explainer_only
+status: draft
+tier: extended
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  One person or company is a director of many companies, often with appointments that start
-  and end in bursts, sometimes alongside relatives of the people who own or control those
-  companies, and the companies that share the director pay each other.
+summary: One person serving as director of many unrelated companies, or appointed to many in a short time.
 doc: docs/typologies/recycled-directors.md
-citations: [fatf_egmont_concealment_2018, fincen_fin_2006_g014, europol_shadow_money_2021, fatf_glossary, fatf_tcsp_2010, ffiec_appendix_f, icij_faq]
-graph_pattern: >
-  A LegalEntity with many DIRECTOR_OF relationships (a threshold parameter), whose
-  start_date and end_date values cluster in bursts; directors linked by FAMILY_OF to a
-  person who OWNS or CONTROLS the same company; and PAID relationships between Accounts
-  held (HOLDS_ACCOUNT) by companies that share the director. DIRECTOR_OF.is_nominee is read
-  only where the source sets it and is never inferred.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- fatf_egmont_concealment_2018
+- europol_efecta_2023
+- fatf_pml_2018
+- ca_director_idv_s167m_2006
+graph_pattern: >-
+  A Person with active DIRECTOR_OF across at least ten ownership groups, or appointments across at least five groups
+  within 30 days.
+parameters:
+  min_active_appointments:
+    default: 10
+    min: 1
+    max: 100
+  burst_appointments:
+    default: 5
+    min: 1
+    max: 50
+  burst_days:
+    default: 30
+    min: 1
+    max: 300
+  short_tenure_days:
+    default: 90
+    min: 1
+    max: 900
+  max_evidence_companies:
+    default: 100
+    min: 1
+    max: 1000
+  max_candidates:
+    default: 50000
+    min: 1
+    max: 500000
+metrics:
+- appointments
+- active_appointments
+- active_groups
+- burst_appointments
+- burst_groups
+- burst_days
+- short_tenures
+- nominee_appointments
+- relative_owned_companies
+- paying_pairs
+- companies_shown
+wording:
+  headline_structural: One person recorded as director of {active_groups} unrelated active companies
+  headline_synthetic: 'Synthetic scenario: one person recorded as director of {active_groups} unrelated active companies'
+  variants:
+    burst:
+      headline_structural: One person appointed director of {burst_groups} unrelated companies within {burst_days}
+        days
+      headline_synthetic: >-
+        Synthetic scenario: one person appointed director of {burst_groups} unrelated companies within {burst_days}
+        days
 false_positives:
-  - Professional directors and company secretaries provided by a company service provider
-  - Directors shared by the companies of one corporate group
-  - Directors of investment fund and special purpose vehicle structures
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null
+- Professional directors of funds
+- Company secretaries
+- Directors across one group
+synthetic_support: medium
+generator_scenario: recycled_directors
+detector: neonradar_detect.detectors.recycled_directors

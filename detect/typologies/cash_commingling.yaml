@@ -1,34 +1,74 @@
 slug: cash_commingling
-name: Cash-intensive business commingling
+name: Cash commingling
+shape_name: cash banked far above similar businesses
 version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: extended                # core | extended | explainer_only
+status: draft
+tier: extended
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Cash from another source is mixed with the genuine takings of a business that handles a lot
-  of cash, so that the combined deposits look like revenue. In the graph it shows as a company
-  that deposits far more cash than similar companies and pays it on to related parties.
+summary: >-
+  A business banking far more cash than similar businesses in its area, with money moving on to its own people.
 doc: docs/typologies/cash-commingling.md
-citations: [ffiec_cash_intensive, europol_efecta_2023, egmont_100_cases, fatf_pml_2018, fatf_cash_transport_2015, ffiec_appendix_f]
-graph_pattern: >
-  An Account held by a Company whose inbound PAID relationships with channel cash_deposit
-  (from cash_ledger accounts) total far more than those of peer companies with the same
-  sector, deposited on days unrelated to trading, and whose outbound PAID relationships go to
-  accounts held by its owners or related parties (OWNS, CONTROLS, FAMILY_OF) rather than to
-  suppliers and payroll. Needs sector benchmarks; the generator documents its calibration
-  assumptions.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- ffiec_cash_intensive
+- ffiec_appendix_f
+- europol_efecta_2023
+graph_pattern: >-
+  Cash deposits into a Company's accounts at least three times the median of at least five peers of the same sector
+  and postcode district.
+parameters:
+  currency:
+    default: GBP
+  min_peers:
+    default: 5
+    min: 1
+    max: 50
+  min_ratio:
+    default: 3.0
+    min: 1.0
+    max: 20.0
+  min_window_amount:
+    default: 10000.0
+    min: 0.0
+    max: 100000.0
+  change_days:
+    default: 90
+    min: 1
+    max: 900
+  prior_days:
+    default: 365
+    min: 1
+    max: 3650
+  related_party_share:
+    default: 0.5
+    min: 0.0
+    max: 1.0
+  max_candidates:
+    default: 200000
+    min: 1
+    max: 2000000
+metrics:
+- cash_amount
+- cash_deposits
+- currency
+- peers
+- peer_ratio
+- sector
+- area
+- change_ratio
+- related_party_share
+- sunday_share
+wording:
+  headline_structural: >-
+    Cash banked at {peer_ratio} times the median of {peers} similar businesses in the area, {cash_amount|money}
+    in total
+  headline_synthetic: >-
+    Synthetic scenario: cash banked at {peer_ratio} times the median of {peers} similar businesses in the area,
+    {cash_amount|money} in total
 false_positives:
-  - A genuinely busy or growing cash business
-  - Seasonal peaks in trade
-  - A new branch or outlet
-  - A business recorded under the wrong sector
-  - Customers in communities that prefer cash
-  - Price changes
-  - A business that banks takings for a neighbour or a franchise group
-synthetic_support: medium     # high | medium | low | none
-generator_scenario: null
-detector: null
+- Busy or growing businesses
+- A new site or branch
+- Communities that prefer cash
+synthetic_support: medium
+generator_scenario: cash_commingling
+detector: neonradar_detect.detectors.cash_commingling

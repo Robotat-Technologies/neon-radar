@@ -470,3 +470,35 @@ entries:
       - https://eur-lex.europa.eu/eli/reg/2016/679/oj
     verified: 2026-10-21
     note: "Articles 4(1), 4(7) and 10 in the text as adopted, read on legislation.gov.uk on 2026-10-21 (url and first extra URL). EUR-Lex (extra URL) answered with a bot challenge; re-open in a browser. The current consolidated EU text was not opened; the data steward is to confirm that these articles are unchanged."
+  - key: mlr_2017_reg_35
+    title: "The Money Laundering, Terrorist Financing and Transfer of Funds (Information on the Payer) Regulations 2017, regulation 35"
+    publisher: legislation.gov.uk
+    year: 2017
+    url: https://www.legislation.gov.uk/uksi/2017/692/regulation/35
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Politically exposed persons: the definition (35(12)); ministers (35(14)(a)) and members of parliament (35(14)(b)) among the prominent public functions; measures for at least 12 months after a person leaves office (35(9)); for a domestic PEP the starting point is a lower level of risk (35(3A), inserted from 10 January 2024). Read for docs/research/2026-10-18/sanctions-peps.md section 7 (source S55) on 2026-10-18; not re-opened by the build."
+  - key: fca_fg25_3
+    title: FG25/3 The treatment of politically exposed persons for anti-money laundering purposes
+    publisher: Financial Conduct Authority
+    year: 2025
+    url: https://www.fca.org.uk/publication/finalised-guidance/fg25-3.pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "7 July 2025, revised 15 July 2025. Which UK legislatures and posts count for PEP purposes (the devolved legislatures and governments where they have executive powers, not local government), among other guidance. Read for docs/research/2026-10-18/sanctions-peps.md section 7 (source S58) on 2026-10-18; not re-opened by the build."
+  - key: ca_acsp_s1098a_2006
+    title: Companies Act 2006, section 1098A (authorised corporate service providers)
+    publisher: legislation.gov.uk
+    year: 2006
+    url: https://www.legislation.gov.uk/ukpga/2006/46/section/1098A
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Defines an authorised corporate service provider (ACSP); in force since 18 March 2025 (S.I. 2025/349). Read for docs/research/2026-10-18-detection/typology-detection-definitions.md section 11 (source T44) on 2026-10-18; not re-opened by the build."
+  - key: ca_director_idv_s167m_2006
+    title: Companies Act 2006, section 167M (directors' identity verification)
+    publisher: legislation.gov.uk
+    year: 2006
+    url: https://www.legislation.gov.uk/ukpga/2006/46/section/167M
+    extra_urls: []
+    verified: 2026-10-18
+    note: "167M(1): an individual must not act as a director of a company unless the individual's identity is verified; contravention is an offence (167M(3)). In force from 18 November 2025 (S.I. 2025/1118). Verification links appointments to one checked identity; it says nothing about whether a director acts independently. Read for docs/research/2026-10-18-detection/typology-detection-definitions.md section 12 (source T48) on 2026-10-18; not re-opened by the build."

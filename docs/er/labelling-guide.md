@@ -26,7 +26,7 @@ The pairs mix merges NeonRadar made with possible matches it did not make, in on
 
 **An organisation** is one legal entity, such as one company or one limited liability partnership; in the UK register each has its own company number.
 
-- **A subsidiary is not its parent**, even when the parent owns all of it, they share directors or an address, or their names differ only by a word such as "Holdings" or "UK" ([example 10](#example-10-a-parent-and-the-company-it-owns)).
+- **A subsidiary is not its parent**, even when the parent owns all of it, they share directors or an address, or their names differ only by a word such as "Holdings" or "UK". [Example 10](#example-10-a-parent-and-the-company-it-owns) shows a company and the company that owns it.
 - **A trading name is the same company.** A company that trades under another name is still one legal entity.
 - **A renamed company is the same company.** The register keeps a company's previous names, with the date of each change, under its one company number [ch_free_company_data]. An old record with the former name and a new one with the current name describe one entity (see [A name change](#a-name-change)).
 - **Companies incorporated in different countries are different companies**, even with the same name and inside one group.
@@ -54,7 +54,7 @@ Then decide:
 | `different` | Something conflicts that no variation explains: different birth dates at a precision both give, two identifiers of a kind one entity has only one of, names that cannot belong to one entity, or one card describes the owner or parent of the other |
 | `unsure` | Nothing ties the cards and nothing conflicts, or a tie and a conflict stand against each other and you cannot explain the conflict |
 
-This is how the authorities that publish the lists ask people to treat a match: OFSI separates a name match from a match on all the information on the list [ofsi_general_guidance_2026], OFAC asks whether only the first or last name matches and whether the date of birth, identification number or nationality differs [ofac_faq_5], and ICIJ asks users to confirm identities with addresses or other identifiable information [icij_faq]. A name match is where the check starts, not where it ends.
+This is how the publishers of the lists and of the leak database ask people to treat a match: OFSI separates a name match from a match on all the information on the list [ofsi_general_guidance_2026], OFAC asks whether only the first or last name matches and whether the date of birth, identification number or nationality differs [ofac_faq_5], and ICIJ, which publishes the Offshore Leaks Database, asks users to confirm identities with addresses or other identifiable information [icij_faq]. A name match is where the check starts, not where it ends.
 
 ## Common traps
 
@@ -63,7 +63,7 @@ Every trap except the name change has a worked example below, from the synthetic
 | Trap | What to do | Examples |
 |---|---|---|
 | **Transliterations.** Arabic and Cyrillic names have many Latin spellings: vowels are guessed, ق becomes Q or K, the article is written al-, el- or joined, and Russian and Ukrainian forms differ (Pyotr, Petr, Piotr, Petro) | Treat spellings of one name in one script, or across scripts, as compatible. A spelling is not a tie; look for a tie as usual | [1](#example-1-one-arabic-name-two-latin-spellings), [2](#example-2-russian-and-ukrainian-forms-of-one-name) |
-| **Initials and dropped middle names.** One record gives a middle name, another its initial or nothing | An initial agrees with any name that starts with it; a missing middle name agrees with anything. A different full middle name, or an initial that does not fit, conflicts | [4](#example-4-a-middle-name-and-its-initial), [6](#example-6-near-twins-with-different-middle-names), [7](#example-7-same-name-same-month-nothing-else) |
+| **Initials and dropped middle names.** One record gives a middle name, another its initial or nothing | An initial agrees with any name, or any spelling of a name, that starts with it; a missing middle name agrees with anything. A different full middle name, or an initial that fits no spelling of the other card's name, conflicts | [4](#example-4-a-middle-name-and-its-initial), [6](#example-6-near-twins-with-different-middle-names), [7](#example-7-same-name-same-month-nothing-else) |
 | **Swapped name order.** Lists and some registers write the surname first; Companies House writes `SURNAME, Forenames` | Compare the parts, not the order | [3](#example-3-surname-first-and-a-shared-un-reference) |
 | **Titles, capitals and punctuation.** Mr, Mrs, Dr; all capitals; commas | Ignore them. A title can change between records (Miss, Mrs, Ms) | [2](#example-2-russian-and-ukrainian-forms-of-one-name), [4](#example-4-a-middle-name-and-its-initial) |
 | **Typos.** One or two letters wrong in one word | Compatible, when the rest of the name and a tie agree | [9](#example-9-one-company-number-a-typo-and-a-legal-form) |
@@ -118,7 +118,7 @@ Labelling shows real records about real people. These rules hold in every sessio
 
 ## Worked examples
 
-Ten pairs from the synthetic benchmark. Each card shows what the labelling tool would show, in the style of the source the benchmark record imitates. "Benchmark truth" is the generator's answer key (`data/fixtures/er-bench/labels/er_truth.csv`), which real data never has; "right answer" is the label these cards support. They differ only in example 7. A test (`resolve/tests/test_labelling_guide.py`) checks that every record id on this page exists in the benchmark and that each answer key matches the truth file.
+Ten pairs from the synthetic benchmark. Each card shows the kinds of field the labelling tool shows, worded in the style of the source the benchmark record imitates; the tool lays them out in its own way. The Record row is not on the tool's cards, which show no record ids: it is here so that you, and the test named below, can find each record in the benchmark. "Benchmark truth" is the generator's answer key (`data/fixtures/er-bench/labels/er_truth.csv`), which real data never has; "right answer" is the label these cards support. They differ only in example 7. A test (`resolve/tests/test_labelling_guide.py`) checks that every record id on this page exists in the benchmark, that the names and linked companies on each card are those of its record, and that each answer key matches the truth file.
 
 Try each example yourself before you read the answer.
 
@@ -149,7 +149,7 @@ Why: Salah al-Din and Salah Eddine are two Latin spellings of one Arabic given n
 | Born | 1945-11 | 1945-11 |
 | Nationality | not given | Ukrainian (`ua`) |
 | Postcode and town | QQ7 1NE, London | QQ7 1NE, London |
-| Linked companies | director of THE OSIER DALE LOGISTICS PLC | holds 25 to 50 percent of the shares of FLINT LEAT TRADING LIMITED |
+| Linked companies | director of THE OSIER DALE LOGISTICS PLC | holds more than 25 and at most 50 percent of the shares of FLINT LEAT TRADING LIMITED |
 
 **Right answer:** `same`. **Benchmark truth:** `same`.
 
@@ -181,12 +181,12 @@ Why: card B writes the surname first, and each card's other spellings include th
 | Born | 1984-12 | 1984-12 |
 | Nationality | Moroccan (`ma`) | not given |
 | Postcode and town | QQ42 0HG, Manchester | QQ42 0HG, Manchester |
-| Linked companies | holds 25 to 50 percent of the shares of LICHEN HOLM HOLDINGS LTD. | director of THE ELDER THORPE PACKAGING LTD |
+| Linked companies | holds more than 25 and at most 50 percent of the shares of LICHEN HOLM HOLDINGS LTD. | director of THE ELDER THORPE PACKAGING LTD |
 | Identifiers | not given | Companies House person number SYN370370008 |
 
 **Right answer:** `same`. **Benchmark truth:** `same`.
 
-Why: the initial H fits the middle name Husayn, the birth month agrees, and the tie is the same full postcode. A person number on one card only counts for nothing. Keep card B in mind for example 6.
+Why: the initial H fits the middle name Husayn, the birth month agrees, and the tie is the same full postcode. A person number on one card only counts for nothing. Keep card A in mind for example 6.
 
 ### Example 5: a moved address
 
@@ -198,7 +198,7 @@ Why: the initial H fits the middle name Husayn, the birth month agrees, and the 
 | Born | 1943-01 | 1943-01 |
 | Nationality | British (`gb`) | British (`gb`) |
 | Postcode and town | QQ42 6XE, Birmingham | QQ8 0XN, London |
-| Linked companies | director of SEDGE & FLINT VENTURES PLC | holds 50 to 75 percent of the shares of SEDGE & FLINT VENTURES PLC |
+| Linked companies | director of SEDGE & FLINT VENTURES PLC | holds more than 50 and less than 75 percent of the shares of SEDGE & FLINT VENTURES PLC |
 
 **Right answer:** `same`. **Benchmark truth:** `same`.
 
@@ -208,18 +208,17 @@ Why: the full names agree, the birth month and the nationality agree, and the ti
 
 | | Card A | Card B |
 |---|---|---|
-| Record | `syn-erb-r-0beba596d07ae1d1` | `syn-erb-r-119a846ec90f277c` |
-| Source | Companies House officer (style) | Companies House officer (style) |
-| Name | THARVINZEL, Wafaa H | THARVINZEL, Wafaa Khaled |
+| Record | `syn-erb-r-48a754c4a288af89` | `syn-erb-r-119a846ec90f277c` |
+| Source | Companies House PSC (style) | Companies House officer (style) |
+| Name | Ms Wafaa Husayn Tharvinzel | THARVINZEL, Wafaa Khaled |
 | Born | 1984-12 | 1984-12 |
-| Nationality | not given | Egyptian (`eg`) |
+| Nationality | Moroccan (`ma`) | Egyptian (`eg`) |
 | Postcode and town | QQ42 0HG, Manchester | QQ42 4WA, Manchester |
-| Linked companies | director of THE ELDER THORPE PACKAGING LTD | director of THE BRIAR SIKE ENGINEERING LTD |
-| Identifiers | Companies House person number SYN370370008 | not given |
+| Linked companies | holds more than 25 and at most 50 percent of the shares of LICHEN HOLM HOLDINGS LTD. | director of THE BRIAR SIKE ENGINEERING LTD |
 
 **Right answer:** `different`. **Benchmark truth:** `different`.
 
-Why: card A is card B of example 4. The surname, the first given name, the birth month and the postcode district all agree, which is exactly what the benchmark's near twins share. But the second given name conflicts: an initial H cannot stand for Khaled. Nothing ties the cards together (different full postcodes, different companies), so nothing outweighs the conflict.
+Why: card A is card A of example 4. The surname, the first given name, the birth month and the postcode district all agree, which is exactly what the benchmark's near twins share. But the middle names conflict: Husayn and Khaled are two different names, not two spellings of one name. Nothing ties the cards together (different full postcodes, different companies), so nothing outweighs the conflict; the different nationalities count for little on their own, because one person can hold two. Card B of example 4 would make a harder pair with this card B: its initial H is not the initial of Khaled, but it is the initial of Halid, another Latin spelling of the same Arabic name, so nothing clearly conflicts, nothing ties the two cards, and that pair would be `unsure`.
 
 ### Example 7: same name, same month, nothing else
 
@@ -236,7 +235,7 @@ Why: card A is card B of example 4. The surname, the first given name, the birth
 
 **Right answer:** `unsure`. **Benchmark truth:** `different`.
 
-Why: the names are compatible (card A gives no middle name), the birth month agrees and the postcodes share a district, so nothing conflicts; the person numbers differ, which proves nothing, because one person can hold several (step 1). But nothing ties the cards either: different full postcodes, different companies, and every agreement is one that near twins share. The cards do not decide, so the honest label is `unsure`, with a note such as "names and birth month agree, nothing else connects them". The answer key shows why guessing would be wrong: these are two different people, near twins, and a `same` here would count against the published precision.
+Why: the names are compatible (card A gives no middle name), the birth month agrees and the postcodes share a district, QQ3 (the towns differ, Manchester and Leeds, only because the benchmark's generator picks a town without looking at the postcode), so nothing conflicts; the person numbers differ, which proves nothing, because one person can hold several (step 1). But nothing ties the cards either: different full postcodes, different companies, and every agreement is one that near twins share. The cards do not decide, so the honest label is `unsure`, with a note such as "names and birth month agree, nothing else connects them". The answer key shows why guessing would be wrong: these are two different people, near twins, and a `same` here would count against the published precision.
 
 ### Example 8: two companies with the same name core
 
@@ -279,7 +278,7 @@ Why: both cards give the same company number, which is the tie, and the names di
 | Company number | SY321414 | SY882725 |
 | Incorporated | not given | 1992-04-02 |
 | Postcode and town | not given | QQ59 6XA, London |
-| Linked companies | holds 75 to 100 percent of the shares of AMBER HOWE HOLDINGS LTD. | none shown |
+| Linked companies | holds at least 75 percent of the shares of AMBER HOWE HOLDINGS LTD. | none shown |
 
 **Right answer:** `different`. **Benchmark truth:** `different`.
 

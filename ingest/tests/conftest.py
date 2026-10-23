@@ -1,6 +1,7 @@
 """Shared fixtures for the synthetic generator tests: one demo-mini generation per session."""
 
 import csv
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,9 @@ import pytest
 from neonradar_contracts.records import iter_records
 from neonradar_ingest.synth import DEMO_SEED
 from neonradar_ingest.synth.demo import write_demo_mini
+
+# test helpers sit next to the tests (pytest runs with --import-mode=importlib)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 @dataclass(frozen=True)

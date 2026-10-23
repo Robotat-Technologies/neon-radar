@@ -96,3 +96,5 @@ David Cameron
 Михаил Прохоров
 Андрей Костин
 Вячеслав Лебедев
+# OD-12 (2026-10-21): a live UK company; no synthetic company may carry this name.
+Cedar Gate Holdings

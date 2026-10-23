@@ -91,7 +91,7 @@ def test_the_window_option_bounds_the_starts(tmp_path: Path) -> None:
         (["--profile", "no-such-profile"], 2, "no profile"),
         (["--engine", "spark"], 2, "--engine must be neo4j or memory"),
         (["--typology", "nope"], 1, "unknown typology 'nope'"),
-        (["--typology", "structuring"], 1, "has no detector yet"),
+        (["--typology", "trade_based_ml"], 1, "has no detector yet"),
         (["--run-id", "run-1"], 1, "must look like run-"),
     ],
 )

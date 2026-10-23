@@ -230,6 +230,21 @@ def test_review_queue_order_and_what_it_leaves_out(tmp_path: Path) -> None:
     seniors = {"@example-two"}
     queue = decisions.review_queue(candidates, path, "@example-one", seniors, clusters)
     assert ("syn-c2", "syn-c4") not in [(c["a"], c["b"]) for c in queue]
+    # a real profile reads the file as er run does: a line by an unlisted handle fails instead
+    # of hiding a pair or a second supporter
+    listed = frozenset({"@example-one", "@example-two"})
+    with pytest.raises(DecisionsError, match=r"not in people\.er_labellers"):
+        decisions.review_queue(candidates, path, "@example-one", set(), clusters, listed)
+    with pytest.raises(DecisionsError, match=r"not in people\.er_labellers"):
+        decisions.supporters(path, "syn-c5", "syn-c6", listed)
+    listed |= {"@example-three"}
+    assert (
+        len(decisions.review_queue(candidates, path, "@example-one", set(), clusters, listed)) == 3
+    )
+    assert decisions.supporters(path, "syn-c6", "syn-c5", listed) == {
+        "@example-two",
+        "@example-three",
+    }
 
 
 def test_er_review_refuses_to_run_without_a_terminal(tmp_path: Path, data_env: Any) -> None:

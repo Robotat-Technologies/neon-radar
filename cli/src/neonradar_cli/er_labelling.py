@@ -5,7 +5,8 @@ Every command takes `--run <id>` or `--run latest` (`latest_run(profile)`). On a
 each one runs the real-data gate first and works inside the redaction guard (M2.2). `er label`
 and `er review` are for a person at a terminal (`require_terminal`, checked before anything
 else): they show record cards and record what that person answers, never a pre-selected
-answer (G10). `er sample` and `er precision` print counts only.
+answer (G10). They refuse when the record files are not the ones the run read, and never ask
+about a pair whose card is missing. `er sample` and `er precision` print counts only.
 """
 
 import json
@@ -90,10 +91,31 @@ def _team(project: Project, chosen: Profile) -> tuple[frozenset[str], frozenset[
     return frozenset(h for h in labellers if h), frozenset(h for h in seniors if h)
 
 
-def _barred(project: Project) -> frozenset[str]:
-    """The people who set the thresholds (ADR-0014): never adjudicators (7.3 rule 4)."""
+def _labellers(value: str, listed: frozenset[str], real_data: bool) -> list[str]:
+    """The handles of --labellers; a real profile names every handle in people.er_labellers
+    and no other (7.3 rule 1)."""
+    handles = [_handle(h, "an item of --labellers") for h in value.split(",")]
+    if real_data and set(handles) != listed:
+        raise Refused(
+            "a real profile's sample goes to every handle in people.er_labellers and to no one"
+            " else (7.3 rule 1, G10)"
+        )
+    return handles
+
+
+def _barred(project: Project, real_data: bool = False) -> frozenset[str]:
+    """The people who set the thresholds (ADR-0014): never adjudicators (7.3 rule 4). On a real
+    profile both people.tech_lead and squads.graph.mentor must name a person (fail closed)."""
+    from neonradar_resolve.rules import handle
+
     graph = project.squads.get("graph")
-    return frozenset(_handles([project.people.tech_lead, graph.mentor if graph else None]))
+    found = [handle(project.people.tech_lead), handle(graph.mentor if graph else None)]
+    if real_data and None in found:
+        raise Refused(
+            "people.tech_lead or squads.graph.mentor in project.yaml does not name a person:"
+            " adjudication on real data waits until both do (7.3 rule 4)"
+        )
+    return frozenset(h for h in found if h)
 
 
 def _ask(prompt: str, choices: dict[str, str]) -> str:
@@ -105,17 +127,30 @@ def _ask(prompt: str, choices: dict[str, str]) -> str:
         typer.echo(f"Please type one of: {', '.join(choices)}.")
 
 
-def _missing_card() -> Card:
-    from neonradar_resolve.cards import Card
-
-    return Card("not found in this profile's record folders", "-", (), (), (), (), (), (), None)
-
-
 def _show(cards: dict[str, Card], pair: tuple[str, str]) -> None:
+    """The two cards side by side; never a question about a pair whose card is missing."""
     from neonradar_resolve.cards import side_by_side
 
-    left, right = (cards.get(rid) or _missing_card() for rid in pair)
+    left, right = (cards.get(rid) for rid in pair)
+    if left is None or right is None:
+        raise Refused(
+            "a record of this pair is missing from this profile's record folders, so nobody is"
+            " asked about the pair"
+        )
     typer.echo(side_by_side(left, right))
+
+
+def _check_inputs(chosen: Profile, project: Project, folder: Path) -> None:
+    """Cards must show what the run resolved: refuse when the record files are not the ones
+    the run read (`run.json` inputs, file names and sha256)."""
+    from neonradar_resolve import records
+
+    info = json.loads((folder / "run.json").read_text(encoding="utf-8"))
+    if not records.unchanged(chosen.record_dirs(project), info.get("inputs") or []):
+        raise Refused(
+            "the record files changed since this run, so its cards would not show what it"
+            " resolved: a new er run (and for labelling a new sample) is needed"
+        )
 
 
 def sample_command(
@@ -145,9 +180,7 @@ def sample_command(
             adr.read_text(encoding="utf-8") if adr.is_file() else None, seed, chosen.real_data
         )
         listed, _ = _team(project, chosen)
-        handles = [_handle(h, "an item of --labellers") for h in labellers.split(",")]
-        if chosen.real_data and not set(handles) <= listed:
-            raise Refused("every labeller of a real profile is in people.er_labellers (G10)")
+        handles = _labellers(labellers, listed, chosen.real_data)
         found = sample.frames(
             sample.read_canonical(folder / "canonical.csv"),
             sample.read_candidates(folder / "candidates.jsonl"),
@@ -203,7 +236,7 @@ def label_command(
         where.step = "label"
         who = _handle(labeller, "--labeller")
         listed, _ = _team(project, chosen)
-        barred = _barred(project)
+        barred = _barred(project, chosen.real_data) if adjudicate else frozenset()
         allowed = (
             listed | _handles([project.people.project_lead]) if chosen.real_data else None
         )  # a real profile: the project lead and people.er_labellers only
@@ -211,9 +244,10 @@ def label_command(
             labels.check_adjudicator(who, barred, allowed)
         elif chosen.real_data and who not in listed:
             raise Refused("a labeller of a real profile is in people.er_labellers (G10)")
-        run_id, _ = _run_folder(chosen, run)
+        run_id, run_dir = _run_folder(chosen, run)
         folder = layout.labels_dir(chosen, run_id)
         pairs, _ = sample.read_sample(folder)
+        _check_inputs(chosen, project, run_dir)
         if adjudicate:
             _adjudicate(chosen, project, folder, pairs, who, barred, allowed)
             return
@@ -251,7 +285,8 @@ def _adjudicate(
     queue, refused = labels.adjudication_queue(pairs, found, who, barred, allowed)
     if not queue and refused:
         raise Refused("you labelled every pair that waits: another person adjudicates it")
-    shown = _label_cards(chosen, project, queue)
+    # the cards of every S4 pair: a disagreement that appears while this runs has them too
+    shown = _label_cards(chosen, project, [p for p in pairs if p.overlap]) if queue else {}
     done = 0
     while True:
         found = labels.read_labels(folder)
@@ -306,13 +341,14 @@ def review_command(
         if chosen.real_data and who not in listed | seniors:
             raise Refused("a reviewer is in people.er_labellers or people.er_senior_reviewers")
         _, folder = _run_folder(chosen, run)
+        _check_inputs(chosen, project, folder)
         path = layout.decisions_file(chosen)
+        deciders = listed | seniors if chosen.real_data else None  # as er run reads the file
         clusters: dict[str, list[str]] = {}
         for row in sample.read_canonical(folder / "canonical.csv"):
             clusters.setdefault(row["canonical_id"], []).append(row["record_id"])
-        queue = decisions.review_queue(
-            sample.read_candidates(folder / "candidates.jsonl"), path, who, seniors, clusters
-        )
+        candidates = sample.read_candidates(folder / "candidates.jsonl")
+        queue = decisions.review_queue(candidates, path, who, seniors, clusters, deciders)
         ids = {r for c in queue for r in clusters.get(c["a"], []) + clusters.get(c["b"], [])}
         shown, facts = cards.load(chosen.record_dirs(project), ids)
         for number, match in enumerate(queue, start=1):
@@ -338,7 +374,7 @@ def review_command(
                 )
             a, b = match["record_a"], match["record_b"]
             crossing = _crossing(clusters[match["a"]], clusters[match["b"]], facts)
-            others = decisions.supporters(path, a, b) - {who}
+            others = decisions.supporters(path, a, b, deciders) - {who}
             if answer == "same" and crossing and who not in seniors and not others:
                 typer.echo(
                     "This decision joins records listed differently, or a leaked record with"
@@ -377,7 +413,7 @@ def precision_command(
         outcome = precision.measure(
             pairs,
             labels.read_labels(labelled),
-            _barred(project),
+            _barred(project, chosen.real_data),
             census,
             adjudicators=listed | lead if chosen.real_data else None,
         )

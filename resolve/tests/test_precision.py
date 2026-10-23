@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -160,6 +162,59 @@ def test_real_profile_commands_wait_until_people_are_named(data_env: Any) -> Non
         er_labelling._team(project(["@example-one"], ["@TODO"]), real)
     named = project(["@Example-One", "@example-two"], [])
     assert er_labelling._team(named, real) == ({"@example-one", "@example-two"}, frozenset())
+
+
+def test_real_adjudication_waits_until_the_threshold_setters_are_named(data_env: Any) -> None:
+    def project(tech_lead: str, mentor: str | None) -> Any:
+        squads = {"graph": {"mentor": mentor}} if mentor else {}
+        text = yaml.safe_dump({"people": {"tech_lead": tech_lead}, "squads": squads})
+        data_env.project.write_text(text, encoding="utf-8")
+        return load_project()
+
+    for unnamed in (project("@TODO", "@example-mentor"), project(TECH_LEAD, None)):
+        with pytest.raises(er_labelling.Refused, match=r"7\.3 rule 4"):
+            er_labelling._barred(unnamed, real_data=True)  # er label --adjudicate, er precision
+    assert er_labelling._barred(project("@TODO", "@example-mentor")) == {"@example-mentor"}
+    named = project("@Example-Lead", "@example-mentor")
+    assert er_labelling._barred(named, real_data=True) == {TECH_LEAD, "@example-mentor"}
+
+
+def test_cards_show_the_run_s_records_or_nobody_is_asked(tmp_path: Path) -> None:
+    records_dir, run_dir = tmp_path / "records", tmp_path / "run"
+    records_dir.mkdir()
+    run_dir.mkdir()
+    (records_dir / "syn.ftm.jsonl").write_text("{}\n", encoding="utf-8")
+    read = {"file": "syn.ftm.jsonl", "sha256": hashlib.sha256(b"{}\n").hexdigest()}
+    (run_dir / "run.json").write_text(json.dumps({"inputs": [read]}), encoding="utf-8")
+    chosen = SimpleNamespace(record_dirs=lambda project: [records_dir])
+    er_labelling._check_inputs(chosen, None, run_dir)
+    (records_dir / "syn.ftm.jsonl").write_text("{}\n{}\n", encoding="utf-8")
+    with pytest.raises(er_labelling.Refused, match="changed since this run"):
+        er_labelling._check_inputs(chosen, None, run_dir)
+    with pytest.raises(er_labelling.Refused, match="nobody is asked"):
+        er_labelling._show({}, ("syn-r-0001", "syn-x-0001"))
+
+
+def test_adjudication_has_the_cards_of_every_overlap_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pairs = [_pair(1, "S1", ("@a", "@b")), _pair(2, "S3", ("@a", "@c")), _pair(3, "S1", ("@a",))]
+    labels.append_label(tmp_path, "pair-0001", "same", "@a", at=T0)  # synthetic test lines
+    labels.append_label(tmp_path, "pair-0001", "different", "@b", at=T0)
+    loaded: list[list[Pair]] = []
+
+    def no_cards(chosen: Any, project: Any, wanted: list[Pair]) -> dict[str, Any]:
+        loaded.append(wanted)
+        return {}
+
+    def ask(prompt: str, choices: dict[str, str]) -> str:
+        raise AssertionError("asked about a pair without its cards")
+
+    monkeypatch.setattr(er_labelling, "_label_cards", no_cards)
+    monkeypatch.setattr(er_labelling, "_ask", ask)
+    with pytest.raises(er_labelling.Refused, match="nobody is asked"):
+        er_labelling._adjudicate(None, None, tmp_path, pairs, "@e", frozenset(), None)
+    assert loaded == [pairs[:2]]  # pair 2 may come to disagree while the session runs
 
 
 def test_precision_and_the_unsure_bound_match_stats() -> None:
@@ -322,8 +377,11 @@ def test_label_files_append_and_read_back(tmp_path: Path) -> None:
         ' "at": "2026-11-02T09:00:00Z", "adjudication": false}\n',
         encoding="utf-8",
     )
-    with pytest.raises(LabelsError, match="not the file's"):
+    with pytest.raises(LabelsError, match="not the file's") as refused:
         labels.read_labels(tmp_path)
+    # the message names the file by its place, never by its name (a handle)
+    assert str(refused.value).startswith("label file 2 of 3, line 1: ")
+    assert "@" not in str(refused.value) and "example" not in str(refused.value)
 
 
 def test_next_pair_resumes_where_the_labeller_stopped() -> None:

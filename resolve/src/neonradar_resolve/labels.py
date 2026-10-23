@@ -26,7 +26,8 @@ SUFFIX = ".jsonl"
 
 
 class LabelsError(ValueError):
-    """An unreadable label file or a refused answer; the message names a file and a line."""
+    """An unreadable label file or a refused answer; the message names a file by its place
+    (never by its name, a handle) and a line."""
 
     exit_code = 2
     counts_only = True
@@ -81,15 +82,17 @@ def append_label(
 
 
 def read_labels(folder: Path) -> list[Label]:
-    """Every line of every `@<handle>.jsonl` file; a line's `by` must match its file."""
+    """Every line of every `@<handle>.jsonl` file; a line's `by` must match its file. An error
+    names a file by its place in sorted order, never by its name (which is a handle)."""
     found: list[Label] = []
-    for path in sorted(folder.glob(f"@*{SUFFIX}")):
+    paths = sorted(folder.glob(f"@*{SUFFIX}"))
+    for place, path in enumerate(paths, start=1):
         owner = path.name.removesuffix(SUFFIX)
         with path.open(encoding="utf-8") as lines:
             for number, text in enumerate(lines, start=1):
                 if not text.strip():
                     continue
-                where = f"{path.name}:{number}"
+                where = f"label file {place} of {len(paths)}, line {number}"
                 try:
                     data = json.loads(text)
                     at = datetime.fromisoformat(data["at"])

@@ -3,6 +3,7 @@
 The memory engine runs for real on the committed demo-mini fixture; the Neo4j engine is checked
 through what it hands to `runs.run`. The integration tests run both against Neo4j."""
 
+import importlib
 import json
 import os
 from collections.abc import Iterator
@@ -168,6 +169,55 @@ def test_list_shows_every_typology_with_its_tier_and_detector() -> None:
     assert lines[-1] == f"{len(named)} of {len(files)} typologies have a detector"
 
 
+def test_list_imports_no_module_outside_the_detector_package(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A file's `detector` passes MODULE_PATTERN as `os.path`; `list` imports only
+    neonradar_detect.detectors.<slug>, the module catalog.load() allows (reconciliation C5)."""
+    data = yaml.safe_load((catalog.TYPOLOGY_DIR / "circular_flow.yaml").read_text(encoding="utf-8"))
+    folder = tmp_path / "typologies"
+    folder.mkdir()
+    probe = yaml.safe_dump({**data, "detector": "os.path"}, sort_keys=False)
+    (folder / "circular_flow.yaml").write_text(probe, encoding="utf-8")
+    read_folder = catalog.load_catalog
+    monkeypatch.setattr(catalog, "load_catalog", lambda: read_folder(folder))
+    imported: list[str] = []
+    real_import = importlib.import_module
+
+    def recording(name: str, package: str | None = None) -> Any:
+        imported.append(name)
+        return real_import(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", recording)
+    result = invoke("list")
+    assert result.exit_code == 0, result.output
+    refused = "detector must be neonradar_detect.detectors.circular_flow"
+    assert result.output.splitlines() == [
+        f"circular_flow  0.2.0  draft  core  {refused}",
+        "0 of 1 typologies have a detector",
+    ]
+    assert "os.path" not in imported
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ImportError("No module named 'neonradar_detect.detectors.circular_flow'"),
+        ValueError("typologies outside ORDER: ['round_trip']"),
+    ],
+)
+def test_detectors_that_cannot_load_print_a_fail_line(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    def failing(catalog: Any) -> Any:
+        raise error
+
+    monkeypatch.setattr(runner, "detectors", failing)
+    result = invoke("run", "--engine", "memory")
+    assert result.exit_code == 1
+    assert result.output == f"FAIL  cannot load the detectors: {error}\n"
+
+
 @pytest.mark.parametrize("args", [[], ["alr-0123456789abcdef0123", "--run", "latest"]])
 def test_verify_alert_needs_one_alert_or_one_run(args: list[str]) -> None:
     result = invoke("verify-alert", *args)
@@ -178,6 +228,15 @@ def test_verify_alert_refuses_a_memory_run(tmp_path: Path) -> None:
     assert invoke("run", "--engine", "memory").exit_code == 0
     result = invoke("verify-alert", "--run", "latest")
     assert result.exit_code == 2 and "ran in memory" in result.output
+
+
+def test_verify_alert_refuses_a_failed_run(tmp_path: Path) -> None:
+    """LATEST names the last run even when it failed; a failed run has nothing to verify."""
+    run_id = "run-20261021T101500-7f3a"
+    runs.write_folder(runs.RunRecord(run_id, runs.RUNS_DIR / run_id, "", "neo4j"))  # failed
+    result = invoke("verify-alert", "--run", "latest")
+    assert result.exit_code == 1
+    assert result.output == f"FAIL  run {run_id} failed: nothing to verify\n"
 
 
 def test_a_failed_run_exits_1_with_one_line(monkeypatch: pytest.MonkeyPatch) -> None:

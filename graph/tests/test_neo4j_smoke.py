@@ -37,8 +37,8 @@ def test_paid_ts_is_read_as_a_utc_datetime(neo4j: Neo4jTarget) -> None:
         row for row in to_relationship_rows(list(iter_records(FIXTURE))).rows if row.type == "PAID"
     ]
     records, _, _ = neo4j.driver.execute_query(
-        "WITH datetime($ts) AS ts RETURN ts.timezone AS zone, ts.epochSeconds AS seconds",
-        ts=paid.ts,
+        "WITH $ts AS ts RETURN ts.timezone AS zone, ts.epochSeconds AS seconds",
+        ts=paid.props["ts"],  # a timezone-aware datetime since M2.11, stored as is
         database_=neo4j.database,
     )
     assert records[0]["zone"] == "Z"

@@ -740,6 +740,11 @@ dependencies = [
     { name = "pydantic-settings" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "neonradar-resolve" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "followthemoney", specifier = ">=4.11,<5" },
@@ -748,6 +753,9 @@ requires-dist = [
     { name = "neonradar-keys", editable = "keys" },
     { name = "pydantic-settings", specifier = ">=2.16,<3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "neonradar-resolve", editable = "resolve" }]
 
 [[package]]
 name = "neonradar-ingest"

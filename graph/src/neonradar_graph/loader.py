@@ -250,6 +250,8 @@ class LoadReport:
     superseded_removed: int = 0
     detection_results_removed: int = 0
     resolved_through_source_record: int = 0
+    overlay_records: int = 0  # L18: the overlay's records, and the overlay nodes it replaced
+    overlay_removed: int = 0
 
     @property
     def failed(self) -> bool:
@@ -276,6 +278,8 @@ class LoadReport:
             "superseded_nodes_removed": self.superseded_removed,
             "detection_results_removed": self.detection_results_removed,
             "resolved_through_source_record": self.resolved_through_source_record,
+            "overlay_records": self.overlay_records,
+            "overlay_nodes_removed": self.overlay_removed,
             "dangling_references": len(self.dangling),
             "records_rejected": len(self.rejected),
             "mapping_issues": len(self.skipped),
@@ -656,11 +660,14 @@ def execute_plan(
     database: str,
     replace: bool = True,
     batch_size: int = BATCH_SIZE,
+    synthetic: bool | None = None,
 ) -> LoadReport:
     """Write a plan into a migrated graph: purge (L9), nodes, source records, RESOLVED_TO,
     relationships, possible matches. L17 is checked again on the rows themselves, so no path
-    writes a row whose `synthetic` flag does not belong to the database's instance."""
-    synthetic = for_database(database) is Instance.DEFAULT
+    writes a row whose `synthetic` flag does not belong to the database's instance; an overlay
+    load (L18, `neonradar_graph.overlay`) passes `synthetic=True` on either instance."""
+    if synthetic is None:
+        synthetic = for_database(database) is Instance.DEFAULT
     written: list[NodeRow | RelationshipRow | SupportRow] = [
         *plan.nodes, *plan.relationships, *plan.source_records, *plan.possible_matches
     ]  # fmt: skip

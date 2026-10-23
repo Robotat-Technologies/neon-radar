@@ -94,7 +94,7 @@ Do not answer `unsure` to save time, when a case feels hard but the steps above 
 
 ## Notes
 
-A note is optional. Write one when the decision was close, so that an adjudicator or an auditor can see your reasoning, and always when you answer `unsure`: say what was missing. Say only how the fields compare, never a value from a card: "same company, birth month agrees, Q and K spellings" or "names agree in full, nothing else on the leak record". Label files hold record ids and labels only ([real-data handling](../data/real-data-handling.md), rule 8), so a note never holds a name, a date, a nationality, a town, a postcode, a company's name or sector, an identifier or a record id.
+A note is optional. Write one when the decision was close, so that an auditor can see your reasoning (the adjudicator sees only the two cards, never your label or your note), and always when you answer `unsure`: say what was missing. Say only how the fields compare, never a value from a card: "same company, birth month agrees, Q and K spellings" or "names agree in full, nothing else on the leak record". Label files hold record ids and labels only ([real-data handling](../data/real-data-handling.md), rule 8), so a note never holds a name, a date, a nationality, a town, a postcode, a company's name or sector, an identifier or a record id.
 
 ## Privacy rules for labelling sessions
 
@@ -113,7 +113,7 @@ Labelling shows real records about real people. These rules hold in every sessio
 
 1. **Overlap.** Fifty pairs of the sample (40 from the merges, 10 from the possible matches) are labelled by two different people. You will not know which of your pairs they are.
 2. **Agreement first.** Before any disagreement is settled, the report gives the percentage agreement, Cohen's kappa [cohen_1960], the share of `same`, and positive and negative agreement [cicchetti_feinstein_1990], so that the published agreement is the labellers' own.
-3. **Blind adjudication.** Each overlap pair whose two labels differ goes to an adjudicator, who sees the two cards but neither label, and records a label with `neonradar er label --adjudicate`. The adjudicated label is the one that counts.
+3. **Blind adjudication.** Each overlap pair whose two labels differ goes to an adjudicator, who sees the two cards but no label or note, and records a label with `neonradar er label --adjudicate`. The adjudicated label is the one that counts.
 4. **Who adjudicates.** Someone who did not set the thresholds: the project lead by default, never the tech lead or the graph mentor, and never anyone who labelled that pair; the tool refuses them ([PHASE-2.md](../build/PHASE-2.md) 7.3 rule 4, M2.10c). While one person holds every role ([OD-6](../build/operator-decisions.md)), the project lead names someone else for this step.
 
 ## Worked examples

@@ -214,6 +214,23 @@ def latest_overlay(profile: Profile | str) -> str | None:
     return safe_name("overlay id", overlay_id)
 
 
+def runs_dir(profile: Profile | str, run_id: str) -> Path:
+    """One detection run of a profile, under `real/` or `synthetic/` (PHASE-3.md 4.5, M3.4);
+    its parent holds the profile's runs and `LATEST`."""
+    name, tree = _profile(profile)
+    return tree / "runs" / name / safe_name("run id", run_id)
+
+
+def latest_detection_run(profile: Profile | str) -> str | None:
+    """The run id in `runs/<profile>/LATEST` (written last by `detect run`)."""
+    name, tree = _profile(profile)
+    try:
+        run_id = (tree / "runs" / name / LATEST).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return None
+    return safe_name("run id", run_id)
+
+
 def eval_dir(eval_id: str) -> Path:
     """A development evaluation (`neonradar eval run`, M3.6): synthetic only."""
     return CACHE_ROOT / "synthetic" / "eval" / safe_name("evaluation id", eval_id)

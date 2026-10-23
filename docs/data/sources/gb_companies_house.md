@@ -46,6 +46,15 @@ more with `--step`):
 - `psc` (when the `psc` block is enabled): a second pass over the snapshot, writing the
   PSCs of the slice companies and their interests (below). Lines of other companies are
   counted, not loaded.
+- `officers` (when the `officers` block is enabled): the directors and secretaries of the
+  slice companies through the REST API, within a request budget (below). It needs
+  `access.companies_house_key: available` and `CH_API_KEY`, so a build without `--step` of a
+  profile that enables it needs them too. An `officers` step run on its own keeps the
+  previous company records, and the previous PSC records while the `psc` block is enabled.
+  A build that runs `companies` or `psc` without `officers` writes no officer records: the
+  three files share their `Address` records, so officer records written against an earlier
+  PSC file could repeat or lose one. Run `--step officers` after it; within `cache_days` it
+  rebuilds them from the cache without a request.
 
 The work indexes are deleted after a successful build (records validated and swapped in)
 that ran the `companies` or `psc` step, unless `--keep-work` is given; `slice.csv` and
@@ -158,6 +167,67 @@ title in front of `name`: when `name` starts with `name_elements.title`, the loa
 (`titles_removed`); when it does not, `name` is kept as given and counted (`titles_kept`), so
 the reviewer sees whether any title is left. A PSC's address gets the country the source
 names; unlike a registered office, it is never assumed to be `gb`.
+
+## Officers
+
+The officers step runs the real-data gate first (`access.companies_house_key` before the
+other conditions; exit 3), then reads `CH_API_KEY` from the environment or `.env` through
+the settings object (missing: exit 2), both before any request or cache write. For each
+company of `slice.csv` that has a `Company` record, in the file's order (seeds, then parents
+and children by level, then the district sample in hash order), it reads
+`GET /company/{number}/officers?items_per_page=100&start_index=<k>`, advancing `k` by the
+items received until `total_results`, since a gateway may return fewer than 100 (note 5,
+unverified). `/officers/{id}/appointments` is never called (`appointments: false` is the only
+value the profile accepts): `person_number` is only on the company officer lists (note 5).
+With `active_only: true` the step adds `filter=active`.
+
+**Rate, budget and cache.** Two requests per second, Companies House's 600 per 5 minutes
+(note 5); after a 429 it waits until `X-Ratelimit-Reset` or 300 seconds, and after a 5xx it
+backs off 1, 2 and 4 seconds; after three retries it stops fetching, keeps what it has and
+reports `stopped_by: http_error` with the status. Redirects are not followed (a redirect hop
+would pass the limiter and the budget): a 3xx answer stops the fetch the same way. No
+request goes out once
+`request_budget` requests (retries included) have gone out in the run (`stopped_by:
+budget`; 20,000 for `uk-sample`, about three hours, operator decision OD-22). Every answer,
+including a 404, is cached, reduced to the fields the records use (below; a corporate
+officer's address only by its country), the officer link and the appointment id (never
+`links.self`, which holds the company number), in
+`data/cache/real/api/gb_companies_house/officers/<first 20 hex of sha1(company number)>/<start_index>.json`
+with the time it was fetched and the query it answered, so folder names do not name the
+company numbers directly (the hash of an 8-character number can be reversed by trying them
+all). An answer younger than `cache_days` for the same query costs no
+request. After the budget runs out or the fetch stops, the remaining companies are read from
+the cache only, so a re-run finishes what an earlier one left; the records hold every
+appointment in hand, also those of a company only partly fetched. The cache is personal data:
+it lies under `data/cache/real/`, `access.real_data_days` applies, and `neonradar data purge`
+removes it with the dataset. The summary reports the requests, retries, rate-limit waits,
+cache hits and stale entries, the companies complete, partial, not reached and not found, the
+duration, and the records by schema; at two requests per second the duration is about half
+the request count in seconds.
+
+**Records.** One record per officer id (`gbch-off-<officer id>`, the id from the path of
+`links.officer.appointments`, kept in `nr.source_ref`) across all companies, so an officer of
+two slice companies is one record with two directorships:
+
+| Officer | Record |
+|---|---|
+| a natural person | `Person`: `name` as given (`SURNAME, Forenames`), `firstName` and `lastName` from `neonradar_keys.names.split_ch_name`, month and year of birth (`yyyy-mm`), nationalities (each demonym through `country_code`), country of residence, the service address (role `service`), and `nr.ch_person_number`, the item's `person_number` unchanged |
+| a role starting `corporate-` | `Company` when `identification.registration_number` is present, else `LegalEntity`: name, legal form, and the registration number and jurisdiction by the rule for corporate PSCs (above) |
+
+Each appointment is a `Directorship` (`gbch-directorship-<first 20 hex of sha1 of officer id,
+company number, role, appointed_on>`): `director` the officer, `organization` the company,
+`role` the raw `officer_role`, `startDate` `appointed_on`, `endDate` `resigned_on`, and
+`nr.is_nominee` true for the `nominee-*` and `corporate-nominee-*` roles. Rule D3 of the
+resolver (PHASE-2.md 7.1.2) links officer records on the first 8 characters of
+`nr.ch_person_number` only when their names also agree, and a different number is never
+evidence against a match: Companies House has not confirmed the format (note 5). The loader
+never shortens or merges on it; the summary counts the person numbers that are not 12 digits
+and the officer ids seen with two numbers (the first is kept).
+
+**Not loaded.** The usual residential address, any day of birth, the occupation, former
+names, the name elements (other forenames, title, honours), contact and identity verification
+details and the care-of line are never read and never cached; a corporate officer's address
+is read only for its country, which the registry rule may need.
 
 ## Personal data
 

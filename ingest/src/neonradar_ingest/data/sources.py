@@ -105,7 +105,9 @@ class BuildResult:
 @dataclass(frozen=True, slots=True)
 class Builder:
     """`cleanup`, when given, runs only after a successful build and swap (for example to
-    delete work indexes), so a failed validation leaves the work files in place."""
+    delete work indexes), so a failed validation leaves the work files in place. `plan`,
+    when given, names the steps a build of a profile runs for the requested ones (empty: all),
+    so `ingest build` gates only those."""
 
     dataset: str
     build: Callable[[Profile, BuildContext], BuildResult]
@@ -113,6 +115,11 @@ class Builder:
     string_keys: tuple[str, ...] = ()
     list_keys: tuple[str, ...] = ()
     cleanup: Callable[[Profile, BuildContext, BuildResult], None] | None = None
+    plan: Callable[[Profile, tuple[str, ...]], tuple[str, ...]] | None = None
+
+    def planned(self, profile: Profile, steps: tuple[str, ...]) -> tuple[str, ...]:
+        """The steps a build runs: `plan`'s answer, else the requested ones, else all."""
+        return self.plan(profile, steps) if self.plan else steps or self.steps
 
 
 class BuildError(Exception):

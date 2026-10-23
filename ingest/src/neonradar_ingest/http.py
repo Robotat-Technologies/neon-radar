@@ -3,7 +3,12 @@
 httpx with a 10 s connect and 60 s read timeout, an explicit `follow_redirects`, the NeonRadar
 User-Agent, a per-source rate limiter, and retries with exponential backoff after a 429, a
 500, 502, 503 or 504 or a transport error that honour `Retry-After`. Logs never show headers,
-keys or credentials.
+keys or credentials. `logged_url` shows a URL in logs and errors under two rules a client
+can set: `log_query=False` drops the query string (PHASE-2.md M2.6 rule 4: the UN redirect
+carries a signature, the EU URL a token), and `hide_paths=True` keeps only the scheme and the
+host (M2.3c: the officers step's paths hold company numbers). A transport error shows only its
+class under either rule, and a protocol error always: its message can quote what the server
+sent.
 """
 
 import logging
@@ -49,13 +54,27 @@ def redact(url: httpx.URL | str) -> str:
     return str(url.copy_with(userinfo=b"", params=params))
 
 
-# True while a `hide_paths` client sends: httpx's own request log then shows only the host.
+def logged_url(url: httpx.URL | str, *, query: bool = True, path: bool = True) -> str:
+    """How logs and errors show `url`: `redact(url)`; without user info, query string and
+    fragment when `query` is false; only scheme and host when `path` is false, which hides the
+    query string too, whatever `query` says."""
+    url = httpx.URL(url)
+    if not path:
+        return f"{url.scheme}://{url.host}/…"
+    if not query:
+        return str(url.copy_with(userinfo=b"", query=None, fragment=None))
+    return redact(url)
+
+
+# The rules of the client sending now (`HttpClient.log_query` and `hide_paths`), for the filter
+# on httpx's own request log, which also logs each redirect the client follows.
+_LOG_QUERY: ContextVar[bool] = ContextVar("neonradar_log_query", default=True)
 _HIDE_PATHS: ContextVar[bool] = ContextVar("neonradar_hide_paths", default=False)
 
 
-def shown(url: httpx.URL) -> str:
-    """How logs show a URL: redacted, and only scheme and host while paths are hidden."""
-    return f"{url.scheme}://{url.host}/…" if _HIDE_PATHS.get() else redact(url)
+def shown(url: httpx.URL | str) -> str:
+    """How logs show a URL: `logged_url` under the rules of the client sending now."""
+    return logged_url(url, query=_LOG_QUERY.get(), path=not _HIDE_PATHS.get())
 
 
 def _redact_urls(record: logging.LogRecord) -> bool:
@@ -114,11 +133,14 @@ class HttpClient(httpx.Client):
     After a 429, 500, 502, 503 or 504 or a transport error, a GET, HEAD or OPTIONS request is
     retried up to `retries` times (other methods are sent once). It waits what `retry_hint`
     reads from the response (default `Retry-After`; Companies House can read
-    `X-Ratelimit-Reset`), or else 1, 2, 4 ... seconds. A hint over `max_hint` seconds raises
-    HttpError instead of retrying before the server allows it.
+    `X-Ratelimit-Reset`), or else `backoff` times 1, 2, 4 ... seconds (at most 60). A hint
+    over `max_hint` seconds raises HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
     With `hide_paths`, errors and logs name only the method and the host, for paths that hold
-    a value from a record (the officers step's company numbers, M2.3c).
+    a value from a record (the officers step's company numbers, M2.3c). `log_query=False` keeps
+    every query string out of the logs and errors, also those of the redirects it follows (a
+    signed storage URL). `describe` applies both rules, and `problem` keeps the text of a
+    transport error out under either rule.
     """
 
     def __init__(
@@ -128,10 +150,12 @@ class HttpClient(httpx.Client):
         follow_redirects: bool,
         limiter: RateLimiter,
         retries: int = 3,
+        backoff: float = BACKOFF_BASE,
         retry_hint: RetryHint = retry_after_seconds,
         max_hint: float = 300.0,
         sleep: Sleep = time.sleep,
         hide_paths: bool = False,
+        log_query: bool = True,
         **options: Any,
     ) -> None:
         if retries < 0:
@@ -141,25 +165,34 @@ class HttpClient(httpx.Client):
         )
         self.headers["User-Agent"] = USER_AGENT
         self.limiter, self.retries, self.max_hint = limiter, retries, max_hint
-        self._retry_hint, self._sleep, self.hide_paths = retry_hint, sleep, hide_paths
+        self.backoff = backoff
+        self._retry_hint, self._sleep = retry_hint, sleep
+        self.hide_paths, self.log_query = hide_paths, log_query
         self.requests = self.retried = self.throttled = 0
 
     def describe(self, request: httpx.Request) -> str:
-        """The request as errors and logs name it: method and redacted URL, or method and host."""
-        url = request.url
-        return (
-            f"{request.method} {url.scheme}://{url.host}/…"
-            if self.hide_paths
-            else (f"{request.method} {redact(url)}")
-        )
+        """The request as errors and logs name it: its method and `logged_url` under this
+        client's rules (only the host with `hide_paths`, no query string without `log_query`)."""
+        url = logged_url(request.url, query=self.log_query, path=not self.hide_paths)
+        return f"{request.method} {url}"
+
+    def problem(self, exc: httpx.TransportError) -> str:
+        """A transport error as errors and logs name it: its class and its message, or only its
+        class under either rule and for any protocol error, whose message can quote what the
+        server sent (h11 quotes a malformed status or header line, such as a `Location`)."""
+        if isinstance(exc, httpx.ProtocolError) or self.hide_paths or not self.log_query:
+            return type(exc).__name__
+        return f"{type(exc).__name__}: {exc}"
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
-        token = _HIDE_PATHS.set(self.hide_paths)
+        query = _LOG_QUERY.set(self.log_query)  # read by the filter on httpx's request log
+        paths = _HIDE_PATHS.set(self.hide_paths)
         try:
             return self._send(request, **kwargs)
         finally:
-            _HIDE_PATHS.reset(token)
+            _HIDE_PATHS.reset(paths)
+            _LOG_QUERY.reset(query)
 
     def _send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
@@ -172,9 +205,9 @@ class HttpClient(httpx.Client):
             try:
                 response = super().send(request, **kwargs)
             except httpx.UnsupportedProtocol as exc:  # a bad URL: sending again cannot help
-                raise HttpError(f"{where}: {exc}") from None
+                raise HttpError(f"{where}: {self.problem(exc)}") from None
             except httpx.TransportError as exc:
-                problem = f"{type(exc).__name__}: {exc}"
+                problem = self.problem(exc)
             else:
                 if response.status_code not in RETRY_STATUSES:
                     return response
@@ -188,7 +221,7 @@ class HttpClient(httpx.Client):
             hint = self._retry_hint(response) if response is not None else None
             if hint is not None and hint > self.max_hint:  # never retry before the server allows
                 raise HttpError(f"{where}: {problem}; asked to wait {hint:.0f} s", status)
-            backoff = min(BACKOFF_BASE * 2**attempt, BACKOFF_MAX)
+            backoff = min(self.backoff * 2**attempt, BACKOFF_MAX)
             delay = backoff if hint is None else max(hint, 0.0)
             logger.warning("%s: %s; retry %d in %.1f s", where, problem, attempt + 1, delay)
             self.retried += 1

@@ -21,6 +21,8 @@ A note for the data steward's review of `uk-sample`: a city-centre district such
 
 A synthetic profile (`real_data: false`) may enable only `nr_synthetic`; a profile file that enables any other dataset with `real_data: false` fails to load. A source enabled in a profile still runs only if `docs/build/project.yaml` allows its dataset: `access.sanctions_lists` for the four sanctions lists, `access.pep_sources` for UK Parliament members, and `access.opensanctions` (`licensed` or `exempt`) for OpenSanctions. With the current project file (operator decision OD-22) the UN list and the Parliament source stay off. `access.companies_house_key` gates only the officers step, because the bulk files need no key. `uv run neonradar data profiles` shows, for each profile, the datasets it would load here and the ones `project.yaml` does not allow.
 
+Each sanctions list's block takes `enabled`, `keep_reasons` and `keep_positions` and rejects any other key. Statements of reasons and titles and positions stay out of the records unless the block sets them to `true` (both `false` in the committed profiles; [the UK Sanctions List page](sources/gb_fcdo_sanctions.md) says why).
+
 ## Expected size and resources
 
 Estimates from PHASE-2.md 7.8; M2.13 replaces them with measurements in `docs/data/benchmarks/`.

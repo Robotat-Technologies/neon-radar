@@ -1,5 +1,7 @@
 * text=auto eol=lf
 *.sh text eol=lf
+# Publishers' schemas (PHASE-2.md 2.9) are committed byte for byte, line ends included.
+*.xsd -text
 
 # Generated files: collapsed in diffs
 uv.lock linguist-generated=true

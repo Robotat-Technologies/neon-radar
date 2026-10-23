@@ -169,3 +169,31 @@ def test_search_passes_supertype_labels_to_the_index() -> None:
         (entities.ACCOUNT, None),
         (entities.FULLTEXT, ["Organization", "LegalEntity"]),
     ]
+
+
+def test_every_type_c3_shows_has_its_c2_properties_including_possible_matches() -> None:
+    """C3 1.1.0 shows POSSIBLY_SAME_AS like a record-built relationship (PHASE-2.md 5.2)."""
+    assert set(shapes.EDGE_KEYS) >= set(entities.SHOWN_TYPES)
+    assert "POSSIBLY_SAME_AS" in entities.SHOWN_TYPES
+    edge = shapes.graph_edge(
+        {
+            "props": {
+                "id": "syn-co-0001|psa|syn-co-0002",
+                "match_probability": 0.912,
+                "method": "probabilistic",
+                "reasons": ["below_merge_threshold"],
+                "datasets": ["nr_synthetic"],
+                "synthetic": True,
+            },
+            "type": "POSSIBLY_SAME_AS",
+            "source": "syn-co-0001",
+            "target": "syn-co-0002",
+        }
+    )
+    assert edge.properties == {
+        "match_probability": 0.912,
+        "method": "probabilistic",
+        "reasons": ["below_merge_threshold"],
+        "datasets": ["nr_synthetic"],
+        "synthetic": True,
+    }

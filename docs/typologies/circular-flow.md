@@ -2,6 +2,8 @@
 
 > **Draft.** Slug `circular_flow`, version 0.1.0, tier `core`, synthetic support `high`. Definition file: [`detect/typologies/circular_flow.yaml`](../../detect/typologies/circular_flow.yaml). A typology researcher checks this page against its sources before the definition is approved.
 
+> **Version 0.2.0.** This page was written for version 0.1.0; milestone M3.10 rewrites it. The definition file is now at version 0.2.0 (milestone M3.2, still a draft), and its parameters are the reference until then. Its detector differs from the one described under "How the Phase 1 detector applies them": it also reports a circle that ends at another account of the same holder (variant `same_holder`), needs at least `min_hops_same_account` payments (default 3) for a circle back to the very account it left, starts only from payments of at least `min_amount`, keeps every later payment between `min_return_ratio` and `1 + max_hop_gain` times the first amount, allows `max_window_days` up to 140, and follows payments one hop at a time instead of the single query file `queries/circular_flow.cypher`, which is gone. Its pattern strength counts a return ratio above 1 as 1 and is rounded to four decimals.
+
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
 ## What it is

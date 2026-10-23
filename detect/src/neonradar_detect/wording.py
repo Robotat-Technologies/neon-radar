@@ -1,33 +1,245 @@
-"""Alert headlines from a typology's wording templates (PHASE-1.md 5.4, 7.1, guardrail G5).
+"""Entity-facing text for alerts: headlines, summaries and steps (PHASE-3.md 7.5.2).
 
-`render_headline` picks `headline_synthetic` for a `synthetic_scenario` alert and
-`headline_structural` otherwise, fills in the metrics and refuses any result that is too long
-for C4, matches a forbidden pattern (contracts/wording/forbidden-terms.txt), or says "synthetic
-scenario" for an alert that is not a synthetic_scenario. Number format without a format spec:
-thousands separators, at most two decimals (120000.0 gives 120,000). String metrics are codes
-such as a currency; detectors never put names in metrics.
-
-The explanation texts of an alert (M1.9b) are rendered here too, so that every entity-facing
-word the detect package writes sits in this file: `payment_step` describes one payment,
-`cycle_summary` a circular flow, and `check_rendered` lints the rendered texts with the source
-values (entity captions, account numbers) masked out first (7.1).
-scripts/check_wording.py lints the string literals of this file in CI.
+Headlines come from the typology file's templates (PHASE-1.md 5.4): `wording.headline_structural`
+or `wording.headline_synthetic`, or the pair under `wording.variants.<variant>` when the finding's
+variant has one. A placeholder is `{metric}` or `{metric|filter}`: `money` (the finding's
+`currency` and the amount), `pct` (a ratio as a whole percent) and `n:<singular>[:<plural>]` (a
+count with its noun). Headlines describe the shape and its numbers, never the conduct a typology is
+named after (`typology-detection-definitions.md` 16.1), and the summary names the typology's
+neutral `shape_name`, after the optional `wording.detail` template (the sentences a detector's
+metrics need, such as the result of each sanctions test). Steps are rendered from the evidence
+relationships. `render` lints every text it renders (`wording_lint.violations`, with the captions
+of every node it names masked out) and raises `WordingError` on a match, so no run can emit text
+that names conduct (G5); the error names the typology, the part and the patterns, never the text.
 """
 
+from __future__ import annotations
+
 import math
+import re
 import string
-from collections.abc import Iterable, Mapping
-from datetime import UTC, datetime
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
 from neonradar_contracts.alert import HEADLINE_MAX, WordingClass
 from neonradar_contracts.wording import find_forbidden, says_synthetic_scenario
-from neonradar_detect.catalog import TypologyFile
+from neonradar_detect.catalog import Typology, TypologyFile
+from neonradar_detect.model import EdgeInfo, Finding, NodeInfo
+from neonradar_detect.wording_lint import violations
 
-MetricValue = int | float | str
+MAX_HEADLINE = 140
+MAX_STEP = 280
+PLACEHOLDER = re.compile(r"\{(\w+)(?:\|([a-z]+)(?::([^:}]+))?(?::([^:}]+))?)?\}")
 
 
 class WordingError(ValueError):
-    """A headline cannot be rendered within the wording rules."""
+    """Rendered alert text matched the wording lint."""
+
+
+@dataclass(frozen=True, slots=True)
+class Rendered:
+    headline: str
+    summary: str
+    steps: tuple[tuple[str, tuple[str, ...]], ...]  # (text, edge ids)
+
+
+def money(currency: str, amount: float) -> str:
+    text = f"{amount:,.2f}"
+    return f"{currency} {text[:-3] if text.endswith('.00') else text}"
+
+
+def day(moment: datetime | str) -> str:
+    d = datetime.fromisoformat(moment) if isinstance(moment, str) else moment
+    return f"{d.day} {d.strftime('%B')} {d.year}"
+
+
+def counted(n: int, singular: str, plural: str | None = None) -> str:
+    return f"{n} {singular if n == 1 else (plural or singular + 's')}"
+
+
+def _value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, float):
+        return f"{value:g}"
+    return str(value)
+
+
+def render_template(template: str, metrics: Mapping[str, Any]) -> str:
+    def one(m: re.Match[str]) -> str:
+        name, kind, a, b = m.groups()
+        value = metrics[name]
+        if kind is None:
+            return _value(value)
+        if kind == "money":
+            return money(str(metrics["currency"]), float(value))
+        if kind == "pct":
+            return f"{round(100 * float(value))} percent"
+        if kind == "n":
+            return counted(int(value), a, b)
+        raise ValueError(f"unknown filter {kind}")
+
+    return PLACEHOLDER.sub(one, template)
+
+
+def placeholders(template: str) -> set[str]:
+    return {m.group(1) for m in PLACEHOLDER.finditer(template)}
+
+
+def templates(typology: Typology, variant: str) -> Mapping[str, str]:
+    return typology.wording.get("variants", {}).get(variant) or typology.wording
+
+
+def _cap(text: str, limit: int) -> str:
+    """`text`, or its words up to `limit - 1` characters and an ellipsis."""
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 1]
+    if " " in cut and not text[limit - 1].isspace():
+        cut = cut[: cut.rindex(" ")]
+    return cut.rstrip(" ,;:") + "…"
+
+
+def band(e: EdgeInfo) -> str:
+    low, high = e.share_min, e.share_max
+    if low is None and high is None:
+        return "an unrecorded share"
+    if low is not None and high is not None and low == high:
+        return f"{low:g} percent"
+    if high is None or (high >= 100 and not e.share_max_exclusive):
+        return (
+            f"{low:g} percent or more"
+            if not e.share_min_exclusive
+            else f"more than {low:g} percent"
+        )
+    lower = f"more than {low:g}" if e.share_min_exclusive else f"at least {low:g}"
+    upper = f"less than {high:g}" if e.share_max_exclusive else f"at most {high:g}"
+    return f"{lower} and {upper} percent"
+
+
+def dates(e: EdgeInfo) -> str:
+    """The " from <start>" and " to <end>" parts for the full dates a relationship records."""
+    since = f" from {day(e.start_date)}" if len(e.start_date) == 10 else ""
+    until = f" to {day(e.end_date)}" if len(e.end_date) == 10 else ""
+    return since + until
+
+
+def edge_sentence(e: EdgeInfo, name: Callable[[str], str]) -> str:
+    s, t = name(e.source), name(e.target)
+    if e.type == "PAID" and e.ts is not None:
+        if e.channel == "cash_deposit":
+            return f"{money(e.currency, e.amount or 0)} in cash was paid into {t} on {day(e.ts)}."
+        return f"{s} paid {money(e.currency, e.amount or 0)} to {t} on {day(e.ts)}."
+    if e.type == "OWNS":
+        return f"{s} is recorded as holding {band(e)} of {t}{dates(e)}."
+    if e.type == "CONTROLS":
+        what = {
+            "appointment": "the right to appoint or remove a majority of the board of",
+            "voting": f"{band(e)} of the voting rights in",
+        }.get(e.control_type, "significant influence or control over")
+        return f"{s} is recorded with {what} {t}{dates(e)}."
+    if e.type == "CONSOLIDATES":
+        return f"{s} is recorded as consolidating {t} in its accounts."
+    if e.type == "DIRECTOR_OF":
+        return f"{s} is recorded as a director of {t}{dates(e)}."
+    if e.type == "REPRESENTS":
+        return f"{s} is recorded as an agent of {t}."
+    if e.type == "HAS_ADDRESS":
+        return f"{s} is registered at {t}."
+    if e.type == "FAMILY_OF":
+        return f"{s} and {t} are recorded as family ({e.role or 'relationship not given'})."
+    if e.type == "ASSOCIATE_OF":
+        return f"{s} and {t} are recorded as associates ({e.role or 'relationship not given'})."
+    if e.type == "HOLDS_ACCOUNT":
+        return f"{s} holds account {t}."
+    return f"{s} is linked to {t}."
+
+
+def group_sentence(group: Sequence[EdgeInfo], name: Callable[[str], str]) -> str:
+    """One step: a single relationship in full, or a group summarised."""
+    if len(group) == 1:
+        return _cap(edge_sentence(group[0], name), MAX_STEP)
+    if all(e.type == "PAID" for e in group):
+        currencies = sorted({e.currency for e in group})
+        total = sum(e.amount or 0 for e in group)
+        first = min(e.ts for e in group if e.ts)
+        last = max(e.ts for e in group if e.ts)
+        sources = sorted({e.source for e in group})
+        targets = sorted({e.target for e in group})
+        amount = (
+            money(currencies[0], total) if len(currencies) == 1 else "amounts in several currencies"
+        )
+        when = (
+            f"on {day(first)}"
+            if first.date() == last.date()
+            else f"between {day(first)} and {day(last)}"
+        )
+        if all(e.channel == "cash_deposit" for e in group):
+            into = name(targets[0]) if len(targets) == 1 else counted(len(targets), "account")
+            text = f"{counted(len(group), 'cash deposit')} of {amount} in total into {into} {when}."
+        elif len(targets) == 1:
+            payers, n = counted(len(sources), "account"), counted(len(group), "payment")
+            text = f"{payers} paid {amount} in {n} to {name(targets[0])} {when}."
+        elif len(sources) == 1:
+            n, payees = counted(len(group), "payment"), counted(len(targets), "account")
+            text = f"{name(sources[0])} paid {amount} in {n} to {payees} {when}."
+        else:
+            accounts = counted(len(set(sources) | set(targets)), "account")
+            text = f"{counted(len(group), 'payment')} of {amount} in total among {accounts} {when}."
+        return _cap(text, MAX_STEP)
+    joined = " ".join(edge_sentence(e, name) for e in group)
+    if len(joined) <= MAX_STEP:
+        return joined
+    head = edge_sentence(group[0], name)
+    return _cap(
+        f"{head} And {counted(len(group) - 1, 'more recorded relationship')} of the same kind.",
+        MAX_STEP,
+    )
+
+
+def render(
+    finding: Finding,
+    typology: Typology,
+    wording_class: str,
+    nodes: Mapping[str, NodeInfo],
+    edges: Mapping[str, EdgeInfo],
+) -> Rendered:
+    def name(node_id: str) -> str:
+        info = nodes.get(node_id)
+        return info.caption if info is not None else node_id
+
+    pair = templates(typology, finding.variant)
+    key = "headline_synthetic" if wording_class == "synthetic_scenario" else "headline_structural"
+    headline = _cap(render_template(pair[key], finding.metrics), MAX_HEADLINE)
+    plain = _cap(render_template(pair["headline_structural"], finding.metrics), MAX_HEADLINE)
+    detail_template = pair.get("detail") or typology.wording.get("detail") or ""
+    detail = f"{render_template(detail_template, finding.metrics)} " if detail_template else ""
+    summary = (
+        f"{plain}. {detail}This matches the graph pattern of {typology.shape_name}. The records "
+        "show the shape only; the notes below list ordinary activity that looks the same."
+    )
+    steps = tuple(
+        (group_sentence([edges[e] for e in group], name), tuple(group)) for group in finding.steps
+    )
+    captions = tuple(
+        sorted({info.caption for info in nodes.values()} | set(nodes), key=len, reverse=True)
+    )
+    parts = [("headline", headline), ("summary", summary)]
+    parts += [(f"step {i}", text) for i, (text, _) in enumerate(steps, 1)]
+    for part, text in parts:
+        found = violations(text, captions)
+        if found:
+            raise WordingError(f"{typology.slug}: the {part} matches {found}")
+    return Rendered(headline, summary, steps)
+
+
+# Phase 1's headline rendering (PHASE-1.md 5.4, M1.7c), kept as it was so that C4's "Code" line
+# and Phase 1's tests stay true (a recorded deviation, reconciliation R1). No Phase 3 code calls
+# it: alerts render through `render` above.
+
+MetricValue = int | float | str
 
 
 def format_metric(value: MetricValue, spec: str = "") -> str:
@@ -74,66 +286,3 @@ def render_headline(
     if wording_class != "synthetic_scenario" and says_synthetic_scenario(headline):
         raise WordingError(f"only a synthetic_scenario headline may say so (7.1): {headline!r}")
     return headline
-
-
-MONTHS = (
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-)  # fmt: skip
-NUMBER_WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight")
-
-
-def format_amount(amount: float) -> str:
-    """Money in explanation texts: thousands separators; two decimals unless the amount is whole
-    (120000.0 gives 120,000 and 141968.95 gives 141,968.95)."""
-    if not math.isfinite(amount):
-        raise WordingError(f"amount {amount!r} cannot appear in an explanation")
-    return f"{amount:,.0f}" if amount == round(amount) else f"{amount:,.2f}"
-
-
-def format_day(moment: datetime) -> str:
-    """The UTC calendar day, `2 March 2026`, whatever the locale."""
-    day = moment.astimezone(UTC)
-    return f"{day.day} {MONTHS[day.month - 1]} {day.year}"
-
-
-def format_duration(hours: float) -> str:
-    """`30 hours` below two days, else days with one decimal (`6 days`, `6.3 days`)."""
-    if hours < 48:
-        whole = round(hours)
-        return f"{whole} hour" if whole == 1 else f"{whole} hours"
-    return f"{hours / 24:,.1f}".removesuffix(".0") + " days"
-
-
-def payment_step(sender: str, currency: str, amount: float, receiver: str, moment: datetime) -> str:
-    """One explanation step per payment: what was paid, between which accounts and when."""
-    return (
-        f"{sender} sent {currency} {format_amount(amount)} to {receiver} on {format_day(moment)}."
-    )
-
-
-def cycle_summary(
-    origin: str, currency: str, sent: float, returned: float, others: int, hours: float
-) -> str:
-    """The summary of a circular flow: what left the origin account and what came back."""
-    count = NUMBER_WORDS[others] if others < len(NUMBER_WORDS) else str(others)
-    accounts = "other account" if others == 1 else "other accounts"
-    return (
-        f"{currency} {format_amount(sent)} left account {origin} and {currency} "
-        f"{format_amount(returned)} came back to it after passing through {count} {accounts} "
-        f"in {format_duration(hours)}."
-    )
-
-
-def check_rendered(texts: Mapping[str, str], mask: Iterable[str]) -> None:
-    """The 7.1 lint on rendered alert texts (headline, summary, steps). The masked values are
-    source data (entity captions, account numbers), not NeonRadar's wording, so they are
-    blanked out first; any other match raises `WordingError`."""
-    masked = list(mask)
-    problems = [
-        f"{where}: {'; '.join(terms)}"
-        for where, text in texts.items()
-        if (terms := find_forbidden(text, masked))
-    ]
-    if problems:
-        raise WordingError(f"rendered text fails the wording lint (7.1): {' | '.join(problems)}")

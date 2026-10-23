@@ -40,12 +40,13 @@ def test_meta_answers_without_neo4j(client: TestClient) -> None:
     assert (meta.counts.nodes_by_label, meta.counts.relationships_by_type) == ({}, {})
     assert meta.disclaimers.standing == load_disclaimer("standing-v1")
     assert meta.disclaimers.synthetic_demo == load_disclaimer("synthetic-demo-v1")
-    assert meta.disclaimers.real_data == load_disclaimer("real-data-v1")
+    assert meta.disclaimers.real_data == load_disclaimer("real-data-v2")  # C3 1.1.0
     assert (meta.contracts_version, meta.schema_version) == (
         versions.CONTRACTS,
         versions.GRAPH_SCHEMA,
     )
-    assert meta.contracts_version == "1.1.0"  # C1 1.1.0 (M2.1a); C2 stays 1.0.0 until M2.1b
+    assert meta.contracts_version == "1.2.0"  # C2 1.2.0 (M3.1); C1 stays 1.1.0
+    assert meta.schema_version == "1.2.0"  # C2 1.2.0 (M3.1)
 
 
 def test_typologies_come_from_the_catalog_sorted_by_slug(client: TestClient) -> None:
@@ -69,7 +70,8 @@ def test_a_typology_has_its_explainer_and_citations_in_file_order(client: TestCl
     known = {entry["key"]: entry for entry in bibliography["entries"]}
     assert [c.key for c in detail.citations] == [k for k in typology.citations if k in known]
     assert all(c.url == known[c.key]["url"] for c in detail.citations)
-    assert detail.parameters["max_window_days"] == {"default": 14, "min": 1, "max": 90}
+    # circular_flow 0.2.0 (PHASE-3.md 7.3.4) widened the bound from Phase 1's 90 days
+    assert detail.parameters["max_window_days"] == {"default": 14, "min": 1, "max": 140}
     assert detail.false_positives == typology.false_positives
 
 

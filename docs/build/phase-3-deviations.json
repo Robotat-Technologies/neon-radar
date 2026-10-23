@@ -1,4 +1,14 @@
 {
+  "detect/src/neonradar_detect/alerts.py": {
+    "milestone": "M3.2",
+    "reason": "Reconciliation A2 (recommended answer, taken under OD-10): evidence.window is always written, null when the finding has no window, because C4 1.0.0 requires the key; alert ids and texts do not change",
+    "sha256": "f3d3e8d914cb5e107b7c0cc00792a51b10cc6c07730fe2f92eef48e5954b7f25"
+  },
+  "detect/src/neonradar_detect/wording.py": {
+    "milestone": "M3.2",
+    "reason": "Reconciliation R1 (recommended answer, taken under OD-10): Phase 1's render_headline and format_metric (with MetricValue) are kept as they were, appended with their imports, so contracts/C4-alert.md's Code line and Phase 1's tests stay true; no Phase 3 code calls them, and the Phase 3 functions are unchanged",
+    "sha256": "d0e8ce6189b25c9518ff0aeb00cd78ed86c2e3907135c8b1bb1458d456f0ce0e"
+  },
   "ingest/src/neonradar_ingest/synth/background.py": {
     "milestone": "M3.3",
     "reason": "M3.3 review S6: the module docstring says background activity can form benign cycle shapes and near-threshold cash, and that R-REAL is the only control on real profiles (docstring only)",

@@ -41,7 +41,7 @@ Each component is named by its smallest account id, never by its GDS component i
 - A database without GDS cannot run the ring step. Development and CI need `make plugins` once; `make up` and the test fixtures never download the jar, and stop when it is missing or its SHA-256 differs (OD-13).
 - An in-memory graph stays until dropped or until the database stops (`detection-cypher-gds.md` 4.2). The drop runs in `finally`, and after the Neo4j test run `CALL gds.graph.list() YIELD graphName RETURN count(*)` returns 0 (PHASE-3.md M3.5c). A process killed between the projection and the drop can still leave one; its `nr-ring-` name makes it easy to find.
 - `detect/tests/test_query_plans.py` exempts the three GDS files (project, stream, drop) from its read-only check, and only them (PHASE-3.md 7.1.6).
-- The research note read the GDS 2.13 manual; the project pins the 2.13.4 jar (OD-13), on which the ring tests pass in Neo4j mode. A GDS version change goes through a reviewed pull request that changes `scripts/fetch_gds.sh` and runs those tests again.
+- The research note read the GDS 2.13 manual; the project pins the 2.13.4 jar (OD-13), and CI's "Detector tests on Neo4j" step runs the ring tests on that jar. A GDS version change goes through a reviewed pull request that changes `scripts/fetch_gds.sh` and runs those tests again.
 - M3.10 completes this record; only the deciders set its status (OD-5).
 
 ## Sources

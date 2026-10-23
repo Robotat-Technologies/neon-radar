@@ -313,6 +313,39 @@ entries:
     extra_urls: []
     verified: 2026-10-21
     note: Living regulation, read in the Legal Information Institute copy. The US prohibition on structuring transactions to evade reporting requirements.
+  - key: cfr_31_1010_100_2026
+    title: "31 CFR 1010.100(xx): Definition of structure (structuring)"
+    publisher: US Code of Federal Regulations
+    year: null
+    url: https://www.law.cornell.edu/cfr/text/31/1010.100
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living regulation, read in the Legal Information Institute copy (docs/research/2026-10-18-detection/typology-detection-definitions.md, T1). Defines structuring for 31 CFR 1010.314 by its purpose of evading the reporting requirements; it covers transactions in currency \"in any amount\", \"on one or more days\", and says they \"need not exceed the $10,000 reporting threshold at any single financial institution on any single day\"."
+  - key: cfr_31_1010_311_2026
+    title: "31 CFR 1010.311: Filing obligations for reports of transactions in currency"
+    publisher: US Code of Federal Regulations
+    year: null
+    url: https://www.law.cornell.edu/cfr/text/31/1010.311
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living regulation, read in the Legal Information Institute copy (docs/research/2026-10-18-detection/typology-detection-definitions.md, T2). A financial institution other than a casino reports each deposit, withdrawal, exchange or other payment that involves a transaction in currency \"of more than $10,000\", so exactly USD 10,000 is not reported."
+  - key: cfr_31_1010_313_2026
+    title: "31 CFR 1010.313: Aggregation of currency transactions"
+    publisher: US Code of Federal Regulations
+    year: null
+    url: https://www.law.cornell.edu/cfr/text/31/1010.313
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Living regulation, read in the Legal Information Institute copy (docs/research/2026-10-18-detection/typology-detection-definitions.md, T3). Multiple currency transactions are treated as a single transaction when the institution knows they are by or on behalf of the same person and they total more than $10,000 \"during any one business day\"."
+  # United Kingdom
+  - key: mlr_reg_27_2017
+    title: "The Money Laundering, Terrorist Financing and Transfer of Funds (Information on the Payer) Regulations 2017, regulation 27"
+    publisher: legislation.gov.uk
+    year: 2017
+    url: https://www.legislation.gov.uk/uksi/2017/692/regulation/27
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Customer due diligence. Read up to date to 18 October 2026 (docs/research/2026-10-18-detection/typology-detection-definitions.md, T29). Regulation 27(3): a high value dealer applies customer due diligence to an occasional transaction in cash that amounts to GBP 10,000 \"or more, whether the transaction is executed in a single operation or in several operations which appear to be linked\"; regulation 27(2) sets GBP 12,000 for other occasional transactions. The sterling sums replaced euro figures on 30 June 2026 (T31)."
   - key: ofac_50_percent_2014
     title: Revised Guidance on Entities Owned by Persons Whose Property and Interests in Property Are Blocked
     publisher: OFAC, US Treasury

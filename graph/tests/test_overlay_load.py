@@ -202,7 +202,7 @@ def test_the_real_data_instance_takes_a_listed_overlay_and_r_real_holds(
     assert report.dangling == [] and report.relationships_by_type["PAID"] > 0
     assert verify(real_neo4j.driver, REAL_DATABASE) == NONE  # I15 and I16 among them
     run = detect_on_graph(real_neo4j.driver, REAL_DATABASE, runs_dir=tmp_path / "runs")
-    assert sum(run.summary["withheld"].values()) > 0 and run.alerts
+    assert run.summary["withheld"]["activity_on_real"] >= 1 and run.alerts  # case A; case B emits
     payments = {item["id"] for item in records if item["schema"] == "Payment"}
     look_alikes = {item["id"] for item in LOOK_ALIKES}
     for alert in run.alerts:

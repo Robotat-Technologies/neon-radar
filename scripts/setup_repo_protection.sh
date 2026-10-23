@@ -9,7 +9,7 @@
 # Needs bash 3.2 or later and gh, logged in as a repository admin.
 set -uo pipefail
 
-REQUIRED_CHECKS=(python integration ui hygiene) # the job ids in ci.yml and pr-hygiene.yml
+REQUIRED_CHECKS=(python integration eval ui hygiene) # the job ids in ci.yml and pr-hygiene.yml
 
 usage() {
   cat <<'EOF'

@@ -36,7 +36,11 @@ def required_checks() -> list[str]:
 
 def test_required_checks_are_the_job_ids() -> None:
     ids = [job for workflow in WORKFLOWS for job in job_ids(workflow)]
-    assert sorted(ids) == sorted(required_checks()) == ["hygiene", "integration", "python", "ui"]
+    assert (
+        sorted(ids)
+        == sorted(required_checks())
+        == ["eval", "hygiene", "integration", "python", "ui"]
+    )
 
 
 @pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda path: path.name)
@@ -82,7 +86,9 @@ def test_dry_run_prints_the_spec_settings(fake_gh: tuple[dict[str, str], Path]) 
     body = protection_body(result.stdout)
     assert body["required_status_checks"] == {
         "strict": False,
-        "checks": [{"context": check} for check in ["python", "integration", "ui", "hygiene"]],
+        "checks": [
+            {"context": check} for check in ["python", "integration", "eval", "ui", "hygiene"]
+        ],
     }
     assert body["required_pull_request_reviews"] == {
         "dismiss_stale_reviews": True,

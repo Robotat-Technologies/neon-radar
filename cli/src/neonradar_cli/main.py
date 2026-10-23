@@ -12,6 +12,7 @@ from neonradar_cli import (
     detect,
     docs,
     doctor,
+    eval_commands,
     gate,
     graph,
     ingest,
@@ -35,6 +36,7 @@ app.add_typer(contracts.app, name="contracts")
 app.add_typer(data.app, name="data")
 app.add_typer(detect.app, name="detect")
 app.add_typer(docs.app, name="docs")
+app.add_typer(eval_commands.app, name="eval")
 app.add_typer(gate.app, name="gate")
 app.add_typer(graph.app, name="graph")
 app.add_typer(ingest.app, name="ingest")

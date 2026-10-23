@@ -470,3 +470,20 @@ entries:
       - https://eur-lex.europa.eu/eli/reg/2016/679/oj
     verified: 2026-10-21
     note: "Articles 4(1), 4(7) and 10 in the text as adopted, read on legislation.gov.uk on 2026-10-21 (url and first extra URL). EUR-Lex (extra URL) answered with a bot challenge; re-open in a browser. The current consolidated EU text was not opened; the data steward is to confirm that these articles are unchanged."
+  # Sanctions screening guidance (PHASE-2.md 7.5; cited by ADR-0015, M2.10a)
+  - key: ofac_faq_5
+    title: "FAQ 5: what to do when a party may match the SDN List"
+    publisher: US Department of the Treasury, Office of Foreign Assets Control
+    year: 2026
+    url: https://ofac.treasury.gov/faqs/5
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Updated 9 September 2026. Asks the reader to compare how much of the listed person's information matches (whether only the first or last name matches; a different date of birth, identification number or nationality); an address match alone may not suffice; OFAC does not confirm matches. Quoted in docs/research/2026-10-18/sanctions-peps.md section 9; not re-opened by the build."
+  - key: ofsi_general_guidance_2026
+    title: UK financial sanctions general guidance
+    publisher: Office of Financial Sanctions Implementation (HM Treasury)
+    year: 2026
+    url: https://www.gov.uk/government/publications/financial-sanctions-general-guidance/uk-financial-sanctions-general-guidance
+    extra_urls: []
+    verified: 2026-10-18
+    note: "A name match 'does not necessarily mean' that the person is the one on the list; matching all the information on the list is likely to be a target match. Quoted in docs/research/2026-10-18/sanctions-peps.md section 9; not re-opened by the build."

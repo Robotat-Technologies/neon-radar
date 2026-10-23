@@ -12,9 +12,15 @@ dependencies = [
     "pydantic-settings>=2.16,<3",
 ]
 
+# Test-only (PHASE-2.md M2.11): the integration tests build resolution runs with the resolver.
+# The package code never imports it, so the API image stays free of PyArrow, DuckDB and Splink.
+[dependency-groups]
+dev = ["neonradar-resolve"]
+
 [tool.uv.sources]
 neonradar-contracts = { workspace = true }
 neonradar-keys = { workspace = true }
+neonradar-resolve = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14"]

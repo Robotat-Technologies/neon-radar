@@ -70,11 +70,18 @@ def _latest(profile: str) -> Path:
     return layout.resolution_dir(profile, run_id)
 
 
-def test_er_run_demo_scores_pairs_and_is_byte_stable(data_env: Any, one_thread: None) -> None:
+def test_er_run_demo_scores_pairs_and_is_byte_stable(
+    data_env: Any, one_thread: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    splink_log = logging.getLogger("splink")
+    monkeypatch.setattr(splink_log, "propagate", False)  # as in a CLI process: no root handler
+    monkeypatch.setattr(splink_log, "handlers", [])
     dirs = []
     for _ in range(2):
         result = runner.invoke(app, ["er", "run", "--profile", "demo"])
         assert result.exit_code == 0, result.output
+        assert "not observed in dataset" not in result.output  # Splink's warnings: counted only
+        assert splink_log.handlers == []  # Splink added no stderr handler of its own
         dirs.append(_latest("demo"))
     first, second = dirs
     assert first != second

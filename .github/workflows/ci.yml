@@ -83,6 +83,20 @@ jobs:
           NR_NEO4J_IMAGE: neo4j:5.26.32-community
           NR_DETECT_SOURCE: neo4j
 
+  eval:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: ICU headers for PyICU
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libicu-dev
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv python install 3.14
+      - run: uv sync --all-packages --locked
+      - run: uv run neonradar eval check --baseline eval/baselines/ci.json
+
   ui:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

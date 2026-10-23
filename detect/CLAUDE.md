@@ -28,11 +28,15 @@
     typology, the part and the pattern, never the text. scripts/check_wording.py lints the
     string literals of `wording.py`.
   - `catalog.load()` (the frozen `Typology` view) refuses a detector typology without
-    `shape_name`, a format spec or a stray brace; `TypologyFile` still accepts the C4
-    document's Phase 1 example. A file's `detector` must be `neonradar_detect.detectors.<slug>`.
+    `shape_name`, a format spec, a stray brace, and a shape name or template that fails
+    `wording_lint.violations`; `TypologyFile` still accepts the C4 document's Phase 1 example.
+    A file's `detector` must be `neonradar_detect.detectors.<slug>`; nothing (`detect list`
+    included) imports another module path read from a file.
   - Typology files stay `status: draft`; only a typology researcher approves. After changing
     one, run `uv run neonradar docs typology-index` (CI checks the index with `--check`).
-  - C4 `Alert` is strict: `detect run` validates every alert before writing.
+  - C4 `Alert` is strict: `detect run` validates every alert before writing, then checks that
+    both ends of every plain-id evidence edge are evidence nodes (`runs.check_edge_ends`; the
+    model checks composite ids only).
     `detector.query_sha256` is the SHA-256 of `queries/evidence.cypher` (A1); the hashes of a
     detector's own `QUERIES` go into `run.json` only. A real entity with no evidence
     relationship needs `synthetic_activity: false` (C4 rule 6), which `policy.data_flags`
@@ -46,8 +50,8 @@
   - Detector queries run as `session.run(neo4j.Query(text, timeout))`, never in
     `execute_read`. GDS: stream only, concurrency 4, drop projections in `finally`.
   - L19: a Neo4j run deletes every `:Alert` and `:DetectionRun` before it loads (unless
-    `--keep-previous`); `--engine memory` writes the run folder only. Real profiles are
-    refused until M3.4.
+    `--keep-previous`); a failed run records its failed `:DetectionRun` and deletes nothing
+    (OD-10); `--engine memory` writes the run folder only. Real profiles are refused until M3.4.
   - Integration tests use the shared Neo4j fixtures (`neo4j`, `graph_db`) of
     graph/tests/support/nr_test_neo4j.py; `neo4j_mode.py` loads records into that database
     (no second container). `worlds.py` generates the small parity world at run time.

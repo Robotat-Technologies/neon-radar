@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from neonradar_ingest.data.download import DownloadError
-from neonradar_ingest.data.sources import BuildError, RemoteFile, SourceSpec, register_source
+from neonradar_ingest.data.sources import BuildError, RemoteFile
 from neonradar_ingest.http import HttpClient, HttpError, redact
 from neonradar_keys.postcodes import normalise_uk_postcode, postcode_parts
 
@@ -64,19 +64,25 @@ BATCH = 10_000
 Row = dict[str, str]
 
 
-def discover(client: HttpClient) -> list[RemoteFile]:
-    """The parts of the newest snapshot date for which all `M` parts are listed."""
-    response = client.get(PAGE_URL)
+def discover_parts(
+    client: HttpClient, page_url: str, part_re: re.Pattern[str], product: str
+) -> list[RemoteFile]:
+    """The parts on `page_url` of the newest date for which all `M` parts are listed.
+
+    `part_re` matches a part's file name with three groups: the date, `N` and `M`. Used for
+    the `companies` product here and the `psc` product (M2.3b).
+    """
+    response = client.get(page_url)
     if response.is_error:
         raise HttpError(
-            f"GET {redact(PAGE_URL)}: HTTP {response.status_code}", response.status_code
+            f"GET {redact(page_url)}: HTTP {response.status_code}", response.status_code
         )
     found: dict[str, dict[int, tuple[int, str]]] = {}
     for href in HREF_RE.findall(response.text):
         name = href.rsplit("/", 1)[-1]
-        url = urljoin(PAGE_URL, href)
+        url = urljoin(page_url, href)
         where = urlsplit(url)
-        if (match := PART_RE.fullmatch(name)) and (where.scheme, where.hostname) == ("https", HOST):
+        if (match := part_re.fullmatch(name)) and (where.scheme, where.hostname) == ("https", HOST):
             when, part, of = match[1], int(match[2]), int(match[3])
             found.setdefault(when, {})[part] = (of, url)
     for when in sorted(found, reverse=True):
@@ -84,17 +90,19 @@ def discover(client: HttpClient) -> list[RemoteFile]:
         totals = {of for of, _ in parts.values()}
         if len(totals) == 1 and set(parts) == set(range(1, totals.pop() + 1)):
             return [
-                RemoteFile(url.rsplit("/", 1)[-1], url, when, None, None, product=PRODUCT)
+                RemoteFile(url.rsplit("/", 1)[-1], url, when, None, None, product=product)
                 for _, (_, url) in sorted(parts.items())
             ]
-    raise DownloadError("discover: no snapshot with every part listed", "discover")
+    raise DownloadError(f"discover: no snapshot of {product} with every part listed", "discover")
 
 
-register_source(SourceSpec(DATASET, discover))
+def discover(client: HttpClient) -> list[RemoteFile]:
+    """The parts of the newest Free Company Data snapshot with every part listed."""
+    return discover_parts(client, PAGE_URL, PART_RE, PRODUCT)
 
 
-def part_number(path: Path) -> int:
-    match = PART_RE.fullmatch(path.name)
+def part_number(path: Path, part_re: re.Pattern[str] = PART_RE) -> int:
+    match = part_re.fullmatch(path.name)
     return int(match[2]) if match else 0
 
 

@@ -2,7 +2,7 @@
 
 Seeds are always in the slice; for each postcode district, the companies with the lowest
 sample hash `sha256("<sample_seed>|<number>")`, at most `max_per_district`; then the PSC
-expansion (M2.3b passes it in); finally the cap `max_companies`, which removes expansion
+expansion (`expand`, M2.3b); finally the cap `max_companies`, which removes expansion
 companies first (deepest level first, then highest hash), then district companies (highest
 hash first), never a seed. `slice.csv` is written in the order the officers step uses.
 """
@@ -12,7 +12,7 @@ import hashlib
 import json
 import sqlite3
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -59,6 +59,36 @@ def cap(members: dict[str, Member], max_companies: int) -> tuple[list[Member], i
     return [m for m in members.values() if m.number not in removed], len(removed)
 
 
+def expand(
+    base: Collection[str],
+    parents_of: Callable[[str], Iterable[str]],
+    children_of: Callable[[str], Iterable[str]],
+    parent_depth: int,
+    child_depth: int,
+    seed: int,
+) -> list[Member]:
+    """The PSC expansion of M2.3b (deliverable 7), breadth first.
+
+    Parents: the companies that are resolved corporate PSCs of the base, level 1, then of
+    level 1, up to `parent_depth`. Children: the companies whose resolved corporate PSC is
+    already in the set (the base and every parent), level 1, then of level 1, up to
+    `child_depth`. A company already in the set is not added again.
+    """
+    found: list[Member] = []
+    seen = set(base)
+
+    def walk(reason: str, depth: int, step: Callable[[str], Iterable[str]]) -> None:
+        frontier = sorted(seen)
+        for level in range(1, depth + 1):
+            frontier = sorted({n for number in frontier for n in step(number)} - seen)
+            found.extend(Member(n, reason, level, sample_hash(seed, n)) for n in frontier)
+            seen.update(frontier)
+
+    walk("parent", parent_depth, parents_of)
+    walk("child", child_depth, children_of)
+    return found
+
+
 def file_order(members: Iterable[Member]) -> list[Member]:
     return sorted(members, key=lambda m: (FILE_ORDER.index(m.reason), m.level, m.hash, m.number))
 
@@ -83,10 +113,16 @@ def read(path: Path) -> list[tuple[str, str, int]]:
         return [(number, reason, int(level)) for number, reason, level in reader]
 
 
+Expansion = Callable[[Collection[str]], Iterable[Member]]
+
+
 def build_slice(
-    index: Path, block: CompaniesBlock, path: Path, expansion: Iterable[Member] = ()
+    index: Path, block: CompaniesBlock, path: Path, expansion: Expansion | None = None
 ) -> tuple[dict[str, Any], str]:
-    """The `slice` step from the `index` and the profile's `companies` block: counts, SHA-256."""
+    """The `slice` step from the `index` and the profile's `companies` block: counts, SHA-256.
+
+    `expansion` gets the seeds and district companies and returns the expansion members.
+    """
     seed = block.sample_seed
     connection = sqlite3.connect(index.absolute().as_uri() + "?mode=ro", uri=True)
     try:
@@ -104,13 +140,15 @@ def build_slice(
                 district_of[number] = where
     finally:
         connection.close()
-    kept, removed = cap(merge([*members, *expansion]), block.max_companies)
+    added = list(expansion({m.number for m in members})) if expansion else []
+    kept, removed = cap(merge([*members, *added]), block.max_companies)
     sha256 = write(path, kept)
     by_district = Counter(district_of[m.number] for m in kept if m.reason == "district")
     counts: dict[str, Any] = {
         "companies": len(kept),
         "seeds_missing_from_index": missing,
         "cap_removed": removed,
+        "expansion_before_cap": {r: sum(m.reason == r for m in added) for r in REASONS[2:]},
         "by_reason": {r: sum(m.reason == r for m in kept) for r in REASONS},
         "by_level": {str(k): v for k, v in sorted(Counter(m.level for m in kept).items())},
         "by_district": {d.lower(): by_district[d] for d in block.postcode_districts},
@@ -118,9 +156,19 @@ def build_slice(
     return counts, sha256
 
 
-def write_meta(path: Path, *, version: str | None, sample_seed: int, sha256: str) -> None:
-    """`slice.json` next to `slice.csv`: the snapshot the slice came from, its seed and hash."""
-    meta = {"version": version, "sample_seed": sample_seed, "slice_sha256": sha256}
+def write_meta(
+    path: Path,
+    *,
+    version: str | None,
+    sample_seed: int,
+    sha256: str,
+    psc_snapshot: str | None = None,
+) -> None:
+    """`slice.json` next to `slice.csv`: the snapshot the slice came from, its seed and hash,
+    and, when the PSC expansion ran, the PSC snapshot date (M2.3b)."""
+    meta: dict[str, Any] = {"version": version, "sample_seed": sample_seed, "slice_sha256": sha256}
+    if psc_snapshot is not None:
+        meta["psc_snapshot"] = psc_snapshot
     path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
 

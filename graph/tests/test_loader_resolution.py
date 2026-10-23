@@ -8,24 +8,20 @@ look-alike records built here and replaces them on the next resolved load (L9)."
 
 import csv
 import json
-import secrets
 import shutil
 from collections import Counter
-from collections.abc import Iterator
 from functools import reduce
 from pathlib import Path
 from typing import Any
 
 import pytest
 from followthemoney import ValueEntity, model
-from nr_test_neo4j import CONTAINER_ENV, IMAGE
 
 from neonradar_contracts.datasets import load_registry
 from neonradar_contracts.records import iter_records
 from neonradar_graph.instances import REAL_DATABASE, Instance
 from neonradar_graph.loader import LoadReport, collect_files, load, load_files
 from neonradar_graph.mapping import to_node_rows, to_relationship_rows
-from neonradar_graph.migrate import migrate
 from neonradar_graph.verify import verify
 from neonradar_keys.names import latin_forms
 
@@ -237,20 +233,9 @@ def test_a_load_without_a_resolution_run_gives_the_phase_1_counts(graph_db: Neo4
     assert (report.resolution_run, report.superseded_removed) == (None, 0)
 
 
-# The real-data instance: a second container started like neo4j-real (database realdata),
-# loaded with look-alike records built here (never committed, PHASE-2.md 2.9).
-
-
-@pytest.fixture(scope="module")
-def real_neo4j() -> Iterator[Neo4jTarget]:
-    from testcontainers.community.neo4j import Neo4jContainer
-
-    container = Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1024m").with_envs(
-        **CONTAINER_ENV, NEO4J_initial_dbms_default__database=REAL_DATABASE
-    )
-    with container, container.get_driver(telemetry_disabled=True) as driver:
-        migrate(driver, REAL_DATABASE)
-        yield Neo4jTarget(driver, REAL_DATABASE)
+# The real-data instance: a second container started like neo4j-real (database realdata,
+# conftest.py's `real_neo4j`), loaded with look-alike records built here (never committed,
+# PHASE-2.md 2.9).
 
 
 def look_alike_set(folder: Path, tag: str) -> tuple[Path, Path]:

@@ -1,5 +1,6 @@
-// Cytoscape style sheet: shapes by schema, a dashed outline for synthetic nodes, and the
-// highlight classes the pages set. Highlights change width and colour only, never the dash, so a
+// Cytoscape style sheet: shapes by schema, a dashed outline for synthetic nodes, a dashed line
+// without an arrow for an unconfirmed possible match (POSSIBLY_SAME_AS is undirected, C3 1.1.0),
+// and the highlight classes the pages set. Highlights change width and colour only, never the dash, so a
 // synthetic node or relationship stays marked while it is highlighted. Plain colours for now;
 // the visual identity arrives in Phase 5.
 import type { EdgeSingular, StylesheetJson } from 'cytoscape'
@@ -61,6 +62,10 @@ export const graphStyle: StylesheetJson = [
     },
   },
   { selector: 'edge.synthetic', style: { 'line-style': 'dashed' } },
+  {
+    selector: 'edge.type-possibly_same_as',
+    style: { 'line-style': 'dashed', 'line-dash-pattern': [2, 4], 'target-arrow-shape': 'none' },
+  },
   {
     selector: 'edge.highlighted',
     style: { width: 4, 'line-color': '#d97706', 'target-arrow-color': '#d97706' },

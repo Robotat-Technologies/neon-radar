@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 from pathlib import Path
 from typing import Any, get_args
 
@@ -9,7 +10,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from neonradar_contracts import api, graph
-from neonradar_contracts.alert import Alert
+from neonradar_contracts.alert import EDGE_ID_PATTERN, Alert
 
 pytestmark = pytest.mark.contract
 
@@ -92,7 +93,11 @@ def test_graph_node_field_is_schema_in_json() -> None:
 
 def test_literals_follow_the_c2_mapping() -> None:
     record_types = set(graph.RELATIONSHIP_TYPES) - set(graph.SUPPORT_RELATIONSHIPS)
-    assert set(get_args(api.RelationshipType)) == record_types
+    # C3 1.1.0 also shows the unconfirmed POSSIBLY_SAME_AS (PHASE-2.md 5.2), never the others.
+    assert set(get_args(api.RelationshipType)) == record_types | {"POSSIBLY_SAME_AS"}
+    assert not {"FLAGS", "PRODUCED", "RESOLVED_TO"} & set(get_args(api.RelationshipType))
+    assert set(api.PATHS_DEFAULT_TYPES) == record_types - {"HAS_ADDRESS", "LINKED_TO"}
+    assert set(get_args(api.MemberMethod)) == {"identity", *graph.RESOLVED_TO_METHODS}
     mapped_labels = {label for m in graph.NODE_MAPPINGS.values() for label in m.labels}
     assert set(get_args(api.NodeLabel)) == mapped_labels
     assert set(get_args(api.NodeSchema)) == set(graph.NODE_MAPPINGS)
@@ -284,6 +289,8 @@ def _cycle_path(**changes: Any) -> dict[str, Any]:
         "edge_ids": ["syn-payment-000101", "syn-payment-000102"],
         "effective_share_min": None,
         "effective_share_max": None,
+        "effective_share_min_exclusive": None,
+        "effective_share_max_exclusive": None,
     }
     return {**path, **changes}
 
@@ -350,3 +357,127 @@ def test_alert_summary_subject_ids_are_distinct() -> None:
         api.AlertSummary.model_validate({**summary, "subject_ids": ["syn-co-0003", "syn-co-0003"]})
     schema = api.AlertSummary.model_json_schema()["properties"]["subject_ids"]
     assert schema["uniqueItems"] is True
+
+
+# C3 1.1.0 (PHASE-2.md 5.3) ---------------------------------------------------------------
+
+
+def _owned(low: float | None, high: float | None, **flags: bool | None) -> dict[str, Any]:
+    return _cycle_path(
+        effective_share_min=low,
+        effective_share_max=high,
+        effective_share_min_exclusive=flags.get("low_open", None if low is None else True),
+        effective_share_max_exclusive=flags.get("high_open", None if high is None else False),
+    )
+
+
+def test_effective_share_flags_are_null_exactly_when_their_bound_is() -> None:
+    path = api.PathRef.model_validate(_owned(9.375, 37.5, low_open=True, high_open=True))
+    assert (path.effective_share_min_exclusive, path.effective_share_max_exclusive) == (True, True)
+    api.PathRef.model_validate(_owned(None, None))
+    api.PathRef.model_validate(_owned(None, 50.0))
+    for broken in (_owned(18.75, 50.0, low_open=None), _owned(None, None, high_open=False)):
+        with pytest.raises(ValidationError, match="null exactly when"):
+            api.PathRef.model_validate(broken)
+
+
+def test_effective_share_fields_say_they_are_a_neonradar_calculation() -> None:
+    properties = api.PathRef.model_json_schema()["properties"]
+    for name in ("min", "max", "min_exclusive", "max_exclusive"):
+        assert api.EFFECTIVE_SHARE_NOTE in properties[f"effective_share_{name}"]["description"]
+
+
+def test_the_resolution_example_validates_and_round_trips() -> None:
+    data = _load("resolution.json")
+    parsed = api.ResolutionResponse.model_validate(data)
+    assert parsed.canonical and parsed.cluster_size == len(parsed.members) == 3
+    assert [m.method for m in parsed.members] == ["anchor", "deterministic", "probabilistic"]
+    assert all(api.NOT_CONFIRMED in m.explanation for m in parsed.possible_matches)
+    assert parsed.model_dump(mode="json") == data
+
+
+def _resolution(**changes: Any) -> dict[str, Any]:
+    return {**_load("resolution.json"), **changes}
+
+
+def test_a_single_record_entity_has_one_identity_member() -> None:
+    data = _load("resolution.json")
+    member = {**data["members"][0], "method": "identity", "explanation": "Built from one record."}
+    single = {"canonical": False, "resolution": "identity", "cluster_size": 1}
+    entity_id = member["record_id"]
+    api.ResolutionResponse.model_validate(
+        _resolution(entity_id=entity_id, members=[member], possible_matches=[], **single)
+    )
+    for broken, match in (
+        ({"members": [data["members"][0]]}, "one member with method identity"),
+        ({"members": [member], "canonical": True}, "canonical is true exactly"),
+        ({"members": [member], "resolution": "deterministic"}, "resolution is identity"),
+    ):
+        with pytest.raises(ValidationError, match=match):
+            api.ResolutionResponse.model_validate(
+                _resolution(entity_id=entity_id, possible_matches=[], **{**single, **broken})
+            )
+
+
+def test_a_merged_entity_has_one_anchor_and_one_member_per_record() -> None:
+    members = _load("resolution.json")["members"]
+    second_anchor = [members[0], {**members[1], "method": "anchor", "rule": None}, members[2]]
+    for broken, match in (
+        ({"members": members[:2]}, "one member per source record"),
+        ({"members": [members[0], members[1], members[1]]}, "must not repeat"),
+        ({"members": second_anchor}, "exactly one anchor"),
+        ({"run_id": "run-20261021T101500-7f3a"}, "run_id"),
+    ):
+        with pytest.raises(ValidationError, match=match):
+            api.ResolutionResponse.model_validate(_resolution(**broken))
+
+
+def test_member_methods_need_their_rule_or_probability() -> None:
+    members = _load("resolution.json")["members"]
+    for broken, match in (
+        ({**members[1], "rule": None}, "names its D rule"),
+        ({**members[1], "rule": "P1"}, "rule"),
+        ({**members[2], "match_probability": None}, "has a match_probability"),
+        ({**members[2], "match_probability": 1.5}, "match_probability"),
+    ):
+        with pytest.raises(ValidationError, match=match):
+            api.ResolutionMember.model_validate(broken)
+
+
+def test_possible_matches_are_never_confirmed() -> None:
+    matches = _load("resolution.json")["possible_matches"]
+    probabilistic, deterministic = matches[0], matches[1]
+    for broken, match in (
+        ({**probabilistic, "explanation": "Possible match."}, "not confirmed"),
+        ({**probabilistic, "match_probability": None}, "set for probabilistic"),
+        ({**deterministic, "match_probability": 0.99}, "set for probabilistic"),
+        ({**deterministic, "rule": None}, "names its D rule"),
+    ):
+        with pytest.raises(ValidationError, match=match):
+            api.PossibleMatch.model_validate(broken)
+    itself = {**probabilistic["entity"], "id": "nr-syn-co-0003"}
+    with pytest.raises(ValidationError, match="not a possible match of itself"):
+        api.ResolutionResponse.model_validate(
+            _resolution(possible_matches=[{**probabilistic, "entity": itself}])
+        )
+
+
+def test_possible_match_edges_have_their_own_id_form_outside_c4() -> None:
+    edge = _load("subgraph.json")["edges"][0]
+    psa = {**edge, "id": "syn-co-0001|psa|syn-co-0002", "type": "POSSIBLY_SAME_AS"}
+    assert api.GraphEdge.model_validate(psa).id == psa["id"]
+    assert api.PathRef.model_validate(_cycle_path(edge_ids=[psa["id"], "syn-payment-000102"]))
+    with pytest.raises(ValidationError):
+        api.GraphEdge.model_validate({**psa, "id": "syn-co-0001|same|syn-co-0002"})
+    assert not re.fullmatch(EDGE_ID_PATTERN, psa["id"])  # C4 evidence keeps 1.0.0 ids
+
+
+def test_path_lists_have_the_5_3_caps_in_the_schema() -> None:
+    """At most 200 ownership paths and 5 shortest paths (5.3), declared before M2.12."""
+    owners = api.OwnershipResponse.model_json_schema()["properties"]["paths"]
+    shortest = api.PathsResponse.model_json_schema()["properties"]["paths"]
+    assert (owners["maxItems"], shortest["maxItems"]) == (200, 5)
+    subgraph = _load("subgraph.json")
+    paths = {"from_id": "syn-acct-0007", "to_id": "syn-acct-0015", "subgraph": subgraph}
+    with pytest.raises(ValidationError, match="at most 5"):
+        api.PathsResponse.model_validate({**paths, "paths": [_cycle_path()] * 6})

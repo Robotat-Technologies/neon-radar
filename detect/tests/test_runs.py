@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from kit import WINDOW, Kit
 
+from neonradar_contracts.alert import compute_alert_id
 from neonradar_detect import catalog, runner, runs
 from neonradar_detect.detectors import circular_flow
 from neonradar_detect.graphrows import from_records
@@ -185,12 +186,12 @@ def test_a_wording_failure_fails_the_whole_run(tmp_path: Path) -> None:
     meta = json.loads((directory / "run.json").read_text(encoding="utf-8"))
     assert (meta["status"], meta["alert_count"]) == ("failed", 0)
     assert "Synthetic scenario" not in meta["error"]  # the pattern, never the text
-    # only the failed :DetectionRun, after the delete
-    assert driver.names() == ["delete_detections", "merge_run", "prune_run", "merge_alerts"]
-    node = driver.calls[1][1]["run"]
+    # only the failed :DetectionRun, and no delete: the earlier results stay (OD-10)
+    assert driver.names() == ["merge_run", "prune_run", "merge_alerts"]
+    node = driver.calls[0][1]["run"]
     assert (node["status"], node["alert_count"], node["params_sha256"]) == ("failed", 0, None)
     assert json.loads(node["summary"])["alerts"] == 0
-    assert driver.calls[3][1]["rows"] == []
+    assert driver.calls[2][1]["rows"] == []
 
 
 def test_an_alert_that_fails_c4_names_the_typology_and_fields_only(
@@ -232,7 +233,7 @@ def test_an_unwritable_runs_folder_fails_the_run_cleanly(tmp_path: Path) -> None
     driver = FakeDriver()
     with pytest.raises(runs.RunError, match="failed"):
         run(blocked, driver, run_id="run-20261021T101500-0004")
-    node = driver.calls[1][1]["run"]  # the failed run still reaches Neo4j
+    node = driver.calls[0][1]["run"]  # the failed run still reaches Neo4j
     assert node["status"] == "failed"
 
 
@@ -241,7 +242,56 @@ def test_a_graph_without_a_window_records_none(tmp_path: Path) -> None:
     assert record.as_json()["window"] is None
     props = record.node_properties()
     assert props["window_start"] is None and props["window_end"] is None
-    assert json.loads(props["summary"])["window"]["start"] == "2026-01-01T00:00:00Z"
+    assert json.loads(props["summary"])["window"] is None  # not the runner's stand-in span
+    summary = json.loads((record.directory / "summary.json").read_text(encoding="utf-8"))
+    assert summary["window"] is None and summary["alerts"] == 2
+
+
+def test_evidence_edges_must_end_at_evidence_nodes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Phase 1's `test_alerts.py::test_evidence_edges_must_end_at_evidence_nodes` (retired, R2):
+    C4's model checks the ends of composite edge ids only, so the run checks the plain ones."""
+    real = runner.run_detection
+    dropped: list[str] = []
+
+    def doctored(*args: Any, **kwargs: Any) -> runner.RunResult:
+        result = real(*args, **kwargs)
+        alert = result.alerts[0]
+        evidence = alert["evidence"]
+        subjects = {s["entity_id"] for s in alert["subjects"]}
+        dropped.append(next(n for n in evidence["node_ids"] if n not in subjects))
+        evidence["node_ids"] = [n for n in evidence["node_ids"] if n != dropped[0]]
+        evidence["query"]["parameters"]["node_ids"] = evidence["node_ids"]
+        alert["alert_id"] = compute_alert_id(
+            alert["typology"],
+            alert["detector"]["version"],
+            evidence["node_ids"],
+            evidence["edge_ids"],
+        )
+        return result
+
+    monkeypatch.setattr(runner, "run_detection", doctored)
+    driver = FakeDriver()
+    with pytest.raises(runs.RunError) as raised:
+        run(tmp_path, driver)
+    assert str(raised.value).endswith("(C4), by typology: circular_flow 1")
+    assert dropped[0] not in str(raised.value)  # a count, never an id
+    assert not (tmp_path / "run-20261021T101500-0001" / "alerts.jsonl").exists()
+    assert driver.names() == ["merge_run", "prune_run", "merge_alerts"]  # the failed run only
+
+
+def test_verify_names_the_fields_of_a_stored_payload_never_its_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alert_id = "alr-0123456789abcdef0123"
+    stored = json.dumps({"alert_id": alert_id, "headline": "Funds went to Secret Name Ltd"})
+    rows = [{"alert_id": alert_id, "payload": stored}]
+    monkeypatch.setattr(runs, "_read", lambda *args, **kwargs: rows)
+    with pytest.raises(runs.RunError, match="does not validate against C4") as raised:
+        list(runs.verify(None, "neo4j", [alert_id]))  # type: ignore[arg-type]
+    assert f"alert {alert_id}:" in str(raised.value) and "typology" in str(raised.value)
+    assert "Secret Name" not in str(raised.value)
 
 
 def test_windows_from_days_and_the_overlay(tmp_path: Path) -> None:

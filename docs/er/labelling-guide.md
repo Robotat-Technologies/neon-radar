@@ -94,7 +94,7 @@ Do not answer `unsure` to save time, when a case feels hard but the steps above 
 
 ## Notes
 
-A note is optional. Write one when the decision was close, so that an adjudicator or an auditor can see your reasoning, and always when you answer `unsure`: say what was missing. Say only how the fields compare, never a value from a card: "same company, birth month agrees, Q and K spellings" or "names agree in full, nothing else on the leak record". Label files hold record ids and labels only ([real-data handling](../data/real-data-handling.md), rule 8), so a note never holds a name, a date, a nationality, a town, a postcode, a company name, an identifier or a record id.
+A note is optional. Write one when the decision was close, so that an adjudicator or an auditor can see your reasoning, and always when you answer `unsure`: say what was missing. Say only how the fields compare, never a value from a card: "same company, birth month agrees, Q and K spellings" or "names agree in full, nothing else on the leak record". Label files hold record ids and labels only ([real-data handling](../data/real-data-handling.md), rule 8), so a note never holds a name, a date, a nationality, a town, a postcode, a company's name or sector, an identifier or a record id.
 
 ## Privacy rules for labelling sessions
 

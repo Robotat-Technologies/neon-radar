@@ -40,7 +40,7 @@ def test_meta_answers_without_neo4j(client: TestClient) -> None:
     assert (meta.counts.nodes_by_label, meta.counts.relationships_by_type) == ({}, {})
     assert meta.disclaimers.standing == load_disclaimer("standing-v1")
     assert meta.disclaimers.synthetic_demo == load_disclaimer("synthetic-demo-v1")
-    assert meta.disclaimers.real_data == load_disclaimer("real-data-v1")
+    assert meta.disclaimers.real_data == load_disclaimer("real-data-v2")  # C3 1.1.0
     assert (meta.contracts_version, meta.schema_version) == (
         versions.CONTRACTS,
         versions.GRAPH_SCHEMA,

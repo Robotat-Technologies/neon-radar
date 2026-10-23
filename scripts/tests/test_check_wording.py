@@ -131,3 +131,16 @@ def test_graph_wording_py_is_checked(root: Path, capsys: pytest.CaptureFixture[s
     write(root, "graph/src/neonradar_graph/wording.py", 'TEXT = "a suspicious match"\n')
     assert run(root) == 1
     assert "graph/src/neonradar_graph/wording.py:1:" in capsys.readouterr().out
+
+
+def test_graph_wording_templates_are_scanned_too(
+    root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """PHASE-2.md 7.2: the resolution and ownership templates live in graph/src/**/wording.py."""
+    (root / "graph/src/neonradar_graph").mkdir(parents=True)
+    write(root, "graph/src/neonradar_graph/wording.py", 'MERGED = "Merged from {n} records."\n')
+    assert run(root) == 0
+    assert "0 typology files and 1 wording.py files" in capsys.readouterr().out
+    write(root, "graph/src/neonradar_graph/wording.py", 'MATCH = "a suspicious match"\n')
+    assert run(root) == 1
+    assert "graph/src/neonradar_graph/wording.py:1: 'suspicious'" in capsys.readouterr().out

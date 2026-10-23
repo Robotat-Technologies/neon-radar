@@ -18,7 +18,11 @@
   - Tests and the benchmark use one DuckDB thread; `run.guard_decisions` and
     `cluster.resolve` get one list object of probabilistic links.
   - Every Splink comparison level needs a fixed `label_for_charts`, never a literal value:
-    Splink prints labels in its own warnings, which bypass the app's logging on real data.
+    labels go into `pairs.parquet`, `candidates.jsonl` and Splink's own warnings.
+  - Build a Splink `Linker` only inside `scoring._untrained()`: on a `splink` logger without
+    handlers, Splink installs its own stderr handler, which bypasses the run's summary.
+  - Only `scoring.UNTRAINABLE` (exact classes, no DuckDB error in the chain) means a model
+    cannot be trained; synthetic profiles skip the class, real profiles fail (OD-10).
   - Never read the entity from a record id: benchmark truth lives in labels/er_truth.csv.
   - Humans label (G10): never write, pre-fill or infer labels or decisions.
   - Rules in .claude/rules/er.md and .claude/rules/real-data.md.

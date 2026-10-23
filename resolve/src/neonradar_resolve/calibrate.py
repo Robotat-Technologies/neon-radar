@@ -3,9 +3,13 @@
 `sweep` clusters one scored run again for each value `t` of `SWEEP`, without scoring again:
 once with `merge_threshold = t` for both models (candidates from the lowest sweep value), for
 pairwise precision and recall, and once with `candidate_threshold = t` and the merge thresholds
-of er.yaml, for the recall of policy-blocked true pairs as possible matches. `propose` applies
-the rule of 7.1.7. Nothing here edits er.yaml: the tech lead and the graph mentor set the values
-there and in ADR-0014. The thresholds come from the synthetic benchmark only (G10).
+of er.yaml, for the recall of policy-blocked true pairs as possible matches. In the second, a
+merge threshold below `t` is raised to `t`: `cluster.resolve` drops every pair below the
+candidate threshold, so a candidate threshold above a merge threshold in effect raises it.
+`propose` applies the rule of 7.1.7; a point that leaves pairs or records out of the measures
+(person-organisation pairs merged, records without truth) never passes. Nothing here edits
+er.yaml: the tech lead and the graph mentor set the values there and in ADR-0014. The
+thresholds come from the synthetic benchmark only (G10).
 """
 
 from __future__ import annotations
@@ -60,9 +64,8 @@ def sweep(
             dict.fromkeys(base.merge_threshold, t), min(SWEEP), base.cluster_cap,
             base.name_check_jaro_winkler,
         )  # fmt: skip
-        candidate = cluster.Config(
-            base.merge_threshold, t, base.cluster_cap, base.name_check_jaro_winkler
-        )
+        raised = {model: max(value, t) for model, value in base.merge_threshold.items()}
+        candidate = cluster.Config(raised, t, base.cluster_cap, base.name_check_jaro_winkler)
         points.append(
             Point(
                 t,
@@ -75,19 +78,24 @@ def sweep(
 
 def propose(points: Sequence[Point]) -> dict[str, float | None]:
     """7.1.7: per class the lowest merge threshold with precision at least 0.98; the highest
-    candidate threshold with policy-blocked recall at least 0.90; None when no value passes."""
+    candidate threshold with policy-blocked recall at least 0.90; None when no value passes.
+    A point whose measures leave anything out (`bench.Score.left_out`) does not pass."""
     out: dict[str, float | None] = {}
     for name in bench.CLASSES:
         passing = [
             p.t
             for p in points
-            if (v := p.merge.classes[name].precision) is not None and v >= PROPOSE_PRECISION
+            if (v := p.merge.classes[name].precision) is not None
+            and v >= PROPOSE_PRECISION
+            and not p.merge.left_out
         ]
         out[f"merge_threshold.{name}"] = min(passing, default=None)
     passing = [
         p.t
         for p in points
-        if (v := p.candidate.policy_blocked_recall) is not None and v >= PROPOSE_BLOCKED_RECALL
+        if (v := p.candidate.policy_blocked_recall) is not None
+        and v >= PROPOSE_BLOCKED_RECALL
+        and not p.candidate.left_out
     ]
     out["candidate_threshold"] = max(passing, default=None)
     return out
@@ -101,8 +109,9 @@ def table(points: Sequence[Point]) -> list[str]:
     """The calibration table as Markdown lines."""
     lines = [
         "| t | person precision | person recall | org precision | org recall"
-        " | hard negatives merged | policy-blocked recall (person, org, all) |",
-        "|---|---|---|---|---|---|---|",
+        " | hard negatives merged | person-organisation pairs merged (merge, candidate)"
+        " | policy-blocked recall (person, org, all) |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for p in points:
         person, org = p.merge.classes["person"], p.merge.classes["org"]
@@ -110,6 +119,7 @@ def table(points: Sequence[Point]) -> list[str]:
         lines.append(
             f"| {p.t:g} | {_rate(person.precision)} | {_rate(person.recall)}"
             f" | {_rate(org.precision)} | {_rate(org.recall)} | {p.merge.hard_negatives_merged}"
+            f" | {p.merge.cross_class_pairs_merged}, {blocked.cross_class_pairs_merged}"
             f" | {_rate(blocked.classes['person'].policy_blocked_recall)},"
             f" {_rate(blocked.classes['org'].policy_blocked_recall)},"
             f" {_rate(blocked.policy_blocked_recall)} |"
@@ -146,7 +156,14 @@ def document(
         " pairwise precision and recall of each class with `merge_threshold = t` for both"
         " models, the hard negatives merged at that threshold, and the recall of policy-blocked"
         " true pairs (P1, P2) as possible matches with `candidate_threshold = t` and the merge"
-        " thresholds of `er.yaml`.",
+        " thresholds of `er.yaml`, each raised to `t` when it is lower (the clustering drops"
+        " every pair below the candidate threshold, so a candidate threshold above a merge"
+        " threshold in effect raises it). Person-organisation pairs merged are pairs of records"
+        " whose truth classes differ, in one cluster, with `merge_threshold = t` and with"
+        " `candidate_threshold = t`; precision and recall leave them out, so a row with any of"
+        " them never passes the rule below. Every resolvable record has a truth row and every"
+        " truth row a record in the run (`er calibrate` stops otherwise). Pairs below 0.50"
+        " were not scored, so the table says nothing about lower thresholds.",
         "",
         f"Libraries: {versions or 'not recorded'}. Comparisons generated by blocking: person"
         f" {compared.get('person', 0)}, organisation {compared.get('org', 0)}. Pairs scored at"
@@ -161,7 +178,9 @@ def document(
         "",
         "The rule of PHASE-2.md 7.1.7: for each class the lowest merge threshold whose precision"
         f" is at least {PROPOSE_PRECISION}, and the highest candidate threshold whose"
-        f" policy-blocked recall is at least {PROPOSE_BLOCKED_RECALL}.",
+        f" policy-blocked recall is at least {PROPOSE_BLOCKED_RECALL}, among the rows with no"
+        " person-organisation pair merged. A proposed candidate threshold above a merge"
+        " threshold means raising that merge threshold to it as well.",
         "",
         "| Setting | Proposed | In er.yaml now |",
         "|---|---|---|",

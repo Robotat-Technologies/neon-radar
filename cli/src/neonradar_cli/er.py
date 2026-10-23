@@ -44,6 +44,7 @@ def _run_config(
     keep: bool,
     seniors: list[str],
     reviewers: frozenset[str] | None = None,
+    real_data: bool = False,
 ) -> RunConfig:
     from neonradar_resolve.config import load_config
     from neonradar_resolve.run import RunConfig
@@ -61,6 +62,7 @@ def _run_config(
         profile=profile,
         temp_directory=temp,
         keep_features=keep,
+        real_data=real_data,
     )
 
 
@@ -127,6 +129,7 @@ def run_command(
                 keep=keep_features,
                 seniors=project.people.er_senior_reviewers,
                 reviewers=_reviewers(project) if chosen.real_data else None,
+                real_data=chosen.real_data,
             )
             result = run.run(
                 chosen.record_dirs(project),
@@ -350,7 +353,8 @@ def calibrate_command(
     ] = CALIBRATION,
 ) -> None:
     """Score the benchmark once down to 0.50, re-cluster at each threshold of the sweep and
-    write the table and the proposed thresholds (7.1.7). Never edits er.yaml."""
+    write the table and the proposed thresholds (7.1.7). Never edits er.yaml. Exits 1, writing
+    nothing, when a record has no truth row or a truth row no record (as `er bench` does)."""
     from neonradar_cli import summary
     from neonradar_ingest.data.project import REPO_ROOT
     from neonradar_resolve import bench, calibrate, scoring
@@ -366,6 +370,14 @@ def calibrate_command(
         result.hints,
         resolver,
     )
+    first = points[0].merge  # the same at every t: they do not depend on the clustering
+    if first.unlabelled_records or first.missing_records:
+        typer.echo(
+            f"FAIL  left out: {first.unlabelled_records} records without truth,"
+            f" {first.missing_records} truth records not in the run; nothing written",
+            err=True,
+        )
+        raise typer.Exit(code=1)
     proposal = calibrate.propose(points)
     used = seed if seed is not None else resolver.seed
     text = calibrate.document(points, proposal, resolver, size, used, result.probabilistic or {})

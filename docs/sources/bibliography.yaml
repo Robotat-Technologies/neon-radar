@@ -499,7 +499,7 @@ entries:
     note: "3 July 2024. Ownership is 'the possession of 50% or more of the proprietary rights of an entity', aggregated across designated persons (paragraph 63). Paragraph 64 lists control criteria, among them (a) the right to appoint or remove a majority of the administrative, management or supervisory body and (g) managing a business on a unified basis while publishing consolidated accounts; paragraphs 65 and 66: the criteria hold 'unless the contrary can be established on a case by case basis'. On identification: 'as many specific identifiers as possible', ICAO-standard transliteration 'should be present at all times and in all language versions', and cooperation to refute a match that rests on too few identifiers. Read for docs/research/2026-10-18/sanctions-peps.md sections 2 and 9 (source S45) and docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T61) on 2026-10-18; not re-opened by the build."
   - key: russia_sanctions_regs_2019
     title: The Russia (Sanctions) (EU Exit) Regulations 2019, regulation 7 and Schedule 1
-    publisher: The National Archives (legislation.gov.uk)
+    publisher: legislation.gov.uk
     year: 2019
     url: https://www.legislation.gov.uk/uksi/2019/855/regulation/7
     extra_urls:
@@ -508,14 +508,14 @@ entries:
     note: "S.I. 2019/855. Regulation 7(2), the first condition: more than 50% of the shares or of the voting rights, or the right to appoint or remove a majority of the board, held directly or indirectly; 7(4), the second condition: control 'by whatever means'. Schedule 1 paragraph 9: a share is held indirectly through a chain of majority stakes; paragraph 10: a share held as nominee 'is to be treated as held by the other (and not by the nominee)'. Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T37); not re-opened by the build. Only the Russia regulations were read; other UK regimes are expected to use the same wording (not verified for each regime)."
   - key: eu_reg_2580_2001
     title: Council Regulation (EC) No 2580/2001, Article 1
-    publisher: Council of the European Union
+    publisher: EUR-Lex
     year: 2001
     url: https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32001R2580
     extra_urls: []
     verified: 2026-10-18
     note: "Article 1(5): ownership is 'being in possession of 50 % or more of the proprietary rights of a legal person, group or entity, or having a majority interest therein'; Article 1(6): control. The Council's Best Practices tie their ownership criterion to Article 1(5). Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md section 10.1 (source T62). eur-lex.europa.eu answers automated clients with a bot challenge; not re-opened by the build; re-open in a browser."
   - key: ec_asset_freeze_faq_2026
-    title: "Frequently asked questions: asset freeze and prohibition to make funds and economic resources available (Council Regulation 269/2014)"
+    title: "Frequently asked questions: asset freeze and prohibition to make funds and economic resources available (Council Regulation 269/2014); FAQs 8, 9, 17 and 43"
     publisher: European Commission
     year: 2026
     url: https://finance.ec.europa.eu/system/files/2023-07/faqs-sanctions-russia-assets-freezes_en.pdf

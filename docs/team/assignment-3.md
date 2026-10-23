@@ -5,7 +5,7 @@
 | Who | Every intern (`people.interns` in [project.yaml](../build/project.yaml)). Every intern is also a labeller (`people.er_labellers`), and mentors who label join you |
 | Due | Tuesday 3 November 2026; the teach-back is on Thursday 5 November 2026. Dates are a plan, not a deadline the build enforces ([OD-1](../build/operator-decisions.md)); the project lead confirms them or moves them |
 | You hand in | At least 20 labels from one session with `neonradar er label` (they stay on the labelling machine); five hard cases in your own learning log, described by their features only; one case presented at the teach-back |
-| AI help | Allowed for understanding the method. Never for labelling (guardrail G10), and never paste anything from a card into an AI tool |
+| AI help | Allowed for understanding the method. Never for labelling (guardrail G10): never paste anything from a card into an AI tool, and never label where an AI assistant can read the terminal or the screen |
 
 ## Why
 
@@ -39,11 +39,11 @@ Once M2.10c has merged, you can try the tool on the synthetic `demo` profile on 
 ```bash
 uv run neonradar er run --profile demo --no-decisions
 RUN="$(cat data/cache/synthetic/resolution/demo/LATEST)"
-uv run neonradar er sample --profile demo --run "$RUN" --seed 7 --labellers @your-handle
+uv run neonradar er sample --profile demo --run "$RUN" --seed 7 --labellers @your-handle,@practice-partner
 uv run neonradar er label --profile demo --run "$RUN" --labeller @your-handle
 ```
 
-The `demo` records are invented, but practise the habits of a real session anyway: no screenshots, and notes in features only.
+`er sample` needs at least two different handles, because each overlap pair goes to two people ([PHASE-2.md](../build/PHASE-2.md) 7.3 rule 4): practise with another intern's handle, or keep `@practice-partner` and leave its pairs unlabelled. The `demo` records are invented, but practise the habits of a real session anyway: no screenshots, and notes that say only how the fields compare.
 
 ## 3. Label at least 20 pairs in one session
 
@@ -53,13 +53,13 @@ On the approved machine, at a terminal, in your booked session:
 uv run neonradar er label --profile uk-sample --run <run id> --labeller @your-handle
 ```
 
-The graph mentor gives you the run id. For each pair, read both cards completely, decide as the [labelling guide](../er/labelling-guide.md#how-to-judge-from-partial-information) says, and answer `s` (same), `d` (different) or `u` (unsure), with a note in features only when the decision was close or you answered `unsure`. Aim for at least 20 pairs; label more if your session allows. Some of your pairs are also labelled by another person, to measure agreement; you will not know which.
+The graph mentor gives you the run id. For each pair, read both cards completely, decide as the [labelling guide](../er/labelling-guide.md#how-to-judge-from-partial-information) says, and answer `s` (same), `d` (different) or `u` (unsure), with a note that says only how the fields compare when the decision was close or you answered `unsure`. Aim for at least 20 pairs; label more if your session allows. Some of your pairs are also labelled by another person, to measure agreement; you will not know which.
 
-The [privacy rules](../er/labelling-guide.md#privacy-rules-for-labelling-sessions) hold for the whole session: approved machine, no screenshots, no names outside the session, no web searches about the people on the cards and no opening their source links, no AI tools, labels never copied anywhere.
+The [privacy rules](../er/labelling-guide.md#privacy-rules-for-labelling-sessions) hold for the whole session: approved machine, no screenshots, no names or other card values outside the session, no web searches about the people on the cards and no opening their source links, no AI tools (and a plain terminal that no AI assistant can read), labels never copied anywhere.
 
 ## 4. Write five hard cases in your learning log
 
-After the session, add an entry to your own learning log with the five pairs you found hardest. Describe each **by its features only**, never by a name, a date, an address, an identifier or a record id: "same surname, birth years one apart, different nationality", not who it was. For each case write:
+After the session, add an entry to your own learning log with the five pairs you found hardest. Describe each **by its features only**: say how the fields compare (agree, differ, missing, one year apart), as in "same surname, birth years one apart, different nationality" or "same postcode district, different companies", not who it was. Never write a value from a card, even one that seems harmless: no name, date, nationality, town, postcode, company name or sector, identifier or record id. For each case write:
 
 - the features that agreed, differed or were missing;
 - your answer and why;
@@ -69,12 +69,12 @@ Commit the entry in a pull request of your own, labelled `learning`, as for any 
 
 ## 5. Present one case at the teach-back
 
-At the [teach-back](../learning/teach-back.md) on Thursday 5 November 2026, present one of your five cases in a few minutes: the features, your answer, and what you learned from it. Show no real data: no card, no screenshot, no name. If you want to show cards, find a pair with the same shape in the synthetic benchmark (`data/fixtures/er-bench/`) and show that instead, as the labelling guide's worked examples do.
+At the [teach-back](../learning/teach-back.md) on Thursday 5 November 2026, present one of your five cases in a few minutes: the features, your answer, and what you learned from it. Show no real data: no card, no screenshot, no name or other value from a card. If you want to show cards, find a pair with the same shape in the synthetic benchmark (`data/fixtures/er-bench/`) and show that instead, as the labelling guide's worked examples do.
 
 ## How it is checked
 
 - **Labels.** The graph mentor reports how many pairs each handle labelled, from the label files on the labelling machines; at least 20 per intern is Gate 2 check G2-13, which a human confirms (the agent never reads label files) ([PHASE-2.md](../build/PHASE-2.md) section 8).
-- **Hard cases.** Your learning log pull request: the reviewer checks that every case is described by features only.
+- **Hard cases.** Your learning log pull request: the reviewer checks that every case says only how the fields compare and holds no value from a card (no name, date, nationality, town, postcode, company name or sector, identifier or record id).
 - **Teach-back.** One case each, on Thursday 5 November.
 
 Nobody grades your labels against an answer key: there is none. An honest `unsure` is better than a confident guess.

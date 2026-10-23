@@ -94,7 +94,7 @@ Do not answer `unsure` to save time, when a case feels hard but the steps above 
 
 ## Notes
 
-A note is optional. Write one when the decision was close, so that an adjudicator or an auditor can see your reasoning, and always when you answer `unsure`: say what was missing. Describe features only, never a value from a card: "same company, birth month agrees, Q and K spellings" or "names agree in full, nothing else on the leak record". Label files hold record ids and labels only ([real-data handling](../data/real-data-handling.md), rule 8), so never copy a name, a date, an address or an identifier into a note.
+A note is optional. Write one when the decision was close, so that an adjudicator or an auditor can see your reasoning, and always when you answer `unsure`: say what was missing. Say only how the fields compare, never a value from a card: "same company, birth month agrees, Q and K spellings" or "names agree in full, nothing else on the leak record". Label files hold record ids and labels only ([real-data handling](../data/real-data-handling.md), rule 8), so a note never holds a name, a date, a nationality, a town, a postcode, a company name, an identifier or a record id.
 
 ## Privacy rules for labelling sessions
 
@@ -103,9 +103,9 @@ Labelling shows real records about real people. These rules hold in every sessio
 1. **Approved machine only.** Label only on a machine listed in [real-data-machines.md](../data/real-data-machines.md) (full-disk encryption, screen lock), never in GitHub Codespaces, CI or a cloud session. Lock the screen whenever you step away.
 2. **You, at a terminal.** `er label` refuses to run without a terminal. Run it yourself; never ask an AI agent, a script or another person to run it for you.
 3. **No screenshots.** No screenshots, photos, screen recordings or screen sharing of the cards.
-4. **No real names outside the session.** Not in chat, email, notes, learning logs, issues, pull requests, slides or teach-backs. When you talk about a case, describe it by its features only ("same surname, birth years one apart, different nationality"), never by a name, a date, an address or an identifier ([Assignment 3](../team/assignment-3.md)).
+4. **No names or other card values outside the session.** Not in chat, email, notes of your own, learning logs, issues, pull requests, slides or teach-backs. When you talk about a case, say only how the fields compare ("same surname, birth years one apart, different nationality", "same postcode district, different companies"), never a value from a card: no name, date, nationality, town, postcode, company name or sector, identifier or record id ([Assignment 3](../team/assignment-3.md)).
 5. **Labels stay where they are.** Your labels live in `data/cache/real/labels/<profile>/<run id>/` on that machine. Never copy, email or commit them; they are deleted after `access.label_days` (30 days by default, [project.yaml](../build/project.yaml)).
-6. **No AI tools for labelling.** AI help is fine for understanding the method, never for deciding a label, and never paste a card or any part of it into an AI tool (G10, G9).
+6. **No AI tools for labelling.** AI help is fine for understanding the method, never for deciding a label, and never paste a card or any part of it into an AI tool (G10, G9). Run `er label` in a plain terminal window, not in an editor's built-in terminal or a terminal with AI features, and switch off any assistant that can read or record the screen for the whole session.
 7. **Judge from the cards only.** Do not search the web or other sources for the people and companies on the cards, and do not open a card's source link while you label: a search sends the name off the machine, a source page leaves real records in the browser's history and cache, and the other labellers judge from the same cards as you.
 8. **If something is wrong, stop.** If real data shows up anywhere it should not be, stop and tell the data steward and the tech lead at once; do not try to fix it yourself ([PHASE-2.md](../build/PHASE-2.md) 7.4 rule 10).
 

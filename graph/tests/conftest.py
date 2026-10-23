@@ -8,6 +8,7 @@ the two names the graph tests import, never the fixtures.
 dependency (graph's `dev` group); the graph package itself never imports it.
 """
 
+import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -15,10 +16,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from nr_test_neo4j import Neo4jTarget, pinned_gds
+from nr_test_neo4j import CONTAINER_ENV, IMAGE, Neo4jTarget, pinned_gds
 
 from neonradar_graph.client import REPO_ROOT
-from neonradar_graph.migrate import discover
+from neonradar_graph.instances import REAL_DATABASE
+from neonradar_graph.migrate import discover, migrate
 
 __all__ = ["DEMO_DIRS", "FakeDriver", "Neo4jTarget", "pinned_gds", "record", "resolve"]
 
@@ -45,6 +47,24 @@ def resolve(record_dirs: list[Path], run_dir: Path) -> Path:
 def demo_resolution(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """The demo profile's records resolved once per session (read-only for the tests)."""
     return resolve(DEMO_DIRS, tmp_path_factory.mktemp("resolution") / DEMO_RUN_ID)
+
+
+@pytest.fixture(scope="module")
+def real_neo4j() -> Iterator[Neo4jTarget]:
+    """A second container started like `neo4j-real` (its database `REAL_DATABASE`), migrated,
+    for look-alike records built in test code (never committed, PHASE-2.md 2.9). It has the
+    pinned GDS jar, as the shared container does, because detection runs on it (M3.4)."""
+    from testcontainers.community.neo4j import Neo4jContainer
+
+    _, jar = pinned_gds()
+    container = (
+        Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1024m")
+        .with_envs(**CONTAINER_ENV, NEO4J_initial_dbms_default__database=REAL_DATABASE)
+        .with_copy_into_container(jar, f"/var/lib/neo4j/plugins/{jar.name}")
+    )
+    with container, container.get_driver(telemetry_disabled=True) as driver:
+        migrate(driver, REAL_DATABASE)
+        yield Neo4jTarget(driver, REAL_DATABASE)
 
 
 COUNTERS = (

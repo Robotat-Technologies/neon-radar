@@ -21,6 +21,8 @@ PLUGINS: tuple[str, ...] = (
     "neonradar_ingest.sources.companies_house.build",
     "neonradar_ingest.sources.gleif.golden_copy",
     "neonradar_ingest.sources.icij.full",
+    "neonradar_ingest.sources.lists.gb_fcdo",
+    "neonradar_ingest.sources.lists.un_sc",
 )
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {
@@ -66,6 +68,9 @@ class SourceSpec:
     when given, names the products a profile needs, each with its own discovery: `data fetch`
     asks it before any request, so a product the profile does not use is never downloaded,
     and a product whose discovery fails stops only itself (M2.3b, data minimisation).
+    `precheck()`, when given, raises `gate.RealDataRefused` for a condition of the dataset's
+    own (the UN list's written permission, M2.6c); `data fetch` and `ingest build` run it in
+    their gate pass, after the gate and before any request or build.
     """
 
     dataset: str
@@ -74,6 +79,7 @@ class SourceSpec:
     products: Callable[[Profile], Mapping[str, Callable[[HttpClient], list[RemoteFile]]]] | None = (
         None
     )
+    precheck: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True, slots=True)

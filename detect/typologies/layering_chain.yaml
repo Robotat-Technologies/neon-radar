@@ -1,28 +1,92 @@
 slug: layering_chain
-name: Layering through chains of transfers
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Layering chain
+shape_name: a chain of onward transfers between different holders
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Funds move quickly through a sequence of accounts held by different companies or people,
-  often across jurisdictions, which puts distance between the money and where it came from.
+summary: Funds passed on through a chain of accounts of different holders, losing a little at each step.
 doc: docs/typologies/layering-chain.md
-citations: [fatf_faq, fatf_pml_2018, fatf_egmont_concealment_2018, fincen_fin_2006_g014, europol_efecta_2023, wolfsberg_payment_transparency_2023, ffiec_appendix_f]
-graph_pattern: >
-  A time-ordered path of three or more PAID hops through Accounts held by different
-  LegalEntity nodes, with short dwell times, amounts shrinking slightly at each hop or split
-  and merged again, and intermediate holders with little other activity, often sharing a
-  registered address, an agent or a director.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- fatf_faq
+- europol_efecta_2023
+- fatf_pml_2018
+- ffiec_appendix_f
+graph_pattern: >-
+  A time-ordered path of three to six PAID relationships, each within 72 hours of the last and between 85 and 102
+  percent of it, through accounts of distinct holders.
+parameters:
+  min_hops:
+    default: 3
+    min: 2
+    max: 8
+  max_hops:
+    default: 6
+    min: 1
+    max: 8
+  max_dwell_hours:
+    default: 72
+    min: 1
+    max: 720
+  min_hop_ratio:
+    default: 0.85
+    min: 0.0
+    max: 1.0
+  max_hop_gain:
+    default: 0.02
+    min: 0.0
+    max: 0.5
+  min_retained_ratio:
+    default: 0.8
+    min: 0.0
+    max: 1.0
+  min_amount:
+    default: 10000.0
+    min: 0.0
+    max: 100000.0
+  quiet_days:
+    default: 30
+    min: 1
+    max: 300
+  max_quiet_payments:
+    default: 5
+    min: 1
+    max: 50
+  max_starts:
+    default: 1000000
+    min: 1
+    max: 10000000
+  max_branching:
+    default: 10
+    min: 1
+    max: 100
+  max_frontier:
+    default: 50000
+    min: 1
+    max: 500000
+metrics:
+- chain_length
+- first_amount
+- last_amount
+- currency
+- duration_hours
+- duration_days
+- retained_ratio
+- longest_dwell_hours
+- holders
+- linked_holder_pairs
+- quiet_intermediaries
+wording:
+  headline_structural: >-
+    {first_amount|money} passed on through {chain_length} transfers between accounts of different holders within
+    {duration_days|n:day}
+  headline_synthetic: >-
+    Synthetic scenario: {first_amount|money} passed on through {chain_length} transfers between accounts of different
+    holders within {duration_days|n:day}
 false_positives:
-  - Intra-group treasury flows
-  - Multi-tier supply chains in which each tier adds a margin
-  - Correspondent banking hops
-  - Fund-of-funds and securitisation structures
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null
+- Supply chains paying on for goods
+- Group treasury moving funds between subsidiaries
+synthetic_support: high
+generator_scenario: layering_chain
+detector: neonradar_detect.detectors.layering_chain

@@ -221,7 +221,12 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
     pairs = [_pair(n, "S1", ("@a", "@b") if n <= 40 else ("@a",)) for n in range(1, 401)]
     pairs += [_pair(n, "S2", ("@b",), f"D{n % 5 + 1}") for n in range(401, 451)]
     pairs += [_pair(n, "S3", ("@a", "@c") if n <= 460 else ("@c",)) for n in range(451, 501)]
-    found = [_label(p.pair_id, "same", h, 1) for p in pairs for h in p.labellers]
+    unsure = {"pair-0402"}  # an S2 pair joined by D3
+    found = [
+        _label(p.pair_id, "unsure" if p.pair_id in unsure else "same", h, 1)
+        for p in pairs
+        for h in p.labellers
+    ]
     found[0] = _label(pairs[0].pair_id, "unsure", "@a", 1)
     found.append(_label(pairs[0].pair_id, "same", "@example-pl", 2, adjudication=True))
     outcome = precision.measure(pairs, found, {TECH_LEAD}, {"S1": False, "S2": True})
@@ -231,7 +236,14 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
         assert handle not in text
     assert text.startswith("# Entity resolution precision, demo, 2026-11-03\n")
     assert "Probabilistic merges (headline): 400 of 400 correct, precision 1.000" in text
-    assert "Deterministic merges: 50 of 50 correct" in text and "D3 10 of 10" in text
+    assert (  # 7.3 rule 5: k, n, u, the point estimate and the interval, overall and per rule
+        "Deterministic merges: 49 of 49 correct, precision 1.000 (Wilson 95% interval 0.927 to"
+        " 1.000); 1 unsure; by rule: D1 10 of 10 (0 unsure, precision 1.000, Wilson 95% interval"
+        " 0.722 to 1.000), D2 10 of 10"
+    ) in text
+    assert "D3 9 of 9 (1 unsure, precision 1.000, Wilson 95% interval 0.701 to 1.000)" in text
+    d3 = precision.summary(outcome)["s2_by_rule"]["d3"]
+    assert (d3["k"], d3["n"], d3["u"], d3["precision"]) == (9, 9, 1, 1.0)
     assert "Joined through a reviewer's decision: 2 records (not sampled)." in text
     assert "on 50 overlapping pairs (40 from S1, 10 from S3)" in text
     assert "Labelled whole (a census of this run, not a sample): S2" in text
@@ -252,6 +264,30 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
     assert footer.endswith(precision.ICIJ_NOTICE)
     assert "Fewer" not in text and "More than 15 percent" not in text
     assert " on a slice of the UK register correct" in _report(outcome, real_data=True)
+
+
+def test_the_report_counts_disagreements_that_wait_for_adjudication() -> None:
+    pairs = [_pair(n, "S1" if n < 3 else "S3", ("@a", "@b")) for n in range(1, 4)]
+    found = [
+        _label("pair-0001", "same", "@a", 1),
+        _label("pair-0001", "different", "@b", 2),
+        _label("pair-0002", "same", "@a", 1),
+        _label("pair-0002", "unsure", "@b", 2),
+        _label("pair-0003", "same", "@a", 1),
+        _label("pair-0003", "same", "@b", 2),
+        _label("pair-0001", "same", TECH_LEAD, 3, adjudication=True),  # barred: not counted
+    ]
+    waiting = precision.measure(pairs, found, {TECH_LEAD})
+    assert waiting.awaiting_adjudication == 2 and not waiting.adjudicators
+    text = _report(waiting)
+    assert "; 2 disagreements not yet adjudicated.\n" in text
+    assert "no pair needed adjudication" not in text
+    by_lead = [*found, _label("pair-0002", "different", "@example-pl", 4, adjudication=True)]
+    assert "; adjudicated by the project lead; 1 disagreement not yet adjudicated.\n" in _report(
+        precision.measure(pairs, by_lead, {TECH_LEAD})
+    )
+    agreed = precision.measure(pairs[2:], found, {TECH_LEAD})
+    assert "; no pair needed adjudication.\n" in _report(agreed)
 
 
 def test_the_first_line_warns_about_unsure_labels_and_a_small_sample() -> None:

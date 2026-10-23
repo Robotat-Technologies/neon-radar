@@ -203,6 +203,15 @@ def _interval(found: Figure) -> tuple[str, str]:
     return ("n/a", "n/a") if interval is None else (_rate(interval[0]), _rate(interval[1]))
 
 
+def _rule_figure(found: Figure) -> str:
+    """One D rule of S2 (7.3 rule 5): k, n, u, the point estimate and its interval."""
+    lo, hi = _interval(found)
+    return (
+        f"{found.k} of {found.n} ({found.u} unsure, precision {_rate(found.precision)},"
+        f" Wilson 95% interval {lo} to {hi})"
+    )
+
+
 def _first_lines(outcome: Outcome) -> list[str]:
     s1 = outcome.strata["S1"]
     lines = []
@@ -236,11 +245,17 @@ def _seed_source(seed: object, adr_seed: object) -> str:
 
 
 def _adjudication(outcome: Outcome, project_lead: str | None) -> str:
+    """Who adjudicated, and how many disagreements still wait (never "no pair needed
+    adjudication" while one does)."""
+    waiting = outcome.awaiting_adjudication
+    pending = f"{waiting} disagreement{'' if waiting == 1 else 's'} not yet adjudicated"
     if not outcome.adjudicators:
-        return "no pair needed adjudication"
+        return pending if waiting else "no pair needed adjudication"
     if project_lead is not None and outcome.adjudicators == {project_lead}:
-        return "adjudicated by the project lead"
-    return "adjudicated by people who did not set the thresholds"
+        who = "adjudicated by the project lead"
+    else:
+        who = "adjudicated by people who did not set the thresholds"
+    return f"{who}; {pending}" if waiting else who
 
 
 def _sources(datasets: Iterable[str]) -> str:
@@ -291,7 +306,7 @@ def report(
     bound = s1.bound
     blo, bhi = _interval(bound)
     lo2, hi2 = _interval(s2)
-    rules = ", ".join(f"{r} {f.k} of {f.n}" for r, f in outcome.by_rule.items())
+    rules = ", ".join(f"{r} {_rule_figure(f)}" for r, f in outcome.by_rule.items())
     a = outcome.agreement
     counts = run.get("counts") or {}
     thresholds = run.get("thresholds") or {}
@@ -317,8 +332,8 @@ def report(
         f"{s1.u} pairs ({_percent(s1.unsure_share)}) marked unsure and excluded. If every unsure"
         f" pair were wrong: {bound.k} of {bound.n},",
         f"precision {_rate(bound.precision)} (Wilson 95% interval {blo} to {bhi}).",
-        f"Deterministic merges: {s2.k} of {s2.n} correct (Wilson 95% interval {lo2} to {hi2});"
-        f" by rule: {rules}.",
+        f"Deterministic merges: {s2.k} of {s2.n} correct, precision {_rate(s2.precision)}"
+        f" (Wilson 95% interval {lo2} to {hi2}); {s2.u} unsure; by rule: {rules}.",
         f"Joined through a reviewer's decision: {sample.get('human_joined', 0)} records"
         " (not sampled).",
         f"Possible matches that labellers judged to be the same entity: {s3.k} of {s3.n}.",
@@ -376,7 +391,7 @@ def summary(outcome: Outcome) -> dict[str, Any]:
     a = outcome.agreement
     return {
         **{s.lower(): numbers(f) for s, f in outcome.strata.items()},
-        "s2_by_rule": {r.lower(): {"k": f.k, "n": f.n} for r, f in outcome.by_rule.items()},
+        "s2_by_rule": {r.lower(): numbers(f) for r, f in outcome.by_rule.items()},
         "agreement": {
             "pairs": a.pairs,
             "percent": a.percent,

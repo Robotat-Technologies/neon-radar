@@ -34,7 +34,7 @@ from .conftest import DEMO_DIRS, Neo4jTarget, record, resolve
 pytestmark = pytest.mark.integration
 
 NAME_PROPS = ("name", "alias", "previousName", "abbreviation")
-NONE = {f"I{n}": 0 for n in range(1, 15)}
+NONE = {f"I{n}": 0 for n in range(1, 18)}
 FIXTURE = Path(__file__).parent / "fixtures" / "mapping" / "all-schemata.ftm.jsonl"
 
 

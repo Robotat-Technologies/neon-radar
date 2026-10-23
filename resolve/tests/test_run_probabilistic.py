@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import duckdb
@@ -361,6 +362,31 @@ def test_untrained_levels_are_counted_from_splink_warnings() -> None:
                 f"unable to train {value} value\n"
             )
     assert handler.found == {("same birth date", "birth", "m"), ("surname equal", "name", "u")}
+
+
+class _Training:
+    """Records the training calls `models.train` makes, without Splink."""
+
+    def __init__(self) -> None:
+        self.sessions: list[str] = []
+
+    def __getattr__(self, name: str) -> Any:
+        def call(*args: Any, **kwargs: Any) -> None:
+            if name == "estimate_parameters_using_expectation_maximisation":
+                self.sessions.append(args[0].get_blocking_rule("duckdb").blocking_rule_sql)
+
+        return call
+
+
+def test_person_em_sessions_avoid_the_near_twin_block() -> None:
+    """OD-26: the postcode session first, then the first linked organisation with the birth
+    year; no session blocks on surname and birth year, where near twins look like matches."""
+    training = _Training()
+    models.train(SimpleNamespace(training=training), "person", models.TrainingConfig())  # type: ignore[arg-type]
+    assert training.sessions == [
+        'l."postcode" = r."postcode"',
+        '(l."linked_orgs"[1] = r."linked_orgs"[1]) AND (l."birth_year_min" = r."birth_year_min")',
+    ]
 
 
 def test_calibration_sweep_and_document() -> None:

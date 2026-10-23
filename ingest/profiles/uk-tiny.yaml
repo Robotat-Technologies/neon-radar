@@ -44,3 +44,18 @@ sources:
 resolution:
   enabled: true
   config: resolve/config/er.yaml
+# Phase 3 blocks (PHASE-3.md 7.11, M3.4; the data steward approves them in review)
+overlay:
+  enabled: true         # runs only while uk-tiny is in access.real_overlay_profiles
+  seed: 20261026
+  start: 2025-01-01
+  end: 2026-07-01
+  illicit: 2            # per typology, among new synthetic entities only (G1)
+  lookalikes: 2
+  typologies: all
+  background:
+    share: 1.0          # every eligible organisation gets an account and plain activity
+detection:
+  enabled: true
+  window: overlay
+  overrides: {}

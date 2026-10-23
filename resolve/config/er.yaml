@@ -1,11 +1,20 @@
 # Entity resolution settings (PHASE-2.md 7.1.7). Starting values; M2.10b calibrates the three
-# thresholds on the large synthetic benchmark, and the tech lead and the graph mentor set them
-# here and in ADR-0014 at the freeze (Thursday 29 October). Senior reviewers live in
-# docs/build/project.yaml (people.er_senior_reviewers), not here.
+# thresholds on the large synthetic benchmark (`neonradar er calibrate --size large`, table in
+# docs/data/er/benchmark.md), and the tech lead and the graph mentor set them here and in
+# ADR-0014 at the freeze. Senior reviewers live in docs/build/project.yaml
+# (people.er_senior_reviewers), not here.
 merge_threshold:
-  person: 0.99    # unused until M2.10b (probabilistic links)
-  org: 0.995      # unused until M2.10b
-candidate_threshold: 0.80   # unused until M2.10b
+  person: 0.99    # M2.10b calibration, then ADR-0014
+  org: 0.995      # M2.10b calibration, then ADR-0014
+candidate_threshold: 0.80   # M2.10b calibration, then ADR-0014
 cluster_cap: 30   # fixed (X7)
 name_check_jaro_winkler: 0.85   # fixed (7.1.2); the strict form across P1 and P2 uses exact keys
 seed: 20261026    # fixed: the training seed and the default --seed of the benchmark commands
+duckdb:           # operator; tests and the benchmark commands use one thread
+  threads: 4
+  memory_limit: 4GiB   # DuckDB reads GB as decimal
+training:         # M2.10b, then ADR-0014
+  u_max_pairs: 1.0e+7   # PyYAML reads 1.0e7 as a string
+  em_max_pairs: 5.0e+6
+  prior_recall: 0.7
+max_comparisons: 20000000   # fixed (7.1.5): er run stops before training above this

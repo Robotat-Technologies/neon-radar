@@ -487,3 +487,21 @@ entries:
     extra_urls: []
     verified: 2026-10-18
     note: "A name match 'does not necessarily mean' that the person is the one on the list; matching all the information on the list is likely to be a target match. Quoted in docs/research/2026-10-18/sanctions-peps.md section 9; not re-opened by the build."
+  # Entity resolution (PHASE-2.md 7.5; cited by ADR-0014, M2.10b)
+  - key: fellegi_sunter_1969
+    title: "A Theory for Record Linkage (Journal of the American Statistical Association 64(328), 1183 to 1210)"
+    publisher: Ivan P. Fellegi and Alan B. Sunter
+    year: 1969
+    url: https://doi.org/10.1080/01621459.1969.10501049
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The probabilistic record linkage model behind Splink: agreement patterns weighed by m and u probabilities, with a threshold for links and a band for possible links. Checked against its Crossref record for PHASE-2.md 7.5 on 2026-10-18; not re-opened by the build."
+  - key: splink_docs
+    title: Splink documentation (version 5) and its llms.txt
+    publisher: Ministry of Justice analytical services
+    year: null
+    url: https://moj-analytical-services.github.io/splink/
+    extra_urls:
+      - https://moj-analytical-services.github.io/splink/llms.txt
+    verified: 2026-10-18
+    note: "Splink 5 documentation: comparisons and comparison levels, term-frequency adjustment, blocking and the comparison counts per rule, training (prior, u by random sampling, expectation maximisation), DuckDB performance. Read for docs/research/2026-10-18/er-splink.md (sources E5, E7, E8, E20) on 2026-10-18; not re-opened by the build."

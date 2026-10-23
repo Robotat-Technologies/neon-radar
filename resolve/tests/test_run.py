@@ -185,11 +185,24 @@ def test_er_show_config_and_bench(data_env: Any) -> None:
         30,
         20261026,
     )
-    output = _er("bench", "--size", "small").output
-    assert "hard negatives merged: 0" in output
+    result = runner.invoke(app, ["er", "bench", "--size", "small"])
+    output = result.output
+    # M2.10b: exit 1 exactly when a G2-05 gate fails at the thresholds in er.yaml
+    assert result.exit_code == (1 if "FAIL  gate: " in output else 0), output
+    assert ("gates passed (G2-05)" in output) is (result.exit_code == 0)
+    assert "hard negatives merged: " in output
     assert "left out: 0 records without truth, 0 truth records not in the run, 0 " in output
     assert output.splitlines()[0].startswith("person  precision ")
     assert list(layout.reports_dir("er-bench-small").glob("er-bench-*.json"))
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="G2-05 fails at the starting thresholds; the deciders choose values (ADR-0014)",
+)
+def test_er_bench_passes_the_g2_05_gates(data_env: Any) -> None:
+    """Remove the marker when er.yaml holds values that pass: strict, so it cannot be missed."""
+    _er("bench", "--size", "small")
 
 
 def _opaque_copy(source: Path, target: Path, seed: int | None) -> None:
@@ -296,7 +309,7 @@ def test_er_run_passes_the_listed_reviewers_on_a_real_profile(
     def fake(record_dirs: Any, run_dir: Path, config: run.RunConfig, **_: Any) -> Any:
         seen.append(config)
         run_dir.mkdir(parents=True)
-        return SimpleNamespace(counts={}, timings={})
+        return SimpleNamespace(counts={}, timings={}, probabilistic=None)
 
     monkeypatch.setattr(run, "run", fake)
     _er("run", "--profile", profile, "--no-probabilistic")

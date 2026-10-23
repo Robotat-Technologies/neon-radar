@@ -19,6 +19,7 @@ from neonradar_cli import detect, graph
 from neonradar_cli.main import app
 from neonradar_detect import catalog, runs
 from neonradar_detect.source import Window
+from neonradar_graph import instances
 from neonradar_ingest.data import profiles
 from neonradar_ingest.data.project import load_project
 
@@ -204,3 +205,55 @@ def test_catalog_and_file_errors_print_a_fail_line(
 
 def test_run_help_explains_a_reused_run_id() -> None:
     assert "Given again" in invoke("run", "--help").output
+
+
+# Profiles' runs and real profiles (PHASE-3.md M3.4 deliverable 4) -----------------------------
+
+
+def test_a_profile_s_run_goes_to_its_runs_folder(data_env: Any) -> None:
+    sources = {"nr_synthetic": {"enabled": True, "fixtures": ["data/fixtures/demo-mini"]}}
+    data_env.write_profile("syn-test", real_data=False, sources=sources)
+    run_id = "run-20261023T101500-0a0b"
+    result = invoke("run", "--engine", "memory", "--profile", "syn-test", "--run-id", run_id)
+    assert result.exit_code == 0, result.output
+    folder = data_env.cache / "synthetic" / "runs" / "syn-test" / run_id
+    assert result.output.splitlines()[-1] == f"wrote {folder}"
+    assert (folder / "run.json").is_file() and layout_latest("syn-test") == run_id
+    result = invoke("verify-alert", "--run", "latest", "--profile", "uk-tiny")
+    assert result.exit_code == 2 and "verify-alert prints alert ids" in result.output
+
+
+def layout_latest(profile: str) -> str | None:
+    from neonradar_ingest.data import layout
+
+    return layout.latest_detection_run(profile)
+
+
+def test_a_real_profile_runs_behind_the_gate_and_prints_counts_only(
+    monkeypatch: pytest.MonkeyPatch, data_env: Any
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake_run(source: Any, params: Any, window: Window, catalog: Any, **kw: Any) -> Any:
+        seen.update(kw)
+        record = runs.RunRecord(
+            kw["run_id"], kw["runs_dir"] / kw["run_id"], "x", "neo4j", "uk-tiny"
+        )
+        record.summary = {"run_id": kw["run_id"], "alerts": 0, "withheld": {"activity_on_real": 2}}
+        return record
+
+    monkeypatch.setattr(runs, "run", fake_run)
+    window = ["--window", "2025-01-01", "2026-07-01"]
+    result = invoke("run", "--profile", "uk-tiny", *window)
+    assert (result.exit_code, seen) == (3, {}), result.output
+    assert "uk-tiny is not in access.real_data_profiles" in result.output
+    data_env.allow_real("uk-tiny")
+    for settings in (instances.RealNeo4jSettings, instances._DatabaseSetting):  # never .env
+        monkeypatch.setitem(settings.model_config, "env_file", data_env.root / "missing.env")
+    monkeypatch.setenv("NEO4J_REAL_PASSWORD", "test-real-password")
+    monkeypatch.setattr(detect, "_overlay_folder", lambda profile: None)
+    result = invoke("run", "--profile", "uk-tiny", *window)
+    assert result.exit_code == 0, result.output
+    assert seen["runs_dir"] == data_env.cache / "real" / "runs" / "uk-tiny"
+    printed = json.loads(result.output)
+    assert (printed["profile"], printed["withheld"]) == ("uk-tiny", {"activity_on_real": 2})

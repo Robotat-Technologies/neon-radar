@@ -73,7 +73,7 @@ uv run neonradar synth world --profile synth-demo      # the world: data/cache/s
 uv run neonradar synth overlay --profile synth-demo    # the overlay: data/cache/synthetic/overlay/synth-demo/<overlay_id>/
 ```
 
-`synth world` and `synth overlay` take `--seed N` (default: the profile's) and `--out DIR` (write there and nothing else); `synth overlay` also takes `--base DIR` (default: the profile's world for the seed, which must exist). Both validate every record against C1 before writing, refuse a holdout seed, and print a counts-only summary. `synth overlay` refuses a real profile until M3.4.
+`synth world` and `synth overlay` take `--seed N` (default: the profile's) and `--out DIR` (write there and nothing else); `synth overlay` also takes `--base DIR` (default: the profile's world for the seed, which must exist). Both validate every record against C1 before writing, refuse a holdout seed, and print a counts-only summary. On a real profile, `synth overlay` first runs the real-data gate and then requires the profile in `access.real_overlay_profiles` (exit 3 before any record is read); it reads the profile's own records and latest resolution run, takes no `--base` or `--out`, writes under the profile's real-data overlay folder and prints counts only (M3.4, ADR-0021).
 
 `data purge` takes one of `--expired`, `--dataset <slug>`, `--profile <name>`, `--labels`, `--decisions`, `--logs` or `--all-real`, optionally with `--graph`, or `--graph` alone, and always `--yes`.
 

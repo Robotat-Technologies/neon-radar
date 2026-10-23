@@ -28,6 +28,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0016](0016-canonical-ids-and-source-records.md) | Canonical ids and source records | M2.11 | proposed | tech lead |
 | [0018](0018-real-data-handling.md) | Real-data handling | M2.0 | proposed | data steward |
 | [0020](0020-detector-design.md) | Detector design: candidate steps, hop expansion and the oracle | M3.2 | proposed | detect mentor, tech lead |
+| [0021](0021-synthetic-overlay-and-real-data-rule.md) | The synthetic overlay and the real-data detection rule | M3.4 | proposed | data steward, project lead, tech lead |
 | [0023](0023-generator-v1.md) | Generator v1 and its look-alikes | M3.3 | proposed | ingest mentor, data steward, a typology researcher |
 
 The roles resolve to people in `docs/build/project.yaml` (`people`); until the team joins, @robotat-com holds every role.

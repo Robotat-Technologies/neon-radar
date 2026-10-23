@@ -41,8 +41,9 @@
   - Detector queries run as `session.run(neo4j.Query(text, timeout))`, never in
     `execute_read`. GDS: stream only, concurrency 4, drop projections in `finally`.
   - L19: a Neo4j run deletes every `:Alert` and `:DetectionRun` before it loads (unless
-    `--keep-previous`); `--engine memory` writes the run folder only. Real profiles are
-    refused until M3.4.
+    `--keep-previous`); `--engine memory` writes the run folder only. A profile's runs go
+    under `layout.runs_dir`; a real profile runs on the real-data instance only, after the
+    real-data gate, and prints counts only (M3.4, ADR-0021).
   - Integration tests use the shared Neo4j fixtures (`neo4j`, `graph_db`) of
     graph/tests/support/nr_test_neo4j.py; `neo4j_mode.py` loads records into that database
     (no second container). `worlds.py` generates the small parity world at run time.

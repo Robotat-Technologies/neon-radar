@@ -133,8 +133,8 @@ def test_a_holdout_seed_is_refused(
 
 
 def test_real_profiles_are_refused(data_env: Any) -> None:
-    result = synth("overlay", "--profile", "uk-tiny")
-    assert result.exit_code == 3 and "comes with M3.4" in result.output
+    result = synth("overlay", "--profile", "uk-tiny")  # the gate (M3.4; test_overlay_cli.py)
+    assert result.exit_code == 3 and "uk-tiny is not in access.real_data_profiles" in result.output
     assert synth("world", "--profile", "uk-tiny").exit_code == 2
     assert synth("world", "--profile", "demo").exit_code == 2
     assert not (data_env.cache / "real").exists()

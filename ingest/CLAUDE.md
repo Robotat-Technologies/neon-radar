@@ -67,4 +67,7 @@
     M=M3.3`; change them only through `scripts/spec_extract.py update` or a recorded
     deviation). `namesource.py` adapts the Phase 1 name modules; extra company words live
     there, never in `words.py`. `synth world` and `synth overlay` (`synth/commands.py`)
-    validate every record with C1 before writing and refuse holdout seeds (G11).
+    validate every record with C1 before writing and refuse holdout seeds (G11). On a real
+    profile `synth overlay` runs `gate.check_real_overlay` first (the gate, then
+    `access.real_overlay_profiles`, exit 3 before any record is read), reads only the profile's
+    own folders and prints counts only (M3.4, ADR-0021); its tests use look-alikes in `data_env`.

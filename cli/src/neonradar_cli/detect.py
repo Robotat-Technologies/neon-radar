@@ -2,8 +2,9 @@
 
 `run` resolves what a run needs (the profile, the catalog and parameters, the source, the window),
 then `neonradar_detect.runs.run` runs the detectors through the verbatim runner, validates every
-alert against C4, writes the run folder and, on Neo4j, loads the results (C2 L19). Real profiles
-come with M3.4: here they are refused before anything is read.
+alert against C4, writes the run folder and, on Neo4j, loads the results (C2 L19). A profile's
+runs go under `layout.runs_dir` (M3.4); a real profile runs only on the real-data instance, after
+the real-data gate, inside the redaction guard, and prints counts only (PHASE-3.md 7.7).
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 from neonradar_cli.graph import Timeout, _connected, _settings
+from neonradar_graph.instances import Instance
 
 if TYPE_CHECKING:
     from neonradar_detect.catalog import Typology
@@ -49,8 +51,8 @@ def _profile(name: str, engine: str) -> Profile:
         profile = load_profile(name)
     except ProfileError as error:
         raise _fail(str(error), 2) from None
-    if profile.real_data:
-        raise _fail(f"profile {name} is a real profile: detection on real data comes with M3.4", 2)
+    if profile.real_data and engine == "memory":
+        raise _fail(f"profile {name} is a real profile: the memory engine reads synthetic data", 2)
     if profile.detection is not None and not profile.detection.enabled:
         raise _fail(f"profile {name} turns detection off (detection.enabled: false)", 2)
     if engine == "memory" and profile.resolution.enabled:
@@ -137,6 +139,13 @@ def _params(
     return params
 
 
+def _runs_root(profile: Profile | None, run_id: str) -> Path | None:
+    """The folder of a profile's runs (`layout.runs_dir`, M3.4); None: Phase 1's data/runs/."""
+    from neonradar_ingest.data import layout
+
+    return layout.runs_dir(profile, run_id).parent if profile is not None else None
+
+
 def _print(record: RunRecord) -> None:
     typer.echo(
         f"{record.run_id}  {len(record.alerts)} alerts  ({', '.join(record.typologies)})"
@@ -200,7 +209,8 @@ def run_command(
     ] = False,
     timeout: Timeout = 30,
 ) -> None:
-    """Run the detectors, write data/runs/<run_id>/ and, on Neo4j, replace the detection results."""
+    """Run the detectors, write the run folder (data/runs/<run_id>/, or the profile's runs_dir) and,
+    on Neo4j, replace the detection results."""
     from neonradar_detect import catalog, runs
     from neonradar_detect.neo4jsource import Neo4jSource
     from neonradar_ingest.data.project import load_project
@@ -217,16 +227,26 @@ def run_command(
         chosen_id = runs.check_run_id(run_id) if run_id else runs.new_run_id(runs.now_utc())
     except runs.RunError as error:
         raise _fail(str(error)) from None
-    real_registry_alerts = load_project().access.real_registry_alerts
-    overlay = _overlay_folder(profile) if profile else None
+    project = load_project()
+    real_profile = profile if profile is not None and profile.real_data else None
+    real = real_profile is not None
     with ExitStack() as stack:
+        if real_profile is not None:  # the gate before anything of it is read (7.7 rule 1)
+            from neonradar_cli import redact
+            from neonradar_ingest.data import gate
+
+            where = stack.enter_context(redact.guard(real_profile, "detect run", real=True))
+            where.step = "gate"
+            gate.check_real_data(project, real_profile)
+            where.step = "detect"
+        overlay = _overlay_folder(profile) if profile else None
         load: Callable[[RunRecord], None] | None = None
         if engine == "memory":
             source = _memory_source(profile, overlay)
         else:
             _quiet_notifications()
-            settings = _settings()
-            driver = stack.enter_context(_connected(settings, timeout))
+            settings = _settings(Instance.REAL if real else Instance.DEFAULT)
+            driver = stack.enter_context(_connected(settings, timeout, real=real))
             source = Neo4jSource(driver, settings.database, timeout_s=QUERY_TIMEOUT_S)
             load = partial(runs.store, driver, settings.database, keep_previous=keep_previous)
         try:
@@ -238,13 +258,21 @@ def run_command(
                 typologies,
                 run_id=chosen_id,
                 engine="memory" if engine == "memory" else "neo4j",
+                runs_dir=_runs_root(profile, chosen_id),
                 profile=profile.profile if profile else None,
                 window_known=known,
-                real_registry_alerts=real_registry_alerts,
+                real_registry_alerts=project.access.real_registry_alerts,
                 load=load,
             )
         except (runs.RunError, OSError) as error:
+            if real:
+                raise
             raise _fail(str(error)) from None
+    if real_profile is not None:
+        from neonradar_cli import summary
+
+        summary.emit(real_profile, "detect run", {"profile": record.profile, **record.summary})
+        return
     _print(record)
 
 
@@ -293,15 +321,21 @@ def verify_alert_command(
 
     if (alert_id is None) == (run is None):
         raise _fail("give one ALERT_ID or --run RUN_ID (or --run latest)", 2)
+    root = None
     if profile_name:
-        _profile(profile_name, "neo4j")
+        chosen = _profile(profile_name, "neo4j")
+        if chosen.real_data:
+            raise _fail(
+                f"profile {profile_name} is a real profile: verify-alert prints alert ids", 2
+            )
+        root = _runs_root(chosen, "LATEST")
     _quiet_notifications()
     settings = _settings()
     with _connected(settings, timeout) as driver:
         try:
             if run is not None:
-                run_id = runs.latest() if run == "latest" else runs.check_run_id(run)
-                meta = runs.read_run(run_id)
+                run_id = runs.latest(root) if run == "latest" else runs.check_run_id(run)
+                meta = runs.read_run(run_id, root)
                 if meta.get("engine") == "memory":
                     raise _fail(f"run {run_id} ran in memory: its alerts are not in the graph", 2)
                 ids = runs.run_alert_ids(driver, settings.database, run_id)

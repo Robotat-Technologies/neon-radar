@@ -487,3 +487,41 @@ entries:
     extra_urls: []
     verified: 2026-10-18
     note: "A name match 'does not necessarily mean' that the person is the one on the list; matching all the information on the list is likely to be a target match. Quoted in docs/research/2026-10-18/sanctions-peps.md section 9; not re-opened by the build."
+  # ADR-0021: the synthetic overlay and the real-data detection rule (PHASE-3.md 7.7 rule 7, 7.8)
+  - key: defamation_act_2013
+    title: "Defamation Act 2013, sections 1 (serious harm) and 4 (publication on matter of public interest)"
+    publisher: legislation.gov.uk
+    year: 2013
+    url: https://www.legislation.gov.uk/ukpga/2013/26/section/1
+    extra_urls:
+      - https://www.legislation.gov.uk/ukpga/2013/26/section/4
+    verified: 2026-10-18
+    note: "England and Wales. A statement is not defamatory unless its publication has caused or is likely to cause serious harm to the claimant's reputation (s 1(1)); for a body trading for profit, serious financial loss (s 1(2)); the public interest defence (s 4). Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md 16.2; not re-opened by the build."
+  - key: ewhc_qb_1337_2019
+    title: "Travel Insurance Facilities Plc v Times Newspapers Plc [2019] EWHC 1337 (QB), paragraph 16"
+    publisher: The National Archives, Find Case Law
+    year: 2019
+    url: https://caselaw.nationalarchives.gov.uk/ewhc/qb/2019/1337
+    extra_urls: []
+    verified: 2026-10-18
+    note: "The three 'Chase levels' of meaning: guilty of the act, reasonable grounds to suspect, and grounds to investigate. Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md 16.2; not re-opened by the build."
+  - key: uk_gdpr_adm_2026
+    title: "UK GDPR (retained Regulation (EU) 2016/679, as amended), Articles 4(4) (profiling), 22A to 22C (automated decision-making) and 25 (data protection by design)"
+    publisher: legislation.gov.uk
+    year: 2026
+    url: https://www.legislation.gov.uk/eur/2016/679/article/4
+    extra_urls:
+      - https://www.legislation.gov.uk/eur/2016/679/article/22A
+      - https://www.legislation.gov.uk/eur/2016/679/article/22B
+      - https://www.legislation.gov.uk/eur/2016/679/article/22C
+      - https://www.legislation.gov.uk/eur/2016/679/article/25
+    verified: 2026-10-18
+    note: "Profiling includes evaluating a person's 'reliability, behaviour' (Art 4(4)); Articles 22A to 22C (substituted by the Data (Use and Access) Act 2025, in force in full from 5 February 2026) restrict significant decisions based solely on automated processing; Article 25(2): by default personal data are not made accessible to an indefinite number of natural persons. Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md 16.3 and 16.5; not re-opened by the build."
+  - key: dpa_criminal_data_s11_2018
+    title: "Data Protection Act 2018, section 11 (criminal offence data)"
+    publisher: legislation.gov.uk
+    year: 2018
+    url: https://www.legislation.gov.uk/ukpga/2018/12/section/11
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Personal data relating to criminal convictions and offences include the alleged commission of offences by the data subject (s 11(2)). Quoted in docs/research/2026-10-18-detection/typology-detection-definitions.md 16.4; not re-opened by the build."

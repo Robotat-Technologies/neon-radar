@@ -80,6 +80,25 @@ def test_a_plan_with_real_rows_never_reaches_the_default_instance() -> None:
     assert driver.calls == []
 
 
+@pytest.mark.parametrize("overlay", [False, True])
+@pytest.mark.parametrize("replace", [True, False])
+def test_the_default_instance_refuses_real_rows_whatever_the_arguments(
+    overlay: bool, replace: bool
+) -> None:
+    plan = plan_load(look_alikes(), strict=True)
+    driver = FakeDriver()
+    with pytest.raises(InstanceRefused, match="do not belong to the default instance"):
+        execute_plan(
+            driver,  # type: ignore[arg-type]
+            plan,
+            LoadReport(strict=True),
+            database="neo4j",
+            replace=replace,
+            overlay=overlay,
+        )
+    assert driver.calls == []
+
+
 def test_a_manifest_that_says_real_is_refused_too(tmp_path: Path) -> None:
     path = write(tmp_path, "records", list(iter_records(FIXTURE)))
     manifest = next(

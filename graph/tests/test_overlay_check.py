@@ -10,7 +10,8 @@ from typing import Any
 import pytest
 
 from neonradar_graph import overlay
-from neonradar_graph.instances import Instance
+from neonradar_graph.instances import Instance, InstanceRefused
+from neonradar_graph.loader import LoadReport
 
 from .conftest import record
 
@@ -63,6 +64,24 @@ CHANGES: dict[str, Callable[[Records, dict[str, Any]], object]] = {
     "a base holding with another role": lambda rs, _: props(rs, "syn-ov-own-1").update(
         role=["shareholder"]
     ),
+    "a second holder of a base holder's account": lambda rs, _: rs.append(
+        record(
+            "syn-ov-own-3",
+            "Ownership",
+            owner="syn-ov-co-1",
+            asset="syn-ov-acct-1",
+            role="account holder",
+        )
+    ),
+    "a base holding with a second owner": lambda rs, _: props(rs, "syn-ov-own-1").update(
+        owner=[BASE, "syn-ov-co-1"]
+    ),
+    "a base holding of two base companies": lambda rs, _: props(rs, "syn-ov-own-1").update(
+        owner=[BASE, OTHER]
+    ),
+    "a payment on a base holder's account names a synthetic payer": lambda rs, _: props(
+        rs, "syn-ov-pay-1"
+    ).update(payer=["syn-ov-co-1"]),
     "overlay.json names another profile": lambda _, meta: meta.update(profile="synth-eval"),
 }
 
@@ -106,3 +125,33 @@ def test_the_real_data_instance_takes_only_a_listed_profile_s_overlay(tmp_path: 
     with pytest.raises(overlay.OverlayInstanceRefused) as refused:  # the folder is never read
         overlay.load_overlay(tmp_path / "missing", "uk-tiny", Instance.REAL, ["uk-sample"])
     assert refused.value.exit_code == 3
+
+
+def test_a_profile_list_given_as_one_string_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(TypeError):  # "uk" in "uk-tiny" would be a substring test
+        overlay.load_overlay(tmp_path, "uk", Instance.REAL, "uk-tiny")
+
+
+@pytest.mark.parametrize(
+    ("protected", "instance"),
+    [("Real", Instance.DEFAULT), ("spikes", Instance.DEFAULT), ("holdout", Instance.REAL)],
+)
+def test_an_overlay_in_a_protected_folder_is_never_read(
+    protected: str, instance: Instance, tmp_path: Path
+) -> None:
+    inside = tmp_path / "data" / "cache" / protected / "overlay"
+    inside.mkdir(parents=True)
+    linked = tmp_path / "copy"
+    linked.mkdir()
+    (linked / "overlay.json").symlink_to(inside / "overlay.json")  # a file that resolves inside
+    for folder in (inside, linked):
+        with pytest.raises(overlay.OverlayInstanceRefused) as refused:
+            overlay.load_overlay(folder, "uk-tiny", instance, ["uk-tiny"], driver=NO_DRIVER)
+        assert refused.value.exit_code == 3
+
+
+def test_the_row_check_runs_before_the_previous_overlay_is_purged() -> None:
+    plan, refs = overlay.plan_overlay(sound(), {"profile": "synth-demo"}, "synth-demo")
+    plan.nodes[0].props["synthetic"] = False  # a row L17 refuses on either instance
+    with pytest.raises(InstanceRefused, match="nothing was written"):
+        overlay._execute(NO_DRIVER, plan, refs, LoadReport(True), "neo4j", 10)

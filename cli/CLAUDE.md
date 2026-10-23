@@ -36,8 +36,10 @@
     into `resolution_dir`, spills DuckDB into `retention.spill_dir` and writes `LATEST` last.
   - `er sample|label|review|precision` (`er_labelling.py`, M2.10c): `--run <id>|latest`; a
     real profile runs the gate, then refuses while people.er_labellers or
-    er_senior_reviewers still hold @TODO (OD-22). `er label` and `er review` are human-only:
-    `require_terminal` first, no default answer; agents never run them (G10).
+    er_senior_reviewers still hold @TODO (OD-22), and `--adjudicate` and `er precision` refuse
+    while people.tech_lead or squads.graph.mentor is not a handle. `er label` and `er review`
+    are human-only: `require_terminal` first, no default answer; agents never run them (G10).
+    They refuse when the record files differ from the run's inputs (`records.unchanged`).
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

@@ -12,7 +12,7 @@ One definition file per typology in `detect/typologies/` (the shape is in `contr
 | [`fan_in_collection`](fan-in-collection.md) | Fan-in to a collection account | core | draft | @robotat-com | no |
 | [`fan_out_distribution`](fan-out-distribution.md) | Fan-out distribution from one account | core | draft | @robotat-com | no |
 | [`formation_agent_cluster`](formation-agent-cluster.md) | Companies clustered around one formation agent | extended | draft | @robotat-com | no |
-| [`layering_chain`](layering-chain.md) | Layering through chains of transfers | core | draft | @robotat-com | no |
+| [`layering_chain`](layering-chain.md) | Layering chain | core | draft | @robotat-com | yes |
 | [`mass_registration_address`](mass-registration-address.md) | Mass registration addresses | core | draft | @robotat-com | no |
 | [`pep_exposure`](pep-exposure.md) | Exposure to politically exposed persons through ownership, control, family or associates | extended | draft | @robotat-com | no |
 | [`rapid_pass_through`](rapid-pass-through.md) | Rapid pass-through (funnel or transit accounts) | core | draft | @robotat-com | no |

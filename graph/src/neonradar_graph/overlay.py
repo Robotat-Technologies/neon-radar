@@ -1,27 +1,12 @@
-"""Overlay loads: C2 1.2.0 loader rule L18 (PHASE-3.md M3.4 deliverable 1).
+"""Overlay loads: C2 1.2.0 loader rule L18 (PHASE-3.md M3.4).
 
-An overlay folder (`neonradar synth overlay`, PHASE-3.md 4.5) holds C1 records whose ids start
-with `syn-ov-`, their manifest and `overlay.json`. `load_overlay` performs L18 in order:
-
-1. Before connecting (`plan_overlay`, exit 2): `overlay.json` names the profile; every record's
-   id starts with `syn-ov-` and its only dataset is `nr_synthetic`; the records pass C1 with the
-   base counted as part of the load (C1 R4 and R8 may name base ids); the bridge check passes
-   (`bridge_issues`); and every record maps to C2. Messages hold counts only.
-2. The instance (exit 3, before anything is read): the real-data instance takes only the overlay
-   of a profile in `real_overlay_profiles`, which the caller passes after the real-data gate (the
-   CLI keeps the gate, as PHASE-2.md M2.11 does, so these paths run in CI, where the gate always
-   refuses). On the default instance L17 still checks every record and manifest.
-3. `overlay_unresolved.cypher` (exit 1): every base reference resolves, directly or through a
-   `:SourceRecord` (L13); then `overlay_holders.cypher` (exit 1; fail closed, an orchestrator
-   decision under OD-10): each resolves to an `:Organization` without a topic, the only base
-   entities that ever receive an account (G1, PHASE-3.md 7.2). Nothing is written before both.
-4. `overlay_purge.cypher` through `session.run()` (it uses `CALL { } IN TRANSACTIONS`): the
-   previous overlay and every detection result. An overlay load never removes a base node.
-5. Nodes, then relationships, through Phase 2's queries: a holding by a base entity takes the
-   resolving query of L13, so a holding of a merged record lands on its canonical node.
-
-After the load I15 and I16 hold (`neonradar graph verify`), and loading the same overlay again
-leaves every count unchanged.
+`load_overlay` loads an overlay folder (`syn-ov-` records and `overlay.json`) onto its profile's
+base and checks everything before it writes: the real-data instance only for a profile in the
+`real_overlay_profiles` its caller passes after the gate (exit 3, folder unread); the record and
+bridge checks (`plan_overlay`, exit 2, counts only); L17 on the default instance; every base
+reference resolves (`overlay_unresolved.cypher`) to an `:Organization` without a topic
+(`overlay_holders.cypher`, OD-10) (exit 1). Then `overlay_purge.cypher` and Phase 2's queries; a
+holding takes the resolving query of L13, so it lands on a merged record's canonical node.
 """
 
 import json
@@ -54,7 +39,6 @@ from neonradar_graph.loader import (
 from neonradar_graph.mapping import to_node_rows, to_relationship_rows
 
 OVERLAY_JSON = "overlay.json"
-HOLDER_ROLE = "account holder"
 PARTIES = ("payer", "beneficiary")
 MISSING = re.compile(r"points to '([^']+)', which is not in this load")  # C1 R4's message
 CHECKS = (  # step 3: each query file counts the base references that fail it
@@ -118,7 +102,7 @@ def bridge_issues(records: Sequence[Record]) -> tuple[Counter[str], dict[str, se
         assets = props.get("asset", [])
         if (
             schema == "Ownership"
-            and props.get("role") == [HOLDER_ROLE]
+            and props.get("role") == ["account holder"]
             and {name for name, _ in named} == {"owner"}
             and len(assets) == 1
             and assets[0] in accounts
@@ -141,12 +125,9 @@ def bridge_issues(records: Sequence[Record]) -> tuple[Counter[str], dict[str, se
 
 
 def _refused(issues: Sequence[RecordIssue]) -> OverlayRefused:
-    by_rule = ", ".join(
-        f"{rule}: {n}" for rule, n in sorted(Counter(i.rule for i in issues).items())
-    )
-    return OverlayRefused(
-        f"{len(issues)} C1 issue(s) in the overlay ({by_rule}); nothing was written"
-    )
+    rules = sorted(Counter(issue.rule for issue in issues).items())
+    detail = ", ".join(f"{rule}: {n}" for rule, n in rules)
+    return OverlayRefused(f"{len(issues)} C1 issue(s) ({detail}); nothing was written")
 
 
 def plan_overlay(
@@ -240,12 +221,7 @@ def load_overlay(
     timeout_s: float = 30.0,
 ) -> LoadReport:
     """Load one overlay folder onto its profile's base in `instance` (L18 steps 1 to 5).
-
-    `driver` (not closed) and `database` replace the instance's settings, for tests; the
-    database must belong to `instance`. Raises OverlayInstanceRefused (exit 3), OverlayRefused
-    or InstanceRefused (exit 2) before connecting, and OverlayUnresolved (exit 1) before
-    writing. A strict report with dangling rows (`failed`) means the graph changed meanwhile.
-    """
+    `driver` (not closed) and `database`, which must belong to `instance`, are for tests."""
     started = time.monotonic()
     if instance is Instance.REAL and profile not in real_overlay_profiles:
         raise OverlayInstanceRefused(

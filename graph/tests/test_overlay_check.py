@@ -9,13 +9,8 @@ from typing import Any
 
 import pytest
 
+from neonradar_graph import overlay
 from neonradar_graph.instances import Instance
-from neonradar_graph.overlay import (
-    OverlayInstanceRefused,
-    OverlayRefused,
-    load_overlay,
-    plan_overlay,
-)
 
 from .conftest import record
 
@@ -73,7 +68,7 @@ CHANGES: dict[str, Callable[[Records, dict[str, Any]], object]] = {
 
 
 def test_a_sound_overlay_plans_its_rows_and_names_its_base_references() -> None:
-    plan, refs = plan_overlay(sound(), {"profile": "synth-demo"}, "synth-demo")
+    plan, refs = overlay.plan_overlay(sound(), {"profile": "synth-demo"}, "synth-demo")
     assert refs == [BASE]
     holding = next(row for row in plan.relationships if row.id == "syn-ov-own-1")
     assert (holding.type, holding.source, holding.resolving) == ("HOLDS_ACCOUNT", BASE, True)
@@ -85,6 +80,9 @@ class NoDriver:
         raise AssertionError("connected before L18 steps 1 and 2 passed")
 
 
+NO_DRIVER: Any = NoDriver()
+
+
 def write(folder: Path, records: Records, meta: dict[str, Any]) -> Path:
     folder.mkdir()
     lines = "".join(json.dumps(item) + "\n" for item in records)
@@ -94,19 +92,17 @@ def write(folder: Path, records: Records, meta: dict[str, Any]) -> Path:
 
 
 @pytest.mark.parametrize("change", sorted(CHANGES))
-def test_a_doctored_overlay_stops_with_exit_2_before_connecting(
-    change: str, tmp_path: Path
-) -> None:
+def test_a_doctored_overlay_stops_before_connecting(change: str, tmp_path: Path) -> None:
     records, meta = sound(), {"profile": "synth-demo"}
     CHANGES[change](records, meta)
     folder = write(tmp_path / "overlay", records, meta)
-    with pytest.raises(OverlayRefused) as refused:
-        load_overlay(folder, "synth-demo", Instance.DEFAULT, driver=NoDriver(), database="neo4j")  # type: ignore[arg-type]
+    with pytest.raises(overlay.OverlayRefused) as refused:
+        overlay.load_overlay(folder, "synth-demo", Instance.DEFAULT, driver=NO_DRIVER, database="x")
     assert refused.value.exit_code == 2
     assert "syn-co-" not in str(refused.value)  # counts only: a base id could be real
 
 
 def test_the_real_data_instance_takes_only_a_listed_profile_s_overlay(tmp_path: Path) -> None:
-    with pytest.raises(OverlayInstanceRefused) as refused:  # the folder is never read
-        load_overlay(tmp_path / "missing", "uk-tiny", Instance.REAL, ["uk-sample"])
+    with pytest.raises(overlay.OverlayInstanceRefused) as refused:  # the folder is never read
+        overlay.load_overlay(tmp_path / "missing", "uk-tiny", Instance.REAL, ["uk-sample"])
     assert refused.value.exit_code == 3

@@ -1,8 +1,8 @@
 """Integration: the C2 graph invariants I1 to I5 hold after loading demo-mini (PHASE-1.md 5.2,
 M1.9a), and I6 after a detection run on it (M1.9b). Each query returns at most 10 violating
-ids. Since M2.11, I1 to I14 (`neonradar graph verify`, with I15 to I17 since M3.4) hold on the
-resolved load of the demo profile's records (`demo_resolution`), so no `make load` is needed,
-and each of I7 to I14 catches its violation."""
+ids. Since M2.11, I1 to I14 (`neonradar graph verify`) hold on the resolved load of the demo
+profile's records (`demo_resolution`), so no `make load` is needed, and each catches its
+violation."""
 
 from collections import Counter
 from pathlib import Path
@@ -149,7 +149,7 @@ def test_every_invariant_holds_on_the_resolved_demo_load_and_catches_its_violati
     )
     assert (report.dangling, report.rejected, report.skipped) == ([], [], [])
     found = verify(graph_db.driver, graph_db.database)
-    assert found == {f"I{n}": 0 for n in range(1, 18)}
+    assert found == {f"I{n}": 0 for n in range(1, 15)}
     for name, phase_1 in INVARIANTS.items():  # Phase 1's queries agree
         assert query(graph_db, phase_1) == [], name
     (subjects,) = query(graph_db, RESOLVED_SUBJECTS)

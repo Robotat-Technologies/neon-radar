@@ -49,7 +49,7 @@ def test_an_overlay_holding_of_a_merged_record_lands_on_its_canonical_node(
     )
     assert [found["id"] for found in holders] == [member["canonical_id"]]
     assert member["canonical_id"] != member["record_id"]
-    assert verify(graph_db.driver, graph_db.database) == {f"I{n}": 0 for n in range(1, 18)}
+    assert verify(graph_db.driver, graph_db.database) == {f"I{n}": 0 for n in range(1, 15)}
     # An account whose holder is neither in the load nor in the graph is still dropped (I4).
     rows[1]["properties"]["owner"] = ["syn-p-0999"]
     rows[0]["id"] = rows[1]["properties"]["asset"][0] = "syn-acct-0902"

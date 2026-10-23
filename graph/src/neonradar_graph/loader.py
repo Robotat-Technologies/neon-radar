@@ -652,22 +652,11 @@ def _write_possible_matches(
             )
 
 
-def execute_plan(
-    driver: Driver,
-    plan: LoadPlan,
-    report: LoadReport,
-    *,
-    database: str,
-    replace: bool = True,
-    batch_size: int = BATCH_SIZE,
-    synthetic: bool | None = None,
-) -> LoadReport:
-    """Write a plan into a migrated graph: purge (L9), nodes, source records, RESOLVED_TO,
-    relationships, possible matches. L17 is checked again on the rows themselves, so no path
-    writes a row whose `synthetic` flag does not belong to the database's instance; an overlay
-    load (L18, `neonradar_graph.overlay`) passes `synthetic=True` on either instance."""
-    if synthetic is None:
-        synthetic = for_database(database) is Instance.DEFAULT
+def check_rows(plan: LoadPlan, database: str, *, overlay: bool = False) -> None:
+    """L17 on the rows themselves: every row's `synthetic` flag belongs to the database's
+    instance. The default instance always takes synthetic rows only; an overlay load (L18,
+    `neonradar_graph.overlay`) is the one exception, synthetic rows on the real-data instance."""
+    synthetic = True if overlay else for_database(database) is Instance.DEFAULT
     written: list[NodeRow | RelationshipRow | SupportRow] = [
         *plan.nodes, *plan.relationships, *plan.source_records, *plan.possible_matches
     ]  # fmt: skip
@@ -677,6 +666,23 @@ def execute_plan(
             f"{wrong} row(s) of this load do not belong to the {for_database(database)} instance"
             " (C2 L17); nothing was written"
         )
+
+
+def execute_plan(
+    driver: Driver,
+    plan: LoadPlan,
+    report: LoadReport,
+    *,
+    database: str,
+    replace: bool = True,
+    batch_size: int = BATCH_SIZE,
+    overlay: bool = False,
+) -> LoadReport:
+    """Write a plan into a migrated graph: purge (L9), nodes, source records, RESOLVED_TO,
+    relationships, possible matches. L17 is checked again on the rows themselves
+    (`check_rows`), so no path writes a row whose `synthetic` flag does not belong to the
+    database's instance; only `overlay=True` (L18) lets synthetic rows onto the real one."""
+    check_rows(plan, database, overlay=overlay)
     require_migrated(driver, database)
     report.records, report.rejected, report.skipped = plan.records, plan.rejected, plan.skipped
     report.instance = for_database(database)

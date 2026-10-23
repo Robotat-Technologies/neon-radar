@@ -52,11 +52,15 @@ def demo_resolution(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(scope="module")
 def real_neo4j() -> Iterator[Neo4jTarget]:
     """A second container started like `neo4j-real` (its database `REAL_DATABASE`), migrated,
-    for look-alike records built in test code (never committed, PHASE-2.md 2.9)."""
+    for look-alike records built in test code (never committed, PHASE-2.md 2.9). It has the
+    pinned GDS jar, as the shared container does, because detection runs on it (M3.4)."""
     from testcontainers.community.neo4j import Neo4jContainer
 
-    container = Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1024m").with_envs(
-        **CONTAINER_ENV, NEO4J_initial_dbms_default__database=REAL_DATABASE
+    _, jar = pinned_gds()
+    container = (
+        Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1024m")
+        .with_envs(**CONTAINER_ENV, NEO4J_initial_dbms_default__database=REAL_DATABASE)
+        .with_copy_into_container(jar, f"/var/lib/neo4j/plugins/{jar.name}")
     )
     with container, container.get_driver(telemetry_disabled=True) as driver:
         migrate(driver, REAL_DATABASE)

@@ -146,6 +146,15 @@ The data-guardian review of M2.10a (#77) ran the verbatim `cluster.py` on synthe
 | G3 | D6 links records with the same address key | Linking every pair gives n(n - 1)/2 links for a key shared by n records | M | Each record links to the smallest id of its key (synthetic and real apart); beyond the X7 cap of 30 the rest are refused. F11 (postcode-only keys) stays open |
 | G4 | `test_cluster.py` is verbatim (M2.10a deliverable 10) | Its record ids have real formats: `ofac-5`, `icij-1`, `uksl-11111`, `gbch-co-00000001`, LEIs starting `549300`. M2.10a's own tests use ids and numbers chosen to look like tests (`ofac-test-1`, `99999901`, `SC999901`, a `SYN0` LEI), except where the spec's normalisation tests need a real form: the rejected `HE` form (`HE999901`) and the D1 padding example of deliverable 10 (`"1800000"` to `"01800000"`), which is replaced by a synthetic padding test (`"sy 9901"` to `"SY009901"`), because padding a digit-only number always lands in the allocated range | Q data steward (Gate 2 list, like F10) | Do the real-data rules for test ids apply to the spec's verbatim oracle tests and to its normalisation examples? No change to `test_cluster.py` until decided; it stays byte-identical to the spec |
 
+### 2.10 The entity resolution documentation (M2.14, #82)
+
+The reviews of #82 found two places where the policy that the verbatim `cluster.py` applies allows more than a sentence of the spec says. `docs/er/README.md` describes what the code does; `cluster.py` does not change, and the deciders of ADR-0015 choose. (Section 2.9 is M2.11's.)
+
+| # | PHASE-2.md says | Found | Class | Decision |
+|---|---|---|---|---|
+| K1 | The published sentence (7.3 rule 7, M2.14 deliverable 1): "Sanctions, PEP and ICIJ records are never merged by probability" | P1 and P2 compare whole clusters (`p1_reason`, `crosses_p2`). A list entry can join by probability a cluster with the same flag topics that already holds a register record (another list's entry and the register's record of one company, joined by D1 with the exact name), and a register record can carry `sanction` itself (a beneficial owner recorded as sanctioned, M2.3b and C4). Either merge can be drawn into S1. ICIJ records join by probability only clusters of leak records | Q tech lead and data steward (ADR-0015); blocks only M2.15's sentence | The README's limitations say what the policy allows; the sentence stays as 7.3 words it until the deciders reword it, for example "never merged by probability with records that are not listed or leaked in the same way" |
+| K2 | P6: two listed people from different lists, linked by probability, also need compatible birth years or a shared identifier (7.1.4) | `cluster.py` checks P6 on the two linked records only, while P1 and P2 compare clusters. A listed person can join by probability, through an unlisted member, a cluster that already holds another list's entry (joined, for example, by a confirmed D7) without that condition | Q deciders of ADR-0015 | No change to the verbatim `cluster.py`; the README states P6 for the linked pair, as 7.1.4 does, until the deciders choose a cluster-level reading or keep this one |
+
 ## 3. Cypher that Phase 1 runs from Python strings
 
 From now on every Cypher statement that new or changed code runs lives in a `.cypher` file, so `make cypher-lint` checks it (M2.0 item 11). These move into files when a later milestone touches the code, not in M2.0.
@@ -185,6 +194,6 @@ The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and
 
 **Graph mentor, with the tech lead:** F2 (what counts as a street line) and F4 (company numbers of only zeros), decided by the orchestrator under OD-10; F11 (D6 and postcode-only address keys).
 
-**Data steward, project lead and tech lead (ADR-0015):** G1 (the interim guard for one-reviewer decisions, or a two-pass 7.1.6), decided for the build by the orchestrator under OD-10; G2 (strict name checks that depend on the order of record ids).
+**Data steward, project lead and tech lead (ADR-0015):** G1 (the interim guard for one-reviewer decisions, or a two-pass 7.1.6), decided for the build by the orchestrator under OD-10; G2 (strict name checks that depend on the order of record ids); K1 (the published sentence of 7.3, for the tech lead and the data steward) and K2 (P6 judged on the linked pair only), from the M2.14 review.
 
 Each question blocks only the milestone named in its row.

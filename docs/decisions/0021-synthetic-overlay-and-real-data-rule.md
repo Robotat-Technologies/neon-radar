@@ -1,0 +1,47 @@
+# 0021. The synthetic overlay and the real-data detection rule
+
+- **Status:** proposed
+- **Date:** 2026-10-23
+- **Deciders:** data steward, project lead, tech lead (all held by @robotat-com until the team joins, OD-6)
+
+## Context
+
+NeonRadar has no real payment data and uses none: the payment typologies of Phase 3 run on payments the generator invents (PHASE-3.md 7.2, ADR-0023). On a synthetic profile every node is invented. On a real profile (`uk-tiny`, `uk-sample`) the registry structure is real: Companies House, GLEIF and the official sanctions lists (PHASE-2.md). The plan's Gate 2 item "Synthetic transactions generated and attached to real entities" asks for invented activity next to that structure (PHASE-3.md 8.1, G2-16), and C2's rule L17 had kept the two apart: the real-data instance takes real records only. Four facts shape how far an overlay may go:
+
+- **An invented pattern next to a real company would be invented information about it.** In England and Wales a statement is defamatory once its publication causes, or is likely to cause, serious harm to a reputation, and for a trading company serious financial loss (`defamation_act_2013`, section 1). A court reads three levels of meaning, and the lowest of them, "grounds to investigate", can itself be defamatory (`ewhc_qb_1337_2019`, paragraph 16). An automated line that a named company "matches" a pattern can carry such a meaning even when every graph fact in it is true (`typology-detection-definitions.md` 16.2).
+- **An automated pattern about a person is profiling** (`uk_gdpr_adm_2026`, Article 4(4)); significant decisions based solely on automated processing are restricted (Articles 22A to 22C); data protection by design asks for outputs that are minimised and, by default, not open to an indefinite number of people (Article 25); and a pattern that suggests an offence concerns the alleged commission of an offence, which is criminal offence data (`dpa_criminal_data_s11_2018`). The detection research concluded that real entities receive only synthetic background activity, so every transaction-typology alert about a real entity is an artefact of the generator, and that real-entity alerts should not be published (`typology-detection-definitions.md` section 0, answers 22 and 24, and section 16).
+- **Plain background activity is not free of patterns.** A refund or a loan repayment can close a cycle, and a cash business may bank its takings just under a threshold (`ingest/src/neonradar_ingest/synth/background.py`; phase-3 reconciliation M4). On a real profile nothing in the generator can keep such shapes away from a real organisation; only a rule applied at detection time can.
+- **Some sources do not say whether an entity is a person.** ICIJ officers and intermediaries load as `LegalEntity` (PHASE-2.md M2.5), and a GLEIF sole proprietor is a person (phase-2 reconciliation C7).
+
+## Options considered
+
+1. **No overlay on real profiles.** Real profiles keep the registry detectors only. Nothing invented sits next to a real company, but the overlay load, the payment typologies and the investigation views are never exercised on real structure, and Gate 2 item G2-16 cannot be met.
+2. **Plant scenarios on real organisations, as on synthetic worlds.** Exercises everything, but each scenario would be exactly an invented pattern about a real company, which guardrail G1 forbids.
+3. **Plain background activity for a share of real organisations, scenarios only among new synthetic entities, a bridge rule that the generator, the loader and the graph check, and a detection rule that withholds every finding that would say something about a real entity from invented payments, or that would name a real person.**
+
+## Decision
+
+We will take option 3.
+
+1. **What a real overlay holds** (PHASE-3.md 7.7 rules 1 and 2). Only a profile in `access.real_overlay_profiles` gets an overlay, after the real-data gate of PHASE-2.md M2.2 (an approved machine, the profile in `access.real_data_profiles`, `access.data_protection_filed`); every other real profile refuses `synth overlay` and `graph load --overlay` with exit 3 before a record is read. Accounts and plain background payments go to a share (`overlay.background.share`) of the eligible organisations: registry companies and organisations that are neither flagged nor dissolved, and never a person; GLEIF records stay ineligible until a record states its category (reconciliation C7). People from a real dataset receive nothing. Counterparties, employees, banks and scenario entities are synthetic records the overlay creates; scenarios and look-alikes run among them only (G1), and the labels name only `syn-ov-` ids.
+2. **The bridge rule** (C2 1.2.0, invariants I15 to I17). The only relationship between a synthetic and a real node is `HOLDS_ACCOUNT` from a real `:Organization` to its synthetic `:Account` (I15); no `PAID` joins two accounts that real entities hold (I16); no alert names a real person, as a subject or among its evidence nodes, and no alert that involves a real entity has a payment among its evidence relationships (I17). The generator checks I15 and I16 before it writes, the loader checks them again before it connects (L18 step 1), and `neonradar graph verify --real` checks all three on the graph.
+3. **L18 is the one exception to L17.** The real-data instance holds real records only, except the overlay of a profile in `access.real_overlay_profiles`, loaded after the gate. The loader also stops before writing when a base reference resolves to anything but an `:Organization` without a topic (an orchestrator decision under OD-10 in M3.4).
+4. **R-REAL** (guardrail G12, PHASE-3.md 7.1.4) runs in the detection runner on every instance; the first reason that applies withholds a finding: (a) `activity_on_real`, a finding that rests on payments and involves a real node; (b) `real_person_subject`; (c) `real_person_evidence`, a real person anywhere among the involved nodes; (d) `registry_on_real`, with `access.real_registry_alerts: false`, any other finding that involves a real node. A person is every `:LegalEntity` that is not an `:Organization`, so an entity whose kind its source does not state counts as one. A withheld finding is never rendered, stored or logged; the run summary counts it by typology and reason. What remains on a real profile are registry patterns about organisations, worded as structural patterns with the standing disclaimer, stored in the real-data instance only and shown only to a human through `api serve --real` on an approved machine. **The stricter option** is `access.real_registry_alerts: false`: those findings are withheld too and the profile gives counts only, and a missing key falls back to it (phase-3 reconciliation P1). The operator chose `true` (OD-25).
+5. **Evidence keeps both sides of a payment.** Every payment-based detector keeps the counterparty accounts and their holders in its evidence, so that R-REAL sees a real holder on either side of a payment (phase-3 reconciliation M4).
+6. **Why such alerts are never shown.** An alert built on invented payments next to a real entity, or one that names a real person, would be an automated statement about that entity which no evidence supports and which could carry a defamatory meaning (`defamation_act_2013`, `ewhc_qb_1337_2019`); about a person it would be profiling that may suggest an offence (`uk_gdpr_adm_2026`, `dpa_criminal_data_s11_2018`). Data protection by design asks for such outputs to be off by default and minimised (`uk_gdpr_adm_2026`, Article 25); NeonRadar takes the stricter course of not producing them at all. This is a project rule, not legal advice; the data steward and the project lead decide its scope.
+
+## Consequences
+
+- `uk-tiny` (and `uk-sample`, once the data steward lists it) exercises the overlay, the loader and the investigation views on real structure. Its payment-typology alerts concern the synthetic scenarios only; registry patterns about real organisations remain, under the rules of decision 4.
+- Everything a real profile sends off the machine is counts only: the overlay counts, the load report, the invariant lines, and per typology the findings, alerts, duplicates and withheld counts by reason (PHASE-3.md 7.7 rule 6).
+- A real profile's alert counts are operational counts, never a precision or recall figure (7.7 rule 8).
+- A detector milestone cannot weaken the rule, because it lives in the runner and I17 checks its result after every detection load. The cost is that a finding is computed before it is withheld.
+- A base load removes the overlay on the real-data instance (L18 step 7), so `make load` reloads it after the base.
+- Open for the deciders: the data steward's answer to reconciliation C7 (GLEIF sole proprietors), and question Q8 of ADR-0023 (invented names for scenario people).
+
+## Sources
+
+- PHASE-3.md 0.5 (decisions 1, 2, 11 and 12), 7.1.4, 7.2.4, 7.7, 7.11 and 8.1; `contracts/C2-graph-schema.md` 1.2.0 (L18, L19, I15 to I17)
+- `docs/research/2026-10-18-detection/typology-detection-definitions.md`: section 0, answers 22 and 24; section 16
+- `docs/build/phase-3-reconciliation.md`: M4, P1, R1 and section 10
+- Bibliography: `defamation_act_2013`, `ewhc_qb_1337_2019`, `uk_gdpr_adm_2026`, `dpa_criminal_data_s11_2018`

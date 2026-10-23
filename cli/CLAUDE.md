@@ -45,6 +45,10 @@
     with `--overlay latest`, after `gate.check_real_overlay` (the gate, then
     `access.real_overlay_profiles`, exit 3), and prints counts only. `graph verify` prints I1 to
     I17. Tests replace `overlay.load_overlay`.
+  - Real profiles in `synth overlay` and `detect run --profile` (M3.4): both run inside
+    `redact.guard` after the gate and print the counts-only summary; `detect run` writes under
+    `layout.runs_dir` for every profile; `verify-alert` refuses a real profile (it lists alert
+    ids). Tests build look-alikes in the `data_env` tmp tree and fake `runs.run`.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

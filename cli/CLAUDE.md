@@ -38,6 +38,11 @@
     real profile runs the gate, then refuses while people.er_labellers or
     er_senior_reviewers still hold @TODO (OD-22). `er label` and `er review` are human-only:
     `require_terminal` first, no default answer; agents never run them (G10).
+  - `graph load [PATH...] [--profile NAME] [--resolution RUN_DIR|latest] [--no-replace]`,
+    `graph verify` and `--real` on migrate, verify, stats and wipe (`graph.py`, M2.11): the
+    instance comes from the profile, else from the manifests (C2 L17); the real-data one runs
+    the gate before connecting, inside `redact.guard`, and prints counts only (a load through
+    `summary.emit`). Tests replace `loader.load`, `get_driver` and `wait_until_ready`.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

@@ -4,15 +4,21 @@
   Gate 1), the C1 record loader and, in Phase 2, entity resolution.
 - Owner: graph squad (nr-graph); `graph/schema/` also needs the tech lead.
 - Depends on: C1 records (input) and C2 graph schema (output).
-- Commands: `uv run pytest graph/tests`, `make test-int`, `make up`, `make smoke` and
-  `uv run neonradar graph migrate`.
-- Modules: `mapping` (C1 records to C2 loader rows, pure; the mapping data lives in
-  `neonradar_contracts.graph`), `migrate` (the migration runner), `client`, `smoke`,
-  `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of C2), `loader`
-  (`neonradar graph load|stats|wipe`: C1 files to the graph; `load_files`, `load_records`,
-  `plan_load` without a database, `wipe`, `stats`), `wording` (the resolution and
-  possible-match texts of PHASE-2.md 7.2, verbatim; pure, no Splink, so the API and
-  `er review` share them; `scripts/check_wording.py` scans it).
+- Commands: `uv run pytest graph/tests`, `make test-int`, `make up`, `make smoke`,
+  `uv run neonradar graph migrate`, `graph load --profile demo --resolution latest` and
+  `graph verify` (I1 to I14; `--real` on migrate, verify, stats and wipe runs the real-data gate).
+- Modules: `mapping` (C1 records plus an optional resolution run to C2 loader rows, pure; the
+  mapping data lives in `neonradar_contracts.graph`), `migrate` (the migration runner),
+  `client`, `smoke`, `onboarding` (the Assignment 1 sandbox: `Onb*` labels only, never part of
+  C2), `loader` (`neonradar graph load|stats|wipe`: `load(paths, resolution, replace,
+  instance)`, `load_files`, `load_records`, `plan_load` without a database, `execute_plan`,
+  `wipe`, `stats`), `resolution` (`ResolutionMap.load(run_dir)`: canonical.csv,
+  candidates.jsonl, run.json), `instances` (`Instance.DEFAULT` and `Instance.REAL`, L17),
+  `cypher` (reads `queries/*.cypher` and fills `{{rel_type}}`-style placeholders with C2 names
+  only), `verify` (`graph verify`), `wording` (the resolution and possible-match texts of
+  PHASE-2.md 7.2, verbatim; pure, no Splink, so the API and `er review` share them;
+  `scripts/check_wording.py` scans it). Every new Cypher statement lives in `queries/`; the
+  files PHASE-2.md M2.11 gives are verbatim except three (phase-2-reconciliation 2.9, J1, J2).
 - Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
   a pytest plugin the root `conftest.py` registers once; fixtures `neo4j`, `empty_neo4j`,
   `graph_db`): a Testcontainers container with the GDS jar from `make plugins` copied in, or
@@ -44,3 +50,17 @@
     committed; running the same load again completes it (idempotent).
   - Tests derive expected rows from `mapping` and the fixture files, never from hard-coded
     demo-mini names or counts (the fixture is regenerated).
+  - L17: real records only into the real-data instance (database `realdata`), synthetic ones
+    only into the default instance; checked on the records before connecting and again on the
+    rows in `execute_plan`, keyed by the database name. Tests build non-synthetic look-alikes
+    in code and load them only into a second container started with
+    `NEO4J_initial_dbms_default__database=realdata` (`test_loader_resolution.py`).
+  - Resolved loads (L8 to L16): single-record entities keep their record id; merged ones get
+    `nr-<anchor>` plus one `:SourceRecord` and `RESOLVED_TO` per member. A load with a run first
+    purges what it replaces (`--no-replace` skips it), so `written` is not 0 on a reload; the
+    counts are (L16). Run `graph verify` after a load.
+  - `PAID.ts` is a timezone-aware `datetime` in the row's props, never a string.
+  - `followthemoney.ValueEntity.from_dict` pops keys from the dict it gets: pass a copy.
+  - The neo4j driver imports PyArrow when it is installed; the graph package itself never
+    imports the resolver, PyArrow, DuckDB or Splink (`graph`'s `dev` group has the resolver
+    for the integration tests' runs, `tests/conftest.py` `demo_resolution`).

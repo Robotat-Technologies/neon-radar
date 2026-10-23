@@ -21,6 +21,7 @@ PLUGINS: tuple[str, ...] = (
     "neonradar_ingest.sources.companies_house.build",
     "neonradar_ingest.sources.gleif.golden_copy",
     "neonradar_ingest.sources.icij.full",
+    "neonradar_ingest.sources.lists.gb_fcdo",
 )
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {

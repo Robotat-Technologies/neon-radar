@@ -6,7 +6,9 @@ User-Agent, a per-source rate limiter, and retries with exponential backoff afte
 keys or credentials. `logged_url` shows a URL in logs and errors under two rules a client
 can set: `log_query=False` drops the query string (PHASE-2.md M2.6 rule 4: the UN redirect
 carries a signature, the EU URL a token), and `hide_paths=True` keeps only the scheme and the
-host (M2.3c: the officers step's paths hold company numbers).
+host (M2.3c: the officers step's paths hold company numbers). A transport error shows only its
+class under either rule, and a protocol error always: its message can quote what the server
+sent.
 """
 
 import logging
@@ -137,7 +139,8 @@ class HttpClient(httpx.Client):
     With `hide_paths`, errors and logs name only the method and the host, for paths that hold
     a value from a record (the officers step's company numbers, M2.3c). `log_query=False` keeps
     every query string out of the logs and errors, also those of the redirects it follows (a
-    signed storage URL). `describe` applies both rules.
+    signed storage URL). `describe` applies both rules, and `problem` keeps the text of a
+    transport error out under either rule.
     """
 
     def __init__(
@@ -171,6 +174,14 @@ class HttpClient(httpx.Client):
         url = logged_url(request.url, query=self.log_query, path=not self.hide_paths)
         return f"{request.method} {url}"
 
+    def problem(self, exc: httpx.TransportError) -> str:
+        """A transport error as errors and logs name it: its class and its message, or only its
+        class under either rule and for any protocol error, whose message can quote what the
+        server sent (h11 quotes a malformed status or header line, such as a `Location`)."""
+        if isinstance(exc, httpx.ProtocolError) or self.hide_paths or not self.log_query:
+            return type(exc).__name__
+        return f"{type(exc).__name__}: {exc}"
+
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
         query = _LOG_QUERY.set(self.log_query)  # read by the filter on httpx's request log
@@ -192,9 +203,9 @@ class HttpClient(httpx.Client):
             try:
                 response = super().send(request, **kwargs)
             except httpx.UnsupportedProtocol as exc:  # a bad URL: sending again cannot help
-                raise HttpError(f"{where}: {exc}") from None
+                raise HttpError(f"{where}: {self.problem(exc)}") from None
             except httpx.TransportError as exc:
-                problem = f"{type(exc).__name__}: {exc}"
+                problem = self.problem(exc)
             else:
                 if response.status_code not in RETRY_STATUSES:
                     return response

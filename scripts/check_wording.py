@@ -2,8 +2,8 @@
 """Wording lint for entity-facing templates (docs/build/PHASE-1.md 7.1, guardrail G5).
 
 Scans the `wording` fields of detect/typologies/*.yaml and the string literals in
-detect/src/**/wording.py and graph/src/**/wording.py (the resolution texts of PHASE-2.md 7.2)
-for the patterns in contracts/wording/forbidden-terms.txt (one
+detect/src/**/wording.py and graph/src/**/wording.py (the Phase 2 resolution and ownership
+templates, PHASE-2.md 7.2) for the patterns in contracts/wording/forbidden-terms.txt (one
 regular expression per line, case-insensitive, `#` starts a comment). Disclaimers and general
 documentation are out of scope: they discuss money laundering as a subject. Until M1.7c
 creates the terms file, the script exits 0 with a notice.

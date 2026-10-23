@@ -191,7 +191,16 @@ def make_linker(
 
 
 def train(linker: Linker, kind: Kind, config: TrainingConfig) -> None:
-    """Prior, u by random sampling (seeded), then two EM sessions (er-splink.md 2.4, 3.4)."""
+    """Prior, u by random sampling (seeded), then two EM sessions (er-splink.md 2.4, 3.4).
+
+    Persons (OD-26, a deviation from the PHASE-2.md 7.1.5 text): the postcode session comes
+    first, and the second session blocks on the first linked organisation and the birth year,
+    not on surname and birth year. Pairs with the same surname and birth year are full of
+    namesakes (near twins) who agree on name and birth but are different people, so a session
+    blocked on them learned that a postcode in the same district is evidence of a match and
+    that different postcodes cost little. Pairs at one company with one birth year are mostly
+    one person's records, and the two sessions still estimate every comparison between them.
+    """
     t = linker.training
     if kind == "person":
         t.estimate_probability_two_random_records_match(
@@ -199,10 +208,10 @@ def train(linker: Linker, kind: Kind, config: TrainingConfig) -> None:
         )
         t.estimate_u_using_random_sampling(max_pairs=config.u_max_pairs, seed=config.seed)
         t.estimate_parameters_using_expectation_maximisation(
-            block_on("surname", "birth_year_min"), max_pairs=config.em_max_pairs
+            block_on("postcode"), max_pairs=config.em_max_pairs
         )
         t.estimate_parameters_using_expectation_maximisation(
-            block_on("postcode"), max_pairs=config.em_max_pairs
+            block_on("linked_orgs[1]", "birth_year_min"), max_pairs=config.em_max_pairs
         )
     else:
         t.estimate_probability_two_random_records_match(

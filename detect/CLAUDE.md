@@ -38,6 +38,11 @@
     relationship needs `synthetic_activity: false` (C4 rule 6), which `policy.data_flags`
     does not give yet: an edge-less finding about a real entity fails validation (M3.4/M3.5).
   - R-REAL runs in the runner on every instance; never decide it in a detector.
+  - `evaluation/` (verbatim, M3.6): `match.py` (rules version 1, PHASE-3.md 7.6.2),
+    `metrics.py`, `stats.py`, `harness.py`, `report.py`; `neonradar eval` drives it. A change
+    that moves a count of the CI seed updates `eval/baselines/ci.json` with its code book
+    block and a "Detection impact" section; run `uv run neonradar eval check` after any
+    detector change.
   - Detector queries run as `session.run(neo4j.Query(text, timeout))`, never in
     `execute_read`. GDS: stream only, concurrency 4, drop projections in `finally`.
   - L19: a Neo4j run deletes every `:Alert` and `:DetectionRun` before it loads (unless

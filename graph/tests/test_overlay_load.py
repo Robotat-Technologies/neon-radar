@@ -3,7 +3,8 @@
 synth-demo's world with `companies: 40` and its overlay, generated at run time and never
 committed (2.9): the overlay loads onto the base with no unresolved reference, again with every
 count unchanged, and only HOLDS_ACCOUNT from a base organisation joins a base node and an
-overlay node; a holder the graph lacks, and a holder that is not an organisation, stop the load
+overlay node; a holder the graph lacks, a holder that is not an organisation, and an organisation
+that 7.2.4 gives no account (a public body, a dissolved company, a list record), stop the load
 before anything is written (exit 1). On the resolved Phase 2 demo load, a holding of a merged
 record lands on its canonical node. Doctored overlays (exit 2 before connecting) are in
 test_overlay_check.py.
@@ -22,6 +23,7 @@ from typing import Any
 
 import pytest
 
+from neonradar_contracts.datasets import load_registry
 from neonradar_detect.runs import detect_on_graph
 from neonradar_graph import loader
 from neonradar_graph.client import REPO_ROOT
@@ -128,6 +130,34 @@ def test_a_holder_the_graph_lacks_or_that_is_no_organisation_stops_before_writin
     for n, holder in enumerate(["syn-co-0000009999", person["id"]]):
         with pytest.raises(OverlayUnresolved) as stopped:
             load(graph_db, write(tmp_path / str(n), holding(holder), "synth-demo"))
+        assert stopped.value.exit_code == 1 and counts(graph_db) == before
+
+
+ELIGIBLE = """
+MATCH (c:Company) WHERE c.dissolution_date IS NULL AND size(coalesce(c.topics, [])) = 0
+RETURN c.id AS id ORDER BY id LIMIT 3"""
+# What 7.2.4 excludes besides a topic: a public body, a dissolved company, a list or leak record.
+INELIGIBLE = (
+    "SET c:PublicBody",
+    "SET c.dissolution_date = date('2020-01-02')",
+    "SET c.datasets = c.datasets + $listed",
+)
+
+
+def test_an_organisation_that_may_hold_no_account_stops_before_writing(
+    graph_db: Neo4jTarget, synth_demo: tuple[Path, Path], tmp_path: Path
+) -> None:
+    load_files(graph_db.driver, [synth_demo[0]], database=graph_db.database)
+    listed = next(d.slug for d in load_registry().datasets if d.kind == "list")
+    for n, (row, change) in enumerate(zip(query(graph_db, ELIGIBLE), INELIGIBLE, strict=True)):
+        graph_db.driver.execute_query(
+            f"MATCH (c:Company {{id: $id}}) {change}",
+            {"id": row["id"], "listed": listed},
+            database_=graph_db.database,
+        )
+        before = counts(graph_db)
+        with pytest.raises(OverlayUnresolved) as stopped:
+            load(graph_db, write(tmp_path / str(n), holding(row["id"]), "synth-demo"))
         assert stopped.value.exit_code == 1 and counts(graph_db) == before
 
 

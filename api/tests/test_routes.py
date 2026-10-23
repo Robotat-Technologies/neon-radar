@@ -1,4 +1,5 @@
-"""Every C3 route, its parameter limits and its problem bodies (PHASE-1.md 5.3, M1.7d, M1.9c)."""
+"""Every C3 route, its parameter limits and its problem bodies (PHASE-1.md 5.3, M1.7d, M1.9c;
+PHASE-2.md 5.3, M2.1c)."""
 
 import importlib.util
 from collections.abc import Iterator
@@ -11,16 +12,32 @@ from fastapi.testclient import TestClient
 
 from neonradar_api.graph import GraphConnection, GraphUnavailable, get_graph
 from neonradar_api.main import create_app, router
-from neonradar_contracts.api import Problem
+from neonradar_contracts.api import PATHS_DEFAULT_TYPES, Problem
 
 P = "/api/v1"
 ENTITY = f"{P}/entities/syn-co-0001"
 ALERT_ID = "alr-f82a84574538090f0624"
 # Each route that still answers 501, a valid request for it, and who implements it.
 PENDING: list[tuple[str, str, dict[str, Any], str]] = [
-    ("GET", f"{ENTITY}/ownership?direction=up&max_hops=8&min_share=25", {}, "Phase 2"),
-    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=6", {}, "Phase 2"),
+    ("GET", f"{ENTITY}/ownership?direction=up&max_hops=8&min_share=25", {}, "M2.12"),
+    ("GET", f"{ENTITY}/ownership?direction=down&min_share=0", {}, "M2.12"),
+    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=6", {}, "M2.12"),
+    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=nr-syn-p-0001&rel_types=OWNS", {}, "M2.12"),
+    (
+        "GET",
+        f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&rel_types=POSSIBLY_SAME_AS",
+        {},
+        "M2.12",
+    ),
+    ("GET", f"{ENTITY}/resolution", {}, "M2.12"),
+    ("GET", f"{P}/entities/nr-syn-co-0001/resolution", {}, "M2.12"),
     ("POST", f"{P}/copilot/ask", {"json": {"question": "who owns syn-co-0001?"}}, "Phase 4"),
+]
+# The routes C3 1.1.0 declares for M2.12, and the responses each declares (PHASE-2.md 5.3).
+PHASE_2_ROUTES: list[tuple[str, set[str]]] = [
+    ("/entities/{entity_id}/ownership", {"200", "404", "422", "501", "503"}),
+    ("/paths", {"200", "404", "422", "501", "503"}),
+    ("/entities/{entity_id}/resolution", {"200", "404", "422", "503"}),
 ]
 # The M1.9c routes that read the graph: valid requests that need Neo4j (503 without it).
 NEEDS_GRAPH: list[str] = [
@@ -54,6 +71,10 @@ INVALID: list[tuple[str, str, dict[str, Any]]] = [
     ("GET", f"{P}/paths?from_id=syn-co-0001", {}),
     ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=0", {}),
     ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=7", {}),
+    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&rel_types=FLAGS", {}),
+    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&rel_types=PRODUCED", {}),
+    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&rel_types=RESOLVED_TO", {}),
+    ("GET", f"{P}/entities/not_an_id/resolution", {}),
     ("GET", f"{P}/alerts?limit=0", {}),
     ("GET", f"{P}/alerts?limit=201", {}),
     ("GET", f"{P}/alerts?priority=urgent", {}),
@@ -104,6 +125,7 @@ def test_every_route_of_5_3_is_declared() -> None:
         ("GET", f"{P}/entities/{{entity_id}}/network"),
         ("GET", f"{P}/entities/{{entity_id}}/ownership"),
         ("GET", f"{P}/paths"),
+        ("GET", f"{P}/entities/{{entity_id}}/resolution"),
         ("GET", f"{P}/alerts"),
         ("GET", f"{P}/alerts/{{alert_id}}"),
         ("GET", f"{P}/typologies"),
@@ -120,6 +142,31 @@ def test_pending_routes_answer_501_naming_their_milestone(
     assert problem.title == "Not Implemented"
     assert problem.detail.endswith(f"it arrives in {arrives_in}.")
     assert problem.instance == url.split("?")[0]
+
+
+@pytest.mark.parametrize(("path", "declared"), PHASE_2_ROUTES)
+def test_the_phase_2_routes_declare_every_response_m2_12_returns(
+    client: TestClient, path: str, declared: set[str]
+) -> None:
+    document = client.get(f"{P}/openapi.json").json()
+    operation = document["paths"][f"{P}{path}"]["get"]
+    assert set(operation["responses"]) == declared
+    model = {
+        "/paths": "PathsResponse",
+        "/entities/{entity_id}/ownership": "OwnershipResponse",
+        "/entities/{entity_id}/resolution": "ResolutionResponse",
+    }[path]
+    schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    assert schema == {"$ref": f"#/components/schemas/{model}"}
+
+
+def test_paths_names_its_default_relationship_types(client: TestClient) -> None:
+    document = client.get(f"{P}/openapi.json").json()
+    parameters = document["paths"][f"{P}/paths"]["get"]["parameters"]
+    rel_types = next(p for p in parameters if p["name"] == "rel_types")
+    assert ", ".join(PATHS_DEFAULT_TYPES) in rel_types["description"]
+    assert not {"HAS_ADDRESS", "LINKED_TO", "POSSIBLY_SAME_AS"} & set(PATHS_DEFAULT_TYPES)
+    assert len(PATHS_DEFAULT_TYPES) == len(set(PATHS_DEFAULT_TYPES)) == 14
 
 
 @pytest.mark.parametrize("url", NEEDS_GRAPH)
@@ -240,3 +287,11 @@ def test_only_the_allowed_hosts_are_answered(monkeypatch: pytest.MonkeyPatch) ->
             },
         )
         assert preflight.status_code == 400
+
+
+def test_network_says_which_types_it_uses_when_rel_types_is_absent(client: TestClient) -> None:
+    document = client.get(f"{P}/openapi.json").json()
+    parameters = document["paths"][f"{P}/entities/{{entity_id}}/network"]["get"]["parameters"]
+    rel_types = next(p for p in parameters if p["name"] == "rel_types")
+    assert "all 17 types C3 shows" in rel_types["description"]
+    assert "POSSIBLY_SAME_AS" in rel_types["description"]

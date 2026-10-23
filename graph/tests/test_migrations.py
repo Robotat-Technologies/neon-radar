@@ -1,4 +1,5 @@
-"""Integration: `migrate` on a real Neo4j 5.26 Community (PHASE-1.md 5.2, 5.5; Gate 1 GC-02)."""
+"""Integration: `migrate` on a real Neo4j 5.26 Community (PHASE-1.md 5.2, 5.5; Gate 1 GC-02;
+PHASE-2.md 5.2 and 5.4: 0001 then 0002 give 23 constraints and 9 own indexes)."""
 
 import re
 import shutil
@@ -13,14 +14,22 @@ from .conftest import Neo4jTarget
 
 pytestmark = pytest.mark.integration
 
-INIT = discover()[0]
-NAMES = [re.search(r"^CREATE (?:FULLTEXT )?\w+ (\w+) ", s)[1] for s in INIT.statements]  # type: ignore[index]
-CONSTRAINTS = {name for name, s in zip(NAMES, INIT.statements, strict=True) if "CONSTRAINT" in s}
+MIGRATIONS = discover()
+INIT = MIGRATIONS[0]
+IDS = [migration.id for migration in MIGRATIONS]
+CREATED = [s for migration in MIGRATIONS for s in migration.statements if s.startswith("CREATE")]
+NAMES = [re.search(r"^CREATE (?:FULLTEXT )?\w+ (\w+) ", s)[1] for s in CREATED]  # type: ignore[index]
+CONSTRAINTS = {name for name, s in zip(NAMES, CREATED, strict=True) if "CONSTRAINT" in s}
 INDEXES = set(NAMES) - CONSTRAINTS
 
 
 def query(neo4j: Neo4jTarget, cypher: str) -> list[dict[str, Any]]:
     records, _, _ = neo4j.driver.execute_query(cypher, database_=neo4j.database)
+    return [record.data() for record in records]
+
+
+def query_with(neo4j: Neo4jTarget, cypher: str, **params: Any) -> list[dict[str, Any]]:
+    records, _, _ = neo4j.driver.execute_query(cypher, params, database_=neo4j.database)
     return [record.data() for record in records]
 
 
@@ -39,21 +48,61 @@ def schema(neo4j: Neo4jTarget) -> dict[str, Any]:
 
 def test_applies_on_an_empty_database(empty_neo4j: Neo4jTarget) -> None:
     report = migrate(empty_neo4j.driver, empty_neo4j.database)
-    assert [migration.id for migration in report.applied] == ["0001_init"]
+    assert [migration.id for migration in report.applied] == ["0001_init", "0002_resolution"]
     assert report.already_applied == []
     after = schema(empty_neo4j)
-    assert len(after["constraints"]) == 22 and after["constraints"] == CONSTRAINTS
+    assert len(after["constraints"]) == 23 and after["constraints"] == CONSTRAINTS
     indexes = {row["name"]: row for row in after["indexes"]}
-    assert len(indexes) == 7 and set(indexes) == INDEXES
+    assert len(indexes) == 9 and set(indexes) == INDEXES
     assert {row["state"] for row in indexes.values()} == {"ONLINE"}  # migrate waits for them
     names = indexes["entity_names"]
     assert names["type"] == "FULLTEXT"
     assert names["options"]["indexConfig"]["fulltext.analyzer"] == "standard-no-stop-words"
     assert indexes["paid_ts"]["type"] == "RANGE"
-    (applied,) = after["migrations"]
-    assert applied["m"]["id"] == "0001_init"
-    assert applied["m"]["checksum"] == INIT.checksum
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", applied["m"]["applied_at"])
+    assert indexes["source_record_canonical_id"]["type"] == "RANGE"
+    full_text = query(
+        empty_neo4j,
+        "SHOW INDEXES YIELD name, labelsOrTypes, properties WHERE name = 'entity_names'"
+        " RETURN labelsOrTypes, properties",
+    )
+    assert full_text == [
+        {
+            "labelsOrTypes": ["LegalEntity", "Address"],
+            "properties": ["names_text", "names_latin_text"],
+        }
+    ]
+    assert [row["m"]["id"] for row in after["migrations"]] == IDS
+    for applied, migration in zip(after["migrations"], MIGRATIONS, strict=True):
+        assert applied["m"]["checksum"] == migration.checksum
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", applied["m"]["applied_at"])
+
+
+SEARCH = (
+    "CALL db.index.fulltext.queryNodes('entity_names', $q) YIELD node"
+    " RETURN node.id AS id ORDER BY id"
+)
+
+
+def test_0002_applies_on_a_1_0_database(empty_neo4j: Neo4jTarget, tmp_path: Path) -> None:
+    """A database migrated with 0001 only (C2 1.0.0) and holding a node takes 0002, ends like a
+    fresh one, and full-text search still finds the node under the rebuilt index."""
+    shutil.copy(INIT.path, tmp_path / INIT.path.name)
+    migrate(empty_neo4j.driver, empty_neo4j.database, tmp_path)
+    empty_neo4j.driver.execute_query(
+        "CREATE (:Entity:LegalEntity:Organization:Company:Synthetic"
+        " {id: 'syn-co-0001', names_text: 'Quillon Marsh Trading Ltd', synthetic: true})",
+        database_=empty_neo4j.database,
+    )
+    query(empty_neo4j, "CALL db.awaitIndexes(60)")
+    before = query_with(empty_neo4j, SEARCH, q="quillon")
+    assert before == [{"id": "syn-co-0001"}]
+    report = migrate(empty_neo4j.driver, empty_neo4j.database)
+    assert [migration.id for migration in report.applied] == ["0002_resolution"]
+    assert report.already_applied == ["0001_init"]
+    after = schema(empty_neo4j)
+    assert after["constraints"] == CONSTRAINTS
+    assert {row["name"] for row in after["indexes"]} == INDEXES
+    assert query_with(empty_neo4j, SEARCH, q="quillon") == before  # 0002 changes no data
 
 
 def test_reapplying_is_a_no_op(empty_neo4j: Neo4jTarget) -> None:
@@ -61,7 +110,7 @@ def test_reapplying_is_a_no_op(empty_neo4j: Neo4jTarget) -> None:
     before = schema(empty_neo4j)
     report = migrate(empty_neo4j.driver, empty_neo4j.database)
     assert report.applied == []
-    assert report.already_applied == ["0001_init"]
+    assert report.already_applied == IDS
     assert schema(empty_neo4j) == before  # applied_at included: nothing was written
 
 

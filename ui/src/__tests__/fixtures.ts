@@ -32,7 +32,7 @@ function wording(id: string): string {
 export const disclaimers: Disclaimers = {
   standing: wording('standing-v1'),
   synthetic_demo: wording('synthetic-demo-v1'),
-  real_data: wording('real-data-v1'),
+  real_data: wording('real-data-v2'),
 }
 
 export function dataset(
@@ -69,8 +69,8 @@ export function registry(counts: Partial<Record<string, number | null>> = {}): D
 export function meta(datasets: DatasetInfo[]): MetaResponse {
   return {
     app_version: '0.1.0',
-    contracts_version: '1.0.0',
-    schema_version: '1.0.0',
+    contracts_version: '1.2.0',
+    schema_version: '1.2.0',
     datasets,
     disclaimers,
     counts: { nodes_by_label: {}, relationships_by_type: {} },

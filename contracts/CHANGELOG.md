@@ -2,6 +2,92 @@
 
 The four NeonRadar contracts and their versions (`neonradar_contracts.versions`). The tech lead tags `contracts-v<version>` when the contracts freeze (`docs/build/PHASE-1.md` 5.0); after that, every change needs an approved contract-change issue and an entry here.
 
+## 1.2.0 (unreleased)
+
+Phase 3 (`docs/build/PHASE-3.md` 5). Only C2 changes, and only additively: every graph valid under 1.1.0 stays valid. C1 stays 1.1.0, C3 1.1.0 and C4 1.0.0. The tech lead tags `contracts-v1.2.0` on top of `contracts-v1.1.0` once M3.1 has merged (5.0 step 6).
+
+### C2: Graph schema 1.2.0
+
+Additive (minor) change for overlays, the bridge invariants and detection runs, `docs/build/PHASE-3.md` 5.2, M3.1, contract-change issue #70. Details in [C2-graph-schema.md](C2-graph-schema.md#changes-in-120).
+
+- **`:Sanction.provisions`** (LIST<STRING>): every value of FtM `Sanction.provisions`, as published; an empty list when the record has none (`NodeMapping.empty_lists`, a new optional field). `neonradar_graph.mapping` sets it. `:Sanction` nodes loaded under 1.1.0 get `provisions` only when they are loaded again, so a query that may meet a graph loaded under 1.1.0 reads it with `coalesce(s.provisions, [])` (likewise the two `:Alert` lists written under 1.1.0).
+- **`:DetectionRun`** gains `profile`, `params_sha256`, `summary` (the counts-only run summary as JSON), `window_start` and `window_end`. `profile`, `params_sha256`, `window_start` and `window_end` may be absent (`NULLABLE_PROPERTIES["DetectionRun"]`): a run without a profile, a failed run, a graph with no window to read (for example registry-only, without `PAID`), and runs written under 1.1.0. `detectors` stays a JSON list of name and version: the hashes of each detector's query files go to the run folder's `run.json` only (orchestrator decision on reconciliation A1).
+- **I15 and support nodes:** `:Alert` and `:DetectionRun` have no `synthetic` property, so `FLAGS` and `PRODUCED` never count; `:SourceRecord` carries `synthetic` (1.1.0), and `RESOLVED_TO` never crosses because I9 keeps a record's `synthetic` equal to its entity's. An overlay load never runs L9's removal; its own purge (L18 step 4) takes its place.
+- **`:Alert`** gains `evidence_node_ids` and `evidence_edge_ids` (LIST<STRING>): the C4 `evidence.node_ids` and `evidence.edge_ids`, so invariant I17 reads them without parsing `payload`.
+- **Loader rule L18** (overlay loads: `syn-ov-` records of `nr_synthetic` onto a loaded base, in the base's instance, including `neo4j-real` for the profiles in `access.real_overlay_profiles`, after the bridge check; the previous overlay and all detection results are removed first) and **L19** (a detection load replaces the previous detection results). PHASE-3.md M3.4 builds L18 and M3.2 builds L19.
+- **Invariants I15 to I17** in `graph/src/neonradar_graph/queries/verify_overlay.cypher` (verbatim from the PHASE-3.md code book): I15, the only synthetic to non-synthetic relationship is `HOLDS_ACCOUNT` from a non-synthetic `:Organization` to a synthetic `:Account`; I16, no `PAID` between two accounts held by non-synthetic entities; I17, no `:Alert` names a non-synthetic person as a subject or in its evidence, and none that involves a non-synthetic entity has a `PAID` in its evidence. `neonradar graph verify` runs them from M3.4.
+- **Constants as data:** `OVERLAY_ID_PREFIX` (`syn-ov-`), `OVERLAY_DATASET` (`nr_synthetic`) and `BRIDGE_RELATIONSHIP` (`Organization`, `HOLDS_ACCOUNT`, `Account`), so the overlay loader, the generator checks and the verifier read one source.
+- **No migration:** no constraint or index changes (still 23 constraints and 9 own indexes after 0001 and 0002).
+- `versions.GRAPH_SCHEMA` and `versions.CONTRACTS` are `1.2.0`, so `GET /api/v1/meta` reports `contracts_version` and `schema_version` 1.2.0; `RECORD`, `API` and `ALERT` are unchanged.
+- **Consumers in this change:** the mapping writes `provisions` on every `:Sanction` node (an empty list when absent); the API's property allow-list for `:Sanction` nodes is built from this mapping, so `provisions` appears there when the graph holds it (additive C3 output; the OpenAPI snapshot is unchanged). `contracts/tests/test_wording.py` (test-only, as the issue allows) also lints every template under a typology file's `wording.variants` and each typology's `shape_name`, so it accepts the Phase 3 typology files (`docs/build/phase-3-reconciliation.md` K1). The API's `GET /meta` test and the UI's mocked meta read 1.2.0.
+
+## 1.1.0 (unreleased)
+
+Phase 2 (`docs/build/PHASE-2.md` 5). Every change is additive: everything valid under 1.0.0 stays valid. The tech lead tags `contracts-v1.1.0` when M2.1a to M2.1c have merged (5.0).
+
+### C1: NeonRadar Record 1.1.0
+
+Contract-change issue #53 (M2.1a, PHASE-2.md 5.1). Details in [C1-record.md](C1-record.md#changes-in-110).
+
+- **Datasets:** five entries in `datasets.yaml`, with the licence fields of 5.1 verbatim: `gb_fcdo_sanctions` (OGL v3.0), `us_ofac_sdn` (CC0 1.0), `un_sc_sanctions` (`LicenseRef-UN-Terms-of-Use`, `commercial_use: permission-required`), `eu_fsf` (`LicenseRef-EC-Reuse-Decision-2011-833`) and `gb_parliament_members` (`LicenseRef-Open-Parliament-Licence-3.0`). The data steward approves each licence field and attribution line in the M2.1a review (G2-11).
+- **Dataset fields:** optional `kind` (`registry`, `list`, `leak`, `synthetic`) and `anchor_priority` (an integer, 1 first, unique; `load_registry()` refuses duplicates) on all ten entries; `commercial_use` also accepts `permission-required`. `gb_companies_house`, `gleif_lei` and `icij_offshore_leaks` move from `status: spike` to `active`; `opensanctions_default` stays `blocked`.
+- **New `nr` keys:** `ch_person_number` (string, any `LegalEntity` of `gb_companies_house` or `nr_synthetic`), `psc_statements` (list of strings, `Company`), `accounts_category` (string, `Company`), `share_pct_min_exclusive` and `share_pct_max_exclusive` (booleans, `Ownership` and `Control`).
+- **Wider `nr` keys:** `synthetic_kind` also accepts `list` and `leak`; `is_nominee` is also allowed on `Ownership`; `share_pct_min` and `share_pct_max` are also allowed on `Control`.
+- **Versions:** `nr.v` accepts `"1.0"` and `"1.1"`, and every key under both; `versions.RECORD` and `versions.CONTRACTS` are `1.1.0`, so `write_manifest()` writes `record_contract: "1.1.0"`. The manifest's `record_contract` pattern already accepted both values and is unchanged. The JSON Schema `schemas/record-nr.v1.json` is regenerated (the file name keeps the major version).
+- **Examples:** `examples/c1/demo-1.1.ftm.jsonl` (the seven lines of 5.1) and its manifest, valid in strict mode; the 1.0 example `demo.ftm.jsonl` and its manifest (`record_contract: "1.0.0"`) stay as they are and stay valid.
+- **Consumers in this change:** the demo-mini fixture manifest is regenerated (`make fixtures`; only `record_contract` and `created_at` change, the records are byte-identical); the API test of `GET /meta` reads `versions.CONTRACTS`; the OpenSanctions spike mapping derives `nr.v` from `versions.RECORD` (M1.8d), so it now writes `"1.1"` and its expected test output says so. The Companies House, GLEIF and ICIJ spike mappings and the synthetic generator keep writing `"1.0"`, which stays valid.
+
+#### Changed from `docs/build/PHASE-2.md` 5.1 (tech lead sign-off at the M2.1a review)
+
+- **Example names (OD-12):** the build agent cannot run the Companies House search, so the spec's names were replaced by names already checked: "Quarry Lane Instruments Ltd" by "Plover Brae Textiles Ltd" (a demo-mini company, checked in M1.8e); the officer "MARLOWE, Petra Anne" by "VELQASIMI, Yazan Zafer"; the list-style person "Ivo Kestrane" (alias "Iwo Kestran") by "Rakan Zubeirono" (alias "Raqan Zubeirono"); the leak-style entity "QUILLAN BRASKE" by "NADIM ULVARAZI". The surnames Velqasimi, Zubeirono and Ulvarazi were checked alone on the Companies House officer and company searches on 21 October 2026 with no result (recorded in the body of #17), so no name with them can match a live record; the given names come from the names checked there (Zafer Qandelouni, a checked given-name variant, Yazan Velqasimi, Rakan Zubeirono, Nadim Ulvarazi). The alias "Raqan Zubeirono" is a spelling variant of the given name with the surname Zubeirono, whose surname-alone check had no result. None is on the synthetic-name denylist. "Synthetic Authority A" is kept: it names no person or company.
+- **R6 for the wider keys (orchestrator decision under OD-10, for the tech lead at this review):** a synthetic `Ownership` that sets `nr.is_nominee`, or a synthetic `Control` that sets any `nr.share_pct_*` key, references only synthetic records on every entity reference (strict and non-strict mode), so C2 never calls a real owner a nominee or gives a real entity a voting band. Synthetic `Ownership` and `Control` records without these keys may still name real records.
+- **`ch_person_number` only on `gb_companies_house` and `nr_synthetic` records (orchestrator decision under OD-10):** 5.1 scopes the key to Companies House officers; the check (`NR`) keeps a list or leak record from reaching rule D3 through it.
+- **Id forms of the list loaders:** the sanctions and Parliament id forms of PHASE-2.md 4.4 without a kind segment (`uksl-g<group id>`, `uksl-<unique id>`, `ofac-<uid>`, `unsc-<ref>`, `eufsf-<logicalId>`, `ukparl-<member id>`) are allowed next to `make_id`, so the verbatim tests of M2.6 and M2.10a keep them. They pass R1 unchanged. Orchestrator decision under OD-10, `docs/build/phase-2-reconciliation.md` B6.
+
+### C2: Graph schema 1.1.0
+
+Additive (minor) change for entity resolution, `docs/build/PHASE-2.md` 5.2, M2.1b, contract-change issue #52. Every 1.0.0 graph stays valid; a load without a resolution run behaves as in 1.0.0 apart from the new `false` defaults and the two company properties.
+
+- **`:SourceRecord` defined:** `id`, `dataset`, `schema`, `caption`, `names`, `topics`, `canonical_id`, `synthetic`, `retrieved_at`, `source_url`, `run_id`; one per member of an entity merged from two or more records.
+- **`RESOLVED_TO` extended:** `method` is `anchor`, `deterministic`, `probabilistic` or `human` (`match_probability` 1.0 for all but `probabilistic`); new `rule`, `run_id` and `features`.
+- **`POSSIBLY_SAME_AS` added** between two `:LegalEntity` nodes, stored from the smaller id to the larger and read as undirected: `id` (`<a>|psa|<b>`), `match_probability` and `match_weight` (null for `deterministic` and `source_hint` matches), `method`, `rule`, `reasons`, `features`, `run_id`, `resolver_version`, `datasets`, `synthetic`. It is a support relationship in `neonradar_contracts.graph` (written by entity resolution, not built from records), so C3's record-built relationship types are unchanged here.
+- **Entity properties:** `cluster_size`, `resolution`, `names_latin`, `names_latin_text` on every `:Entity` (computed by the resolution-aware loader, M2.11; `ENTITY_RESOLUTION_PROPERTIES`).
+- **Company properties:** `psc_statements` and `accounts_category` from `nr.psc_statements` and `nr.accounts_category` (C1 1.1.0).
+- **`OWNS`:** `share_min_exclusive` and `share_max_exclusive` from `nr.share_pct_min_exclusive` and `nr.share_pct_max_exclusive`, and `is_nominee` from `nr.is_nominee`, each `false` when absent (`RelationshipMapping.defaults`).
+- **`CONTROLS`:** the voting-rights band `share_pct_min` and `share_pct_max` (null when absent) and `share_min_exclusive` and `share_max_exclusive` (`false` when absent). A voting-rights band is control, not a share: the ownership endpoint still traverses only `OWNS`.
+- **Migration `0002_resolution.cypher`** (verbatim from the spec): the constraint `possibly_same_as_id`, the indexes `source_record_canonical_id` and `source_record_dataset`, and the full-text index `entity_names` rebuilt under the same name over `names_text` and `names_latin_text`. After 0001 and 0002: 23 constraints and 9 own indexes.
+- **Loader rules L8 to L17 and invariants I7 to I14** written into [C2-graph-schema.md](C2-graph-schema.md); M2.11 implements them.
+- `versions.GRAPH_SCHEMA` is `1.1.0`, so `GET /api/v1/meta` reports `schema_version` 1.1.0.
+- **Consumers in this change:** the API builds its property allow-lists from this mapping, so `EntityDetail.properties` and `GraphNode.properties` of a company now carry `psc_statements` and `accounts_category`, and `GraphEdge.properties` carry the `OWNS` flags and `is_nominee` and the `CONTROLS` band with its flags, when the graph holds them: additive C3 output, the OpenAPI snapshot is unchanged. The four entity resolution properties are not in the allow-lists. `neonradar graph load` refuses a database until `neonradar graph migrate` has applied 0002. Migration 0002 changes no data: relationships loaded under 1.0.0 get the new flags when they are loaded again (read them with `coalesce(r.x, false)` meanwhile).
+
+#### Clarifications of PHASE-2.md 5.2 (tech lead review in M2.1b)
+
+- **`DIRECTOR_OF.is_nominee`** keeps the 1.0.0 rule (no default when the record has no value); only `OWNS.is_nominee` defaults to `false`, as 5.2 says.
+- **Value sets and nullable properties as data:** `ENTITY_RESOLUTIONS`, `RESOLVED_TO_METHODS`, `POSSIBLY_SAME_AS_METHODS`, `CERTAIN_METHODS` and `NULLABLE_PROPERTIES` (`POSSIBLY_SAME_AS.match_probability`, `match_weight` and `rule`; `RESOLVED_TO.rule` and `features`), so M2.11's loader and verifier read one source.
+
+### C3: API 1.1.0
+
+Additive, from `docs/build/PHASE-2.md` 5.3 (M2.1c, contract-change issue #51); the details are in [C3-api.md](C3-api.md#changes-in-110).
+
+- New route `GET /api/v1/entities/{entity_id}/resolution` (`get_resolution`) with `ResolutionMember`, `PossibleMatch` (with `rule`) and `ResolutionResponse`; it answers a 501 problem naming M2.12 until M2.12 implements it.
+- `PathRef` gains `effective_share_min_exclusive` and `effective_share_max_exclusive` (nullable; null exactly when their bound is), and its four effective-share fields say that an effective share is NeonRadar's calculation, not a register figure or a sanctions ownership test.
+- The semantics of `/ownership` and `/paths` (effective shares, ordering, limits, the default relationship types of `/paths`, the 5-second timeout) are fixed in C3-api.md and in the OpenAPI descriptions; their 501 problems now name M2.12.
+- The ownership, paths and resolution routes declare 200 and 404, 422 and 503 problems (ownership and paths keep their 501), so M2.12 changes nothing in `openapi/v1.json`. `OwnershipResponse.paths` has at most 200 items and `PathsResponse.paths` at most 5 (`maxItems`).
+- **Meaning changes on `/ownership` and `/paths`**, minor because these routes answered 501 throughout 1.0.0 (no client ever received a 1.0.0 answer from them): `/paths` without `rel_types` uses the 14 default types, not all of them; `min_share` keeps a path when `effective_share_max` is above it, or equal with a closed upper bound (1.0.0 said "at least"), and 0 keeps every path; `PathRef` gains two required, nullable fields; an upward ownership path's `node_ids` run from the root to the top recorded owner, and the tie-break orders by that list. M2.12 reverses the node and edge lists that the verbatim `ownership_up.cypher` returns (top owner first) before ordering (`docs/build/phase-2-reconciliation.md` E13).
+- `POSSIBLY_SAME_AS` edges have `source` the smaller and `target` the larger id; the direction has no meaning (C2 reads it as undirected). The UI draws them dashed, without an arrow.
+- `RelationshipType` gains `POSSIBLY_SAME_AS` (a support relationship in C2 1.1.0, shown by C3 as PHASE-2.md 5.2 says): the network returns it like any other relationship and counts it in `relationship_counts`; `/paths` uses it only when asked for. `PATHS_DEFAULT_TYPES` names the 14 default types of `/paths`. C3 edge ids (`GraphEdge.id`, `PathRef.edge_ids`) also accept its id form `<a>|psa|<b>` (`GRAPH_EDGE_ID_PATTERN`); C4's `EdgeId` is unchanged.
+- `GET /meta` serves the real data notice version 2 (`contracts/wording/real-data-v2.txt`, verbatim from 5.3) as `Disclaimers.real_data`; `real-data-v1.txt` stays unchanged and `DisclaimerId` gains `real-data-v2`.
+- `contracts/wording/forbidden-terms.txt` gains 17 patterns under `# Phase 2 additions (PHASE-2.md 7.2)`, one per unqualified "Never write" phrase of 7.2; `scripts/check_wording.py` also scans `graph/src/**/wording.py`. The file is shared, so the 17 patterns also apply to C4 alert text (`Alert` validation reads it); no committed typology template, detector wording or example alert fails them, and C4 stays 1.0.0 (`C4-alert.md` lists the four disclaimers and the Phase 2 patterns).
+- Example `examples/c3/resolution.json` (synthetic). `openapi/v1.json` and `ui/src/api/schema.d.ts` regenerated.
+
+#### Refinements of 5.3 (tech lead sign-off)
+
+The spec's types are kept; these are stricter forms of the same values, taken by the M2.1c builder under OD-10.
+
+- `ResolutionResponse.resolution` is the C2 1.1.0 enum (`identity`, `deterministic`, `probabilistic`, `human`, `mixed`) rather than any string; `run_id` has the 4.4 run id form; `rule` is a D rule id (`D` and a number); `decided_at` is a C3 UTC time (`YYYY-MM-DDTHH:MM:SSZ`, "Times" in C3-api.md); `match_probability` is between 0 and 1.
+- `maxItems` 200 on `OwnershipResponse.paths` and 5 on `PathsResponse.paths` (5.3 items 6 and Paths 1), declared now because M2.12 may not change the snapshot.
+- The models check the conditional rules of 5.3 and C2 1.1.0: one member per record (`cluster_size`), `canonical` exactly when `cluster_size` is 2 or more, one `anchor` in a merged entity and one `identity` member otherwise, a D rule on `deterministic` members and possible matches, a probability exactly on `probabilistic` possible matches, "not confirmed" in every possible-match explanation, at most 50 possible matches.
+
 ## 1.0.0 (unreleased)
 
 ### C1: NeonRadar Record 1.0.0

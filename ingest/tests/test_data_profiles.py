@@ -17,7 +17,7 @@ def test_the_committed_profiles_load_and_say_what_they_are(data_env: Any) -> Non
     demo, tiny, sample = (load_profile(name) for name in ("demo", "uk-tiny", "uk-sample"))
     assert (demo.real_data, tiny.real_data, sample.real_data) == (False, True, True)
     assert demo.options("nr_synthetic").fixtures == ["data/fixtures/demo-mini"]
-    assert tiny.options("gb_companies_house")["companies"]["max_companies"] == 400
+    assert tiny.options("gb_companies_house").companies.max_companies == 400
     assert sample.sources["icij_offshore_leaks"].options["mode"] == "district-linked"
     assert sample.resolution.config == "resolve/config/er.yaml"
 

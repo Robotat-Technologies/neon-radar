@@ -11,6 +11,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -48,9 +49,18 @@ def redact(url: httpx.URL | str) -> str:
     return str(url.copy_with(userinfo=b"", params=params))
 
 
+# True while a `hide_paths` client sends: httpx's own request log then shows only the host.
+_HIDE_PATHS: ContextVar[bool] = ContextVar("neonradar_hide_paths", default=False)
+
+
+def shown(url: httpx.URL) -> str:
+    """How logs show a URL: redacted, and only scheme and host while paths are hidden."""
+    return f"{url.scheme}://{url.host}/…" if _HIDE_PATHS.get() else redact(url)
+
+
 def _redact_urls(record: logging.LogRecord) -> bool:
     if isinstance(record.args, tuple):
-        record.args = tuple(redact(a) if isinstance(a, httpx.URL) else a for a in record.args)
+        record.args = tuple(shown(a) if isinstance(a, httpx.URL) else a for a in record.args)
     return True
 
 
@@ -107,6 +117,8 @@ class HttpClient(httpx.Client):
     `X-Ratelimit-Reset`), or else 1, 2, 4 ... seconds. A hint over `max_hint` seconds raises
     HttpError instead of retrying before the server allows it.
     `requests`, `retried` and `throttled` count what happened, for the spike report.
+    With `hide_paths`, errors and logs name only the method and the host, for paths that hold
+    a value from a record (the officers step's company numbers, M2.3c).
     """
 
     def __init__(
@@ -119,6 +131,7 @@ class HttpClient(httpx.Client):
         retry_hint: RetryHint = retry_after_seconds,
         max_hint: float = 300.0,
         sleep: Sleep = time.sleep,
+        hide_paths: bool = False,
         **options: Any,
     ) -> None:
         if retries < 0:
@@ -128,13 +141,29 @@ class HttpClient(httpx.Client):
         )
         self.headers["User-Agent"] = USER_AGENT
         self.limiter, self.retries, self.max_hint = limiter, retries, max_hint
-        self._retry_hint, self._sleep = retry_hint, sleep
+        self._retry_hint, self._sleep, self.hide_paths = retry_hint, sleep, hide_paths
         self.requests = self.retried = self.throttled = 0
+
+    def describe(self, request: httpx.Request) -> str:
+        """The request as errors and logs name it: method and redacted URL, or method and host."""
+        url = request.url
+        return (
+            f"{request.method} {url.scheme}://{url.host}/…"
+            if self.hide_paths
+            else (f"{request.method} {redact(url)}")
+        )
 
     def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         """httpx's `send` behind the rate limiter, with retries; HttpError when they run out."""
+        token = _HIDE_PATHS.set(self.hide_paths)
+        try:
+            return self._send(request, **kwargs)
+        finally:
+            _HIDE_PATHS.reset(token)
+
+    def _send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
         request.headers["User-Agent"] = USER_AGENT  # also over a per-request header
-        where = f"{request.method} {redact(request.url)}"
+        where = self.describe(request)
         retries = self.retries if request.method in RETRY_METHODS else 0
         for attempt in range(retries + 1):
             self.limiter.wait()
@@ -172,6 +201,6 @@ class HttpClient(httpx.Client):
         if response.status_code == 404:
             return None
         if response.is_error:
-            where = f"GET {redact(response.request.url)}"
+            where = self.describe(response.request)
             raise HttpError(f"{where}: HTTP {response.status_code}", response.status_code)
         return response.json()

@@ -1,4 +1,5 @@
-"""Map C1 records to the parameter rows the C2 graph loader sends (PHASE-1.md 5.2, M1.7b).
+"""Map C1 records to the parameter rows the C2 graph loader sends (PHASE-1.md 5.2, M1.7b;
+C2 1.1.0 company properties and share-band flags, PHASE-2.md 5.2, M2.1b).
 
 Pure functions without database access. Labels and relationship types come only from
 `neonradar_contracts.graph`: the loader writes them into its query text per schema or type and
@@ -245,6 +246,8 @@ def _node_row(record: Record, schema: Schema, mapping: NodeMapping, synthetic: b
         if isinstance(record.get(key), str):
             props[key] = record[key]
     props |= _mapped({"sourceUrl": "source_url", **mapping.properties}, record)
+    for name in mapping.empty_lists:  # C2 1.2.0: `Sanction.provisions` is [] when absent
+        props.setdefault(name, [])
     return NodeRow(schema.name, rid, props, _flags(topics, synthetic, mapping))
 
 
@@ -331,7 +334,8 @@ def _edge_row(
     mapping = _choose(mappings, record, targets[0], index)
     _check_end(mapping.type, 0, sources[0], mapping.source_prop, index)
     _check_end(mapping.type, 1, targets[0], mapping.target_prop, index)
-    props = {"id": str(record["id"]), **_common(record, synthetic)}
+    # Defaults first, so a value the record has wins (OWNS and CONTROLS flags: false, C2 1.1.0).
+    props = {"id": str(record["id"]), **_common(record, synthetic), **mapping.defaults}
     props |= _mapped(mapping.properties, record)
     ts = props.pop("ts", None)
     return RelationshipRow(mapping.type, str(record["id"]), sources[0], targets[0], props, ts)

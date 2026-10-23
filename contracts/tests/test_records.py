@@ -1,4 +1,4 @@
-"""Contract tests for C1, the NeonRadar Record (PHASE-1.md 5.1, 5.5)."""
+"""Contract tests for C1, the NeonRadar Record (PHASE-1.md 5.1, 5.5; PHASE-2.md 5.1, 5.4)."""
 
 import copy
 import hashlib
@@ -35,6 +35,7 @@ pytestmark = pytest.mark.contract
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "c1"
 DEMO = EXAMPLES / "demo.ftm.jsonl"
+DEMO_1_1 = EXAMPLES / "demo-1.1.ftm.jsonl"
 INVALID = sorted((EXAMPLES / "invalid").glob("*.ftm.jsonl"))
 NR = {"v": "1.0", "synthetic": True, "synthetic_kind": "registry"}
 COMBINING_DIAERESIS = unicodedata.lookup("COMBINING DIAERESIS")
@@ -58,8 +59,8 @@ def _company(**changes: Any) -> dict[str, Any]:
     return record
 
 
-def _demo(record_id: str) -> dict[str, Any]:
-    return copy.deepcopy(next(r for r in iter_records(DEMO) if r["id"] == record_id))
+def _demo(record_id: str, path: Path = DEMO) -> dict[str, Any]:
+    return copy.deepcopy(next(r for r in iter_records(path) if r["id"] == record_id))
 
 
 def _rules(record: dict[str, Any]) -> list[str]:
@@ -78,6 +79,20 @@ def test_demo_file_is_valid_in_strict_mode() -> None:
     assert [str(issue) for issue in issues] == []
     assert counts.total() == 10
     assert counts["Payment"] == 1
+
+
+def test_demo_1_1_file_is_valid_in_strict_mode() -> None:
+    counts, issues = validate_files([DEMO_1_1], strict=True)
+    assert [str(issue) for issue in issues] == []
+    assert counts.total() == 7
+    assert {r["nr"]["v"] for r in iter_records(DEMO_1_1)} == {"1.1"}
+    kinds = {r["id"]: r["nr"]["synthetic_kind"] for r in iter_records(DEMO_1_1)}
+    assert (kinds["syn-lst-0101"], kinds["syn-lk-0101"]) == ("list", "leak")
+
+
+def test_the_1_0_and_1_1_examples_load_together() -> None:
+    _, issues = validate_files([DEMO, DEMO_1_1], strict=True)
+    assert [str(issue) for issue in issues] == []
 
 
 def test_every_rule_has_exactly_one_invalid_example() -> None:
@@ -217,6 +232,193 @@ def test_unknown_property_and_unknown_top_level_key() -> None:
 
 def test_schema_outside_the_v1_list_fails_r3() -> None:
     assert _rules(_company(schema="Vessel")) == ["R3"]
+
+
+# C1 1.1.0: new and wider nr keys (PHASE-2.md 5.1, 5.4)
+
+
+@pytest.mark.parametrize("v", ["1.0", "1.1"])
+@pytest.mark.parametrize(
+    ("record_id", "path", "keys"),
+    [
+        ("syn-co-0101", DEMO_1_1, {"psc_statements": ["x"], "accounts_category": "DORMANT"}),
+        ("syn-off-0101", DEMO_1_1, {"ch_person_number": "SYN00101A0001"}),
+        ("syn-ownership-0001", DEMO, {"share_pct_min_exclusive": True, "is_nominee": True}),
+        ("syn-control-0101", DEMO_1_1, {"share_pct_max_exclusive": False}),
+    ],
+)
+def test_1_1_keys_validate_under_both_versions(
+    v: str, record_id: str, path: Path, keys: dict[str, Any]
+) -> None:
+    record = _demo(record_id, path)
+    record["nr"].update(keys, v=v)
+    assert _rules(record) == []
+
+
+def test_nr_v_accepts_only_known_versions() -> None:
+    assert _rules(_company(nr={**NR, "v": "1.1"})) == []
+    for v in ("1.2", "2.0", "1", 1.1):
+        assert _rules(_company(nr={**NR, "v": v})) == ["NR"], v
+
+
+@pytest.mark.parametrize("kind", ["registry", "activity", "list", "leak"])
+def test_synthetic_kinds(kind: str) -> None:
+    assert _rules(_company(nr={**NR, "synthetic_kind": kind})) == []
+
+
+@pytest.mark.parametrize("kind", ["registry ", "List", "scraped", ""])
+def test_unknown_synthetic_kinds_still_fail(kind: str) -> None:
+    assert _rules(_company(nr={**NR, "synthetic_kind": kind})) == ["NR"]
+
+
+def test_list_and_leak_kinds_stay_synthetic_only() -> None:
+    record = _company(id="gbch-co-T0000001", datasets=["gb_companies_house"])
+    for kind in ("list", "leak"):
+        record["nr"] = {"v": "1.1", "synthetic_kind": kind}
+        assert _rules(record) == ["NR"], kind
+
+
+def test_is_nominee_on_ownership_and_the_share_band_on_control() -> None:
+    ownership = _demo("syn-ownership-0001")
+    ownership["nr"]["is_nominee"] = True
+    assert _rules(ownership) == []
+    control = _demo("syn-control-0101", DEMO_1_1)
+    assert {"share_pct_min", "share_pct_max", "share_pct_min_exclusive"} <= set(control["nr"])
+    assert _rules(control) == []
+    control["nr"]["share_pct_min"] = 80.0  # the bound order holds on Control too
+    assert _rules(control) == ["NR"]
+
+
+@pytest.mark.parametrize(
+    ("record_id", "path", "key", "value", "used_on"),
+    [
+        ("syn-p-0001", DEMO, "psc_statements", ["x"], "Company"),
+        ("syn-p-0001", DEMO, "accounts_category", "DORMANT", "Company"),
+        ("syn-addr-0001", DEMO, "ch_person_number", "SYN00101A0001", "LegalEntity"),
+        ("syn-co-0001", DEMO, "share_pct_min_exclusive", True, "Ownership or Control"),
+        ("syn-co-0001", DEMO, "share_pct_max_exclusive", True, "Ownership or Control"),
+        ("syn-co-0001", DEMO, "share_pct_min", 25.0, "Ownership or Control"),
+        ("syn-control-0101", DEMO_1_1, "is_nominee", True, "Directorship or Ownership"),
+        ("syn-control-0101", DEMO_1_1, "consolidation", "direct", "Ownership"),
+    ],
+)
+def test_1_1_keys_keep_their_placement(
+    record_id: str, path: Path, key: str, value: Any, used_on: str
+) -> None:
+    record = _demo(record_id, path)
+    record["nr"][key] = value
+    issues = validate_record(record)
+    assert [issue.rule for issue in issues] == ["NR"], [str(i) for i in issues]
+    assert f"nr.{key} is only used on {used_on}" in issues[0].message
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("psc_statements", "no-individual-or-entity-with-signficant-control"),
+        ("psc_statements", [1]),
+        ("accounts_category", ["DORMANT"]),
+        ("ch_person_number", 101),
+    ],
+)
+def test_1_1_company_and_person_keys_have_fixed_types(key: str, value: Any) -> None:
+    record_id = "syn-off-0101" if key == "ch_person_number" else "syn-co-0101"
+    record = _demo(record_id, DEMO_1_1)
+    record["nr"][key] = value
+    assert _rules(record) == ["NR"]
+
+
+@pytest.mark.parametrize("value", ["true", 1, [True]])
+def test_exclusive_flags_are_booleans(value: Any) -> None:
+    record = _demo("syn-ownership-0101", DEMO_1_1)
+    record["nr"]["share_pct_min_exclusive"] = value
+    assert _rules(record) == ["NR"]
+
+
+@pytest.mark.parametrize(
+    ("record_id", "key", "value", "real"),
+    [
+        ("syn-ownership-0101", "is_nominee", True, {"owner": "gbch-psc-T0000001"}),
+        ("syn-ownership-0101", "is_nominee", False, {"asset": "gbch-co-T0000001"}),
+        ("syn-control-0101", "share_pct_min", 50.0, {"controller": "gbch-psc-T0000001"}),
+        ("syn-control-0101", "share_pct_max_exclusive", True, {"controlled": "gbch-co-T0000001"}),
+    ],
+)
+def test_synthetic_nominee_ownership_and_control_band_name_only_synthetic_records(
+    record_id: str, key: str, value: Any, real: dict[str, str]
+) -> None:
+    record = _demo(record_id, DEMO_1_1)
+    record["nr"] = {
+        k: v
+        for k, v in record["nr"].items()
+        if k
+        not in {
+            "share_pct_min",
+            "share_pct_max",
+            "share_pct_min_exclusive",
+            "share_pct_max_exclusive",
+        }
+    }
+    record["nr"][key] = value
+    if key == "share_pct_min":
+        record["nr"]["share_pct_max"] = 75.0
+    assert _rules(record) == []  # every reference is synthetic
+    [(prop, ref)] = real.items()
+    record["properties"][prop] = [ref]
+    issues = validate_record(record)  # the prefix decides, so non-strict mode fails too
+    assert [issue.rule for issue in issues] == ["R6"], [str(i) for i in issues]
+    assert f"with nr.{key} references only synthetic records" in issues[0].message
+    assert ref in issues[0].message
+
+
+def test_synthetic_ownership_and_control_without_the_1_1_keys_may_name_real_records() -> None:
+    ownership = _demo("syn-ownership-0101", DEMO_1_1)
+    ownership["nr"] = {k: v for k, v in ownership["nr"].items() if not k.startswith("share")}
+    ownership["properties"]["owner"] = ["gbch-psc-T0000001"]
+    assert _rules(ownership) == []  # background activity, as in 1.0
+    control = _demo("syn-control-0101", DEMO_1_1)
+    control["nr"] = {k: v for k, v in control["nr"].items() if not k.startswith("share")}
+    control["properties"]["controlled"] = ["gbch-co-T0000001"]
+    assert _rules(control) == []
+
+
+@pytest.mark.parametrize(
+    ("record_id", "dataset", "allowed"),
+    [
+        ("gbch-off-T0000001", "gb_companies_house", True),
+        ("syn-off-0102", "nr_synthetic", True),
+        ("uksl-g0001", "gb_fcdo_sanctions", False),
+        ("icij-node-1", "icij_offshore_leaks", False),
+        ("gleif-lei-SYN0000000000000001", "gleif_lei", False),
+    ],
+)
+def test_ch_person_number_only_on_companies_house_and_synthetic_records(
+    record_id: str, dataset: str, allowed: bool
+) -> None:
+    synthetic = dataset == "nr_synthetic"
+    nr: dict[str, Any] = {"v": "1.1", "ch_person_number": "SYN00101A0001"}
+    if synthetic:
+        nr.update(synthetic=True, synthetic_kind="registry")
+    record = {
+        "id": record_id,
+        "schema": "Person",
+        "datasets": [dataset],
+        "properties": {"name": ["Test Person"]},
+        "nr": nr,
+    }
+    issues = validate_record(record)
+    if allowed:
+        assert issues == []
+    else:
+        assert [issue.rule for issue in issues] == ["NR"], [str(i) for i in issues]
+        assert "nr.ch_person_number is only used on records of gb_companies_house" in (
+            issues[0].message
+        )
+
+
+def test_unknown_keys_still_fail_under_1_1() -> None:
+    [issue] = validate_record(_company(nr={**NR, "v": "1.1", "person_number": "x"}))
+    assert (issue.rule, "nr.person_number" in issue.message) == ("NR", True)
 
 
 # R6 synthetic consistency
@@ -544,6 +746,17 @@ def test_manifest_round_trips() -> None:
     assert Manifest.model_validate_json(text).model_dump(mode="json") == MANIFEST_EXAMPLE
 
 
+@pytest.mark.parametrize("record_contract", ["1.0.0", "1.1.0"])
+def test_manifest_accepts_both_record_contract_versions(record_contract: str) -> None:
+    data = {**MANIFEST_EXAMPLE, "record_contract": record_contract}
+    assert Manifest.model_validate(data).record_contract == record_contract
+
+
+def test_record_contract_is_1_1_0() -> None:
+    assert versions.RECORD == "1.1.0"
+    assert versions.CONTRACTS == "1.2.0"  # C2 1.2.0 (PHASE-3.md 5); C1 stays 1.1.0
+
+
 @pytest.mark.parametrize(
     ("path", "value", "error"),
     [
@@ -567,17 +780,24 @@ def test_manifest_rejects_bad_values(path: tuple[Any, ...], value: Any, error: s
         Manifest.model_validate(data)
 
 
-def test_demo_manifest_matches_its_records() -> None:
-    path = manifest_path(DEMO)
-    assert path.name == "demo.manifest.json"
+@pytest.mark.parametrize(
+    ("records", "name", "record_contract"),
+    [
+        (DEMO, "demo.manifest.json", "1.0.0"),  # the 1.0 example stays as it was written
+        (DEMO_1_1, "demo-1.1.manifest.json", versions.RECORD),
+    ],
+)
+def test_demo_manifests_match_their_records(records: Path, name: str, record_contract: str) -> None:
+    path = manifest_path(records)
+    assert path.name == name
     manifest = Manifest.model_validate_json(path.read_text(encoding="utf-8"))
     [entry] = manifest.files
-    assert entry.path == DEMO.name
-    assert entry.sha256 == hashlib.sha256(DEMO.read_bytes()).hexdigest()
-    counts, _ = validate_files([DEMO], strict=True)
+    assert entry.path == records.name
+    assert entry.sha256 == hashlib.sha256(records.read_bytes()).hexdigest()
+    counts, _ = validate_files([records], strict=True)
     assert entry.records == counts.total()
     assert manifest.counts.by_schema == dict(counts)
-    assert manifest.record_contract == versions.RECORD
+    assert manifest.record_contract == record_contract
 
 
 def test_write_manifest(tmp_path: Path) -> None:

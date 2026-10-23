@@ -87,7 +87,7 @@ def meta(graph: GraphConnection) -> MetaResponse:
         disclaimers=Disclaimers(
             standing=load_disclaimer("standing-v1"),
             synthetic_demo=load_disclaimer("synthetic-demo-v1"),
-            real_data=load_disclaimer("real-data-v1"),
+            real_data=load_disclaimer("real-data-v2"),
         ),
         counts=NO_COUNTS if counts is None else _graph_counts(graph),
     )

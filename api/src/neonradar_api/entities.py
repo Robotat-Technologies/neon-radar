@@ -23,7 +23,8 @@ from neonradar_contracts.api import (
     Subgraph,
 )
 
-RECORD_TYPES: Final[list[str]] = list(get_args(RelationshipType))
+# Every type C3 shows (C3 1.1.0: the 16 built from records and POSSIBLY_SAME_AS).
+SHOWN_TYPES: Final[list[str]] = list(get_args(RelationshipType))
 NOT_FOUND: Final = "No entity has this id."
 # Full-text hits read before the label filter; `total_estimate` counts within this window.
 SEARCH_WINDOW: Final = 200
@@ -160,7 +161,7 @@ def _provenance(props: dict[str, Any]) -> list[ProvenanceRecord]:
 
 
 def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
-    records = graph.read(DETAIL, {"id": entity_id, "types": RECORD_TYPES})
+    records = graph.read(DETAIL, {"id": entity_id, "types": SHOWN_TYPES})
     if not records:
         raise ProblemError(404, NOT_FOUND)
     node = records[0]["node"]
@@ -188,7 +189,7 @@ def network(
 ) -> Subgraph:
     parameters = {
         "id": entity_id,
-        "types": list(dict.fromkeys(rel_types or RECORD_TYPES)),
+        "types": list(dict.fromkeys(rel_types or SHOWN_TYPES)),
         "max_nodes": max_nodes,
         "edge_probe": 2 * max_nodes + 1,
     }

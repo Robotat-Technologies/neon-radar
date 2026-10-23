@@ -1,6 +1,7 @@
 """Canonical wording (PHASE-1.md 7.1, guardrail G5): the disclaimers and the forbidden patterns.
 
-The texts live in contracts/wording/. The disclaimers are verbatim from 7.1 and are served by
+The texts live in contracts/wording/. The disclaimers are verbatim from 7.1 (real-data-v2 from
+PHASE-2.md 5.3) and are served by
 the API (`MetaResponse.disclaimers`); an alert names its disclaimer by id (`disclaimer_id`).
 The forbidden patterns apply to NeonRadar's own entity-facing wording: typology wording
 templates, rendered alert text and, from Phase 4, the copilot's answer templates. They do not
@@ -24,7 +25,8 @@ FORBIDDEN_TERMS_FILE = WORDING_DIR / "forbidden-terms.txt"
 # Match it through `says_synthetic_scenario`, which normalises the text first.
 SYNTHETIC_PHRASE = re.compile(r"\bsynthetic[\s_-]+scenario", re.IGNORECASE)
 
-DisclaimerId = Literal["standing-v1", "synthetic-demo-v1", "real-data-v1"]
+# real-data-v2 (PHASE-2.md 5.3) is the real data notice from C3 1.1.0; v1 stays for the record.
+DisclaimerId = Literal["standing-v1", "synthetic-demo-v1", "real-data-v1", "real-data-v2"]
 DISCLAIMER_IDS: tuple[DisclaimerId, ...] = get_args(DisclaimerId)
 
 

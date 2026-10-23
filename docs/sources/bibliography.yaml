@@ -570,6 +570,14 @@ entries:
     extra_urls: []
     verified: 2026-10-18
     note: "The same band descriptions for eligible Scottish partnerships. Read for docs/research/2026-10-18/bulk-sources-loading.md section 3 (source B30) on 2026-10-18; not re-opened by the build."
+  - key: ca_2006_s790c
+    title: "Companies Act 2006, section 790C (key terms)"
+    publisher: legislation.gov.uk
+    year: 2006
+    url: https://www.legislation.gov.uk/ukpga/2006/46/section/790C
+    extra_urls: []
+    verified: 2026-10-23
+    note: "Subsection 6: in relation to a company, a legal entity is a 'relevant legal entity' if 'it would have come within the definition of a person with significant control over the company if it had been an individual' and 'it is subject to its own disclosure requirements'. Subsection 5: a 'legal entity' is 'a body corporate or a firm that is a legal person under the law by which it is governed'. Not in PHASE-2.md 7.5: added in the M2.14 review for the glossary's PSC entry, because ch_psc_descriptions uses the term only in its statements. Read on legislation.gov.uk on 2026-10-23, in the version valid from 16 July 2026."
   - key: ca_2006_sch1a_para9
     title: "Companies Act 2006, Schedule 1A, paragraph 9 (interests held indirectly)"
     publisher: legislation.gov.uk
@@ -682,7 +690,7 @@ entries:
     url: https://ofac.treasury.gov/faqs/topic/1521
     extra_urls: []
     verified: 2026-10-18
-    note: "FAQ 399: the rule applies to entities owned 50 percent or more in the aggregate by one or more blocked persons. FAQ 401: indirect ownership passes blocked status down a chain entity by entity (X holds 50 percent of A and A holds 50 percent of B, so B is blocked). FAQ 398 (11 August 2020): the rule 'speaks only to ownership and not to control'. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S30) on 2026-10-18; not re-opened by the build."
+    note: "FAQ 399: the rule applies to entities owned 50 percent or more in the aggregate by one or more blocked persons. FAQ 401: indirect ownership passes blocked status down a chain entity by entity (X holds 50 percent of A and A holds 50 percent of B, so B is blocked). FAQ 398 (11 August 2020): the rule 'speaks only to ownership and not to control'. The group also holds FAQs 400 and 402, which the research note did not quote. Read for docs/research/2026-10-18/sanctions-peps.md section 2 (source S30) on 2026-10-18; not re-opened by the build."
   - key: ofac_sham_transactions_2026
     title: Guidance on Sham Transactions and Sanctions Evasion
     publisher: US Department of the Treasury, Office of Foreign Assets Control

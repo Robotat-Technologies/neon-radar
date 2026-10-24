@@ -36,6 +36,9 @@
   - OpenSanctions use follows `access.opensanctions` in `docs/build/project.yaml` through the
     gate in `sources/opensanctions/access.py`: `none` sends no request, and only `licensed`
     writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.
+    The bulk loader (`sources/opensanctions/bulk.py`, M2.7) follows the Phase 2 rule
+    instead (`Project.access_refusal`: only `licensed` or `exempt`), checks it again before
+    any request or file, and removes PEP data unless `access.pep_sources` names it.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
   - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
     username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids

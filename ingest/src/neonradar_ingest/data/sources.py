@@ -16,7 +16,10 @@ from neonradar_ingest.data.profiles import DATASETS, Profile
 from neonradar_ingest.data.project import Project
 from neonradar_ingest.http import HttpClient, RateLimiter
 
-PLUGINS: tuple[str, ...] = ("neonradar_ingest.data.synthetic",)
+PLUGINS: tuple[str, ...] = (
+    "neonradar_ingest.data.synthetic",
+    "neonradar_ingest.sources.opensanctions.bulk",
+)
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {
     "nr_synthetic": "M2.2",
@@ -57,12 +60,18 @@ def default_client() -> HttpClient:
 class SourceSpec:
     """`discover(client)` lists the files of the current version of each product.
 
-    `client` builds the source's HTTP client (its rate limit and redirect rule).
+    `client` builds the source's HTTP client (its rate limit and redirect rule). `products`,
+    when given, names the products a profile needs, each with its own discovery: `data fetch`
+    asks it before any request, so a product the profile does not use is never downloaded,
+    and a product whose discovery fails stops only itself (M2.3b, data minimisation).
     """
 
     dataset: str
     discover: Callable[[HttpClient], list[RemoteFile]]
     client: Callable[[], HttpClient] = default_client
+    products: Callable[[Profile], Mapping[str, Callable[[HttpClient], list[RemoteFile]]]] | None = (
+        None
+    )
 
 
 @dataclass(frozen=True, slots=True)

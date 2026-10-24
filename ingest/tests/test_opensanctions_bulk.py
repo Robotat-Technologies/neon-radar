@@ -1,0 +1,192 @@
+"""The OpenSanctions bulk loader (PHASE-2.md M2.7), offline, on synthetic FtM bodies only.
+
+The export is the M1.8d fixture (`fixtures/opensanctions/entities.ftm.json`) extended with
+`bulk-extra.ftm.json`: a sanctioned person who is also a PEP, a sanctioned company, an
+associated company without topics, a `Vessel` and the relationships between them. The mock
+transport answers `index.json` with a 307 like data.opensanctions.org; nothing touches the
+network, and no row comes from OpenSanctions.
+"""
+
+import hashlib
+import json
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+from typer.testing import CliRunner
+
+from neonradar_cli.main import app
+from neonradar_ingest.data import layout, sources
+from neonradar_ingest.data.gate import RealDataRefused
+from neonradar_ingest.data.profiles import load_profile
+from neonradar_ingest.http import HttpClient, RateLimiter
+from neonradar_ingest.sources.opensanctions.access import REFUSAL
+from neonradar_ingest.sources.opensanctions.mapping import DATASET, record_id
+
+runner = CliRunner()
+FIXTURES = Path(__file__).parent / "fixtures" / "opensanctions"
+EXPORT = b"".join(
+    (FIXTURES / name).read_bytes() for name in ("entities.ftm.json", "bulk-extra.ftm.json")
+)
+HOST = "https://data.opensanctions.org"
+VERSION = "20261015185439-syn"
+SOURCE = {json.loads(line)["id"]: json.loads(line) for line in EXPORT.splitlines()}
+
+
+class Transport:
+    """data.opensanctions.org in miniature: `latest` answers 307 to the versioned artifact."""
+
+    def __init__(self, checksum: str | None = None) -> None:
+        self.requests: list[httpx.Request] = []
+        self.checksum = checksum or hashlib.sha1(EXPORT, usedforsecurity=False).hexdigest()
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        path = request.url.path
+        if path.startswith("/datasets/latest/"):
+            collection = path.split("/")[3]
+            location = f"{HOST}/artifacts/{collection}/{VERSION}/index.json"
+            return httpx.Response(307, headers={"Location": location})
+        collection = path.split("/")[2]
+        if path.endswith("/index.json"):
+            entities = f"{HOST}/artifacts/{collection}/{VERSION}/entities.ftm.json"
+            resource = {"name": "entities.ftm.json", "url": entities, "size": len(EXPORT)}
+            body = {"version": VERSION, "resources": [resource | {"checksum": self.checksum}]}
+            return httpx.Response(200, json=body)
+        return httpx.Response(200, content=EXPORT)
+
+    def client(self) -> HttpClient:
+        mock = httpx.MockTransport(self)
+        return HttpClient(HOST, follow_redirects=True, limiter=RateLimiter(1000), transport=mock)
+
+
+@pytest.fixture
+def mock(data_env: Any, monkeypatch: pytest.MonkeyPatch) -> Transport:
+    transport = Transport()
+    sources.load_plugins()  # registers the loader
+    spec = replace(sources.source_spec(DATASET), client=transport.client)  # type: ignore[type-var]
+    monkeypatch.setitem(sources._SOURCES, DATASET, spec)
+    return transport
+
+
+def setup(data_env: Any, *, access: str = "licensed", peps: bool = False, **block: Any) -> None:
+    sources_block = {DATASET: {"enabled": True, **block}}
+    data_env.write_profile("uk-test", real_data=True, sources=sources_block)
+    data_env.allow_real("uk-test", opensanctions=access, pep_sources=[DATASET] if peps else [])
+
+
+def run(*command: str) -> Any:
+    return runner.invoke(app, [*command, "--profile", "uk-test", "--dataset", DATASET])
+
+
+def fetch_and_build() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Records by OpenSanctions id (from `nr.source_ref`) and the build summary's counts."""
+    for command in (("data", "fetch"), ("ingest", "build")):
+        result = run(*command)
+        assert result.exit_code == 0, result.output
+    folder = layout.records_dir("uk-test", DATASET)
+    records = [json.loads(line) for path in folder.glob("*.ftm.jsonl") for line in path.open()]
+    reports = sorted(layout.reports_dir("uk-test").glob("ingest-build-*.json"))
+    summary = json.loads(reports[-1].read_text(encoding="utf-8"))["datasets"][DATASET]
+    return {record["nr"]["source_ref"]: record for record in records}, summary
+
+
+def topics(record: dict[str, Any]) -> list[str]:
+    return list(record["properties"].get("topics", []))
+
+
+def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
+    setup(data_env, peps=True)
+    by_source, summary = fetch_and_build()
+    for record in by_source.values():
+        assert record["id"] == record_id(record["nr"]["source_ref"])
+        assert record["datasets"] == [DATASET]
+    assert by_source["syn-os-ownership-02"]["properties"] == {
+        "owner": [record_id("NK-synCompanyZeta")],
+        "asset": [record_id("syn-os-company-eta")],
+        "percentage": ["100"],
+    }
+    # Vessel and Identification are not C1 schemata; the ownership of the vessel loses its end.
+    assert "syn-os-vessel-theta" not in by_source and "syn-os-ident-01" not in by_source
+    assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 1, "vessel": 1}
+    assert summary["relationships_dropped"] == {"ownership": 1}
+    assert summary["records"] == len(by_source) == 16
+    paths = [r.url.path for r in mock.requests]
+    assert paths[0] == "/datasets/latest/sanctions/index.json"  # the default collection
+    assert not any("/default/" in path for path in paths)
+
+
+def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Transport) -> None:
+    setup(data_env, peps=True)
+    by_source, summary = fetch_and_build()
+    for source_id, record in by_source.items():
+        assert topics(record) == SOURCE[source_id]["properties"].get("topics", [])
+    assert {"NK-synPersonAlpha", "syn-os-position_01", "syn-os-occupancy-01"} <= set(by_source)
+    assert summary["pep_data"] == "kept"
+    assert summary["pep_role_topics_removed"] == summary["pep_only_entities_skipped"] == {}
+
+
+def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Transport) -> None:
+    setup(data_env)
+    by_source, summary = fetch_and_build()
+    assert topics(by_source["NK-synPersonEpsilon"]) == ["sanction", "gov.national"]
+    skipped = {"NK-synPersonAlpha", "NK-synPersonBeta", "syn-os-position_01"}
+    skipped |= {"syn-os-occupancy-01", "syn-os-family-01", "syn-os-directorship-01"}
+    assert not skipped & set(by_source)
+    # Never had a flag topic: they stay; the associated company loses the dangling reference.
+    assert {"syn-os-address-01", "syn-os-company-eta", "syn-os-ownership-02"} <= set(by_source)
+    assert "parent" not in by_source["syn-os-company-eta"]["properties"]
+    assert not any(t.startswith("role.") for r in by_source.values() for t in topics(r))
+    assert summary["pep_data"] == "removed"
+    assert summary["pep_role_topics_removed"] == {"role.pep": 1}
+    assert summary["pep_schemata_skipped"] == {"occupancy": 1, "position": 1}
+    assert summary["pep_only_entities_skipped"] == {"person": 2}
+    assert summary["relationships_dropped"] == {"directorship": 1, "family": 1, "ownership": 1}
+    assert summary["references_removed"] == {"company:parent": 1}
+    assert summary["flags"] == {"sanctioned": 3}  # Gamma, Epsilon, Zeta; sanction.linked sets none
+
+
+def test_the_default_collection_downloads_only_that_collection(
+    data_env: Any, mock: Transport
+) -> None:
+    setup(data_env, collection="default")
+    fetch_and_build()
+    paths = [request.url.path for request in mock.requests]
+    assert paths[0] == "/datasets/latest/default/index.json"
+    assert all("/default/" in path for path in paths)
+
+
+def test_a_checksum_that_does_not_match_stops_the_build(data_env: Any, mock: Transport) -> None:
+    setup(data_env)
+    mock.checksum = "0" * 40
+    assert run("data", "fetch").exit_code == 0
+    result = run("ingest", "build")
+    assert result.exit_code == 1
+    assert "SHA-1" in result.output
+    assert not layout.records_dir("uk-test", DATASET).exists()
+
+
+@pytest.mark.parametrize("access", ["none", "evaluation"])
+@pytest.mark.parametrize("command", [("data", "fetch"), ("ingest", "build")])
+def test_gate_refuses_without_licensed_or_exempt_access(
+    data_env: Any, mock: Transport, access: str, command: tuple[str, str]
+) -> None:
+    setup(data_env, access=access)  # the profile and the machine are allowed
+    result = run(*command)
+    assert result.exit_code == 3, result.output
+    assert REFUSAL in result.output and f"(it is {access})" in result.output
+    assert mock.requests == []
+    real = data_env.cache / "real"
+    assert not [path for path in real.rglob("*") if path.is_file()] if real.exists() else True
+
+
+def test_gate_in_the_loader_itself_sends_no_request(data_env: Any, mock: Transport) -> None:
+    setup(data_env, access="none")
+    profile = load_profile("uk-test")
+    spec = sources.source_spec(DATASET)
+    assert spec is not None and spec.products is not None
+    with pytest.raises(RealDataRefused, match=r"needs access\.opensanctions licensed or exempt"):
+        spec.products(profile)["sanctions"](mock.client())
+    assert mock.requests == []

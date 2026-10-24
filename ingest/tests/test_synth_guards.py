@@ -96,9 +96,10 @@ def test_owned_payments_and_relationships_move_no_scenario_draw(
     """Independent review of #72: `created` holds what the code book puts there (entities,
     accounts, addresses, positions), and the payments and relationships a scenario owns live
     in `links`, so cash_commingling, which keys a stream on `len(s.created)`, draws the same
-    incorporation and opening dates however many it owns. The dates themselves are pinned by
-    a SHA-256: the code book's draw (0da5bed and f5a6c34 give it; 90165a5, which put the
-    links in `created`, did not)."""
+    incorporation and opening dates however many it owns. The overlay's incorporation and
+    opening dates (302 values, cash_commingling's among them) are pinned by a SHA-256: the
+    code book's draw (0da5bed and f5a6c34 give it; 90165a5, which put the links in
+    `created`, did not)."""
     made: list[ScenarioCtx] = []
 
     class Recording(ScenarioCtx):

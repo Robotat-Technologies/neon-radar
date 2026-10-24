@@ -165,17 +165,52 @@ def catalog_entries() -> list[dict[str, Any]]:
     return entries
 
 
+def wording_texts(wording: dict[str, Any]) -> list[str]:
+    """Every template of a typology file's `wording`: the Phase 1 headlines, and from Phase 3
+    `detail` and each template of every entry under `variants` (PHASE-3.md 7.5.2)."""
+    texts: list[str] = []
+    for key, value in wording.items():
+        if key == "variants":
+            assert isinstance(value, dict), "wording.variants maps a variant to its templates"
+            for variant in value.values():
+                assert isinstance(variant, dict), variant
+                for text in variant.values():
+                    assert isinstance(text, str), variant
+                    texts.append(text)
+        else:
+            assert isinstance(value, str), key
+            texts.append(value)
+    return texts
+
+
 def catalog_templates() -> list[str]:
     templates = list(SPEC_TEMPLATES)
     for entry in catalog_entries():
-        templates += list((entry.get("wording") or {}).values())
+        templates += wording_texts(entry.get("wording") or {})
     return templates
 
 
 def names_with_detector() -> list[str]:
+    """Each detector typology's `name`, and from Phase 3 its `shape_name` (PHASE-3.md 7.5.2)."""
     names = list(SPEC_NAMES_WITH_DETECTOR)
-    names += [entry["name"] for entry in catalog_entries() if entry.get("detector")]
+    for entry in catalog_entries():
+        if entry.get("detector"):
+            names += [entry["name"], *([entry["shape_name"]] if entry.get("shape_name") else [])]
     return names
+
+
+def test_wording_variants_and_detail_are_linted() -> None:
+    wording = {
+        "headline_structural": "Ownership layered through {company_layers}",
+        "detail": "{assessment}",
+        "variants": {"loop": {"headline_structural": "Ownership loop", "headline_synthetic": "x"}},
+    }
+    texts = wording_texts(wording)
+    assert texts == [
+        "Ownership layered through {company_layers}", "{assessment}", "Ownership loop", "x",
+    ]  # fmt: skip
+    bad = {"variants": {"loop": {"headline_structural": "a shell company loop"}}}
+    assert find_forbidden(wording_texts(bad)[0])
 
 
 @pytest.mark.parametrize("template", catalog_templates())

@@ -1,0 +1,15 @@
+# Expected record counts per list and schema (PHASE-2.md M2.6, rule 10). A build outside a range
+# fails with exit code 4 unless --accept-size is given. The data steward may widen a range in a
+# reviewed pull request after reading the list's publication page.
+gb_fcdo_sanctions:
+  Person: [3000, 7200]
+  Organization: [900, 3000]
+us_ofac_sdn:
+  Person: [5000, 11000]
+  Organization: [6000, 14000]
+un_sc_sanctions:
+  Person: [500, 1100]
+  Organization: [180, 420]
+eu_fsf:
+  Person: [3400, 8000]
+  Organization: [970, 2300]

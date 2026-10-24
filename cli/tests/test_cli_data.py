@@ -45,14 +45,25 @@ def test_data_fetch_refuses_a_real_profile_by_default(data_env: Any) -> None:
     assert "uk-tiny is not in access.real_data_profiles" in result.output
 
 
-def test_data_fetch_names_the_missing_loaders(data_env: Any) -> None:
+def test_data_fetch_names_the_missing_loaders(
+    data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every loader that has arrived (Companies House M2.3a, GLEIF M2.4, ICIJ M2.5 and the
+    # sanctions lists from M2.6a) finds nothing here: no request, no file. The EU list's is
+    # taken out, as if it had not arrived, so the command names it.
+    for slug in list(sources._SOURCES):
+        monkeypatch.setitem(sources._SOURCES, slug, sources.SourceSpec(slug, lambda client: []))
+    monkeypatch.delitem(sources._SOURCES, "eu_fsf", raising=False)
     data_env.write_project(real_data_profiles=["uk-tiny"], data_protection_filed=True)
     data_env.approve_machine()
     result = runner.invoke(app, ["data", "fetch", "--profile", "uk-tiny"])
     assert result.exit_code == 0, result.output
-    assert "gb_companies_house: not available until M2.3a" in result.output
+    assert "eu_fsf: not available until M2.6d" in result.output
     report = reports(data_env, "uk-tiny")[0]
     assert report["datasets"]["eu_fsf"] == {"status": "not available until M2.6d"}
+    for slug in ("gb_companies_house", "gleif_lei", "gb_fcdo_sanctions"):
+        assert report["datasets"][slug] == {"status": "ok", "products": {}}
+    assert not (data_env.cache / "real").exists()  # nothing downloaded
     assert report["project_file"] == "(outside the repository) project.yaml"
     result = runner.invoke(
         app, ["data", "fetch", "--profile", "uk-tiny", "--dataset", "icij_offshore_leaks"]

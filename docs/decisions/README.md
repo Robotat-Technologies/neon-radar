@@ -27,6 +27,7 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0014](0014-entity-resolution-approach-and-thresholds.md) | Entity resolution approach and thresholds | M2.10b | proposed | tech lead, graph mentor |
 | [0015](0015-merge-policy-for-listed-and-leaked-records.md) | Merge policy for listed and leaked records | M2.10a | proposed | data steward, project lead, tech lead |
 | [0016](0016-canonical-ids-and-source-records.md) | Canonical ids and source records | M2.11 | proposed | tech lead |
+| [0017](0017-official-sanctions-and-pep-sources.md) | Official sources for sanctions and PEP data | M2.6a | proposed | data steward, project lead |
 | [0018](0018-real-data-handling.md) | Real-data handling | M2.0 | proposed | data steward |
 | [0019](0019-ownership-and-effective-share.md) | Ownership and effective share calculation | M2.12 | proposed | tech lead, graph mentor |
 

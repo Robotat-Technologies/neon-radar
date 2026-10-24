@@ -310,6 +310,8 @@ def _node_row(record: Record, schema: Schema, mapping: NodeMapping, synthetic: b
     props |= _resolution_props(names, mapping, 1, "identity")
     if "Address" in mapping.labels and (found := _address_key(record)):
         props["address_key"] = found
+    for name in mapping.empty_lists:  # C2 1.2.0: `Sanction.provisions` is [] when absent
+        props.setdefault(name, [])
     return NodeRow(schema.name, rid, props, _flags(topics, synthetic, mapping))
 
 

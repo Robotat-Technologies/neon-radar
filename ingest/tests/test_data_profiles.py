@@ -20,7 +20,7 @@ def test_the_committed_profiles_load_and_say_what_they_are(data_env: Any) -> Non
         "data/fixtures/demo-mini",
         "data/fixtures/er-bench",
     ]
-    assert tiny.options("gb_companies_house")["companies"]["max_companies"] == 400
+    assert tiny.options("gb_companies_house").companies.max_companies == 400
     assert sample.sources["icij_offshore_leaks"].options["mode"] == "district-linked"
     assert sample.resolution.config == "resolve/config/er.yaml"
 

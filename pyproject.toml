@@ -14,6 +14,9 @@ dev = [
     "pytest-cov>=7.1,<8",
     "pre-commit>=4.7,<5",
     "types-PyYAML>=6.0,<7",
+    "types-defusedxml>=0.7,<0.8",
+    # Validates the list fixtures against the publishers' XSDs, offline (PHASE-2.md M2.6).
+    "xmlschema==4.3.*",
     "testcontainers[neo4j]>=4.15,<5",
     # FastAPI's TestClient (api/tests); httpx2 is not an encode project, so not used (M1.7d).
     "httpx>=0.28,<0.29",

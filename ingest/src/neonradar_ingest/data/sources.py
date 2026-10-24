@@ -16,7 +16,16 @@ from neonradar_ingest.data.profiles import DATASETS, Profile
 from neonradar_ingest.data.project import Project
 from neonradar_ingest.http import HttpClient, RateLimiter
 
-PLUGINS: tuple[str, ...] = ("neonradar_ingest.data.synthetic",)
+PLUGINS: tuple[str, ...] = (
+    "neonradar_ingest.data.synthetic",
+    "neonradar_ingest.sources.companies_house.build",
+    "neonradar_ingest.sources.gleif.golden_copy",
+    "neonradar_ingest.sources.icij.full",
+    "neonradar_ingest.sources.lists.gb_fcdo",
+    "neonradar_ingest.sources.lists.us_ofac",
+    "neonradar_ingest.sources.lists.un_sc",
+    "neonradar_ingest.sources.lists.eu_fsf",
+)
 # Where each dataset's loader arrives; `data fetch` and `ingest build` name it until then.
 AVAILABLE_IN = {
     "nr_synthetic": "M2.2",
@@ -57,12 +66,22 @@ def default_client() -> HttpClient:
 class SourceSpec:
     """`discover(client)` lists the files of the current version of each product.
 
-    `client` builds the source's HTTP client (its rate limit and redirect rule).
+    `client` builds the source's HTTP client (its rate limit and redirect rule). `products`,
+    when given, names the products a profile needs, each with its own discovery: `data fetch`
+    asks it before any request, so a product the profile does not use is never downloaded,
+    and a product whose discovery fails stops only itself (M2.3b, data minimisation).
+    `precheck()`, when given, raises `gate.RealDataRefused` for a condition of the dataset's
+    own (the UN list's written permission, M2.6c); `data fetch` and `ingest build` run it in
+    their gate pass, after the gate and before any request or build.
     """
 
     dataset: str
     discover: Callable[[HttpClient], list[RemoteFile]]
     client: Callable[[], HttpClient] = default_client
+    products: Callable[[Profile], Mapping[str, Callable[[HttpClient], list[RemoteFile]]]] | None = (
+        None
+    )
+    precheck: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,11 +114,22 @@ class BuildResult:
 
 @dataclass(frozen=True, slots=True)
 class Builder:
+    """`cleanup`, when given, runs only after a successful build and swap (for example to
+    delete work indexes), so a failed validation leaves the work files in place. `plan`,
+    when given, names the steps a build of a profile runs for the requested ones (empty: all),
+    so `ingest build` gates only those."""
+
     dataset: str
     build: Callable[[Profile, BuildContext], BuildResult]
     steps: tuple[str, ...] = ()
     string_keys: tuple[str, ...] = ()
     list_keys: tuple[str, ...] = ()
+    cleanup: Callable[[Profile, BuildContext, BuildResult], None] | None = None
+    plan: Callable[[Profile, tuple[str, ...]], tuple[str, ...]] | None = None
+
+    def planned(self, profile: Profile, steps: tuple[str, ...]) -> tuple[str, ...]:
+        """The steps a build runs: `plan`'s answer, else the requested ones, else all."""
+        return self.plan(profile, steps) if self.plan else steps or self.steps
 
 
 class BuildError(Exception):

@@ -147,15 +147,22 @@ def _hashed_lines(path: Path, digest: Any) -> Iterator[bytes]:
             yield line
 
 
+def _known(name: str) -> bool:
+    """A schema or topic, or `Schema:property`, exactly as FollowTheMoney names it."""
+    schema_name, colon, prop = name.partition(":")
+    schema = model.get(schema_name)
+    if colon:
+        return schema is not None and prop in schema.properties
+    return schema is not None or name in registry.topic.names
+
+
 def _vocab(counter: Mapping[str, int]) -> dict[str, int]:
     """Counts keyed by lower-case FtM vocabulary (schemata, topics, properties) for the summary;
     a name FollowTheMoney does not know is counted under `unknown`, never shown."""
     out: Counter[str] = Counter()
+    special = {NOT_JSON: "not_json", MALFORMED: "malformed"}
     for name, count in counter.items():
-        schema = name.split(":", 1)[0]
-        known = name in registry.topic.names or model.get(schema) is not None
-        key = {NOT_JSON: "not_json", MALFORMED: "malformed"}.get(name, name.lower())
-        out[key if known or name in (NOT_JSON, MALFORMED) else "unknown"] += count
+        out[special.get(name) or (name.lower() if _known(name) else "unknown")] += count
     return dict(sorted(out.items()))
 
 
@@ -166,16 +173,19 @@ class _Pep:
         self.topics_removed: Counter[str] = Counter()
         self.schemata_skipped: Counter[str] = Counter()
         self.pep_only_skipped: Counter[str] = Counter()
+        self.skipped_ids: set[str] = set()
 
     def keep(self, record: dict[str, Any]) -> bool:
         schema, props = record["schema"], record["properties"]
         if schema in PEP_SCHEMATA:
             self.schemata_skipped[schema] += 1
+            self.skipped_ids.add(record["id"])
             return False
         topics: list[str] = props.get("topics", [])
         flags = flag_topics(topics)
         if flags and all(is_role(topic) for topic in flags):
             self.pep_only_skipped[schema] += 1
+            self.skipped_ids.add(record["id"])
             return False
         removed = [topic for topic in topics if is_role(topic)]
         if removed:
@@ -227,9 +237,11 @@ def _map(entities: Path, work: Path, pep: _Pep | None, stats: MappingStats) -> t
     return kept, digest.hexdigest()
 
 
-def _write(work: Path, path: Path, kept: set[str]) -> dict[str, Counter[str]]:
-    """Pass 2: drop or trim the references of each record, write it, count what it holds."""
-    counts = {key: Counter[str]() for key in ("written", "dropped", "removed", "topics", "flags")}
+def _write(work: Path, path: Path, kept: set[str], pep_ids: set[str]) -> dict[str, Counter[str]]:
+    """Pass 2: drop or trim the references of each record, write it, count what it holds;
+    `pep_dropped` counts the dropped relationships with an end the PEP rule skipped."""
+    keys = ("written", "dropped", "pep_dropped", "removed", "topics", "flags")
+    counts = {key: Counter[str]() for key in keys}
     with (
         work.open(encoding="utf-8") as lines,
         path.open("w", encoding="utf-8", newline="\n") as out,
@@ -238,7 +250,10 @@ def _write(work: Path, path: Path, kept: set[str]) -> dict[str, Counter[str]]:
             data = json.loads(line)
             record = _references(data, kept, counts["removed"])
             if record is None:
-                counts["dropped"][data["schema"]] += 1
+                schema, props = data["schema"], data["properties"]
+                counts["dropped"][schema] += 1
+                if pep_ids & {value for end in _ends(schema) for value in props.get(end, [])}:
+                    counts["pep_dropped"][schema] += 1
                 continue
             topics = record["properties"].get("topics", [])
             counts["written"][record["schema"]] += 1
@@ -267,7 +282,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
         if sha1 != checksum.lower():
             message = f"{DATASET}: the SHA-1 of {ENTITIES_FILE} does not match index.json"
             raise BuildError(message, "checksum", counts_only=True)
-        counts = _write(work, path, kept)
+        counts = _write(work, path, kept, pep.skipped_ids if pep else set())
     finally:
         if not context.keep_work:
             work.unlink(missing_ok=True)
@@ -302,7 +317,8 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             "pep_role_topics_removed": _vocab(pep.topics_removed),
             "pep_schemata_skipped": _vocab(pep.schemata_skipped),
             "pep_only_entities_skipped": _vocab(pep.pep_only_skipped),
-            "relationships_dropped": _vocab(counts["dropped"]),
+            "relationships_dropped": _vocab(counts["dropped"]),  # both causes
+            "pep_relationships_dropped": _vocab(counts["pep_dropped"]),
             "references_removed": _vocab(counts["removed"]),
             "topics": _vocab(counts["topics"]),
             "flags": {label.lower(): n for label, n in sorted(counts["flags"].items())},

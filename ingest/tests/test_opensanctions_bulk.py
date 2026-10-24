@@ -21,7 +21,10 @@ from neonradar_cli.main import app
 from neonradar_ingest.data import layout, sources
 from neonradar_ingest.data.gate import RealDataRefused
 from neonradar_ingest.data.profiles import load_profile
+from neonradar_ingest.data.project import load_project
+from neonradar_ingest.data.sources import BuildContext
 from neonradar_ingest.http import HttpClient, RateLimiter
+from neonradar_ingest.sources.opensanctions import bulk
 from neonradar_ingest.sources.opensanctions.access import REFUSAL
 from neonradar_ingest.sources.opensanctions.mapping import DATASET, record_id
 
@@ -38,9 +41,10 @@ SOURCE = {json.loads(line)["id"]: json.loads(line) for line in EXPORT.splitlines
 class Transport:
     """data.opensanctions.org in miniature: `latest` answers 307 to the versioned artifact."""
 
-    def __init__(self, checksum: str | None = None) -> None:
+    def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
-        self.checksum = checksum or hashlib.sha1(EXPORT, usedforsecurity=False).hexdigest()
+        self.export = EXPORT
+        self.checksum: str | None = None  # None: the export's SHA-1; "": index.json names none
         self.entities_host = HOST
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -53,10 +57,12 @@ class Transport:
         collection = path.split("/")[2]
         if path.endswith("/index.json"):
             entities = f"{self.entities_host}/artifacts/{collection}/{VERSION}/entities.ftm.json"
-            resource = {"name": "entities.ftm.json", "url": entities, "size": len(EXPORT)}
-            body = {"version": VERSION, "resources": [resource | {"checksum": self.checksum}]}
-            return httpx.Response(200, json=body)
-        return httpx.Response(200, content=EXPORT)
+            sha1 = hashlib.sha1(self.export, usedforsecurity=False).hexdigest()
+            checksum = sha1 if self.checksum is None else self.checksum
+            resource = {"name": "entities.ftm.json", "url": entities, "size": len(self.export)}
+            resource |= {"checksum": checksum} if checksum else {}
+            return httpx.Response(200, json={"version": VERSION, "resources": [resource]})
+        return httpx.Response(200, content=self.export)
 
     def client(self) -> HttpClient:
         mock = httpx.MockTransport(self)
@@ -181,7 +187,21 @@ def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     assert "syn-os-vessel-theta" not in by_source and "syn-os-ident-01" not in by_source
     assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 1, "vessel": 1}
     assert summary["relationships_dropped"] == {"ownership": 1}
+    assert summary["pep_relationships_dropped"] == {}
     assert summary["records"] == len(by_source) == 16
+
+
+def test_a_schema_followthemoney_does_not_know_is_never_shown(
+    data_env: Any, mock: Transport
+) -> None:
+    setup(data_env, peps=True)
+    mock.export = (
+        EXPORT + b'{"id": "syn-os-leak-01", "schema": "Person:syn-leak", "properties": {}}\n'
+    )
+    _, summary = fetch_and_build()
+    assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 2, "vessel": 1}
+    reports = layout.reports_dir("uk-test").glob("*.json")
+    assert not any("syn-leak" in path.read_text(encoding="utf-8") for path in reports)
 
 
 def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Transport) -> None:
@@ -210,15 +230,29 @@ def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Trans
     assert summary["pep_schemata_skipped"] == {"occupancy": 1, "position": 1}
     assert summary["pep_only_entities_skipped"] == {"person": 2}
     assert summary["relationships_dropped"] == {"directorship": 1, "family": 1, "ownership": 1}
+    assert summary["pep_relationships_dropped"] == {"directorship": 1, "family": 1}
     assert summary["references_removed"] == {"company:parent": 1}
     assert summary["flags"] == {"sanctioned": 3}  # Gamma, Epsilon, Zeta; sanction.linked sets none
 
 
-def test_a_checksum_that_does_not_match_stops_the_build(data_env: Any, mock: Transport) -> None:
+@pytest.mark.parametrize(("checksum", "message"), [("0" * 40, "SHA-1"), ("", "no checksum")])
+def test_a_checksum_that_is_missing_or_does_not_match_stops_the_build(
+    data_env: Any, mock: Transport, checksum: str, message: str
+) -> None:
     setup(data_env)
-    mock.checksum = "0" * 40
+    mock.checksum = checksum
     assert run("data", "fetch").exit_code == 0
     result = run("ingest", "build")
     assert result.exit_code == 1
-    assert "SHA-1" in result.output
+    assert message in result.output
     assert not layout.records_dir("uk-test", DATASET).exists()
+
+
+def test_gate_in_the_builder_itself(data_env: Any, mock: Transport, tmp_path: Path) -> None:
+    setup(data_env)
+    assert run("data", "fetch").exit_code == 0  # the download is there
+    data_env.allow_real("uk-test", opensanctions="none", pep_sources=[])
+    context = BuildContext(load_project(), "build-1", tmp_path / "out", tmp_path / "work")
+    with pytest.raises(RealDataRefused, match=r"needs access\.opensanctions licensed or exempt"):
+        bulk.build(load_profile("uk-test"), context)
+    assert not (tmp_path / "out").exists() and not (tmp_path / "work").exists()

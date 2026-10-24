@@ -342,9 +342,13 @@ def load_command(
             report = loader.load(
                 folders, run_dir, not no_replace, Instance.REAL, strict=strict, timeout_s=timeout
             )
-        counts = {"profile": chosen.profile if chosen else None, "run_id": report.resolution_run}
-        name = chosen if chosen is not None else layout.ALL_PROFILES
-        summary.emit(name, "graph load", {**counts, "instance_real": True, **report.counts()})
+            where.step = "summary"
+            counts = {
+                "profile": chosen.profile if chosen else None,
+                "run_id": report.resolution_run,
+            }
+            name = chosen if chosen is not None else layout.ALL_PROFILES
+            summary.emit(name, "graph load", {**counts, "instance_real": True, **report.counts()})
     _finish(report, instance)
 
 
@@ -416,8 +420,9 @@ def _load_overlay(value: str, name: str | None, timeout: float) -> tuple[LoadRep
             report = ov.load_overlay(
                 folder, chosen.profile, Instance.REAL, allowed, timeout_s=timeout
             )
-        counts = {"profile": chosen.profile, "overlay_id": folder.name, "instance_real": True}
-        summary.emit(chosen, "graph load", counts | report.counts(), string_keys=["overlay_id"])
+            where.step = "summary"
+            counts = {"profile": chosen.profile, "overlay_id": folder.name, "instance_real": True}
+            summary.emit(chosen, "graph load", counts | report.counts(), string_keys=["overlay_id"])
         return report, Instance.REAL
     if value == "latest" and chosen is None:
         raise _fail("--overlay latest needs --profile NAME", 2)

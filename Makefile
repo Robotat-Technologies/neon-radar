@@ -144,9 +144,7 @@ DEMO_FIXTURE := data/fixtures/demo-mini/
 E2E_BASE_URL ?= http://localhost:8080
 API_UP_PY := import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)
 
-# One profile end to end (PHASE-2.md M2.13): build, resolve, migrate, load and verify, plus the
-# fetch for a real profile; one counts-only summary in data/cache/reports/<profile>/. The demo
-# profile needs `make up`; a real profile `make up-real` on an approved machine.
+# One profile end to end (PHASE-2.md M2.13): the demo profile needs `make up`, a real one `make up-real`.
 PROFILE ?= demo
 load: ## one profile end to end (PROFILE=demo; a real profile needs make up-real and its approvals)
 	uv run neonradar load --profile $(PROFILE)

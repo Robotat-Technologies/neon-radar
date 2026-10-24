@@ -114,7 +114,10 @@ def _params(
     from neonradar_detect import catalog as catalog_module
     from neonradar_detect import runner
 
-    modules = runner.detectors(catalog)
+    try:  # a detector module missing, a SLUG that differs, a typology outside runner.ORDER
+        modules = runner.detectors(catalog)
+    except (ImportError, ValueError) as error:
+        raise _fail(f"cannot load the detectors: {error}") from None
     if chosen:
         for slug in chosen:
             if slug not in catalog:
@@ -262,7 +265,12 @@ def list_command() -> None:
     with_detector = 0
     for slug, item in sorted(typologies.items()):
         detector = "no detector"
-        if item.detector:
+        own = f"{catalog.DETECTOR_PACKAGE}.{slug}"
+        if item.detector and item.detector != own:
+            # Never import a module path read from a file: only the package's own module for
+            # the slug, the one module catalog.load() lets the runner import (reconciliation C5).
+            detector = f"detector must be {own}"
+        elif item.detector:
             try:
                 module = import_module(item.detector)
                 detector = f"{item.detector} {module.VERSION}"
@@ -302,6 +310,8 @@ def verify_alert_command(
             if run is not None:
                 run_id = runs.latest() if run == "latest" else runs.check_run_id(run)
                 meta = runs.read_run(run_id)
+                if meta.get("status") != "ok":  # LATEST names a run even when it failed
+                    raise _fail(f"run {run_id} failed: nothing to verify")
                 if meta.get("engine") == "memory":
                     raise _fail(f"run {run_id} ran in memory: its alerts are not in the graph", 2)
                 ids = runs.run_alert_ids(driver, settings.database, run_id)

@@ -476,5 +476,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
 
 
 register_source_model(DATASET, shared.ListOptions)
-register_source(SourceSpec(DATASET, shared.discover_static(FILE_NAME, URL)))
+register_source(
+    SourceSpec(DATASET, shared.discover_static(FILE_NAME, URL), client=shared.list_client)
+)
 register_builder(Builder(DATASET, build, string_keys=("list_generated",)))

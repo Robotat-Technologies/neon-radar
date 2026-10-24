@@ -76,8 +76,8 @@
     (`:SourceRecord` and `RESOLVED_TO`); a merged entity's provenance is its source records.
   - Logs name the route template (`request.scope["route"].path`), never `request.url.path`:
     a path holds ids. `create_app(report=...)` builds the real-data app: no CORS, unhandled
-    errors log their class only and `report` keeps the traceback; wrap it in
-    `problems.Contained` so Starlette's re-raise never reaches uvicorn's traceback log.
+    errors log their class only and `report` keeps the traceback (`problems.Reported`, inside
+    `Contain`, which answers the 500 and never re-raises; no `Contained` wrapper since M4.1).
   - `shapes` only re-exports `neonradar_graph.shapes` for C3's Code line (reconciliation K1).
   - Unit tests never touch Neo4j: pass a `GraphConnection` subclass to `create_app`
     (`tests/conftest.py`: `OfflineGraph`, `ScriptedGraph`), and build the settings error

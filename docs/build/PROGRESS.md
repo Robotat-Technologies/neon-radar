@@ -79,7 +79,7 @@ One row per milestone pull request. Status values: `todo`, `in-progress`, `pr-op
 | M3.5d | todo | - | - | 2026-10-22 | - | - |
 | M3.5e | todo | - | - | 2026-10-22 | - | - |
 | M3.5f | todo | - | - | 2026-10-22 | - | - |
-| M3.6 | todo | - | - | 2026-10-22 | - | - |
+| M3.6 | in-progress | p3/m3-6-eval-harness | - (draft PR pending: GitHub unreachable) | 2026-10-24 | spec_extract check --milestone M3.6: 13 of 13 match, 0 recorded deviations; evaluation tests 13 passed; test_eval_cli.py 9 passed; eval check: circular_flow OK, 13 pending, exit 0; eval run --split dev --seeds 1-5: circular_flow 0.94 (47/50), precision 1.00 (47/47), equal to 7.6.5 | Size exception; branch name assigned by the orchestrator; I001 ignored for the five verbatim Python files; eval added to the required checks of the protection script; --split test always refuses until M3.11 (G11) |
 | M3.7 | todo | - | - | 2026-10-22 | - | - |
 | M3.8 | todo | - | - | 2026-10-22 | - | - |
 | M3.9 | todo | - | - | 2026-10-22 | - | - |

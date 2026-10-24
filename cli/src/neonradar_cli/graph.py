@@ -420,8 +420,9 @@ def _load_overlay(value: str, name: str | None, timeout: float) -> tuple[LoadRep
             report = ov.load_overlay(
                 folder, chosen.profile, Instance.REAL, allowed, timeout_s=timeout
             )
-        counts = {"profile": chosen.profile, "overlay_id": folder.name, "instance_real": True}
-        summary.emit(chosen, "graph load", counts | report.counts(), string_keys=["overlay_id"])
+            where.step = "summary"
+            counts = {"profile": chosen.profile, "overlay_id": folder.name, "instance_real": True}
+            summary.emit(chosen, "graph load", counts | report.counts(), string_keys=["overlay_id"])
         return report, Instance.REAL
     if value == "latest" and chosen is None:
         raise _fail("--overlay latest needs --profile NAME", 2)

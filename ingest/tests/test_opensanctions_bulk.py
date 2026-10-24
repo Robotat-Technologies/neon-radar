@@ -1,10 +1,10 @@
 """The OpenSanctions bulk loader (PHASE-2.md M2.7), offline, on synthetic FtM bodies only.
 
 The export is the M1.8d fixture (`fixtures/opensanctions/entities.ftm.json`) extended with
-`bulk-extra.ftm.json`: a sanctioned person who is also a PEP, a debarred PEP, a sanctioned
-company, an associated company without topics, a `Vessel` and the relationships between them.
-The mock transport answers `index.json` with a 307 like data.opensanctions.org; nothing touches
-the network, and no row comes from OpenSanctions.
+`bulk-extra.ftm.json`: a sanctioned person who is also a PEP, a sanctioned company, an
+associated company without topics, a `Vessel` and the relationships between them. The mock
+transport answers `index.json` with a 307 like data.opensanctions.org; nothing touches the
+network, and no row comes from OpenSanctions.
 """
 
 import hashlib

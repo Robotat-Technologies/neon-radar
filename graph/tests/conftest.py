@@ -53,12 +53,13 @@ def demo_resolution(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def real_neo4j() -> Iterator[Neo4jTarget]:
     """A second container started like `neo4j-real` (its database `REAL_DATABASE`), migrated,
     for look-alike records built in test code (never committed, PHASE-2.md 2.9). It has the
-    pinned GDS jar, as the shared container does, because detection runs on it (M3.4)."""
+    pinned GDS jar, as the shared container does, because detection runs on it (M3.4), and the
+    shared container's memory limit: with GDS, 1024m was killed (exit 137) while starting."""
     from testcontainers.community.neo4j import Neo4jContainer
 
     _, jar = pinned_gds()
     container = (
-        Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1024m")
+        Neo4jContainer(IMAGE, password=secrets.token_hex(16), mem_limit="1536m")
         .with_envs(**CONTAINER_ENV, NEO4J_initial_dbms_default__database=REAL_DATABASE)
         .with_copy_into_container(jar, f"/var/lib/neo4j/plugins/{jar.name}")
     )

@@ -2,13 +2,14 @@
 PHASE-2.md 5.3, M2.1c)."""
 
 import importlib.util
-from collections.abc import Iterator
-from typing import Annotated, Any
+from collections.abc import Callable, Iterator
+from typing import Annotated, Any, cast
 
 import pytest
 from fastapi import Depends
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from neo4j import Driver
 
 from neonradar_api.graph import GraphConnection, GraphUnavailable, get_graph
 from neonradar_api.main import create_app, router
@@ -19,19 +20,17 @@ ENTITY = f"{P}/entities/syn-co-0001"
 ALERT_ID = "alr-f82a84574538090f0624"
 # Each route that still answers 501, a valid request for it, and who implements it.
 PENDING: list[tuple[str, str, dict[str, Any], str]] = [
-    ("GET", f"{ENTITY}/ownership?direction=up&max_hops=8&min_share=25", {}, "M2.12"),
-    ("GET", f"{ENTITY}/ownership?direction=down&min_share=0", {}, "M2.12"),
-    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=6", {}, "M2.12"),
-    ("GET", f"{P}/paths?from_id=syn-co-0001&to_id=nr-syn-p-0001&rel_types=OWNS", {}, "M2.12"),
-    (
-        "GET",
-        f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&rel_types=POSSIBLY_SAME_AS",
-        {},
-        "M2.12",
-    ),
-    ("GET", f"{ENTITY}/resolution", {}, "M2.12"),
-    ("GET", f"{P}/entities/nr-syn-co-0001/resolution", {}, "M2.12"),
     ("POST", f"{P}/copilot/ask", {"json": {"question": "who owns syn-co-0001?"}}, "Phase 4"),
+]
+# The routes M2.12 implements (they no longer answer 501): valid requests for each.
+PHASE_2_REQUESTS: list[str] = [
+    f"{ENTITY}/ownership?direction=up&max_hops=8&min_share=25",
+    f"{ENTITY}/ownership?direction=down&min_share=0",
+    f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&max_hops=6",
+    f"{P}/paths?from_id=syn-co-0001&to_id=nr-syn-p-0001&rel_types=OWNS",
+    f"{P}/paths?from_id=syn-co-0001&to_id=syn-p-0001&rel_types=POSSIBLY_SAME_AS",
+    f"{ENTITY}/resolution",
+    f"{P}/entities/nr-syn-co-0001/resolution",
 ]
 # The routes C3 1.1.0 declares for M2.12, and the responses each declares (PHASE-2.md 5.3).
 PHASE_2_ROUTES: list[tuple[str, set[str]]] = [
@@ -47,6 +46,7 @@ NEEDS_GRAPH: list[str] = [
     f"{P}/alerts?typology=circular_flow&priority=high&limit=200",
     f"{P}/alerts?entity_id=syn-co-0001&run_id=run-20261021T101500-7f3a",
     f"{P}/alerts/{ALERT_ID}",
+    *PHASE_2_REQUESTS,
 ]
 # Requests that break one limit of 5.3 each.
 INVALID: list[tuple[str, str, dict[str, Any]]] = [
@@ -92,8 +92,28 @@ INVALID: list[tuple[str, str, dict[str, Any]]] = [
 
 
 class OfflineGraph(GraphConnection):
-    def read(self, query: str, parameters: Any = None) -> list[Any]:
+    def read(self, query: str, parameters: Any = None, *, timeout: float | None = None) -> Any:
         raise GraphUnavailable("no database in unit tests")
+
+    def call[T](self, work: Callable[[Driver, str], T]) -> T:
+        raise GraphUnavailable("no database in unit tests")
+
+
+class EmptyDriver:
+    """A driver whose every query finds nothing."""
+
+    def execute_query(self, *args: Any, **kwargs: Any) -> tuple[list[Any], None, None]:
+        return [], None, None
+
+
+class EmptyGraph(GraphConnection):
+    """Neo4j is up and holds no node with the requested ids."""
+
+    def read(self, query: str, parameters: Any = None, *, timeout: float | None = None) -> Any:
+        return []
+
+    def call[T](self, work: Callable[[Driver, str], T]) -> T:
+        return work(cast(Driver, EmptyDriver()), "neo4j")
 
 
 @pytest.fixture
@@ -141,6 +161,15 @@ def test_pending_routes_answer_501_naming_their_milestone(
     problem = _problem(client.request(method, url, **options), 501)
     assert problem.title == "Not Implemented"
     assert problem.detail.endswith(f"it arrives in {arrives_in}.")
+    assert problem.instance == url.split("?")[0]
+
+
+@pytest.mark.parametrize("url", PHASE_2_REQUESTS)
+def test_the_phase_2_routes_answer_404_problems_for_unknown_ids(url: str) -> None:
+    """M2.12 replaced their 501 answers (PHASE-2.md M2.12 deliverable 3)."""
+    with TestClient(create_app(EmptyGraph()), raise_server_exceptions=False) as test_client:
+        problem = _problem(test_client.get(url), 404)
+    assert problem.detail == "No entity has this id."
     assert problem.instance == url.split("?")[0]
 
 

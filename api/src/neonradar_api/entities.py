@@ -7,15 +7,14 @@ per depth, built in code from the same text, never from input.
 """
 
 import re
-from typing import Any, Final, LiteralString, get_args
+from typing import Final, LiteralString, get_args
 
-from neonradar_api import alerts
+from neonradar_api import alerts, resolution
 from neonradar_api.graph import GraphConnection
-from neonradar_api.problems import ProblemError
+from neonradar_api.problems import NOT_FOUND, ProblemError
 from neonradar_contracts.api import (
     MAX_ENTITY_ALERTS,
     EntityDetail,
-    ProvenanceRecord,
     RelationshipType,
     SearchHit,
     SearchLabel,
@@ -26,7 +25,6 @@ from neonradar_graph import shapes
 
 # Every type C3 shows (C3 1.1.0: the 16 built from records and POSSIBLY_SAME_AS).
 SHOWN_TYPES: Final[list[str]] = list(get_args(RelationshipType))
-NOT_FOUND: Final = "No entity has this id."
 # Full-text hits read before the label filter; `total_estimate` counts within this window.
 SEARCH_WINDOW: Final = 200
 LUCENE_SPECIAL: Final = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
@@ -51,8 +49,17 @@ OPTIONAL MATCH (s:Sanction {id: $id})
 WITH coalesce(e, s) AS root
 WHERE root IS NOT NULL
 """
+# Entity detail also takes the id of a record merged into an entity (C3 1.1.0: any id in
+# `referents`), through its :SourceRecord and RESOLVED_TO.
+DETAIL_ROOT: Final = """
+OPTIONAL MATCH (e:Entity {id: $id})
+OPTIONAL MATCH (s:Sanction {id: $id})
+OPTIONAL MATCH (:SourceRecord {id: $id})-[:RESOLVED_TO]->(m:Entity)
+WITH coalesce(e, s, m) AS root
+WHERE root IS NOT NULL
+"""
 DETAIL: Final = (
-    ROOT
+    DETAIL_ROOT
     + """
 CALL (root) {
   MATCH (root)-[r]-()
@@ -147,20 +154,6 @@ def search(
     return SearchResponse(query=text, items=hits[:limit], total_estimate=total)
 
 
-def _provenance(props: dict[str, Any]) -> list[ProvenanceRecord]:
-    """One record per referent (Phase 1: the node itself), with the node's dataset."""
-    referents = list(props.get("referents") or [props["id"]])
-    return [
-        ProvenanceRecord(
-            dataset=str(props["datasets"][0]),
-            record_id=str(referent),
-            retrieved_at=None,
-            source_url=props.get("source_url"),
-        )
-        for referent in referents
-    ]
-
-
 def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
     records = graph.read(DETAIL, {"id": entity_id, "types": SHOWN_TYPES})
     if not records:
@@ -174,7 +167,7 @@ def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
         names=[str(name) for name in props.get("names") or []],
         properties=shapes.detail_properties(node),
         identifiers=shapes.identifiers(props),
-        provenance=_provenance(props),
+        provenance=resolution.provenance(graph, props),
         relationship_counts={rel_type: int(count) for rel_type, count in sorted(counts)},
         alerts=list(flagged.items),
     )

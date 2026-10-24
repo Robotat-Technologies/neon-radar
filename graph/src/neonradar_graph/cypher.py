@@ -3,7 +3,8 @@
 A file holds one or more statements, each ending with `;` at the end of a line; `//` lines are
 comments. A template names its placeholders in a `// lint-values:` header and writes them as
 `{{name}}`: `statements()` fills them with labels and relationship types of the C2 mapping
-table only (never with data), and refuses anything else. Values travel as parameters.
+table, or with a value the header lists for that placeholder (such as `max_hops=1,2,3`, M2.12),
+never with data, and refuses anything else. Values travel as parameters.
 """
 
 import re
@@ -17,6 +18,7 @@ PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 NAME = re.compile(r"^[A-Za-z][A-Za-z_]*\Z")
 ALLOWED = frozenset((*NODE_LABELS, *FLAG_LABELS, *RELATIONSHIP_TYPES))
 COMMENT = re.compile(r"^\s*(//.*)?$")
+LINT_VALUES = re.compile(r"^\s*//\s*lint-values:\s*(.+)$", re.MULTILINE)
 
 
 @cache
@@ -42,8 +44,17 @@ def split(text: str) -> list[tuple[list[str], str]]:
     return out
 
 
-def _fill(text: str, values: dict[str, str]) -> str:
-    for value in values.values():
+def declared(name: str) -> dict[str, tuple[str, ...]]:
+    """The values the `// lint-values:` header of `queries/<name>` lists, by placeholder."""
+    found = LINT_VALUES.search(_text(name))
+    pairs = (item.partition("=") for item in found[1].split()) if found else ()
+    return {key: tuple(values.split(",")) for key, _, values in pairs}
+
+
+def _fill(text: str, values: dict[str, str], listed: dict[str, tuple[str, ...]]) -> str:
+    for key, value in values.items():
+        if value in listed.get(key, ()):
+            continue
         if not NAME.fullmatch(value) or value not in ALLOWED:
             raise ValueError(f"{value!r} is not a label or relationship type of C2")
 
@@ -57,7 +68,8 @@ def _fill(text: str, values: dict[str, str]) -> str:
 
 def statements(name: str, **values: str) -> list[str]:
     """The statements of `queries/<name>`, with the placeholders filled."""
-    return [_fill(text, values) for _, text in split(_text(name))]
+    listed = declared(name)
+    return [_fill(text, values, listed) for _, text in split(_text(name))]
 
 
 def query(name: str, **values: str) -> str:
@@ -73,5 +85,5 @@ def named(name: str) -> list[tuple[str, str]]:
         found = [m[1] for line in comments if (m := re.match(r"//\s*(I\d+)\b", line))]
         if not found:
             raise ValueError(f"{name}: a statement without an // I<n> comment")
-        out.append((found[-1], _fill(text, {})))
+        out.append((found[-1], _fill(text, {}, {})))
     return out

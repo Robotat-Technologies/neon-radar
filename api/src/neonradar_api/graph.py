@@ -1,20 +1,24 @@
 """The API's Neo4j connection: one sync driver per app, created on first use (C3, ADR-0008).
 
 Every query goes through `GraphConnection.read()`, which runs it as a READ transaction
-(`routing_=RoutingControl.READ`). Neo4j refuses writes inside READ transactions, so the API is
-read-only by construction. Settings come from `neonradar_graph.client.Neo4jSettings`.
+(`routing_=RoutingControl.READ`), or through a `neonradar_graph.ownership` function that
+`GraphConnection.call()` hands the driver to and that reads the same way (M2.12). Neo4j refuses
+writes inside READ transactions, so the API is read-only by construction. Settings come from
+`neonradar_graph.client.Neo4jSettings` (`neonradar api serve` passes an `Instance`'s settings).
 """
 
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any, LiteralString
 
 from fastapi import Request
-from neo4j import Driver, Record, RoutingControl
-from neo4j.exceptions import AuthError, ClientError, DriverError, TransientError
+from neo4j import Driver, Query, Record, RoutingControl
+from neo4j.exceptions import AuthError, DriverError, Neo4jError, TransientError
 from pydantic import ValidationError
 
 from neonradar_graph.client import Neo4jSettings, get_driver
+from neonradar_graph.ownership import TIMED_OUT, TIMEOUT_DETAIL, QueryTimeout
 
 # `execute_query` retries an unavailable database for 30 s by default; the API stops retrying
 # after 1 s and answers 503 (or `degraded` for health). One connection attempt can still take up
@@ -51,22 +55,46 @@ class GraphConnection:
                 self._database = settings.database
             return self._driver, self._database
 
-    def read(
-        self, query: LiteralString, parameters: Mapping[str, Any] | None = None
-    ) -> list[Record]:
-        """Run one parameterised query in a READ transaction and return its records."""
-        driver, database = self._connect()
+    @contextmanager
+    def _unavailable(self, database: str) -> Iterator[None]:
         try:
-            records, _, _ = driver.execute_query(
-                query, dict(parameters or {}), database_=database, routing_=RoutingControl.READ
-            )
-        except (DriverError, AuthError, TransientError) as error:
-            raise GraphUnavailable(f"Neo4j is not available: {error}") from error
-        except ClientError as error:
+            yield
+        except Neo4jError as error:
+            if TIMED_OUT in (error.code or ""):  # the transaction timeout of `read`
+                raise QueryTimeout(TIMEOUT_DETAIL) from error
+            if isinstance(error, AuthError | TransientError):
+                raise GraphUnavailable(f"Neo4j is not available: {error}") from error
             if error.code == DATABASE_NOT_FOUND:  # a wrong NEO4J_DATABASE
                 raise GraphUnavailable(f"Neo4j has no database {database!r}") from error
             raise
+        except DriverError as error:
+            raise GraphUnavailable(f"Neo4j is not available: {error}") from error
+
+    def read(
+        self,
+        query: LiteralString,
+        parameters: Mapping[str, Any] | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> list[Record]:
+        """Run one parameterised query in a READ transaction (with a transaction timeout in
+        seconds when given) and return its records."""
+        driver, database = self._connect()
+        with self._unavailable(database):
+            records, _, _ = driver.execute_query(
+                query if timeout is None else Query(query, timeout=timeout),
+                dict(parameters or {}),
+                database_=database,
+                routing_=RoutingControl.READ,
+            )
         return list(records)
+
+    def call[T](self, work: Callable[[Driver, str], T]) -> T:
+        """Run `work(driver, database)`, a graph function that reads through the driver in READ
+        transactions (`neonradar_graph.ownership`), with the driver errors mapped as in `read`."""
+        driver, database = self._connect()
+        with self._unavailable(database):
+            return work(driver, database)
 
     def close(self) -> None:
         with self._lock:

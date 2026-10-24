@@ -2,12 +2,11 @@
 
 Every route is declared with its final response model, parameter limits and problem responses,
 so the OpenAPI snapshot (contracts/openapi/v1.json) does not change when a route is
-implemented. The Phase 1 routes are implemented (M1.9c); ownership, paths and resolution
-(C3 1.1.0, PHASE-2.md 5.3) answer 501 with a problem naming M2.12, and the copilot answers 501
-naming Phase 4. The API is
-read-only, binds to 127.0.0.1 (`neonradar api serve`) and makes no outbound calls: FastAPI's
-OpenTelemetry is switched off, and instead of its CDN-backed `/docs` and `/redoc` pages it
-serves an offline page at `/docs` (guardrail G3).
+implemented. The Phase 1 routes are implemented (M1.9c), ownership, paths and resolution
+(C3 1.1.0, PHASE-2.md 5.3) in M2.12 (`neonradar_graph.ownership`, `resolution`), and the
+copilot answers 501 naming Phase 4. The API is read-only, binds to 127.0.0.1 (`neonradar api
+serve`) and makes no outbound calls: FastAPI's OpenTelemetry is switched off, and instead of
+its CDN-backed `/docs` and `/redoc` pages it serves an offline page at `/docs` (guardrail G3).
 """
 
 from collections.abc import AsyncIterator, Callable
@@ -21,7 +20,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from fastapi.telemetry import TelemetryConfig
 
-from neonradar_api import alerts, docs_page, entities, problems, reference
+from neonradar_api import alerts, docs_page, entities, problems, reference, resolution
 from neonradar_api.files import RepoFiles, get_files
 from neonradar_api.graph import GraphConnection, get_graph
 from neonradar_api.health import check_health
@@ -66,6 +65,7 @@ from neonradar_contracts.api import (
     TypologyDetail,
     TypologySummary,
 )
+from neonradar_graph import ownership
 
 UI_DEV_ORIGIN: Final = "http://localhost:5173"
 # FastAPI 0.143 ships native OpenTelemetry and can add OTLP exporters from the environment
@@ -77,7 +77,6 @@ TELEMETRY_OFF: Final[TelemetryConfig] = {
     "operation_spans": False,
     "auto_configure": False,
 }
-M2_12: Final = "M2.12"
 PHASE_4: Final = "Phase 4"
 
 EntityIdPath = Annotated[str, Path(pattern=ENTITY_ID_PATTERN, description="A C2 node id.")]
@@ -174,7 +173,7 @@ def get_network(
     ),
 )
 def get_ownership(
-    request: Request,
+    graph: Graph,
     entity_id: EntityIdPath,
     direction: Annotated[
         OwnershipDirection,
@@ -196,7 +195,11 @@ def get_ownership(
     ] = None,
 ) -> OwnershipResponse:
     """Ownership chains up (owners) or down (holdings), with effective share ranges."""
-    not_implemented(request, M2_12)
+    return graph.call(
+        lambda driver, database: ownership.ownership(
+            driver, entity_id, direction, max_hops, min_share or 0, database=database
+        )
+    )
 
 
 @router.get(
@@ -213,14 +216,18 @@ def get_ownership(
     ),
 )
 def find_paths(
-    request: Request,
+    graph: Graph,
     from_id: EntityIdQuery,
     to_id: EntityIdQuery,
     max_hops: Annotated[int, Query(ge=1, le=6)] = 4,
     rel_types: PathRelTypes = None,
 ) -> PathsResponse:
     """Shortest paths between two nodes."""
-    not_implemented(request, M2_12)
+    return graph.call(
+        lambda driver, database: ownership.paths(
+            driver, from_id, to_id, max_hops, rel_types, database=database
+        )
+    )
 
 
 @router.get(
@@ -239,9 +246,9 @@ def find_paths(
         "those without a probability, by entity id."
     ),
 )
-def get_resolution(request: Request, entity_id: EntityIdPath) -> ResolutionResponse:
+def get_resolution(graph: Graph, entity_id: EntityIdPath) -> ResolutionResponse:
     """How an entity was resolved: its source records and its possible matches."""
-    not_implemented(request, M2_12)
+    return resolution.resolution(graph, entity_id)
 
 
 @router.get("/alerts", tags=["alerts"], responses=responses(422, 503))

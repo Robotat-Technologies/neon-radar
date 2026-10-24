@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from neo4j import Driver
 
 from neonradar_api.graph import GraphConnection, GraphUnavailable
 from neonradar_api.settings import DEFAULT_ALLOWED_HOSTS
@@ -28,7 +29,10 @@ def allow_the_test_client_host(monkeypatch: pytest.MonkeyPatch) -> None:
 class OfflineGraph(GraphConnection):
     """Neo4j is down."""
 
-    def read(self, query: str, parameters: Mapping[str, Any] | None = None) -> list[Any]:
+    def read(self, query: str, parameters: Mapping[str, Any] | None = None, **_: Any) -> list[Any]:
+        raise GraphUnavailable("no database in unit tests")
+
+    def call[T](self, work: Callable[[Driver, str], T]) -> T:
         raise GraphUnavailable("no database in unit tests")
 
 
@@ -40,7 +44,7 @@ class ScriptedGraph(GraphConnection):
         self.answer = answer
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    def read(self, query: str, parameters: Mapping[str, Any] | None = None) -> list[Any]:
+    def read(self, query: str, parameters: Mapping[str, Any] | None = None, **_: Any) -> list[Any]:
         params = dict(parameters or {})
         self.calls.append((query, params))
         return self.answer(query, params)

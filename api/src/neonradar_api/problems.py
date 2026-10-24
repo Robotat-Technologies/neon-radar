@@ -18,11 +18,15 @@ from starlette.exceptions import HTTPException
 from neonradar_api.files import RepoRootNotFound
 from neonradar_api.graph import GraphUnavailable
 from neonradar_contracts.api import Problem
+from neonradar_graph.ownership import QueryTimeout, UnknownId
 
 logger = logging.getLogger(__name__)
 
 MEDIA_TYPE: Final = "application/problem+json"
 PROBLEM_REF: Final = "#/components/schemas/Problem"
+
+
+NOT_FOUND: Final = "No entity has this id."
 
 
 class ProblemError(Exception):
@@ -105,6 +109,16 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def on_validation(request: Request, error: RequestValidationError) -> JSONResponse:
         return problem_response(request, 422, _validation_detail(error))
+
+    @app.exception_handler(UnknownId)
+    async def on_unknown(request: Request, error: UnknownId) -> JSONResponse:
+        return problem_response(request, 404, NOT_FOUND)
+
+    @app.exception_handler(QueryTimeout)
+    async def on_timeout(request: Request, error: QueryTimeout) -> JSONResponse:
+        route = getattr(request.scope.get("route"), "path", "?")  # the template, never an id
+        logger.warning("A graph query ran out of time on %s %s", request.method, route)
+        return problem_response(request, 503, str(error))
 
     @app.exception_handler(GraphUnavailable)
     async def on_unavailable(request: Request, error: GraphUnavailable) -> JSONResponse:

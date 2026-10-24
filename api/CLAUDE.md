@@ -65,6 +65,11 @@
     `call` (`OfflineGraph`); a fake driver needs `execute_query` and `close`.
   - Entity detail and every M2.12 route also take the id of a record merged into an entity
     (`:SourceRecord` and `RESOLVED_TO`); a merged entity's provenance is its source records.
+  - Logs name the route template (`request.scope["route"].path`), never `request.url.path`:
+    a path holds ids. `create_app(report=...)` builds the real-data app: no CORS, unhandled
+    errors log their class only and `report` keeps the traceback; wrap it in
+    `problems.Contained` so Starlette's re-raise never reaches uvicorn's traceback log.
+  - `shapes` only re-exports `neonradar_graph.shapes` for C3's Code line (reconciliation K1).
   - Unit tests never touch Neo4j: pass a `GraphConnection` subclass to `create_app`
     (`tests/conftest.py`: `OfflineGraph`, `ScriptedGraph`), and build the settings error
     yourself instead of reading the environment or `.env`. The integration tests

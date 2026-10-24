@@ -4,12 +4,16 @@ fixture (PHASE-2.md M2.12 deliverable 5).
 `fixtures/resolution/` holds seven synthetic records and a hand-written resolution run in the
 format of 7.1.8: one entity merged from three records (anchor, D1 member, probabilistic member),
 single-record entities, and three possible matches of the merged entity (probabilistic,
-deterministic D1 with `identifier_name_mismatch`, and a source hint). The committed
+deterministic D1 with `identifier_name_mismatch`, and a source hint). The source hint joins two
+leak-style records (`synthetic_kind: leak`): the D1 member `syn-res-co-2`, which P2 lets merge
+because D1 passed the strict name check (the same name), and `syn-res-co-7`. The committed
 `canonical.csv` starts with the `# synthetic: true` line every committed CSV fixture needs
 (scripts/check_fixtures.py); the test loads a copy without it, as `ResolutionMap.load` reads
-7.1.8's header first. The texts below are the 7.2 templates rendered for this fixture.
+7.1.8's header first. The texts below are the 7.2 templates rendered for this fixture; none
+holds a qualified "Never write" phrase of 7.2 (rule 7), as no node here carries a flag.
 """
 
+import re
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
@@ -88,6 +92,13 @@ POSSIBLE_MATCHES: Final = [
         " having the same name.",
     ),
 ]
+# 7.2's qualified "Never write" phrases (rule 7): no node of this fixture carries a flag, and
+# the texts never say a node "appears in the leaks", leak-style records or not.
+QUALIFIED: Final = re.compile(
+    r"\b(is\s+sanctioned|is\s+a\s+PEP|is\s+on\s+the\s+sanctions\s+list|appears\s+in\s+the"
+    r"\s+leaks|is\s+blocked|ultimate\s+beneficial\s+owner|owns)\b",
+    re.IGNORECASE,
+)
 
 
 def copy_run(target: Path) -> Path:
@@ -143,6 +154,16 @@ def test_the_merged_entity_lists_its_members_and_possible_matches(client: TestCl
     assert all("not confirmed" in m.explanation for m in body.possible_matches)
 
 
+def test_no_text_holds_a_qualified_never_write_phrase(client: TestClient) -> None:
+    texts = []
+    for entity_id in (MERGED, "syn-res-co-4", "syn-res-co-5", "syn-res-co-6", "syn-res-co-7"):
+        body = _resolution(client, entity_id)
+        texts += [m.explanation for m in body.members]
+        texts += [line for m in body.possible_matches for line in (m.explanation, *m.evidence)]
+    assert {*(m[-1] for m in MEMBERS), *(p[-1] for p in POSSIBLE_MATCHES)} <= set(texts)
+    assert [text for text in texts if QUALIFIED.search(text)] == []
+
+
 def test_a_member_record_id_resolves_to_its_entity(client: TestClient) -> None:
     assert _resolution(client, "syn-res-co-2").entity_id == MERGED
     detail = client.get(f"{P}/entities/syn-res-co-3")
@@ -162,6 +183,9 @@ def test_a_single_record_entity_has_one_identity_member(client: TestClient) -> N
     ]
     assert body.members[0].explanation == "Built from one source record (NeonRadar synthetic data)."
     assert body.possible_matches == []
+    # No link of this entity records the run, so both stay null (OD-10; C3 asks for a
+    # clarification, docs/build/phase-2-reconciliation.md).
+    assert (body.run_id, body.resolver_version) == (None, None)
     detail = EntityDetail.model_validate_json(client.get(f"{P}/entities/syn-res-co-4").text)
     assert [p.record_id for p in detail.provenance] == ["syn-res-co-4"]
 

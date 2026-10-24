@@ -178,6 +178,17 @@ def test_load_applies_the_run_time_lint_to_shape_names_and_templates(
     assert f"{where} fails the wording lint (7.5.2): {pattern}" in str(raised.value)
 
 
+def test_load_applies_the_run_time_lint_to_false_positive_notes(tmp_path: Path) -> None:
+    """The notes go unchanged into every alert's `explanation.false_positive_notes`."""
+    data = phase3()
+    data["false_positives"] = ["Refunds between related accounts", "The account is blocked"]
+    TypologyFile.model_validate(data)  # Phase 1's lint lets it through
+    write(tmp_path, data)
+    with pytest.raises(CatalogError) as raised:
+        load(tmp_path)
+    assert r"false_positives[1] fails the wording lint (7.5.2): \bis blocked\b" in str(raised.value)
+
+
 @dataclass(frozen=True)
 class _Params:
     hops: int = 2

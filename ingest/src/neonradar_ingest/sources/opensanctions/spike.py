@@ -51,6 +51,7 @@ class IndexInfo:
     version: str | None
     entities_url: str
     checksum: str | None  # SHA-1 of entities.ftm.json
+    size: int | None = None  # bytes of entities.ftm.json
 
     @classmethod
     def from_body(
@@ -72,6 +73,7 @@ class IndexInfo:
             version=_text(meta, "version"),
             entities_url=_text(entry, "url") or f"{BASE_URL}/{collection}/{ENTITIES_FILE}",
             checksum=_text(entry, "checksum"),
+            size=size if isinstance(size := entry.get("size"), int) and size >= 0 else None,
         )
 
 

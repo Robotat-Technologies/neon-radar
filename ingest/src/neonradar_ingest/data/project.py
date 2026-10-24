@@ -106,9 +106,11 @@ class Project(BaseModel):
         if dataset == "opensanctions_default" and access.opensanctions not in (
             "licensed",
             "exempt",
-        ):
+        ):  # `evaluation` covers the Phase 1 spike only (M2.7 deliverable 3)
+            from neonradar_ingest.sources.opensanctions.access import REFUSAL
+
             return "access.opensanctions", (
-                f"{dataset} needs access.opensanctions licensed or exempt"
+                f"{REFUSAL}: {dataset} needs access.opensanctions licensed or exempt"
                 f" (it is {access.opensanctions})"
             )
         officers = dataset == "gb_companies_house" and step == "officers"

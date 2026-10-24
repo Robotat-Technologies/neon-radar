@@ -38,7 +38,8 @@
     writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.
     The bulk loader (`sources/opensanctions/bulk.py`, M2.7) follows the Phase 2 rule
     instead (`Project.access_refusal`: only `licensed` or `exempt`), checks it again before
-    any request or file, and removes PEP data unless `access.pep_sources` names it.
+    any request or file, and removes PEP data unless `access.pep_sources` names it. Its
+    summary and manifest keys pass `bulk._vocab` (FtM names or `unknown`, never raw strings).
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
   - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
     username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids

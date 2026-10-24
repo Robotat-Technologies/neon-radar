@@ -10,9 +10,9 @@
   one detection run on Testcontainers); `uv run neonradar api serve [--port 8000] [--dev]`, then
   `http://127.0.0.1:8000/docs` (offline page); `make contracts` after any route or model
   change (rewrites contracts/openapi/v1.json).
-- Modules: `main` (`create_app(graph, files, *, dev)` and every route), `hardening` (M4.1:
+- Modules: `main` (`create_app(graph, files, *, dev, report)` and every route), `hardening` (M4.1:
   `harden`, trusted hosts, `AccessLog`, `Contain`, `route_template`, `log_config`), `problems`
-  (RFC 9457 errors, `ProblemError`, `not_implemented`, `responses`), `graph` (`GraphConnection`: one lazy sync driver on
+  (RFC 9457 errors, `ProblemError`, `not_implemented`, `responses`, `Reported`), `graph` (`GraphConnection`: one lazy sync driver on
   `Instance.DEFAULT` unless given other settings; `read()` runs READ transactions only, with a
   transaction timeout when asked; `call(work)` hands the driver to a `neonradar_graph.ownership`
   function; a transaction timeout becomes `QueryTimeout`; `get_graph` dependency), `health`,
@@ -40,7 +40,9 @@
     exception's message. An exception no handler takes is `Contain`'s fixed 500 problem; do
     not add an `Exception` handler. CORS only with `create_app(dev=True)` (`api serve --dev`).
   - `api serve` runs uvicorn with `access_log=False` and `hardening.log_config()`; `--host`
-    only where `NR_API_IN_IMAGE=1` (the API image), never with `--real`.
+    only where `NR_API_IN_IMAGE=1` (the API image), never with `--real`. The real-data app
+    (`create_app(..., report=...)`, never with `dev`) logs warnings only, and `Reported`, inside
+    `Contain`, hands an unhandled exception to `report` (the redacted traceback log).
   - FastAPI 0.143 mounts included routers lazily: `app.routes` does not list the API
     routes; read `main.router.routes`.
   - Every Phase 1 and 2 query goes through `GraphConnection.read` (parameters only, READ

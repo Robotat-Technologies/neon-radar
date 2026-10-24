@@ -317,7 +317,7 @@ Built on the M3.3 branch `p3/m3-3c-generator-notes` (#79, at `2473f54`, which ca
 
 ## 10. Checked again in M3.5f (23 October 2026)
 
-Built on the M3.2 branch `p3/m3-2-detection-core` (#84, at `0109ce2`); nothing in that stack has merged. M3.5f adds the four `extended` detectors; the rows below are what its review found outside the verbatim files.
+Built on the M3.2 branch `p3/m3-2-detection-core` (#84, at `0109ce2`, and since 24 October at `ad95409`, its review fixes, merged into this branch); nothing in that stack has merged. The Neo4j-mode runs of the two test files and of every detector test (2.2 step 6c) pass on that base, and no GDS projection is left behind. M3.5f adds the four `extended` detectors; the rows below are what its review found outside the verbatim files.
 
 | # | Item | Class | Found in M3.5f |
 |---|---|---|---|

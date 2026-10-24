@@ -19,8 +19,10 @@ what a run does around it, as Phase 1's runner did (PHASE-1.md M1.9b), with Phas
 A run that fails writes `run.json` with `status: failed` and no `alerts.jsonl`, and records a
 failed `:DetectionRun` with no alerts, as Phase 1 did, without the L19 delete: a failed run has
 no results to replace the earlier ones with, so it never wipes them (orchestrator decision under
-OD-10, phase-3 reconciliation section 9). Every alert's `detector.query_sha256` is the SHA-256 of
-its evidence query, `queries/evidence.cypher`, as C4 1.0.0 requires (A1).
+OD-10, phase-3 reconciliation section 9). The one exception: a failed run given an earlier run's
+id (`--run-id`) replaces that run, its folder and its `PRODUCED` alerts, as Phase 1 did.
+Every alert's `detector.query_sha256` is the SHA-256 of its evidence query,
+`queries/evidence.cypher`, as C4 1.0.0 requires (A1).
 """
 
 from __future__ import annotations
@@ -375,7 +377,8 @@ def _store(
 
 def store(driver: Driver, database: str, record: RunRecord, *, keep_previous: bool) -> None:
     """The L19 load of one run, in one write transaction. A failed run records its failed
-    `:DetectionRun` and deletes nothing: the earlier results stay (OD-10, see the module)."""
+    `:DetectionRun` and deletes nothing: the earlier results stay (OD-10, see the module),
+    except a failed run given an earlier run's id, which replaces that run (F11)."""
     ok = record.status == "ok"
     with driver.session(database=database) as session:
         session.execute_write(

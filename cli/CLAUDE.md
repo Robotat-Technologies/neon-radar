@@ -51,6 +51,11 @@
     summaries; only their numbers (and `status`) go into the load summary. A real profile gates
     and checks the real instance first; `--skip-officers` changes the profile in memory only.
     Tests replace the entries of `load.STEPS`, or the commands a step calls.
+  - `bench queries --profile NAME [--n] [--seed] [--real]` (`bench.py`) and `bench report`
+    (`bench_report.py`, M2.13): queries times the API's route functions (no HTTP) on picks from
+    `bench_entities.cypher` and emits latencies only; `--real` must match the profile's
+    `real_data` and runs the gate. `report` reads only `data/cache/reports/<profile>/` (the
+    newest `load-*` and `bench-queries-*`). Tests replace `GraphConnection` and the routes.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

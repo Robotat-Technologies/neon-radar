@@ -143,3 +143,8 @@ def queries_command(
                   "n": n, "seed": seed, "eligible": len(ids), "picked": len(picks),
                   "endpoints": endpoints}  # fmt: skip
         summary.emit(chosen, "bench queries", report)
+
+
+from neonradar_cli.bench_report import report_command  # noqa: E402  (one module per command)
+
+app.command(name="report")(report_command)

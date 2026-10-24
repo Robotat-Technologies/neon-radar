@@ -86,3 +86,34 @@ def test_the_instance_must_match_the_profile_and_real_runs_the_gate(
         result = runner.invoke(app, ["bench", "queries", *args])
         assert result.exit_code == code, result.output
     assert FakeGraph.created == 0 and fake_api == []
+
+
+def test_bench_report_renders_the_newest_summaries_with_targets_and_footer(
+    data_env: Any, tmp_path: Any
+) -> None:
+    from neonradar_cli import summary
+
+    steps = {"ingest_build": {"status": "ok", "duration_s": 30.0},
+             "graph_load": {"status": "ok", "duration_s": 700.0}}  # fmt: skip
+    records = {"nr_synthetic": {"records": 454, "by_schema": {"payment": 243}, "version": None}}
+    load = {"run_id": "load-1", "status": "ok", "real_data": False, "steps": steps,
+            "records": records, "invariants": {"i1": 0}, "hardware": {"cpu_cores": 4}}  # fmt: skip
+    summary.emit("demo", "load", load)
+    endpoints = {"search": {"calls": 3, "p50_ms": 4.0, "p95_ms": 9.0, "max_ms": 12.5,
+                            "results": 3, "timeouts": 0, "errors": 0}}  # fmt: skip
+    summary.emit("demo", "bench queries", {"picked": 3, "eligible": 9, "seed": 1,
+                                            "endpoints": endpoints})  # fmt: skip
+    out = tmp_path / "demo-bench.md"
+    result = runner.invoke(app, ["bench", "report", "--profile", "demo", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    text = out.read_text(encoding="utf-8")
+    assert "| graph load | ok | 700.0 |" in text and "| nr_synthetic | - | payment | 243 |" in text
+    assert "whole load 12.2 min, graph load under 10 minutes: not met" in text
+    assert "slowest query 0.01 s, demo queries under 2 seconds: met" in text
+    assert "| search | 3 | 4.0 | 9.0 | 12.5 | 3 | 0 | 0 |" in text
+    assert text.rstrip().splitlines()[-1].startswith("Sources and licences: NeonRadar synthetic")
+
+
+def test_bench_report_without_summaries_fails(data_env: Any, tmp_path: Any) -> None:
+    result = runner.invoke(app, ["bench", "report", "--profile", "demo", "--out", str(tmp_path)])
+    assert result.exit_code == 1 and "no load or bench-queries summary" in result.output

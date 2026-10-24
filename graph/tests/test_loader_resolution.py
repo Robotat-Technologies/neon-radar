@@ -21,6 +21,7 @@ from followthemoney import ValueEntity, model
 from nr_test_neo4j import CONTAINER_ENV, IMAGE
 
 from neonradar_contracts.datasets import load_registry
+from neonradar_contracts.graph import NODE_MAPPINGS, PROPERTY_KINDS
 from neonradar_contracts.records import iter_records
 from neonradar_graph.instances import REAL_DATABASE, Instance
 from neonradar_graph.loader import LoadReport, collect_files, load, load_files
@@ -151,6 +152,26 @@ def test_one_merged_entity_follows_the_merge_rules(
     assert (props["cluster_size"], props["synthetic"]) == (len(members), True)
     assert props["resolution"] == (methods.pop() if len(methods) == 1 else "mixed")
     assert ("Sanctioned" in stored["labels"]) == ("sanction" in topics)
+    for flag, topic in (("PEP", "role.pep"), ("RCA", "role.rca")):
+        assert (flag in stored["labels"]) == any(
+            t.split(".")[:2] == topic.split(".") for t in topics
+        )
+    # Each member as its own entity (Phase 1's mapping), then the 7.1.6 rules over them.
+    singles = {row.id: row.props for row in to_node_rows(ordered).rows}
+    member_props = [singles[r["id"]] for r in ordered]
+    assert props["countries"] == sorted({c for p in member_props for c in p["countries"]})
+    scalars = ("source_url", "first_seen", "last_seen")
+    for name in (*scalars, *NODE_MAPPINGS[props["schema"]].properties.values()):
+        values = [p[name] for p in member_props if p.get(name) is not None]
+        if not values:
+            assert name not in props, name
+        elif PROPERTY_KINDS.get(name) == "list":  # sorted unions
+            assert props[name] == sorted({v for found in values for v in found}), name
+        elif name in ("birth_date", "first_seen", "last_seen"):  # most precise, min, max
+            wanted = {"birth_date": max(values, key=len), "first_seen": min(values)}
+            assert props[name] == wanted.get(name, max(values)), name
+        else:  # the anchor's value, else the first in member order
+            assert props[name] == values[0], name
     assert not query(
         graph_db, "MATCH (e:Entity) WHERE e.id IN $ids RETURN e.id", ids=props["referents"]
     )

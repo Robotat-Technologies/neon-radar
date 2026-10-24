@@ -21,6 +21,10 @@ The first tagged pre-release: the Phase 1 foundation and the first part of Phase
 - The `neonradar` command line, `neonradar doctor`, the synthetic generator, graph migrations and loader, the Playwright end-to-end test, CI and pull request hygiene checks.
 - Documentation: quickstart, architecture, wording rules, glossary, bibliography, learning cases and onboarding assignments.
 
+### Fixed
+
+- The API image build no longer fails on a busy or small Docker VM when uv's bytecode workers take more than 60 seconds to start (`UV_COMPILE_BYTECODE_TIMEOUT=300` in `api/Dockerfile`).
+
 ### Not yet included
 
 - Real-data loading (needs keys, an approved machine and the operator's approvals), entity resolution, sanctions list loaders, the other detectors, the evaluation harness and the investigation copilot (`POST /api/v1/copilot/ask` answers 501).

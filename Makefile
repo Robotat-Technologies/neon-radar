@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help setup fmt lint typecheck test test-int contracts contracts-check cypher-lint check \
 	hygiene up down up-real down-real reset plugins smoke logs fixtures onboarding-check demo-data \
-	demo-mini demo-dev e2e gate-1 spec-check spec-extract load
+	demo-mini demo-dev e2e gate-1 spec-check spec-extract
 
 help: ## list the targets
 	@grep -E '^[a-z0-9 -]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-26s %s\n", $$1, $$2}'
@@ -143,11 +143,6 @@ onboarding-check: ## Assignment 1: load the onboarding CSV, run docs/team/first-
 DEMO_FIXTURE := data/fixtures/demo-mini/
 E2E_BASE_URL ?= http://localhost:8080
 API_UP_PY := import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)
-
-# One profile end to end (PHASE-2.md M2.13): the demo profile needs `make up`, a real one `make up-real`.
-PROFILE ?= demo
-load: ## one profile end to end (PROFILE=demo; a real profile needs make up-real and its approvals)
-	uv run neonradar load --profile $(PROFILE)
 
 demo-data: ## into the Neo4j at NEO4J_URI: migrate, wipe, load demo-mini, detect (CONFIRM=yes: real data too)
 	uv run neonradar graph migrate

@@ -231,7 +231,7 @@ def _write(work: Path, path: Path, kept: set[str], pep: _Pep) -> dict[str, Count
     else in it), remove every other reference to a record not written, write, count."""
     counts = {key: Counter[str]() for key in ("written", "dropped", "removed", "topics", "flags")}
     counts["pep_dropped"] = Counter()  # dropped relationships with an end the PEP rule skipped
-    linked: dict[str, str] = {}  # written records a skipped PEP record referenced
+    linked: dict[str, str] = {}  # written, no flag topic, referenced by a skipped PEP record
     referenced: set[str] = set()  # what the written records reference
     with (
         work.open(encoding="utf-8") as lines,
@@ -253,9 +253,9 @@ def _write(work: Path, path: Path, kept: set[str], pep: _Pep) -> dict[str, Count
                     if not props[name]:
                         del props[name]
             referenced.update(value for values in links.values() for value in values)
-            if record["id"] in pep.referenced:
-                linked[record["id"]] = schema
             topics = props.get("topics", [])
+            if record["id"] in pep.referenced and not flag_topics(topics):
+                linked[record["id"]] = schema
             counts["written"][schema] += 1
             counts["topics"].update(topics)
             counts["flags"].update(flag_labels(topics))

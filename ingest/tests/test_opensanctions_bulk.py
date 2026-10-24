@@ -1,10 +1,10 @@
 """The OpenSanctions bulk loader (PHASE-2.md M2.7), offline, on synthetic FtM bodies only.
 
 The export is the M1.8d fixture (`fixtures/opensanctions/entities.ftm.json`) extended with
-`bulk-extra.ftm.json`: a sanctioned person who is also a PEP, a sanctioned company, an
-associated company without topics, a `Vessel` and the relationships between them. The mock
-transport answers `index.json` with a 307 like data.opensanctions.org; nothing touches the
-network, and no row comes from OpenSanctions.
+`bulk-extra.ftm.json`: a sanctioned person who is also a PEP, a debarred PEP, a sanctioned
+company, an associated company without topics, a `Vessel` and the relationships between them.
+The mock transport answers `index.json` with a 307 like data.opensanctions.org; nothing touches
+the network, and no row comes from OpenSanctions.
 """
 
 import hashlib
@@ -213,7 +213,7 @@ def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     assert not any("syn-leak" in path.read_text(encoding="utf-8") for path in written)
     assert summary["relationships_dropped"] == {"ownership": 1}
     assert summary["pep_relationships_dropped"] == {}
-    assert summary["records"] == len(by_source) == 16
+    assert summary["records"] == len(by_source) == 18
 
 
 def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Transport) -> None:
@@ -231,6 +231,7 @@ def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Trans
     setup(data_env)
     by_source, summary = fetch_and_build()
     assert topics(by_source["NK-synPersonEpsilon"]) == ["sanction", "gov.national"]
+    assert topics(by_source["syn-os-person-iota"]) == ["debarment"]  # held by a skipped Occupancy
     skipped = {"NK-synPersonAlpha", "NK-synPersonBeta", "syn-os-position_01"}
     skipped |= {"syn-os-occupancy-01", "syn-os-family-01", "syn-os-directorship-01"}
     assert not skipped & set(by_source)
@@ -239,13 +240,13 @@ def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Trans
     assert "parent" not in by_source["syn-os-company-eta"]["properties"]
     assert not any(t.startswith("role.") for r in by_source.values() for t in topics(r))
     assert summary["pep_data"] == "removed"
-    assert summary["pep_role_topics_removed"] == {"role.pep": 1}
-    assert summary["pep_schemata_skipped"] == {"occupancy": 1, "position": 1}
+    assert summary["pep_role_topics_removed"] == {"role.pep": 2}
+    assert summary["pep_schemata_skipped"] == {"occupancy": 2, "position": 1}
     assert summary["pep_only_entities_skipped"] == {"person": 2}
     assert summary["relationships_dropped"] == {"directorship": 1, "family": 1, "ownership": 1}
     assert summary["pep_relationships_dropped"] == {"directorship": 1, "family": 1}
     assert summary["references_removed"] == {"company:parent": 1}  # none from a dropped one
-    assert summary["pep_linked_entities_kept"] == {"address": 1}  # only Alpha referenced it
+    assert summary["pep_linked_entities_kept"] == {"address": 1}  # Alpha's; Iota has a flag
     assert summary["flags"] == {"sanctioned": 3}  # Gamma, Epsilon, Zeta; sanction.linked sets none
 
 

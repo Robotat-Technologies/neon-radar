@@ -5,7 +5,8 @@ with `entities.ftm.json`, whose size it checks; `ingest build` checks the export
 the downloaded index, streams it line by line through `mapping.map_entity` (C1 schemata only,
 `os-` ids and references, `datasets: ["opensanctions_default"]`, topics as published) and
 writes one record file with its manifest. Both refuse first, before any request or file, unless
-`access.opensanctions` is `licensed` or `exempt` (the data manager's gate runs before them).
+`access.opensanctions` is `licensed` or `exempt` (the data manager's gate runs before them), and
+`data fetch` stops the collection when `index.json` names a file outside data.opensanctions.org.
 
 PEP data only by decision (deliverable 2): unless `opensanctions_default` is in
 `access.pep_sources`, every `role.*` topic is removed, `Position` and `Occupancy` are skipped, and
@@ -22,12 +23,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+import httpx
 from followthemoney import model, registry
 from pydantic import BaseModel, ConfigDict, StrictBool
 
 from neonradar_contracts.records import Producer, Source, write_manifest
 from neonradar_ingest import __version__
 from neonradar_ingest.data import layout
+from neonradar_ingest.data.download import DownloadError
 from neonradar_ingest.data.gate import RealDataRefused
 from neonradar_ingest.data.profiles import Profile, register_source_model
 from neonradar_ingest.data.project import Project, load_project
@@ -52,6 +55,7 @@ from neonradar_ingest.sources.opensanctions.mapping import (
 )
 from neonradar_ingest.sources.opensanctions.spike import (
     ENTITIES_FILE,
+    HOST,
     IndexInfo,
     make_client,
     read_index,
@@ -59,6 +63,7 @@ from neonradar_ingest.sources.opensanctions.spike import (
 
 INDEX_FILE = "index.json"
 DOWNLOAD_RECORD = "download.json"  # data.download.RECORD
+PINNED_HOST = httpx.URL(HOST).host  # every file comes from data.opensanctions.org
 PEP_SCHEMATA = frozenset({"Position", "Occupancy"})
 # 7.1.1: the purely descriptive topics; every other topic is a flag topic.
 DESCRIPTIVE = frozenset({"corp.public", "fin", "gov", "pol.party", "pol.union", "rel", "mil"})
@@ -95,6 +100,8 @@ def discover_for(collection: str) -> Callable[[HttpClient], list[RemoteFile]]:
         project = load_project()
         refuse_unless_allowed(project)  # before any request
         info = read_index(client, collection, access=project.access.opensanctions)
+        if {httpx.URL(url).host for url in (info.url, info.entities_url)} != {PINNED_HOST}:
+            raise DownloadError(f"{collection}: a file outside {PINNED_HOST}", "host")
         version = info.version or datetime.now(UTC).strftime("%Y-%m-%d")
         return [
             RemoteFile(INDEX_FILE, info.url, version, None, None, product=collection),

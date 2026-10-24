@@ -326,9 +326,13 @@ def load_command(
             report = loader.load(
                 folders, run_dir, not no_replace, Instance.REAL, strict=strict, timeout_s=timeout
             )
-        counts = {"profile": chosen.profile if chosen else None, "run_id": report.resolution_run}
-        name = chosen if chosen is not None else layout.ALL_PROFILES
-        summary.emit(name, "graph load", {**counts, "instance_real": True, **report.counts()})
+            where.step = "summary"
+            counts = {
+                "profile": chosen.profile if chosen else None,
+                "run_id": report.resolution_run,
+            }
+            name = chosen if chosen is not None else layout.ALL_PROFILES
+            summary.emit(name, "graph load", {**counts, "instance_real": True, **report.counts()})
     if report.failed:
         typer.echo(
             f"FAILED (strict): {len(report.dangling)} dangling reference(s); the rest of the load"

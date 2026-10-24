@@ -72,6 +72,9 @@ class RunConfig:
     # DuckDB spill folder: layout.duckdb_tmp_dir(...); None: a folder in the run folder
     temp_directory: Path | None = None
     keep_features: bool = False
+    # A real profile: a Splink model the data cannot train fails the run instead of being
+    # skipped (scoring.score, an orchestrator decision under OD-10)
+    real_data: bool = False
 
 
 @dataclass
@@ -323,7 +326,9 @@ def run(
                 decisions = rules.Decisions([], [], count_on_file(decisions_file))
         if probabilistic:
             with _step(timings, "models"):
-                found = scoring.score(features_path, config.resolver, spill)
+                found = scoring.score(
+                    features_path, config.resolver, spill, skip_untrainable=not config.real_data
+                )
                 scored.extend(scoring.links(found))
             timings.update(found.timings)
         with _step(timings, "cluster"):

@@ -164,6 +164,17 @@ The loader of M2.11 answers questions E2 and E4 and meets eight more places wher
 | J9 | Not specified: which records a load with a run must hold | A run of other records would leave stale or partial merged nodes | D (orchestrator under OD-10) | A load that replaces (L9) must hold exactly the run's resolvable records; any load refuses a merged entity with only some of its members (exit 1, counts only) |
 | J10 | Branch `p2/m2-11-resolved-loader`; uv 0.11.32 accepts the test-only cycle | The orchestrator named the branch `p2/m2-11-graph-loader`; the workspace pins uv 0.13 | M | Both followed; uv 0.13.4 accepts `graph`'s `dev` group listing `neonradar-resolve` |
 
+### 2.10 The graph API on the resolved graph (M2.12)
+
+The review of M2.12 found four places where C3 1.1.0 and the code differ. M2.12 leaves `contracts/**` alone; the orchestrator took the stricter option under OD-10 where behaviour is involved, and the tech lead decides the contract questions.
+
+| # | C3 1.1.0 says | Found | Class | Decision |
+|---|---|---|---|---|
+| K1 | Code: `neonradar_api.shapes` (C2 to C3 shapes) | M2.12 moved the builder to `neonradar_graph.shapes`, so `neonradar_graph.ownership` builds the same subgraphs for the API and the copilot | M | `api/src/neonradar_api/shapes.py` re-exports the public names, and a contract test imports every module the Code line names. Queue a wording-only C3 patch (1.1.1) that names `neonradar_graph.shapes` and adds `neonradar_api.resolution` and `neonradar_graph.ownership` |
+| K2 | `run_id` and `resolver_version` are null "when the graph was loaded without a resolution run" | C2 1.1.0 keeps the run on `RESOLVED_TO`, `POSSIBLY_SAME_AS` and `:SourceRecord` only; a single-record entity with no possible match has no link that records it, so both are null after a load with a run | Q tech lead (contract) | Fail closed: null (OD-10), pinned by `test_resolution.py`. Either a C3 clarification (minor: null when none of the entity's links records a run) or a C2 1.x minor change that puts the run on every `:Entity` loaded with one |
+| K3 | Ids on `/ownership`, `/paths` and `/resolution` "are resolved as for entity detail", which accepts `:Sanction` ids | The verbatim `resolve_id.cypher` and `paths.cypher` match `:Entity` only, so a `:Sanction` id is a 404 on these routes; `/paths` still crosses `:Sanction` nodes through `SUBJECT_OF` | Q tech lead (contract) | No change (verbatim queries). Ask for a C3 patch: ids on these routes are `:Entity` ids or merged-record ids |
+| K4 | G9: real data never reaches a log above DEBUG | `api serve --real` used uvicorn's INFO access log (full paths and query strings), and the error handlers logged the request path and a traceback | D (orchestrator under OD-10) | The real server runs with no access log, at log level warning and with no CORS origin; every handler logs the route template; an unhandled error logs its class, and its traceback goes to the redacted log under `data/cache/real/logs` (`redact.report`). M4.1 still plans the general log fix for both modes |
+
 ## 3. Cypher that Phase 1 runs from Python strings
 
 From now on every Cypher statement that new or changed code runs lives in a `.cypher` file, so `make cypher-lint` checks it (M2.0 item 11). These move into files when a later milestone touches the code, not in M2.0.
@@ -197,7 +208,7 @@ The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and
 
 ## 5. Questions, by person
 
-**Tech lead:** A5 (`.mcp.json` and the hook, with #19), A13 (the no-op `Write` deny rule), B5 (ICIJ relationship id key), B6 (list and Parliament id forms against `make_id`), C6 (GLEIF name types and C1 R10), C8 (ICIJ address roles), C11 (D5 and repeated ICIJ node ids), D8 (`opensanctions_default` status), E1 (`POSSIBLY_SAME_AS` in C3), E2 and E4 (decided in M2.11, 2.9 J1 and J2: confirm), J3 (record-built relationship ids after resolution), E11 (where detection runs on real data write).
+**Tech lead:** A5 (`.mcp.json` and the hook, with #19), A13 (the no-op `Write` deny rule), B5 (ICIJ relationship id key), B6 (list and Parliament id forms against `make_id`), C6 (GLEIF name types and C1 R10), C8 (ICIJ address roles), C11 (D5 and repeated ICIJ node ids), D8 (`opensanctions_default` status), E1 (`POSSIBLY_SAME_AS` in C3), E2 and E4 (decided in M2.11, 2.9 J1 and J2: confirm), J3 (record-built relationship ids after resolution), E11 (where detection runs on real data write), K1 to K3 (C3 after M2.12: the Code line, `run_id` of a link-less entity, `:Sanction` ids).
 
 **Data steward:** C3 (service addresses), C4 (`is_sanctioned` as a topic, with the tech lead), C7 (GLEIF sole proprietors), F10 (OD-12 and normaliser test inputs), H3 (second-degree links in the ER benchmark, M2.9), G4 (real-format ids in the verbatim `test_cluster.py`).
 

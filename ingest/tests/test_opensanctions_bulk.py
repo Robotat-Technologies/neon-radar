@@ -174,6 +174,7 @@ def topics(record: dict[str, Any]) -> list[str]:
 
 def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     setup(data_env, peps=True)
+    mock.export = EXPORT + b'{"id": "syn-x", "schema": "Person:syn-leak", "properties": {}}\n'
     by_source, summary = fetch_and_build()
     for record in by_source.values():
         assert record["id"] == record_id(record["nr"]["source_ref"])
@@ -185,23 +186,13 @@ def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     }
     # Vessel and Identification are not C1 schemata; the ownership of the vessel loses its end.
     assert "syn-os-vessel-theta" not in by_source and "syn-os-ident-01" not in by_source
-    assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 1, "vessel": 1}
-    assert summary["relationships_dropped"] == {"ownership": 1}
-    assert summary["pep_relationships_dropped"] == {}
-    assert summary["records"] == len(by_source) == 16
-
-
-def test_a_schema_followthemoney_does_not_know_is_never_shown(
-    data_env: Any, mock: Transport
-) -> None:
-    setup(data_env, peps=True)
-    mock.export = (
-        EXPORT + b'{"id": "syn-os-leak-01", "schema": "Person:syn-leak", "properties": {}}\n'
-    )
-    _, summary = fetch_and_build()
+    # A schema FollowTheMoney does not know (SynthFutureSchema, Person:syn-leak) is not shown.
     assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 2, "vessel": 1}
     reports = layout.reports_dir("uk-test").glob("*.json")
     assert not any("syn-leak" in path.read_text(encoding="utf-8") for path in reports)
+    assert summary["relationships_dropped"] == {"ownership": 1}
+    assert summary["pep_relationships_dropped"] == {}
+    assert summary["records"] == len(by_source) == 16
 
 
 def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Transport) -> None:
@@ -243,8 +234,7 @@ def test_a_checksum_that_is_missing_or_does_not_match_stops_the_build(
     mock.checksum = checksum
     assert run("data", "fetch").exit_code == 0
     result = run("ingest", "build")
-    assert result.exit_code == 1
-    assert message in result.output
+    assert result.exit_code == 1 and message in result.output
     assert not layout.records_dir("uk-test", DATASET).exists()
 
 

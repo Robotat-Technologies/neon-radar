@@ -238,10 +238,9 @@ def _map(entities: Path, work: Path, pep: _Pep | None, stats: MappingStats) -> t
 
 
 def _write(work: Path, path: Path, kept: set[str], pep_ids: set[str]) -> dict[str, Counter[str]]:
-    """Pass 2: drop or trim the references of each record, write it, count what it holds;
-    `pep_dropped` counts the dropped relationships with an end the PEP rule skipped."""
-    keys = ("written", "dropped", "pep_dropped", "removed", "topics", "flags")
-    counts = {key: Counter[str]() for key in keys}
+    """Pass 2: drop or trim the references of each record, write it, count what it holds."""
+    counts = {key: Counter[str]() for key in ("written", "dropped", "removed", "topics", "flags")}
+    counts["pep_dropped"] = Counter()  # dropped relationships with an end the PEP rule skipped
     with (
         work.open(encoding="utf-8") as lines,
         path.open("w", encoding="utf-8", newline="\n") as out,
@@ -317,7 +316,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             "pep_role_topics_removed": _vocab(pep.topics_removed),
             "pep_schemata_skipped": _vocab(pep.schemata_skipped),
             "pep_only_entities_skipped": _vocab(pep.pep_only_skipped),
-            "relationships_dropped": _vocab(counts["dropped"]),  # both causes
+            "relationships_dropped": _vocab(counts["dropped"]),
             "pep_relationships_dropped": _vocab(counts["pep_dropped"]),
             "references_removed": _vocab(counts["removed"]),
             "topics": _vocab(counts["topics"]),

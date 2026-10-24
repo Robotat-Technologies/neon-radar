@@ -28,5 +28,6 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0015](0015-merge-policy-for-listed-and-leaked-records.md) | Merge policy for listed and leaked records | M2.10a | proposed | data steward, project lead, tech lead |
 | [0016](0016-canonical-ids-and-source-records.md) | Canonical ids and source records | M2.11 | proposed | tech lead |
 | [0018](0018-real-data-handling.md) | Real-data handling | M2.0 | proposed | data steward |
+| [0019](0019-ownership-and-effective-share.md) | Ownership and effective share calculation | M2.12 | proposed | tech lead, graph mentor |
 
 The roles resolve to people in `docs/build/project.yaml` (`people`); until the team joins, @robotat-com holds every role.

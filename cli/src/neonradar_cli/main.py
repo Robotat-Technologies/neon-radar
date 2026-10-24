@@ -7,6 +7,7 @@ import typer
 from neonradar_cli import (
     __version__,
     api,
+    bench,
     contracts,
     data,
     detect,
@@ -33,6 +34,7 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 app.add_typer(api.app, name="api")
+app.add_typer(bench.app, name="bench")
 app.add_typer(contracts.app, name="contracts")
 app.add_typer(data.app, name="data")
 app.add_typer(detect.app, name="detect")

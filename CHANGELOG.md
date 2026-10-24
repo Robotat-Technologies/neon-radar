@@ -28,6 +28,7 @@ The first tagged pre-release: the Phase 1 foundation and the first part of Phase
 ### Not yet included
 
 - Real-data loading (needs keys, an approved machine and the operator's approvals), entity resolution, sanctions list loaders, the other detectors, the evaluation harness and the investigation copilot (`POST /api/v1/copilot/ask` answers 501).
+- The ownership, paths and resolution routes (`/api/v1/entities/{id}/ownership`, `/api/v1/paths`, `/api/v1/entities/{id}/resolution`) are in the C3 1.1.0 snapshot but answer 501 Not Implemented until milestone M2.12.
 
 [Unreleased]: https://github.com/robotat-com/neon-radar/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/robotat-com/neon-radar/releases/tag/v0.1.0

@@ -1021,7 +1021,7 @@ Problem          type, title, status, detail, instance
   "wording_class": "synthetic_scenario",
   "subjects": [
     {"entity_id": "syn-acct-0007", "role": "origin", "caption": "NRSYN0000000007"},
-    {"entity_id": "syn-co-0003", "role": "origin_holder", "caption": "Cedar Gate Holdings Ltd"}
+    {"entity_id": "syn-co-0003", "role": "origin_holder", "caption": "Fenwhistle Holdings Ltd"}
   ],
   "evidence": {
     "node_ids": ["syn-acct-0007", "syn-acct-0012", "syn-acct-0015", "syn-acct-0021"],
@@ -2545,7 +2545,7 @@ done                                                    # prints nothing
 make contracts-check && make check
 ```
 
-**Review focus (humans).** Read three of the invalid examples: would a loader author understand from the message what to fix? Is anything in `nr` a disguised label (R9)? Data steward: are the licence, attribution, commercial-use and redistribution fields in `contracts/datasets.yaml` right? Approve them explicitly in the review, because they freeze at Gate 1 (GC-17). Also search the Companies House register for the example company names (Falcon Ridge Trading Ltd, the second example company, and Cedar Gate Holdings Ltd from 5.4) and ask for a rename if any exists.
+**Review focus (humans).** Read three of the invalid examples: would a loader author understand from the message what to fix? Is anything in `nr` a disguised label (R9)? Data steward: are the licence, attribution, commercial-use and redistribution fields in `contracts/datasets.yaml` right? Approve them explicitly in the review, because they freeze at Gate 1 (GC-17). Also search the Companies House register for the example company names (Falcon Ridge Trading Ltd, the second example company, and Fenwhistle Holdings Ltd from 5.4, which replaced the name OD-12 forbids) and ask for a rename if any exists.
 
 #### M1.7b Graph schema (C2) and migrations
 

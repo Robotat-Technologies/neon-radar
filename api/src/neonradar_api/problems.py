@@ -3,10 +3,16 @@
 Every error is `application/problem+json` with `type` `about:blank`, `title` the HTTP reason
 phrase, `detail` a sentence for people and `instance` the request path. Validation errors list
 `<location>: <message>` pairs in `detail` without echoing the input.
+
+Logs name the route template (`/api/v1/entities/{entity_id}`), never the request path, which can
+hold an id. The real-data app (`api serve --real`, PHASE-2.md G9) passes `report`: an unhandled
+error then logs only its class and route, and `report` keeps its traceback in the redacted log;
+`Contained` stops Starlette's re-raise from reaching uvicorn's own traceback log.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, Final, NoReturn
 
@@ -14,6 +20,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from neonradar_api.files import RepoRootNotFound
 from neonradar_api.graph import GraphUnavailable
@@ -87,8 +94,28 @@ def _validation_detail(error: RequestValidationError) -> str:
     return "; ".join(parts) or "The request is not valid."
 
 
-def install(app: FastAPI) -> None:
-    """Answer every error with a problem."""
+def _route(request: Request) -> str:
+    """The matched route's template, never the path: a path can hold an id."""
+    return getattr(request.scope.get("route"), "path", "?")
+
+
+class Contained:
+    """The real-data app's outer layer: after `on_error` has answered 500, Starlette re-raises
+    the error, and uvicorn would print its traceback; `report` already kept it."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        with suppress(Exception):  # answered 500 and reported by on_error
+            await self.app(scope, receive, send)
+
+
+def install(app: FastAPI, report: Callable[[Exception], None] | None = None) -> None:
+    """Answer every error with a problem; `report` (real data) keeps tracebacks out of logs."""
 
     @app.exception_handler(ProblemError)
     async def on_problem(request: Request, error: ProblemError) -> JSONResponse:
@@ -116,23 +143,28 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(QueryTimeout)
     async def on_timeout(request: Request, error: QueryTimeout) -> JSONResponse:
-        route = getattr(request.scope.get("route"), "path", "?")  # the template, never an id
-        logger.warning("A graph query ran out of time on %s %s", request.method, route)
+        logger.warning("A graph query ran out of time on %s %s", request.method, _route(request))
         return problem_response(request, 503, str(error))
 
     @app.exception_handler(GraphUnavailable)
     async def on_unavailable(request: Request, error: GraphUnavailable) -> JSONResponse:
-        logger.warning("Neo4j unavailable for %s %s: %s", request.method, request.url.path, error)
+        why = type(error).__name__ if report is not None else str(error)
+        logger.warning("Neo4j unavailable for %s %s: %s", request.method, _route(request), why)
         return problem_response(request, 503, "The graph database is not available.")
 
     @app.exception_handler(RepoRootNotFound)
     async def on_no_repo(request: Request, error: RepoRootNotFound) -> JSONResponse:
-        logger.error("repository files not found for %s %s", request.method, request.url.path)
+        logger.error("repository files not found for %s %s", request.method, _route(request))
         return problem_response(
             request, 500, "The repository files were not found: set NR_REPO_ROOT."
         )
 
     @app.exception_handler(Exception)
     async def on_error(request: Request, error: Exception) -> JSONResponse:
-        logger.error("unhandled error on %s %s", request.method, request.url.path, exc_info=error)
+        route = _route(request)
+        if report is None:
+            logger.error("unhandled error on %s %s", request.method, route, exc_info=error)
+        else:
+            logger.error("unhandled %s on %s %s", type(error).__name__, request.method, route)
+            report(error)
         return problem_response(request, 500, "Internal error; the API log has the details.")

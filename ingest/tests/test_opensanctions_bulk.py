@@ -15,6 +15,7 @@ from typing import Any
 
 import httpx
 import pytest
+from followthemoney import registry
 from typer.testing import CliRunner
 
 from neonradar_cli.main import app
@@ -207,8 +208,9 @@ def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     assert "syn-os-vessel-theta" not in by_source and "syn-os-ident-01" not in by_source
     # A schema FollowTheMoney does not know (SynthFutureSchema, Person:syn-leak) is not shown.
     assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 2, "vessel": 1}
-    reports = layout.reports_dir("uk-test").glob("*.json")
-    assert not any("syn-leak" in path.read_text(encoding="utf-8") for path in reports)
+    records = layout.records_dir("uk-test", DATASET)
+    written = [*layout.reports_dir("uk-test").glob("*.json"), *records.iterdir()]  # manifest too
+    assert not any("syn-leak" in path.read_text(encoding="utf-8") for path in written)
     assert summary["relationships_dropped"] == {"ownership": 1}
     assert summary["pep_relationships_dropped"] == {}
     assert summary["records"] == len(by_source) == 16
@@ -221,7 +223,8 @@ def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Tran
         assert topics(record) == SOURCE[source_id]["properties"].get("topics", [])
     assert {"NK-synPersonAlpha", "syn-os-position_01", "syn-os-occupancy-01"} <= set(by_source)
     assert summary["pep_data"] == "kept"
-    assert summary["pep_role_topics_removed"] == summary["pep_only_entities_skipped"] == {}
+    for key in ("pep_role_topics_removed", "pep_only_entities_skipped", "pep_linked_entities_kept"):
+        assert summary[key] == {}
 
 
 def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Transport) -> None:
@@ -241,8 +244,17 @@ def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Trans
     assert summary["pep_only_entities_skipped"] == {"person": 2}
     assert summary["relationships_dropped"] == {"directorship": 1, "family": 1, "ownership": 1}
     assert summary["pep_relationships_dropped"] == {"directorship": 1, "family": 1}
-    assert summary["references_removed"] == {"company:parent": 1}
+    assert summary["references_removed"] == {"company:parent": 1}  # none from a dropped one
+    assert summary["pep_linked_entities_kept"] == {"address": 1}  # only Alpha referenced it
     assert summary["flags"] == {"sanctioned": 3}  # Gamma, Epsilon, Zeta; sanction.linked sets none
+
+
+def test_the_flag_rule_knows_every_followthemoney_topic() -> None:
+    """Fails when FollowTheMoney's topics change, so that a human classifies the new ones (7.1.1)
+    before the PEP rule uses them (as M2.10a's policy test does, until the loader shares it)."""
+    names = sorted(registry.topic.names)
+    digest = hashlib.sha256(" ".join(names).encode()).hexdigest()[:16]
+    assert (len(names), len(bulk.flag_topics(names)), digest) == (75, 52, "06d4a4abc245c49d")
 
 
 @pytest.mark.parametrize(("checksum", "message"), [("0" * 40, "SHA-1"), ("", "no checksum")])

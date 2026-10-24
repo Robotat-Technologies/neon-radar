@@ -171,6 +171,18 @@ def _vocab(counter: Mapping[str, int]) -> dict[str, int]:
     return dict(sorted(out.items()))
 
 
+def _ends(schema_name: str) -> tuple[str, ...]:
+    schema = model[schema_name]
+    if schema.edge and schema.edge_source and schema.edge_target:
+        return (schema.edge_source, schema.edge_target)
+    return ("entity",) if schema_name == "Sanction" else ()
+
+
+def _links(record: dict[str, Any]) -> dict[str, list[str]]:
+    schema, props = model[record["schema"]], record["properties"]
+    return {name: props[name] for name in props if schema.properties[name].type == registry.entity}
+
+
 class _Pep:
     """Deliverable 2 on one mapped record; returns False when the record is skipped."""
 
@@ -179,18 +191,17 @@ class _Pep:
         self.schemata_skipped: Counter[str] = Counter()
         self.pep_only_skipped: Counter[str] = Counter()
         self.skipped_ids: set[str] = set()
+        self.referenced: set[str] = set()  # what the skipped records referenced
 
     def keep(self, record: dict[str, Any]) -> bool:
         schema, props = record["schema"], record["properties"]
-        if schema in PEP_SCHEMATA:
-            self.schemata_skipped[schema] += 1
-            self.skipped_ids.add(record["id"])
-            return False
         topics: list[str] = props.get("topics", [])
         flags = flag_topics(topics)
-        if flags and all(is_role(topic) for topic in flags):
-            self.pep_only_skipped[schema] += 1
+        if schema in PEP_SCHEMATA or (flags and all(is_role(topic) for topic in flags)):
+            skipped = self.schemata_skipped if schema in PEP_SCHEMATA else self.pep_only_skipped
+            skipped[schema] += 1
             self.skipped_ids.add(record["id"])
+            self.referenced.update(value for values in _links(record).values() for value in values)
             return False
         removed = [topic for topic in topics if is_role(topic)]
         if removed:
@@ -201,33 +212,6 @@ class _Pep:
             else:
                 del props["topics"]
         return True
-
-
-def _ends(schema_name: str) -> tuple[str, ...]:
-    schema = model[schema_name]
-    if schema.edge and schema.edge_source and schema.edge_target:
-        return (schema.edge_source, schema.edge_target)
-    return ("entity",) if schema_name == "Sanction" else ()
-
-
-def _references(
-    record: dict[str, Any], kept: set[str], removed: Counter[str]
-) -> dict[str, Any] | None:
-    """The record without references to records not written, or None for a relationship whose
-    end is not written."""
-    schema, props = model[record["schema"]], record["properties"]
-    ends = _ends(schema.name)
-    for name in [p for p in props if schema.properties[p].type == registry.entity]:
-        values = [value for value in props[name] if value in kept]
-        if len(values) < len(props[name]):
-            if name in ends:
-                return None
-            removed[f"{schema.name}:{name}"] += len(props[name]) - len(values)
-            if values:
-                props[name] = values
-            else:
-                del props[name]
-    return record
 
 
 def _map(entities: Path, work: Path, pep: _Pep | None, stats: MappingStats) -> tuple[set[str], str]:
@@ -242,28 +226,41 @@ def _map(entities: Path, work: Path, pep: _Pep | None, stats: MappingStats) -> t
     return kept, digest.hexdigest()
 
 
-def _write(work: Path, path: Path, kept: set[str], pep_ids: set[str]) -> dict[str, Counter[str]]:
-    """Pass 2: drop or trim the references of each record, write it, count what it holds."""
+def _write(work: Path, path: Path, kept: set[str], pep: _Pep) -> dict[str, Counter[str]]:
+    """Pass 2: drop a relationship with an end that is not written (before counting anything
+    else in it), remove every other reference to a record not written, write, count."""
     counts = {key: Counter[str]() for key in ("written", "dropped", "removed", "topics", "flags")}
     counts["pep_dropped"] = Counter()  # dropped relationships with an end the PEP rule skipped
+    linked: dict[str, str] = {}  # written records a skipped PEP record referenced
+    referenced: set[str] = set()  # what the written records reference
     with (
         work.open(encoding="utf-8") as lines,
         path.open("w", encoding="utf-8", newline="\n") as out,
     ):
         for line in lines:
-            data = json.loads(line)
-            record = _references(data, kept, counts["removed"])
-            if record is None:
-                schema, props = data["schema"], data["properties"]
+            record = json.loads(line)
+            schema, props, links = record["schema"], record["properties"], _links(record)
+            ends = {value for end in _ends(schema) for value in links.get(end, [])}
+            if ends - kept:  # a relationship with an end that is not written is dropped
                 counts["dropped"][schema] += 1
-                if pep_ids & {value for end in _ends(schema) for value in props.get(end, [])}:
+                if ends & pep.skipped_ids:
                     counts["pep_dropped"][schema] += 1
                 continue
-            topics = record["properties"].get("topics", [])
-            counts["written"][record["schema"]] += 1
+            for name, values in links.items():  # any other reference to one is removed
+                if dangling := [value for value in values if value not in kept]:
+                    counts["removed"][f"{schema}:{name}"] += len(dangling)
+                    props[name] = [value for value in values if value in kept]
+                    if not props[name]:
+                        del props[name]
+            referenced.update(value for values in links.values() for value in values)
+            if record["id"] in pep.referenced:
+                linked[record["id"]] = schema
+            topics = props.get("topics", [])
+            counts["written"][schema] += 1
             counts["topics"].update(topics)
             counts["flags"].update(flag_labels(topics))
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
+    counts["pep_linked"] = Counter(s for id_, s in linked.items() if id_ not in referenced)
     return counts
 
 
@@ -277,22 +274,21 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     if not checksum:
         raise BuildError(f"{DATASET}: index.json gives no checksum", "checksum", counts_only=True)
     pep_decision = DATASET in project.access.pep_sources
-    stats, pep = MappingStats(), None if pep_decision else _Pep()
+    stats, pep = MappingStats(), _Pep()
     context.work_dir.mkdir(parents=True, exist_ok=True)
     work = context.work_dir / f"{context.run_id}.mapped.jsonl"
     path = context.out_dir / f"{DATASET}-{collection}.ftm.jsonl"
     try:
-        kept, sha1 = _map(folder / ENTITIES_FILE, work, pep, stats)
+        kept, sha1 = _map(folder / ENTITIES_FILE, work, None if pep_decision else pep, stats)
         if sha1 != checksum.lower():
             message = f"{DATASET}: the SHA-1 of {ENTITIES_FILE} does not match index.json"
             raise BuildError(message, "checksum", counts_only=True)
-        counts = _write(work, path, kept, pep.skipped_ids if pep else set())
+        counts = _write(work, path, kept, pep)
     finally:
         if not context.keep_work:
             work.unlink(missing_ok=True)
     files = download.get("files", [])
     stamps = [str(entry["downloaded_at"]) for entry in files if entry.get("downloaded_at")]
-    pep = pep or _Pep()
     write_manifest(
         path,
         dataset=DATASET,
@@ -302,7 +298,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             retrieved_at=max(stamps, default=None),
             source_version=folder.name,
         ),
-        skipped=dict(
+        skipped=_vocab(  # FtM vocabulary only, as in the summary
             stats.skipped + pep.schemata_skipped + pep.pep_only_skipped + counts["dropped"]
         ),
         notes=[
@@ -323,6 +319,7 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             "pep_only_entities_skipped": _vocab(pep.pep_only_skipped),
             "relationships_dropped": _vocab(counts["dropped"]),
             "pep_relationships_dropped": _vocab(counts["pep_dropped"]),
+            "pep_linked_entities_kept": _vocab(counts["pep_linked"]),
             "references_removed": _vocab(counts["removed"]),
             "topics": _vocab(counts["topics"]),
             "flags": {label.lower(): n for label, n in sorted(counts["flags"].items())},

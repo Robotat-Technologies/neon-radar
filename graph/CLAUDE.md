@@ -17,7 +17,9 @@
   `cypher` (reads `queries/*.cypher` and fills `{{rel_type}}`-style placeholders with C2 names
   only), `verify` (`graph verify`), `wording` (the resolution and possible-match texts of
   PHASE-2.md 7.2, verbatim; pure, no Splink, so the API and `er review` share them;
-  `scripts/check_wording.py` scans it). Every new Cypher statement lives in `queries/`; the
+  `scripts/check_wording.py` scans it), `shapes` (C2 rows to C3 models with property
+  allow-lists from `neonradar_contracts.graph`, and Phase 1's subgraph builder; moved from
+  `neonradar_api` in M2.12). Every new Cypher statement lives in `queries/`; the
   files PHASE-2.md M2.11 gives are verbatim except three (phase-2-reconciliation 2.9, J1, J2).
 - Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
   a pytest plugin the root `conftest.py` registers once; fixtures `neo4j`, `empty_neo4j`,

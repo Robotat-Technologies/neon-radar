@@ -18,11 +18,11 @@ from typing import Any, Final
 
 from pydantic import ValidationError
 
-from neonradar_api import shapes
 from neonradar_api.graph import GraphConnection
 from neonradar_api.problems import ProblemError
 from neonradar_contracts.alert import ALERT_ID_PATTERN, Alert
 from neonradar_contracts.api import AlertDetail, AlertPage, AlertSummary
+from neonradar_graph import shapes
 
 logger = logging.getLogger(__name__)
 

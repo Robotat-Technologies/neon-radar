@@ -9,7 +9,7 @@ per depth, built in code from the same text, never from input.
 import re
 from typing import Any, Final, LiteralString, get_args
 
-from neonradar_api import alerts, shapes
+from neonradar_api import alerts
 from neonradar_api.graph import GraphConnection
 from neonradar_api.problems import ProblemError
 from neonradar_contracts.api import (
@@ -22,6 +22,7 @@ from neonradar_contracts.api import (
     SearchResponse,
     Subgraph,
 )
+from neonradar_graph import shapes
 
 # Every type C3 shows (C3 1.1.0: the 16 built from records and POSSIBLY_SAME_AS).
 SHOWN_TYPES: Final[list[str]] = list(get_args(RelationshipType))

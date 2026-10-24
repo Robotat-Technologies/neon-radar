@@ -7,8 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 from neo4j.time import DateTime
 
-from neonradar_api import entities, shapes
+from neonradar_api import entities
 from neonradar_api.main import create_app
+from neonradar_graph import shapes
 
 from .conftest import ScriptedGraph
 

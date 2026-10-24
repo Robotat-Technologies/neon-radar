@@ -1,7 +1,9 @@
 """C2 nodes and relationships as C3 models (contracts/C3-api.md, "Graph shapes").
 
-Queries return each node as `{props: properties(n), labels: labels(n)}` and each relationship
-as `{props: properties(r), type: type(r), source: startNode(r).id, target: endNode(r).id}`, so
+Phase 1's subgraph builder (M1.9c), moved here from `neonradar_api` in M2.12 so that
+`neonradar_graph.ownership` builds the same subgraphs for the API and the copilot. Queries
+return each node as `{props: properties(n), labels: labels(n)}` and each relationship as
+`{props: properties(r), type: type(r), source: startNode(r).id, target: endNode(r).id}`, so
 Neo4j `elementId()` values never leave the database. Property maps keep only the C2 properties
 of the node's schema or the relationship's type (an allow-list from `neonradar_contracts.graph`),
 minus what C3 leaves out, and `PAID.ts` becomes `YYYY-MM-DDTHH:MM:SSZ`.

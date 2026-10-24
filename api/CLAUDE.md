@@ -14,8 +14,7 @@
   `not_implemented`, `responses`), `graph` (`GraphConnection`: one lazy sync driver; `read()`
   runs READ transactions only; `get_graph` dependency), `health`, `files` (`RepoFiles`: the
   typology files and bibliography from `NR_REPO_ROOT`, default the nearest uv workspace above
-  the working directory; `get_files` dependency), `shapes` (C2 rows to C3 models, property
-  allow-lists from `neonradar_contracts.graph`), `entities` (search, entity detail, network),
+  the working directory; `get_files` dependency), `entities` (search, entity detail, network),
   `alerts` (queue with its cursor, detail), `reference` (meta, typologies), `docs_page` (the
   `/docs` page), `settings` (`ApiSettings`: `NR_REPO_ROOT`, `NR_ALLOWED_HOSTS`; environment
   only, read when the app starts).

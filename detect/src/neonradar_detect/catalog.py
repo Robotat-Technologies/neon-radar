@@ -12,8 +12,9 @@ Phase 3 (PHASE-3.md M3.2 deliverable 3, 7.5.2) adds `shape_name`, `wording.varia
 `{name|n:noun[:plural]}`. `load()` validates every file with `TypologyFile` and returns the
 frozen `Typology` view the detection runner reads; it also refuses what the Phase 3 renderer
 cannot render (a detector typology without a shape name, a format spec or a stray brace), so a
-run never emits a summary without its shape or a template with a placeholder left in it, and a
-`detector` other than `neonradar_detect.detectors.<slug>`, the only module the runner imports.
+run never emits a summary without its shape or a template with a placeholder left in it, a
+`detector` other than `neonradar_detect.detectors.<slug>`, the only module the runner imports,
+and a shape name or template that fails the run-time lint (`wording_lint.violations`).
 `params_for` builds a detector's `Params` from the file's defaults and a profile's overrides.
 """
 
@@ -41,6 +42,7 @@ from neonradar_contracts.wording import (
     find_forbidden_in_name,
     says_synthetic_scenario,
 )
+from neonradar_detect import wording_lint
 
 # The workspace installs members editable, so this is the root of the repository.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -321,6 +323,13 @@ def _view(item: TypologyFile) -> Typology:
     )
 
 
+def _lint3(where: str, text: str) -> list[str]:
+    """The run-time lint (`wording_lint.violations`: Phase 1's patterns, Phase 2's phrases and
+    Phase 3's conduct words), so a file that would fail a run fails when it loads (7.5.2)."""
+    found = wording_lint.violations(text)
+    return [f"{where} fails the wording lint (7.5.2): {', '.join(found)}"] if found else []
+
+
 def _renderable(item: TypologyFile) -> list[str]:
     """Why the Phase 3 renderer cannot run this typology (empty when it can)."""
     problems = []
@@ -330,17 +339,21 @@ def _renderable(item: TypologyFile) -> list[str]:
         problems.append(f"detector must be {DETECTOR_PACKAGE}.{item.slug} or null")
     if item.detector is not None and item.shape_name is None:
         problems.append("a typology with a detector needs shape_name")
+    if item.shape_name is not None:
+        problems += _lint3("shape_name", item.shape_name)
     if item.wording is not None:
         for where, pair in _pairs(item.wording):
             for key, template in _templates(pair):
                 problems += [f"{where}{key}: {p}" for p in phase3_problems(template)]
+                problems += _lint3(f"{where}{key}", template)
     return problems
 
 
 def load(directory: Path = CATALOG_DIR) -> dict[str, Typology]:
     """Every typology file, validated with `TypologyFile`, as the frozen `Typology` view; a
     `CatalogError` when one cannot be run by the Phase 3 code (a detector outside the package,
-    no shape name for a detector, a format spec, a stray brace)."""
+    no shape name for a detector, a format spec, a stray brace, a shape name or template that
+    fails the run-time lint)."""
     out = {}
     for slug, item in load_catalog(directory).items():
         problems = _renderable(item)

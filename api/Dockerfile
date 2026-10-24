@@ -9,8 +9,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends pkg-config libicu-dev build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# uv's bytecode workers must start within UV_COMPILE_BYTECODE_TIMEOUT seconds (default 60); a
+# busy or small Docker VM can take longer, which fails the build, so allow five minutes.
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
+    UV_COMPILE_BYTECODE_TIMEOUT=300 \
     UV_PYTHON_DOWNLOADS=never \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

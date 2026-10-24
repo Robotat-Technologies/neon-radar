@@ -155,3 +155,9 @@ def test_the_summary_has_every_field_and_passes_emit(
     assert runner.invoke(app, ["load", "--profile", "demo"]).exit_code == 1
     (failed,) = (item for item in summaries(data_env, "demo") if item["status"] == "failed")
     assert (failed["failed_step"], failed["invariants"]["i3"]) == ("graph verify", 1)
+
+
+def test_record_counts_skip_datasets_without_a_record_folder(data_env: Any) -> None:
+    from neonradar_ingest.data.project import load_project
+
+    assert load.record_counts(load.Run(load_profile("uk-tiny"), load_project())) == {}

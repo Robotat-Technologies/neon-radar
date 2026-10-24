@@ -79,13 +79,15 @@ def _short(value: object) -> str | None:
 
 
 def record_counts(run: Run) -> dict[str, Any]:
-    """Records by dataset and schema, and each dataset's source version, from the manifests."""
+    """Records by dataset and schema, and each dataset's source version, from the manifests
+    (a dataset whose builder wrote no folder has none)."""
     from neonradar_contracts.records import manifest_path
     from neonradar_graph import loader
 
     found: dict[str, Any] = {}
     seen: set[str] = set()
-    for path in loader.collect_files(run.profile.record_dirs(run.project)):
+    folders = [path for path in run.profile.record_dirs(run.project) if path.is_dir()]
+    for path in sorted(file for folder in folders for file in folder.glob(loader.RECORD_GLOB)):
         manifest = loader.read_manifest(path)
         if manifest is None or str(manifest_path(path)) in seen:
             continue

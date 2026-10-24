@@ -80,6 +80,11 @@ def _report(exc: Exception, command: str, where: Where) -> None:
     typer.echo(f"{line} (traceback in {log.parent.name}/{log.name})", err=True)
 
 
+def report(exc: Exception, command: str, step: str) -> None:
+    """Report `exc` as `guard` does when redacting, for errors a server answers itself."""
+    _report(exc, command, Where(step=step))
+
+
 @contextmanager
 def guard(profile: Profile | None, command: str, *, real: bool | None = None) -> Iterator[Where]:
     """Redact errors when `profile` is real (or `real` is true, for commands on real folders)."""

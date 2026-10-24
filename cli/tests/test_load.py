@@ -23,7 +23,7 @@ SYNTHETIC = {"nr_synthetic": {"enabled": True, "fixtures": ["data/fixtures/demo-
 
 @pytest.fixture
 def ran(data_env: Any, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, load.Run]]:
-    """Every step a fake that records its name and run."""
+    """Every step a fake that records its name and run; no hardware probe runs a tool."""
     calls: list[tuple[str, load.Run]] = []
 
     def fake(name: str) -> load.Step:
@@ -31,6 +31,7 @@ def ran(data_env: Any, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, load.
 
     for name in load.STEPS:
         monkeypatch.setitem(load.STEPS, name, fake(name))
+    monkeypatch.setattr(load, "_command", lambda *args: None)
     return calls
 
 
@@ -105,10 +106,18 @@ def test_skip_officers_sets_the_budget_to_0_for_the_run_only(
     assert load_profile("uk-tiny").options("gb_companies_house").officers.request_budget == 1500
 
 
+class FakeDriver:
+    def execute_query(self, *args: Any, **kwargs: Any) -> tuple[list[dict[str, str]], None, None]:
+        rows = [{"name": "server.memory.heap.max_size", "value": "1G"},
+                {"name": "server.memory.pagecache.size", "value": "512M"}]  # fmt: skip
+        return rows, None, None
+
+
 def test_the_summary_has_every_field_and_passes_emit(
     data_env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The real step functions, with the commands they call replaced."""
+    monkeypatch.setattr(load, "_command", lambda *args: "8589934592" if "docker" in args else None)
     datasets = {"nr_synthetic": {"status": "ok", "records": 4850, "files": ["a.ftm.jsonl"]}}
     monkeypatch.setattr(ingest, "run_build", lambda profile: {"datasets": datasets})
     counts = {"records": 4850, "merges": 665, "run_note": "text left out"}
@@ -120,8 +129,8 @@ def test_the_summary_has_every_field_and_passes_emit(
     monkeypatch.setattr(graph, "_settings", lambda instance: type("S", (), {"database": "neo4j"}))
 
     @contextmanager
-    def connected(*args: Any, **kwargs: Any) -> Iterator[object]:
-        yield object()
+    def connected(*args: Any, **kwargs: Any) -> Iterator[FakeDriver]:
+        yield FakeDriver()
 
     monkeypatch.setattr(graph, "_connected", connected)
     stats = loader.GraphStats(10, 7, {"Company": 4, "SourceRecord": 6}, {"OWNS": 7})
@@ -129,13 +138,19 @@ def test_the_summary_has_every_field_and_passes_emit(
     result = runner.invoke(app, ["load", "--profile", "demo"])
     assert result.exit_code == 0, result.output
     (written,) = summaries(data_env, "demo")
-    assert {"profile", "run_id", "steps", "build", "resolution", "graph_load", "graph",
-            "invariants", "status"} <= set(written)  # fmt: skip
+    assert {"profile", "run_id", "steps", "records", "build", "resolution", "graph_load", "graph",
+            "invariants", "hardware", "status"} <= set(written)  # fmt: skip
     assert all(step["duration_s"] >= 0 for step in written["steps"].values())
+    mini = written["records"]["nr_synthetic"]  # from the fixtures' manifests
+    assert mini["by_schema"]["payment"] > 0 and mini["records"] > 0
     assert written["build"] == {"nr_synthetic": {"status": "ok", "records": 4850}}
     assert written["resolution"] == {"counts": {"records": 4850, "merges": 665}, "seed": 7}
     assert written["invariants"] == {f"i{n}": 0 for n in range(1, 15)}
     assert written["graph"]["nodes_by_label"] == {"company": 4, "sourcerecord": 6}
+    hardware = written["hardware"]
+    assert {"cpu_model", "cpu_cores", "ram_bytes", "os", "docker_memory_bytes"} <= set(hardware)
+    assert (hardware["docker_memory_bytes"], hardware["neo4j_heap"]) == (8589934592, "1G")
+    assert hardware["neo4j_pagecache"] == "512M"
 
 
 def test_counts_keep_numbers_and_status_only() -> None:

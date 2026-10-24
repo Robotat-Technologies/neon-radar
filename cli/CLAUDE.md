@@ -51,7 +51,10 @@
     `api serve` imports uvicorn inside the command, so `neonradar --help` stays fast.
   - `api serve --real` (M2.12) is human-only: inside `redact.guard`, `require_terminal` first,
     then the real-data gate without a profile, then the app on `Instance.REAL` at 127.0.0.1 on
-    `REAL_PORT`. Agents never run it; its test closes stdin and checks nothing else ran.
+    `REAL_PORT`. Agents never run it; its test closes stdin and checks nothing else ran. It
+    serves `problems.Contained(create_app(..., report=...))` with `access_log=False` and log
+    level warning (G9): a request line holds ids and names; `redact.report` keeps tracebacks
+    in data/cache/real/logs. `--port` with `--real` exits 2.
   - `gate.py` (Gate 1, PHASE-1.md section 8): one `@gate_check` function per GC check returns
     `(Status, evidence)`; it only reads and never tags, approves or edits (OD-5). Every command
     goes through `Context.run`, so tests pass a fake runner and tmp folders and never call gh,

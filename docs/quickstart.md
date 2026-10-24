@@ -61,28 +61,6 @@ It checks the notices, a search for the first company in the fixture, the alert 
 
 In the devcontainer or a Codespace, where Neo4j already runs and there is no Docker, `make demo-dev` loads the same data into the Neo4j at `NEO4J_URI`, runs detection, then starts `neonradar api serve` and the Vite dev server. The UI is at http://localhost:5173 and `make e2e E2E_BASE_URL=http://localhost:5173` tests it. Ctrl-C stops both servers.
 
-## Load a profile: `make load`
-
-`make load` runs one profile end to end with `neonradar load --profile <name>`: `ingest build`, `er run` (when the profile's `resolution.enabled` is true), `graph migrate`, `graph load --profile <name> --resolution latest` and `graph verify` (invariants I1 to I14). It stops at the first failing step, names it and exits 1. `make up && make load` runs the synthetic `demo` profile (`PROFILE ?= demo`) into the default Neo4j.
-
-## Load real public data
-
-Real public data is loaded only on an approved machine (`docs/data/real-data-machines.md`, `docs/data/real-data-handling.md`), and every command on it prints counts, timings and versions only.
-
-Before you start:
-
-- the machine is listed as approved, and `.env` says `NR_REAL_DATA_MACHINE=approved`;
-- `docs/build/project.yaml` names the profile in `access.real_data_profiles` and sets `access.data_protection_filed: true` (`uv run neonradar data profiles` shows each condition);
-- the Companies House key is in `.env` as `CH_API_KEY` (the officers step needs it);
-- disk space for the profile, from PHASE-2.md 7.8: about 10 GB at peak for `uk-tiny` and about 25 GB for `uk-sample`;
-- the real-data instance runs: set `NEO4J_REAL_PASSWORD` in `.env`, then `make up-real`.
-
-Then `make load PROFILE=uk-tiny`. For a real profile `load` first runs the real-data gate and checks that the real-data instance answers, then `data fetch` (`--skip-fetch` reuses the downloads already there), and runs `graph migrate` and `graph verify` with `--real`; `graph load` sends real records to the real-data instance by itself. `--skip-officers` sets the officers request budget to 0 for that run only, so officer records come from the cache of earlier runs.
-
-**What the summary means.** Each run writes one file, `data/cache/reports/<profile>/load-<UTC timestamp>.json`: each step with its status and duration, record counts by dataset and schema, the source versions, the resolution counts, node and relationship counts by label and type, the invariant results (each should be 0) and the hardware (CPU, cores, RAM, operating system, Docker's memory, Neo4j's heap and page cache). It holds counts only, never a name or an id.
-
-**Purge.** `uv run neonradar data purge --profile uk-tiny --yes` deletes the profile's records, runs and labels; `uv run neonradar data purge --all-real --graph --yes` deletes everything under `data/cache/real/` and the real-data instance's volume. `make down-real` only stops the instance and keeps its volume.
-
 ## Stop and reset
 
 | Command | What it does |

@@ -154,21 +154,24 @@ def plan(profile: Profile, *, skip_fetch: bool) -> list[str]:
 
 
 def run_steps(run: Run, names: list[str]) -> str | None:
-    """Each step in order; the name of the first that failed, else None."""
+    """Each step in order, inside the redaction guard; the name of the first that failed."""
+    from neonradar_cli import redact
+
     steps: dict[str, Any] = run.report.setdefault("steps", {})
     for name in names:
-        started, status = time.monotonic(), "failed"
+        started, status, key = time.monotonic(), "failed", name.replace(" ", "_")
         try:
-            STEPS[name](run)
+            with redact.guard(run.profile, "load") as where:  # an error becomes typer.Exit
+                where.step = key
+                STEPS[name](run)
             status = "ok"
         except typer.Exit as stopped:
             status = "ok" if stopped.exit_code == 0 else "failed"
-        except Exception:  # unexpected: named here, then redacted by the guard on a real profile
+        except Exception:  # a synthetic profile's unexpected error keeps its traceback
             typer.echo(f"FAIL  load stopped at step {name}", err=True)
             raise
         finally:
-            duration = round(time.monotonic() - started, 3)
-            steps[name.replace(" ", "_")] = {"status": status, "duration_s": duration}
+            steps[key] = {"status": status, "duration_s": round(time.monotonic() - started, 3)}
         if status == "failed":
             return name
     return None

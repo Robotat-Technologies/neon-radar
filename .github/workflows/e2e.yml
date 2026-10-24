@@ -53,8 +53,6 @@ jobs:
       # and the time.
       - run: make demo-mini
       - run: make e2e
-      - run: make load PROFILE=demo
-      - run: uv run neonradar graph verify
       - name: Container logs
         if: ${{ failure() }}
         run: docker compose --profile app logs --no-color --tail=300

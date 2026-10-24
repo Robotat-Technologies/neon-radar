@@ -4,18 +4,23 @@
 what a run does around it, as Phase 1's runner did (PHASE-1.md M1.9b), with Phase 3's additions:
 
 1. Every alert is validated with C4's `Alert` before anything is written; a failure names the
-   alert's typology and the fields, never their values.
+   alert's typology and the fields, never their values. C4's model checks the ends of composite
+   evidence edges only, so the run checks that both ends of every plain-id evidence edge are
+   evidence nodes (C4 `evidence`, as Phase 1's builder did), naming the typology and a count.
 2. The run folder: `alerts.jsonl` (one alert per line, sorted keys), `summary.json` (the runner's
    counts-only summary) and `run.json` (Phase 1's fields plus `profile`, `params_sha256`,
    `window`, `engine` and, by reconciliation A1, the SHA-256 of each detector's query files);
-   last, `LATEST` in the folder above it.
+   last, `LATEST` in the folder above it. A graph with no window to read records none: no
+   `window` in `run.json` or on the `:DetectionRun`, and `window: null` in the summary.
 3. On Neo4j, the L19 load in one write transaction: every earlier `:Alert` and `:DetectionRun`
    is deleted (unless `keep_previous`), then the run, its alerts with their evidence lists,
    `PRODUCED` and `FLAGS` are merged.
 
 A run that fails writes `run.json` with `status: failed` and no `alerts.jsonl`, and records a
-failed `:DetectionRun` with no alerts, as Phase 1 did. Every alert's `detector.query_sha256` is the
-SHA-256 of its evidence query, `queries/evidence.cypher`, as C4 1.0.0 requires (A1).
+failed `:DetectionRun` with no alerts, as Phase 1 did, without the L19 delete: a failed run has
+no results to replace the earlier ones with, so it never wipes them (orchestrator decision under
+OD-10, phase-3 reconciliation section 9). Every alert's `detector.query_sha256` is the SHA-256 of
+its evidence query, `queries/evidence.cypher`, as C4 1.0.0 requires (A1).
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ import json
 import logging
 import re
 import secrets
+from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -253,6 +259,12 @@ def alert_row(alert: Alert) -> dict[str, Any]:
     }
 
 
+def _fields(error: ValidationError) -> str:
+    """The field paths a validation error names, never the values."""
+    paths = {".".join(str(p) for p in e["loc"]) or "(alert)" for e in error.errors()}
+    return ", ".join(sorted(paths))
+
+
 def validate(built: list[dict[str, Any]]) -> list[Alert]:
     """Every alert against C4; a failure names the typology and the fields, never values."""
     out = []
@@ -260,14 +272,32 @@ def validate(built: list[dict[str, Any]]) -> list[Alert]:
         try:
             out.append(Alert.model_validate(item))
         except ValidationError as error:
-            fields = sorted(
-                {".".join(str(p) for p in e["loc"]) or "(alert)" for e in error.errors()}
-            )
+            typology = item.get("typology", "?")
             raise RunError(
-                f"a {item.get('typology', '?')} alert does not validate against C4:"
-                f" {', '.join(fields)}"
+                f"a {typology} alert does not validate against C4: {_fields(error)}"
             ) from None
     return out
+
+
+def check_edge_ends(source: Source, found: list[Alert]) -> None:
+    """C4: both ends of every evidence edge are evidence nodes. The model checks composite ids
+    (`a|addr|b`, `a|sanction|b`); for plain ids the detector side checks it (C4 `evidence`,
+    PHASE-1.md M1.9b), here from the source's `edge_info`. A plain id the source does not know
+    cannot be checked and fails too. The error names the typologies and counts, never an id."""
+    plain = sorted({e for alert in found for e in alert.evidence.edge_ids if "|" not in e})
+    edges = source.edge_info(plain) if plain else {}
+    bad: Counter[str] = Counter()
+    for alert in found:
+        nodes = set(alert.evidence.node_ids)
+        ends = [edges.get(e) for e in alert.evidence.edge_ids if "|" not in e]
+        if any(info is None or not {info.source, info.target} <= nodes for info in ends):
+            bad[alert.typology] += 1
+    if bad:
+        counts = ", ".join(f"{slug} {n}" for slug, n in sorted(bad.items()))
+        raise RunError(
+            "alerts with an evidence relationship that does not end at two of their evidence"
+            f" nodes (C4), by typology: {counts}"
+        )
 
 
 # the run folder ------------------------------------------------------------------------------
@@ -344,13 +374,15 @@ def _store(
 
 
 def store(driver: Driver, database: str, record: RunRecord, *, keep_previous: bool) -> None:
-    """The L19 load of one run, in one write transaction."""
+    """The L19 load of one run, in one write transaction. A failed run records its failed
+    `:DetectionRun` and deletes nothing: the earlier results stay (OD-10, see the module)."""
+    ok = record.status == "ok"
     with driver.session(database=database) as session:
         session.execute_write(
             _store,
             record.node_properties(),
-            record.alerts if record.status == "ok" else [],
-            keep_previous,
+            record.alerts if ok else [],
+            keep_previous or not ok,
         )
 
 
@@ -407,7 +439,10 @@ def run(
             real_registry_alerts=real_registry_alerts,
         )
         record.alerts = validate(result.alerts)
-        record.summary = result.summary
+        check_edge_ends(source, record.alerts)
+        # The runner's summary carries the span it ran over; without a window to read (no
+        # PAID) that is a stand-in, and the run records no window (C2 1.2.0).
+        record.summary = result.summary if window_known else {**result.summary, "window": None}
         record.status = "ok"
         record.finished_at = utc_text(clock())
         write_folder(record)
@@ -525,7 +560,13 @@ def verify(
     if missing:
         raise RunError(f"{len(missing)} alert id(s) are not in the graph")
     for alert_id in sorted(found):
-        alert = Alert.model_validate_json(found[alert_id])
+        try:
+            alert = Alert.model_validate_json(found[alert_id])
+        except ValidationError as error:  # the fields, never the stored values
+            raise RunError(
+                f"alert {alert_id}: the stored payload does not validate against C4:"
+                f" {_fields(error)}"
+            ) from None
         evidence = alert.evidence
         own = evidence.query.cypher == alerts.EVIDENCE_QUERY
         back: dict[str, Any] = {"node_ids": [], "edge_ids": []}

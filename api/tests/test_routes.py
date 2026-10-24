@@ -119,7 +119,9 @@ class EmptyGraph(GraphConnection):
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app(OfflineGraph()), raise_server_exceptions=False) as test_client:
+    with TestClient(
+        create_app(OfflineGraph()), raise_server_exceptions=False, base_url="http://127.0.0.1"
+    ) as test_client:
         yield test_client
 
 
@@ -184,7 +186,9 @@ class TimedOutGraph(GraphConnection):
 
 @pytest.mark.parametrize("url", PHASE_2_REQUESTS)
 def test_the_phase_2_routes_answer_503_problems_with_advice_on_timeouts(url: str) -> None:
-    with TestClient(create_app(TimedOutGraph()), raise_server_exceptions=False) as test_client:
+    with TestClient(
+        create_app(TimedOutGraph()), raise_server_exceptions=False, base_url="http://127.0.0.1"
+    ) as test_client:
         problem = _problem(test_client.get(url), 503)
     assert problem.detail == (
         "The query did not finish within 5 seconds. Try again with a smaller max_hops or fewer"
@@ -195,7 +199,9 @@ def test_the_phase_2_routes_answer_503_problems_with_advice_on_timeouts(url: str
 @pytest.mark.parametrize("url", PHASE_2_REQUESTS)
 def test_the_phase_2_routes_answer_404_problems_for_unknown_ids(url: str) -> None:
     """M2.12 replaced their 501 answers (PHASE-2.md M2.12 deliverable 3)."""
-    with TestClient(create_app(EmptyGraph()), raise_server_exceptions=False) as test_client:
+    with TestClient(
+        create_app(EmptyGraph()), raise_server_exceptions=False, base_url="http://127.0.0.1"
+    ) as test_client:
         problem = _problem(test_client.get(url), 404)
     assert problem.detail == "No entity has this id."
     assert problem.instance == url.split("?")[0]
@@ -261,7 +267,7 @@ def test_an_unexpected_error_answers_a_generic_500_problem() -> None:
     def boom() -> None:
         raise RuntimeError("secret detail that must not leak")
 
-    with TestClient(app, raise_server_exceptions=False) as test_client:
+    with TestClient(app, raise_server_exceptions=False, base_url="http://127.0.0.1") as test_client:
         problem = _problem(test_client.get("/boom"), 500)
     assert "secret" not in problem.detail
 
@@ -272,7 +278,17 @@ def test_the_openapi_document_is_served_and_the_cdn_docs_pages_are_not(client: T
         _problem(client.get(page), 404)
 
 
-def test_cors_allows_only_the_vite_dev_server(client: TestClient) -> None:
+def test_cors_is_sent_only_in_development(client: TestClient) -> None:
+    """`neonradar api serve --dev` (PHASE-4.md M4.1): the default app sends no CORS headers."""
+    preflight = {"origin": "http://localhost:5173", "access-control-request-method": "GET"}
+    plain = client.options(f"{P}/health", headers=preflight)
+    assert "access-control-allow-origin" not in plain.headers
+    app = create_app(OfflineGraph(), dev=True)
+    with TestClient(app, base_url="http://127.0.0.1") as dev_client:
+        _check_cors_allows_only_the_vite_dev_server(dev_client)
+
+
+def _check_cors_allows_only_the_vite_dev_server(client: TestClient) -> None:
     preflight = {"access-control-request-method": "GET"}
     allowed = client.options(
         f"{P}/health", headers={"origin": "http://localhost:5173", **preflight}
@@ -292,7 +308,8 @@ def test_fastapi_telemetry_stays_off_even_when_the_environment_asks(
     assert not any(settings[key] for key in ("tracing", "metrics", "logs", "operation_spans"))
     assert settings["auto_configure"] is False
     assert app._native_telemetry.enabled() is False
-    with TestClient(app) as test_client:  # the lifespan runs without configuring exporters
+    # the lifespan runs without configuring exporters
+    with TestClient(app, base_url="http://127.0.0.1") as test_client:
         assert test_client.get(f"{P}/health").status_code == 200
 
 
@@ -313,6 +330,16 @@ def test_an_unknown_body_key_is_reported_without_echoing_it(client: TestClient) 
     assert "sentinel" not in problem.detail and "another" not in problem.detail
 
 
+def test_a_long_question_gets_a_422_that_does_not_repeat_it(client: TestClient) -> None:
+    """A question that fails validation never comes back in the error detail (G15, M4.1)."""
+    marker = "zorblatt"
+    question = (marker * 64)[:501]
+    response = client.post(f"{P}/copilot/ask", json={"question": question})
+    problem = _problem(response, 422)
+    assert problem.detail.startswith("body.question: ")
+    assert marker not in response.text
+
+
 def test_an_unavailable_graph_answers_a_503_problem_without_internals() -> None:
     app = create_app(OfflineGraph())
 
@@ -320,15 +347,14 @@ def test_an_unavailable_graph_answers_a_503_problem_without_internals() -> None:
     def needs_graph(graph: Annotated[GraphConnection, Depends(get_graph)]) -> None:
         graph.read("RETURN 1 AS n")
 
-    with TestClient(app) as test_client:
+    with TestClient(app, base_url="http://127.0.0.1") as test_client:
         problem = _problem(test_client.get("/needs-graph"), 503)
     assert problem.title == "Service Unavailable"
     assert problem.detail == "The graph database is not available."
 
 
-def test_only_the_allowed_hosts_are_answered(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_only_the_allowed_hosts_are_answered() -> None:
     """A page whose domain is rebound to 127.0.0.1 (DNS rebinding) sends its own Host."""
-    monkeypatch.delenv("NR_ALLOWED_HOSTS")  # the defaults: localhost, 127.0.0.1, api
     with TestClient(create_app(OfflineGraph()), base_url="http://localhost:8000") as client:
         assert client.get(f"{P}/health").status_code == 200
         for host in ("127.0.0.1:8000", "api:8000", "localhost:5173"):

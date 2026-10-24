@@ -24,7 +24,7 @@ from neonradar_contracts.api import EntityDetail, Problem, ResolutionResponse
 from neonradar_graph.loader import load_files, wipe
 from neonradar_graph.migrate import migrate
 
-from .conftest import REPO_ROOT, TEST_HOSTS, SessionGraph
+from .conftest import REPO_ROOT, SessionGraph
 
 pytestmark = pytest.mark.integration
 
@@ -109,8 +109,8 @@ def client(neo4j: Any, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Tes
     report = load_files(neo4j.driver, [FIXTURE], database=neo4j.database, resolution=run_dir)
     assert not report.failed
     assert (report.merged_entities, report.possible_matches) == (1, 3)
-    app = create_app(SessionGraph(neo4j), RepoFiles(REPO_ROOT), allowed_hosts=TEST_HOSTS)
-    with TestClient(app) as test_client:
+    app = create_app(SessionGraph(neo4j), RepoFiles(REPO_ROOT))
+    with TestClient(app, base_url="http://127.0.0.1") as test_client:
         yield test_client
 
 

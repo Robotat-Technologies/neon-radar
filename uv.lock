@@ -644,6 +644,7 @@ dependencies = [
     { name = "neonradar-graph" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
+    { name = "starlette" },
     { name = "uvicorn" },
 ]
 
@@ -655,6 +656,7 @@ requires-dist = [
     { name = "neonradar-graph", editable = "graph" },
     { name = "pydantic-settings", specifier = ">=2.16,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "starlette", specifier = ">=1.9,<1.10" },
     { name = "uvicorn", specifier = ">=0.54,<0.55" },
 ]
 

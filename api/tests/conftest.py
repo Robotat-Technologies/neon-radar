@@ -2,28 +2,31 @@
 
 The integration tests use the shared Neo4j fixture `neo4j` (one per test session) of
 graph/tests/support/nr_test_neo4j.py, which the root conftest.py registers once for every
-suite; tests import `Neo4jTarget` from that module, never the fixtures."""
+suite; tests import `Neo4jTarget` from that module, never the fixtures.
 
-import json
+The app answers only this machine's host names (`neonradar_api.hardening.ALLOWED_HOSTS`), so
+every test client uses a base URL on `http://127.0.0.1`, not TestClient's `http://testserver`
+(PHASE-4.md M4.1).
+
+The helpers of the Phase 4 tests (`apiclient.py`, `phase4app.py`, `benchapp.py`) sit next to
+the tests, and the fake neo4j driver next to the graph tests; pytest runs with
+--import-mode=importlib, so both folders go on the path.
+"""
+
+import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-import pytest
 from neo4j import Driver
 
 from neonradar_api.graph import GraphConnection, GraphUnavailable
-from neonradar_api.settings import DEFAULT_ALLOWED_HOSTS
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1] / "graph" / "tests"))
+sys.path.insert(0, str(HERE))
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-# FastAPI's TestClient sends `Host: testserver`; the app answers only its allowed hosts.
-TEST_HOSTS = [*DEFAULT_ALLOWED_HOSTS, "testserver"]
-
-
-@pytest.fixture(autouse=True)
-def allow_the_test_client_host(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every app a test builds also answers the TestClient's host."""
-    monkeypatch.setenv("NR_ALLOWED_HOSTS", json.dumps(TEST_HOSTS))
 
 
 class OfflineGraph(GraphConnection):

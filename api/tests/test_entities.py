@@ -92,7 +92,7 @@ def test_one_fixed_network_query_per_depth() -> None:
 
 def test_search_lists_an_exact_account_number_first_with_the_top_score() -> None:
     graph = ScriptedGraph(answers)
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         body = client.get("/api/v1/search", params={"q": "NRSYN0000000001"}).json()
     assert [hit["entity"]["id"] for hit in body["items"]] == ["syn-acct-0001", "syn-co-0001"]
     assert [hit["score"] for hit in body["items"]] == [2.5, 2.5]
@@ -103,7 +103,7 @@ def test_search_lists_an_exact_account_number_first_with_the_top_score() -> None
 
 def test_search_filters_labels_and_skips_the_index_when_it_cannot_match() -> None:
     graph = ScriptedGraph(answers)
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         company = client.get("/api/v1/search?q=lea+ltd&labels=Company").json()
         accounts = client.get("/api/v1/search?q=lea&labels=Account").json()
         symbols = client.get("/api/v1/search?q=**").json()
@@ -154,7 +154,7 @@ def test_the_network_cuts_extra_edges_and_says_so() -> None:
         for n in range(5)
     ]
     graph = ScriptedGraph(lambda query, params: [{"nodes": nodes, "edges": edges, "cut": False}])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         body = client.get("/api/v1/entities/syn-acct-0001/network?max_nodes=2").json()
     assert (len(body["nodes"]), len(body["edges"]), body["truncated"]) == (2, 4, True)
     assert body["limits"] == {"max_nodes": 2, "max_edges": 4}
@@ -164,7 +164,7 @@ def test_the_network_cuts_extra_edges_and_says_so() -> None:
 
 def test_search_passes_supertype_labels_to_the_index() -> None:
     graph = ScriptedGraph(answers)
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         client.get("/api/v1/search?q=lea&labels=Organization&labels=LegalEntity&labels=Account")
     assert [(query, params.get("labels")) for query, params in graph.calls] == [
         (entities.ACCOUNT, None),

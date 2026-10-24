@@ -2,7 +2,10 @@
 
 Every error is `application/problem+json` with `type` `about:blank`, `title` the HTTP reason
 phrase, `detail` a sentence for people and `instance` the request path. Validation errors list
-`<location>: <message>` pairs in `detail` without echoing the input.
+`<location>: <message>` pairs in `detail` without echoing the input (pydantic's `input` and
+`ctx` never reach a response). An exception no handler takes is `hardening.Contain`'s fixed 500
+problem (PHASE-4.md M4.1). Log lines name the route template, never the request path, which can
+hold an entity id (G15).
 """
 
 import logging
@@ -17,6 +20,7 @@ from starlette.exceptions import HTTPException
 
 from neonradar_api.files import RepoRootNotFound
 from neonradar_api.graph import GraphUnavailable
+from neonradar_api.hardening import route_template
 from neonradar_contracts.api import Problem
 from neonradar_graph.ownership import QueryTimeout, UnknownId
 
@@ -116,23 +120,26 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(QueryTimeout)
     async def on_timeout(request: Request, error: QueryTimeout) -> JSONResponse:
-        route = getattr(request.scope.get("route"), "path", "?")  # the template, never an id
-        logger.warning("A graph query ran out of time on %s %s", request.method, route)
+        logger.warning(
+            "A graph query ran out of time on %s %s", request.method, route_template(request.scope)
+        )
         return problem_response(request, 503, str(error))
 
     @app.exception_handler(GraphUnavailable)
     async def on_unavailable(request: Request, error: GraphUnavailable) -> JSONResponse:
-        logger.warning("Neo4j unavailable for %s %s: %s", request.method, request.url.path, error)
+        logger.warning(
+            "Neo4j unavailable for %s %s: %s",
+            request.method,
+            route_template(request.scope),
+            type(error.__cause__ or error).__name__,  # the class: a message can quote a query
+        )
         return problem_response(request, 503, "The graph database is not available.")
 
     @app.exception_handler(RepoRootNotFound)
     async def on_no_repo(request: Request, error: RepoRootNotFound) -> JSONResponse:
-        logger.error("repository files not found for %s %s", request.method, request.url.path)
+        logger.error(
+            "repository files not found for %s %s", request.method, route_template(request.scope)
+        )
         return problem_response(
             request, 500, "The repository files were not found: set NR_REPO_ROOT."
         )
-
-    @app.exception_handler(Exception)
-    async def on_error(request: Request, error: Exception) -> JSONResponse:
-        logger.error("unhandled error on %s %s", request.method, request.url.path, exc_info=error)
-        return problem_response(request, 500, "Internal error; the API log has the details.")

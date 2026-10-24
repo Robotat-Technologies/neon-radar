@@ -65,7 +65,9 @@ def test_degraded_and_offline_when_neo4j_is_unavailable() -> None:
 
 
 def test_the_route_answers_200_even_when_degraded() -> None:
-    with TestClient(create_app(FakeGraph({COMPONENTS: GraphUnavailable("down")}))) as client:
+    with TestClient(
+        create_app(FakeGraph({COMPONENTS: GraphUnavailable("down")})), base_url="http://127.0.0.1"
+    ) as client:
         response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json()["status"] == "degraded"
@@ -139,7 +141,9 @@ def test_a_malformed_uri_means_unavailable_and_health_stays_200() -> None:
     graph = GraphConnection(settings=nonsense)
     with pytest.raises(GraphUnavailable, match="NEO4J_URI"):
         graph.read("RETURN 1 AS n")
-    with TestClient(create_app(GraphConnection(settings=nonsense))) as client:
+    with TestClient(
+        create_app(GraphConnection(settings=nonsense)), base_url="http://127.0.0.1"
+    ) as client:
         response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json()["neo4j"]["connected"] is False

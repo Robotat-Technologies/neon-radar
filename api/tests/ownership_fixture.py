@@ -14,7 +14,7 @@ from neonradar_contracts.api import PathRef
 from neonradar_graph.loader import load_files, wipe
 from neonradar_graph.migrate import migrate
 
-from .conftest import REPO_ROOT, TEST_HOSTS, SessionGraph
+from .conftest import REPO_ROOT, SessionGraph
 
 P: Final = "/api/v1"
 FIXTURE: Final = REPO_ROOT / "graph" / "tests" / "fixtures" / "ownership"
@@ -56,6 +56,6 @@ def serve(target: Any) -> Iterator[TestClient]:
     migrate(target.driver, target.database)
     report = load_files(target.driver, [FIXTURE], database=target.database)
     assert not report.failed
-    app = create_app(SessionGraph(target), RepoFiles(REPO_ROOT), allowed_hosts=TEST_HOSTS)
-    with TestClient(app) as client:
+    app = create_app(SessionGraph(target), RepoFiles(REPO_ROOT))
+    with TestClient(app, base_url="http://127.0.0.1") as client:
         yield client

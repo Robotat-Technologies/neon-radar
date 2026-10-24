@@ -1,1 +1,7 @@
-{}
+{
+  "api/src/neonradar_api/hardening.py": {
+    "sha256": "b26b10512f2467fb512f80d09eacdc08de31d6c1f033479c15c6636ff1d1055f",
+    "milestone": "M4.1",
+    "reason": "Contain's 500 body adds `instance` (the route template, never a path value): C3's frozen Problem model requires it, and Phase 1's test_an_unexpected_error_answers_a_generic_500_problem validates the body as a Problem (OD-10 orchestrator decision)"
+  }
+}

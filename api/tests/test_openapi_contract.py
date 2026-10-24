@@ -55,7 +55,7 @@ def test_the_drift_check_sees_a_stray_file(tmp_path: Path, document: dict[str, A
 
 
 def test_the_served_document_is_the_snapshot() -> None:
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url="http://127.0.0.1") as client:
         served = client.get(f"{API_PREFIX}/openapi.json").json()
     assert served == json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 

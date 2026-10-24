@@ -60,7 +60,7 @@ def problem(response: Any, status: int) -> Problem:
 
 def test_a_page_ends_with_a_cursor_to_the_next_one() -> None:
     graph = ScriptedGraph(lambda query, params: ROWS[: params["limit"]])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         page = AlertPage.model_validate_json(client.get(f"{P}/alerts?limit=2").text)
         assert [item.alert_id for item in page.items] == [r["alert"]["alert_id"] for r in ROWS[:2]]
         assert page.items[0].subject_ids == ["syn-co-0003", "syn-acct-0007"]  # C4 order
@@ -78,7 +78,7 @@ def test_a_page_ends_with_a_cursor_to_the_next_one() -> None:
 
 def test_the_last_page_has_no_cursor() -> None:
     graph = ScriptedGraph(lambda query, params: ROWS[: params["limit"]])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         page = AlertPage.model_validate_json(client.get(f"{P}/alerts").text)
     assert (len(page.items), page.next_cursor) == (3, None)
 
@@ -100,7 +100,7 @@ def test_the_last_page_has_no_cursor() -> None:
 )
 def test_a_bad_cursor_is_a_422_problem(cursor: str) -> None:
     graph = ScriptedGraph(lambda query, params: [])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         found = problem(client.get(f"{P}/alerts", params={"cursor": cursor}), 422)
     assert found.detail == alerts.BAD_CURSOR
     assert graph.calls == []
@@ -108,7 +108,7 @@ def test_a_bad_cursor_is_a_422_problem(cursor: str) -> None:
 
 def test_a_cursor_belongs_to_its_filters() -> None:
     graph = ScriptedGraph(lambda query, params: ROWS[: params["limit"]])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         cursor = client.get(f"{P}/alerts?limit=1&priority=high").json()["next_cursor"]
         assert client.get(f"{P}/alerts?priority=high&cursor={cursor}").status_code == 200
         problem(client.get(f"{P}/alerts?priority=low&cursor={cursor}"), 422)
@@ -117,7 +117,9 @@ def test_a_cursor_belongs_to_its_filters() -> None:
 def test_unknown_and_stale_alerts_are_problems() -> None:
     stored = {ALERT_ID: [{"payload": '{"alert_id": "alr-00000000000000000000"}'}]}
     graph = ScriptedGraph(lambda query, params: stored.get(params["alert_id"], []))
-    with TestClient(create_app(graph), raise_server_exceptions=False) as client:
+    with TestClient(
+        create_app(graph), raise_server_exceptions=False, base_url="http://127.0.0.1"
+    ) as client:
         missing = problem(client.get(f"{P}/alerts/alr-00000000000000000009"), 404)
         stale = problem(client.get(f"{P}/alerts/{ALERT_ID}"), 500)
     assert missing.detail == alerts.NOT_FOUND
@@ -134,14 +136,18 @@ def test_an_alert_whose_evidence_left_the_graph_is_a_500_problem() -> None:
             return [{"payload": example.read_text(encoding="utf-8")}]
         return [{"nodes": [], "edges": []}]  # every evidence node was wiped
 
-    with TestClient(create_app(ScriptedGraph(answer)), raise_server_exceptions=False) as client:
+    with TestClient(
+        create_app(ScriptedGraph(answer)),
+        raise_server_exceptions=False,
+        base_url="http://127.0.0.1",
+    ) as client:
         found = problem(client.get(f"{P}/alerts/{ALERT_ID}"), 500)
     assert found.detail == alerts.MISSING_EVIDENCE
 
 
 def test_a_valid_cursor_for_the_same_filters_is_accepted() -> None:
     graph = ScriptedGraph(lambda query, params: [])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         assert client.get(f"{P}/alerts", params={"cursor": raw_cursor("[1,0.5")}).status_code == 200
     assert graph.calls[0][1]["after"] == {"rank": 1, "strength": 0.5, "alert_id": ALERT_ID}
 
@@ -150,7 +156,7 @@ def test_an_unreadable_alert_is_left_out_of_its_page() -> None:
     broken = row("alr-00000000000000000004", "high", 0.95, 0)
     broken["alert"]["payload"], broken["flagged"] = "not json", []
     graph = ScriptedGraph(lambda query, params: [broken, *ROWS][: params["limit"]])
-    with TestClient(create_app(graph)) as client:
+    with TestClient(create_app(graph), base_url="http://127.0.0.1") as client:
         page = AlertPage.model_validate_json(client.get(f"{P}/alerts").text)
     assert [item.alert_id for item in page.items] == [r["alert"]["alert_id"] for r in ROWS]
 
@@ -158,7 +164,9 @@ def test_an_unreadable_alert_is_left_out_of_its_page() -> None:
 def test_a_payload_stored_under_another_alert_id_is_stale() -> None:
     example = REPO_ROOT / "contracts" / "examples" / "c4" / "circular_flow.json"
     graph = ScriptedGraph(lambda query, params: [{"payload": example.read_text(encoding="utf-8")}])
-    with TestClient(create_app(graph), raise_server_exceptions=False) as client:
+    with TestClient(
+        create_app(graph), raise_server_exceptions=False, base_url="http://127.0.0.1"
+    ) as client:
         found = problem(client.get(f"{P}/alerts/alr-00000000000000000009"), 500)
     assert found.detail == alerts.STALE
     assert "wipe and reload the data" in found.detail

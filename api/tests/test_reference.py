@@ -27,7 +27,7 @@ P = "/api/v1"
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     app = create_app(OfflineGraph(), RepoFiles(REPO_ROOT))
-    with TestClient(app, raise_server_exceptions=False) as test_client:
+    with TestClient(app, raise_server_exceptions=False, base_url="http://127.0.0.1") as test_client:
         yield test_client
 
 
@@ -93,7 +93,9 @@ def test_the_repository_root_comes_from_nr_repo_root_or_the_uv_workspace(
     for setting in (None, str(tmp_path / "missing"), str(tmp_path)):  # unset, absent, wrong
         if setting is not None:
             monkeypatch.setenv("NR_REPO_ROOT", setting)
-        with TestClient(create_app(OfflineGraph()), raise_server_exceptions=False) as client:
+        with TestClient(
+            create_app(OfflineGraph()), raise_server_exceptions=False, base_url="http://127.0.0.1"
+        ) as client:
             typologies = client.get(f"{P}/typologies")
             meta = client.get(f"{P}/meta")
         assert typologies.status_code == 500
@@ -115,7 +117,7 @@ def test_an_explainer_outside_docs_typologies_is_not_served(tmp_path: Path) -> N
     outside.write_text("not an explainer", encoding="utf-8")
     (tmp_path / "docs" / "typologies" / "circular-flow.md").symlink_to(outside)
     app = create_app(OfflineGraph(), RepoFiles(tmp_path))
-    with TestClient(app) as client:
+    with TestClient(app, base_url="http://127.0.0.1") as client:
         detail = TypologyDetail.model_validate_json(
             client.get(f"{P}/typologies/circular_flow").text
         )

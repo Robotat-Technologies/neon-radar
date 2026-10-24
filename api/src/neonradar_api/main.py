@@ -14,8 +14,6 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any, Final
 
 from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from fastapi.telemetry import TelemetryConfig
@@ -23,9 +21,9 @@ from fastapi.telemetry import TelemetryConfig
 from neonradar_api import alerts, docs_page, entities, problems, reference, resolution
 from neonradar_api.files import RepoFiles, get_files
 from neonradar_api.graph import GraphConnection, get_graph
+from neonradar_api.hardening import harden
 from neonradar_api.health import check_health
 from neonradar_api.problems import not_implemented, responses
-from neonradar_api.settings import ApiSettings
 from neonradar_contracts import versions
 from neonradar_contracts.alert import (
     ALERT_ID_LENGTH,
@@ -67,7 +65,6 @@ from neonradar_contracts.api import (
 )
 from neonradar_graph import ownership
 
-UI_DEV_ORIGIN: Final = "http://localhost:5173"
 # FastAPI 0.143 ships native OpenTelemetry and can add OTLP exporters from the environment
 # (FASTAPI_OTEL_AUTO_CONFIGURE, OTEL_EXPORTER_OTLP_*). Every switch is off (guardrail G3).
 TELEMETRY_OFF: Final[TelemetryConfig] = {
@@ -335,12 +332,14 @@ def _docs_page() -> HTMLResponse:
 def create_app(
     graph: GraphConnection | None = None,
     files: RepoFiles | None = None,
-    allowed_hosts: list[str] | None = None,
+    *,
+    dev: bool = False,
 ) -> FastAPI:
     """The app; nothing connects to Neo4j or reads the repository files until a route needs
-    them (`uvicorn --factory`). `allowed_hosts` defaults to `NR_ALLOWED_HOSTS`."""
+    them (`uvicorn --factory`). `harden` (PHASE-4.md M4.1) answers only this machine's host
+    names, logs route templates only and contains unexpected errors; `dev` adds CORS for a UI
+    served by the Vite dev server from another origin (`neonradar api serve --dev`)."""
     connection = graph if graph is not None else GraphConnection()
-    hosts = allowed_hosts if allowed_hosts is not None else ApiSettings().allowed_hosts
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -366,15 +365,13 @@ def create_app(
     app.state.graph = connection
     app.state.files = files if files is not None else RepoFiles()
     problems.install(app)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[UI_DEV_ORIGIN],
-        allow_methods=["GET", "POST"],
-        allow_headers=["content-type"],
-    )
-    # Added last, so it runs first: any other Host header is a 400 (DNS rebinding guard).
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts, www_redirect=False)
     app.include_router(router)
     app.add_api_route("/docs", _docs_page, methods=["GET"], include_in_schema=False)
+    harden(app, dev=dev)  # after every route: trusted hosts, access log, CORS (dev), limits
     app.openapi = _with_problem_schema(app)  # type: ignore[method-assign]
     return app
+
+
+def create_dev_app() -> FastAPI:
+    """`create_app(dev=True)` as a factory for uvicorn (`neonradar api serve --dev`)."""
+    return create_app(dev=True)

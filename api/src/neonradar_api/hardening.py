@@ -119,6 +119,7 @@ class Contain:
                     "title": "Internal Server Error",
                     "status": 500,
                     "detail": INTERNAL,
+                    "instance": route_template(scope),  # C3's Problem requires it; never a value
                 }
             ).encode()
             headers = [

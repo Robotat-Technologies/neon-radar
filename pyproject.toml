@@ -58,6 +58,11 @@ known-first-party = ["neonradar_*"]
 "ingest/tests/test_synth_*" = ["RUF001"]
 # Arabic and Cyrillic test strings and rules on purpose (PHASE-2.md M2.8).
 "keys/**" = ["RUF001", "RUF002", "RUF003"]
+# Verbatim tests keep the code book's import blocks (PHASE-4.md 2.10; they never deviate, M4.1).
+"api/tests/phase4app.py" = ["I001"]
+"api/tests/test_hardening.py" = ["I001"]
+"graph/tests/test_readonly.py" = ["I001"]
+"graph/tests/test_readonly_integration.py" = ["I001"]
 
 [tool.mypy]
 strict = true

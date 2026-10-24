@@ -61,7 +61,7 @@ def _no_network(*args: Any, **kwargs: Any) -> Any:
 def data_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DataEnv:
     import httpx
 
-    from neonradar_ingest.data import gate, layout, profiles
+    from neonradar_ingest.data import gate, layout, profiles, sources
 
     env = DataEnv(
         tmp_path,
@@ -81,4 +81,5 @@ def data_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DataEnv:
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", _no_network)
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", _no_network)
     env.write_project(**SYNTHETIC_ONLY)
+    sources.load_plugins()  # loaders register now, so a test's monkeypatch is not overwritten
     return env

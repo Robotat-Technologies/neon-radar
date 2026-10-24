@@ -134,6 +134,8 @@ def test_gate_refuses_a_list_left_out_of_access_sanctions_lists(
 def test_fetch_downloads_the_static_file_with_the_date_as_version(
     data_env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # The shared list client: no query string in any log (M2.6 rule 4), as for UN, OFAC and EU.
+    assert sources._SOURCES[gb_fcdo.DATASET].client is shared.list_client
     use_profile(data_env)
     server = serve(monkeypatch, FIXTURE.read_bytes())
     today = datetime.now(UTC).strftime("%Y-%m-%d")  # before the fetch, which names the folder

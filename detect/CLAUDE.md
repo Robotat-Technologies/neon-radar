@@ -51,7 +51,8 @@
     `execute_read`. GDS: stream only, concurrency 4, drop projections in `finally`.
   - L19: a Neo4j run deletes every `:Alert` and `:DetectionRun` before it loads (unless
     `--keep-previous`); a failed run records its failed `:DetectionRun` and deletes nothing
-    (OD-10); `--engine memory` writes the run folder only. Real profiles are refused until M3.4.
+    (OD-10), except that a failed run given an earlier run's id replaces that run (F11);
+    `--engine memory` writes the run folder only. Real profiles are refused until M3.4.
   - Integration tests use the shared Neo4j fixtures (`neo4j`, `graph_db`) of
     graph/tests/support/nr_test_neo4j.py; `neo4j_mode.py` loads records into that database
     (no second container). `worlds.py` generates the small parity world at run time.

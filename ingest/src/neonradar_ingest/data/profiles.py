@@ -2,8 +2,9 @@
 
 A profile is `ingest/profiles/<name>.yaml`. Each source entry has `enabled` plus the block its
 loader milestone defines; a loader registers a pydantic model for that block with
-`register_source_model` (unknown keys then fail), and until it does the block is kept as a
-dict. Whether an enabled source runs is decided by `project.yaml` (`Project.access_refusal`).
+`register_source_model` (unknown keys then fail; the validation context `sources` holds the
+profile's other blocks), and until it does the block is kept as a dict. Whether an enabled
+source runs is decided by `project.yaml` (`Project.access_refusal`).
 """
 
 import dataclasses
@@ -266,8 +267,9 @@ class Profile(BaseModel):
             if dataset not in DATASETS:
                 raise ValueError(f"unknown dataset {dataset!r}; known: {', '.join(DATASETS)}")
             model = _SOURCE_MODELS.get(dataset)
-            if model is not None:
-                model.model_validate({"enabled": config.enabled, **config.options})
+            if model is not None:  # the context lets a block read another (M2.5)
+                data = {"enabled": config.enabled, **config.options}
+                model.model_validate(data, context={"sources": sources})
         return sources
 
     @model_validator(mode="after")
@@ -287,7 +289,9 @@ class Profile(BaseModel):
         config = self.sources[dataset]
         model = _SOURCE_MODELS.get(dataset)
         data = {"enabled": config.enabled, **config.options}
-        return model.model_validate(data) if model is not None else data
+        if model is None:
+            return data
+        return model.model_validate(data, context={"sources": self.sources})
 
     def enabled_sources(self, project: Project) -> list[str]:
         """Datasets enabled here and allowed by `project.yaml`, in build order."""

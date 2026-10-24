@@ -185,7 +185,8 @@ def run_command(
             "--run-id",
             help="Run id, run-<UTC yyyymmddThhmmss>-<4 hex> [default: a new one]. Given again"
             " with --keep-previous, the run replaces that run's files and keeps in Neo4j only the"
-            " alerts it finds now.",
+            " alerts it finds now. A failed run given an earlier run's id replaces that run too,"
+            " as Phase 1 did.",
         ),
     ] = None,
     engine: Annotated[

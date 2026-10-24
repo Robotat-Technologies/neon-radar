@@ -15,7 +15,7 @@ The first tagged pre-release: the Phase 1 foundation and the first part of Phase
 - The read-only API `/api/v1` (contract C3 1.1.0): health, meta, search, entities, networks, alerts and typologies.
 - The circular-flow detector and fifteen draft typology definitions in `detect/typologies/`.
 - Contracts C1 record 1.1.0, C2 graph schema 1.2.0, C3 API 1.1.0 and C4 alert 1.0.0 (tag `contracts-v1.2.0`), with generated JSON Schemas and the OpenAPI snapshot.
-- Registry loaders tested on synthetic data: Companies House (companies, persons with significant control, officers), GLEIF (LEI records and Level 2 relationships) and the ICIJ Offshore Leaks Database.
+- Registry loaders tested on synthetic data: Companies House (companies, persons with significant control, officers), GLEIF (LEI records and Level 2 consolidation relationships) and the ICIJ Offshore Leaks Database.
 - The data manager (`neonradar data profiles`, `fetch`, `status`, `purge`) with its real-data gate, which keeps real data off in this release.
 - The matching keys package `neonradar_keys` for entity resolution.
 - The `neonradar` command line, `neonradar doctor`, the synthetic generator, graph migrations and loader, the Playwright end-to-end test, CI and pull request hygiene checks.

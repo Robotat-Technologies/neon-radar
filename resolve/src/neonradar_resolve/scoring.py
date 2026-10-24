@@ -10,7 +10,15 @@ pairs in `pairs.parquet`, which `er calibrate` clusters again without scoring ag
 A class whose table has fewer than two records, whose blocking rules generate no comparison, or
 whose model Splink cannot train on the run's data (too few pairs for the prior or an EM session)
 gets no model: it scores no pair, so nothing of that class merges or becomes a possible match by
-probability, and `models_skipped` counts it (an orchestrator decision under OD-10).
+probability, and `models_skipped` counts it (an orchestrator decision under OD-10). With
+`skip_untrainable=False` (real profiles) such a training error fails the run instead, and any
+other error always does: a DuckDB error in Splink's SQL (an interrupt, memory, disk) is never
+read as "cannot be trained".
+
+While Splink runs, a handler of this module sits on the `splink` logger: it counts the levels
+Splink could not train, and Splink's `Linker` then installs no stderr handler of its own
+(`splink_logging.enable` adds one only to a logger without handlers), so nothing Splink logs is
+printed outside the run's summary.
 """
 
 from __future__ import annotations
@@ -31,7 +39,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from splink import DuckDBAPI
 from splink.blocking_analysis import count_comparisons_from_blocking_rules, n_largest_blocks
-from splink.internals.exceptions import SplinkException  # Splink 5 has no public module for it
+from splink.internals.exceptions import EMTrainingException  # no public module in Splink 5
 
 from neonradar_resolve import cluster, models
 from neonradar_resolve.config import ResolverConfig
@@ -40,9 +48,13 @@ from neonradar_resolve.models import Kind
 log = logging.getLogger(__name__)
 KINDS: tuple[Kind, ...] = ("person", "org")
 LIBRARIES = ("splink", "duckdb", "pyarrow")
-# What Splink raises when a model cannot be trained on the data: no pair for an EM session,
-# a prior rule with no pair (log2 of 0) or more pairs than its recall allows, an m of 0.
-TRAINING_ERRORS = (SplinkException, ValueError, ZeroDivisionError)
+# What Splink 5.0.0 raises when the run's data cannot train a model: no pair for an EM session
+# (EMTrainingException), a prior rule with no pair (math.log2 of 0) or more pairs than its
+# recall allows (ValueError), an m of 0 (ZeroDivisionError). These exact classes only: the
+# SplinkException that wraps every failed SQL statement, and subclasses such as pyarrow's
+# ArrowInvalid, are not among them.
+UNTRAINABLE = (EMTrainingException, ValueError, ZeroDivisionError)
+MACHINE_ERRORS = (duckdb.Error, MemoryError, KeyboardInterrupt)
 # expectation_maximisation.py (Splink 5.0.0): one warning per level and parameter it cannot train
 NOT_OBSERVED = re.compile(r"Level (.*?) on comparison (\S+) not observed in dataset, "
                           r"unable to train (m|u) value")  # fmt: skip
@@ -133,8 +145,22 @@ def explodes(kind: Kind) -> list[bool]:
     return [bool(r.create_blocking_rule_dict("duckdb").get("arrays_to_explode")) for r in rules]
 
 
+def untrainable(exc: BaseException) -> bool:
+    """Whether `exc` says the run's data cannot train the model: one of `UNTRAINABLE` exactly,
+    with no DuckDB error, memory error or interrupt anywhere in its chain."""
+    seen: set[int] = set()
+    link: BaseException | None = exc
+    while link is not None and id(link) not in seen:
+        if isinstance(link, MACHINE_ERRORS):
+            return False
+        seen.add(id(link))
+        link = link.__cause__ or link.__context__
+    return type(exc) in UNTRAINABLE
+
+
 class _Untrained(logging.Handler):
-    """Collects the (level, comparison, parameter) Splink reports it could not train."""
+    """Collects the (level, comparison, parameter) Splink reports it could not train; while it
+    is on the `splink` logger, Splink installs no stderr handler of its own."""
 
     def __init__(self) -> None:
         super().__init__(logging.WARNING)
@@ -154,8 +180,17 @@ def _untrained() -> Iterator[_Untrained]:
         logger.removeHandler(handler)
 
 
-def score(features_path: Path, config: ResolverConfig, temp_directory: Path) -> Scored:
-    """Train both models on this run's own data and score pairs at the candidate threshold."""
+def score(
+    features_path: Path,
+    config: ResolverConfig,
+    temp_directory: Path,
+    *,
+    skip_untrainable: bool = True,
+) -> Scored:
+    """Train both models on this run's own data and score pairs at the candidate threshold.
+
+    `skip_untrainable=False` (real profiles): a model the data cannot train fails the run.
+    """
     out = Scored(skipped=dict.fromkeys(KINDS, 0))
     tables = {kind: read_features(features_path, kind) for kind in KINDS}
     con = models.connect(config.duckdb.threads, config.duckdb.memory_limit, str(temp_directory))
@@ -183,20 +218,23 @@ def score(features_path: Path, config: ResolverConfig, temp_directory: Path) -> 
                 out.skipped[kind] = 1
                 continue
             start = time.perf_counter()
-            linker = models.make_linker(con, kind, table)
-            with _untrained() as handler:
+            with _untrained() as handler:  # before make_linker: see the module docstring
+                linker = models.make_linker(con, kind, table)
                 try:
                     models.train(linker, kind, training)
-                except TRAINING_ERRORS as exc:  # the message can quote SQL, never printed
+                except UNTRAINABLE as exc:
+                    if not skip_untrainable or not untrainable(exc):
+                        raise
+                    # the class names only: a message can quote SQL or numbers of the data
                     log.warning("the %s model could not be trained (%s)", kind, type(exc).__name__)
                     out.skipped[kind] = 1
                     continue
-            out.untrained_levels[kind] = len(handler.found)
-            out.timings[f"train_{kind}"] = round(time.perf_counter() - start, 3)
-            start = time.perf_counter()
-            out.pairs[kind] = models.predict(linker, kind, config.candidate_threshold)
-            out.trained[kind] = linker.misc.save_model_to_json()
-            out.timings[f"predict_{kind}"] = round(time.perf_counter() - start, 3)
+                out.untrained_levels[kind] = len(handler.found)
+                out.timings[f"train_{kind}"] = round(time.perf_counter() - start, 3)
+                start = time.perf_counter()
+                out.pairs[kind] = models.predict(linker, kind, config.candidate_threshold)
+                out.trained[kind] = linker.misc.save_model_to_json()
+                out.timings[f"predict_{kind}"] = round(time.perf_counter() - start, 3)
     finally:
         con.close()
     return out

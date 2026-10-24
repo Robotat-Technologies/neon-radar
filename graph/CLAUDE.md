@@ -14,13 +14,16 @@
   instance)`, `load_files`, `load_records`, `plan_load` without a database, `execute_plan`,
   `wipe`, `stats`), `resolution` (`ResolutionMap.load(run_dir)`: canonical.csv,
   candidates.jsonl, run.json), `instances` (`Instance.DEFAULT` and `Instance.REAL`, L17),
-  `cypher` (reads `queries/*.cypher` and fills `{{rel_type}}`-style placeholders with C2 names
-  only), `verify` (`graph verify`), `wording` (the resolution and possible-match texts of
-  PHASE-2.md 7.2, verbatim; pure, no Splink, so the API and `er review` share them;
-  `scripts/check_wording.py` scans it), `shapes` (C2 rows to C3 models with property
-  allow-lists from `neonradar_contracts.graph`, and Phase 1's subgraph builder; moved from
-  `neonradar_api` in M2.12). Every new Cypher statement lives in `queries/`; the
-  files PHASE-2.md M2.11 gives are verbatim except three (phase-2-reconciliation 2.9, J1, J2).
+  `cypher` (reads `queries/*.cypher` and fills `{{rel_type}}`-style placeholders with C2 names,
+  or with a value the file's `lint-values` header lists, such as `max_hops`; never with data),
+  `verify` (`graph verify`), `wording` (the resolution and possible-match texts of PHASE-2.md
+  7.2, verbatim; pure, no Splink, so the API and `er review` share them;
+  `scripts/check_wording.py` scans it), `shapes` (C2 rows to C3 models with property allow-lists
+  from `neonradar_contracts.graph`, and Phase 1's subgraph builder; moved from `neonradar_api`
+  in M2.12), `ownership` (M2.12: `ownership()` and `paths()` of C3 1.1.0, `resolve_id`, the
+  `read` helper with the 5-second timeout and READ routing; ADR-0019). Every new Cypher
+  statement lives in `queries/`; the files PHASE-2.md M2.11 gives are verbatim except three
+  (phase-2-reconciliation 2.9, J1, J2).
 - Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
   a pytest plugin the root `conftest.py` registers once; fixtures `neo4j`, `empty_neo4j`,
   `graph_db`): a Testcontainers container with the GDS jar from `make plugins` copied in, or

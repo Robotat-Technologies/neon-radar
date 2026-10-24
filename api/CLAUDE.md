@@ -11,13 +11,16 @@
   `http://127.0.0.1:8000/docs` (offline page); `make contracts` after any route or model
   change (rewrites contracts/openapi/v1.json).
 - Modules: `main` (`create_app` and every route), `problems` (RFC 9457 errors, `ProblemError`,
-  `not_implemented`, `responses`), `graph` (`GraphConnection`: one lazy sync driver; `read()`
-  runs READ transactions only; `get_graph` dependency), `health`, `files` (`RepoFiles`: the
-  typology files and bibliography from `NR_REPO_ROOT`, default the nearest uv workspace above
-  the working directory; `get_files` dependency), `entities` (search, entity detail, network),
-  `alerts` (queue with its cursor, detail), `reference` (meta, typologies), `docs_page` (the
-  `/docs` page), `settings` (`ApiSettings`: `NR_REPO_ROOT`, `NR_ALLOWED_HOSTS`; environment
-  only, read when the app starts).
+  `not_implemented`, `responses`), `graph` (`GraphConnection`: one lazy sync driver on
+  `Instance.DEFAULT` unless given other settings; `read()` runs READ transactions only, with a
+  transaction timeout when asked; `call(work)` hands the driver to a `neonradar_graph.ownership`
+  function; a transaction timeout becomes `QueryTimeout`; `get_graph` dependency), `health`,
+  `files` (`RepoFiles`: the typology files and bibliography from `NR_REPO_ROOT`, default the
+  nearest uv workspace above the working directory; `get_files` dependency), `entities` (search,
+  entity detail, network), `resolution` (the resolution route and entity provenance, M2.12;
+  texts only from `neonradar_graph.wording`), `alerts` (queue with its cursor, detail),
+  `reference` (meta, typologies), `docs_page` (the `/docs` page), `settings` (`ApiSettings`:
+  `NR_REPO_ROOT`, `NR_ALLOWED_HOSTS`; environment only, read when the app starts).
 - Traps:
   - The running app's OpenAPI must equal `contracts/openapi/v1.json` (contract test). Routes
     are declared with their final responses, so implementing one must not change the snapshot.
@@ -55,6 +58,13 @@
     `load_disclaimer()`), never from `NR_REPO_ROOT`, so it never fails on that setting; the
     typology routes answer a 500 problem naming `NR_REPO_ROOT` when it holds no checkout.
   - The network query is chosen from `entities.NETWORK` by depth (one fixed text per depth).
+  - Ownership and paths (M2.12) are `neonradar_graph.ownership.ownership|paths` through
+    `GraphConnection.call`; `UnknownId` answers the 404 problem and `QueryTimeout` the 503
+    with advice (`problems.install`). Upward ownership paths come back root first (C3; the
+    query lists the owner first, reconciliation E13). Unit-test doubles override `read` and
+    `call` (`OfflineGraph`); a fake driver needs `execute_query` and `close`.
+  - Entity detail and every M2.12 route also take the id of a record merged into an entity
+    (`:SourceRecord` and `RESOLVED_TO`); a merged entity's provenance is its source records.
   - Unit tests never touch Neo4j: pass a `GraphConnection` subclass to `create_app`
     (`tests/conftest.py`: `OfflineGraph`, `ScriptedGraph`), and build the settings error
     yourself instead of reading the environment or `.env`. The integration tests

@@ -40,6 +40,7 @@ class Transport:
     def __init__(self, checksum: str | None = None) -> None:
         self.requests: list[httpx.Request] = []
         self.checksum = checksum or hashlib.sha1(EXPORT, usedforsecurity=False).hexdigest()
+        self.entities_host = HOST
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -50,7 +51,7 @@ class Transport:
             return httpx.Response(307, headers={"Location": location})
         collection = path.split("/")[2]
         if path.endswith("/index.json"):
-            entities = f"{HOST}/artifacts/{collection}/{VERSION}/entities.ftm.json"
+            entities = f"{self.entities_host}/artifacts/{collection}/{VERSION}/entities.ftm.json"
             resource = {"name": "entities.ftm.json", "url": entities, "size": len(EXPORT)}
             body = {"version": VERSION, "resources": [resource | {"checksum": self.checksum}]}
             return httpx.Response(200, json=body)
@@ -80,10 +81,11 @@ def run(*command: str) -> Any:
     return runner.invoke(app, [*command, "--profile", "uk-test", "--dataset", DATASET])
 
 
+@pytest.mark.parametrize("access", ["licensed", "exempt"])
 def test_fetch_follows_the_redirect_and_downloads_the_collection(
-    data_env: Any, mock: Transport
+    data_env: Any, mock: Transport, access: str
 ) -> None:
-    setup(data_env)
+    setup(data_env, access=access)
     assert run("data", "fetch").exit_code == 0
     artifact = f"/artifacts/sanctions/{VERSION}"  # `sanctions` is the default collection
     assert [request.url.path for request in mock.requests] == [
@@ -105,6 +107,22 @@ def test_the_default_collection_downloads_only_that_collection(
     paths = [request.url.path for request in mock.requests]
     assert paths[0] == "/datasets/latest/default/index.json"
     assert all("/default/" in path for path in paths)
+
+
+def test_a_file_outside_data_opensanctions_org_stops_the_collection(
+    data_env: Any, mock: Transport
+) -> None:
+    setup(data_env)
+    mock.entities_host = "https://mirror.example.invalid"
+    result = run("data", "fetch")
+    assert result.exit_code == 1, result.output
+    assert "1 product(s) stopped" in result.output
+    assert {request.url.host for request in mock.requests} == {"data.opensanctions.org"}
+    assert not layout.sources_dir(DATASET, "sanctions", VERSION).exists()
+    report = sorted(layout.reports_dir("uk-test").glob("data-fetch-*.json"))[-1]
+    summary = json.loads(report.read_text(encoding="utf-8"))["datasets"][DATASET]
+    assert summary["status"] == "partial" and summary["products_stopped"] == 1
+    assert summary["products"] == {"sanctions": {"status": "stopped", "rule": "host"}}
 
 
 @pytest.mark.parametrize("access", ["none", "evaluation"])

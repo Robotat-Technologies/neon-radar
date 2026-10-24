@@ -1,18 +1,15 @@
 """The OpenSanctions bulk loader (PHASE-2.md M2.7), only where `access.opensanctions` allows it.
 
-`data fetch` reads the collection's `index.json` (following the 307 redirect) and downloads it
-with `entities.ftm.json`, whose size it checks; `ingest build` checks the export's SHA-1 against
-the downloaded index, streams it line by line through `mapping.map_entity` (C1 schemata only,
-`os-` ids and references, `datasets: ["opensanctions_default"]`, topics as published) and
-writes one record file with its manifest. Both refuse first, before any request or file, unless
-`access.opensanctions` is `licensed` or `exempt` (the data manager's gate runs before them), and
-`data fetch` stops the collection when `index.json` names a file outside data.opensanctions.org.
+The download: `data fetch` reads the collection's `index.json` (following the 307
+redirect) and downloads it with `entities.ftm.json`, whose size it checks. The loader refuses
+first, before any request, unless `access.opensanctions` is `licensed` or `exempt` (the data
+manager's gate runs before it). It sends no request, redirects included, outside
+data.opensanctions.org, and stops the collection when `index.json` names a file elsewhere.
 
-PEP data only by decision (deliverable 2): unless `opensanctions_default` is in
-`access.pep_sources`, every `role.*` topic is removed, `Position` and `Occupancy` are skipped, and
-so is an entity whose only flag topics (7.1.1) were `role.*` topics. Then a relationship (an FtM
-edge, or a `Sanction`) with an end that is not written is dropped, and any other reference to a
-record that is not written is removed, so the records pass C1 in strict mode. All counted.
+The build checks the SHA-1 against that `index.json`, streams the export through
+`mapping.map_entity` and writes one record file with its manifest, after the same refusal.
+Unless `opensanctions_default` is in `access.pep_sources`, PEP data is removed (`_Pep`); then
+dangling references are dropped or removed so that the records pass C1 in strict mode.
 """
 
 import hashlib
@@ -95,10 +92,18 @@ def refuse_unless_allowed(project: Project) -> None:
         raise RealDataRefused(*refusal)
 
 
+def _pinned(request: httpx.Request) -> None:
+    """A request hook: no request or redirect hop off data.opensanctions.org is ever sent."""
+    if (request.url.scheme, request.url.host) != ("https", PINNED_HOST):
+        raise DownloadError(f"a request outside {PINNED_HOST}", "host")
+
+
 def discover_for(collection: str) -> Callable[[HttpClient], list[RemoteFile]]:
     def discover(client: HttpClient) -> list[RemoteFile]:
         project = load_project()
         refuse_unless_allowed(project)  # before any request
+        if _pinned not in client.event_hooks["request"]:  # also for the downloads that follow
+            client.event_hooks["request"].append(_pinned)
         info = read_index(client, collection, access=project.access.opensanctions)
         if {httpx.URL(url).host for url in (info.url, info.entities_url)} != {PINNED_HOST}:
             raise DownloadError(f"{collection}: a file outside {PINNED_HOST}", "host")

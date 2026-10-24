@@ -34,6 +34,7 @@ EXPORT = b"".join(
     (FIXTURES / name).read_bytes() for name in ("entities.ftm.json", "bulk-extra.ftm.json")
 )
 HOST = "https://data.opensanctions.org"
+PINNED = "data.opensanctions.org"
 VERSION = "20261015185439-syn"
 SOURCE = {json.loads(line)["id"]: json.loads(line) for line in EXPORT.splitlines()}
 
@@ -45,14 +46,17 @@ class Transport:
         self.requests: list[httpx.Request] = []
         self.export = EXPORT
         self.checksum: str | None = None  # None: the export's SHA-1; "": index.json names none
-        self.entities_host = HOST
+        self.entities_host = self.index_host = HOST
+        self.entities_redirect: str | None = None  # a 307 for the entities.ftm.json request
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path = request.url.path
+        if self.entities_redirect and path.endswith("/entities.ftm.json"):
+            return httpx.Response(307, headers={"Location": self.entities_redirect})
         if path.startswith("/datasets/latest/"):
             collection = path.split("/")[3]
-            location = f"{HOST}/artifacts/{collection}/{VERSION}/index.json"
+            location = f"{self.index_host}/artifacts/{collection}/{VERSION}/index.json"
             return httpx.Response(307, headers={"Location": location})
         collection = path.split("/")[2]
         if path.endswith("/index.json"):
@@ -116,20 +120,35 @@ def test_the_default_collection_downloads_only_that_collection(
     assert all("/default/" in path for path in paths)
 
 
+@pytest.mark.parametrize("where", ["entities_host", "index_host"])
 def test_a_file_outside_data_opensanctions_org_stops_the_collection(
-    data_env: Any, mock: Transport
+    data_env: Any, mock: Transport, where: str
 ) -> None:
     setup(data_env)
-    mock.entities_host = "https://mirror.example.invalid"
+    setattr(mock, where, "https://mirror.example.invalid")  # named by index.json, or a 307 to it
     result = run("data", "fetch")
     assert result.exit_code == 1, result.output
     assert "1 product(s) stopped" in result.output
-    assert {request.url.host for request in mock.requests} == {"data.opensanctions.org"}
+    assert {request.url.host for request in mock.requests} == {PINNED}
     assert not layout.sources_dir(DATASET, "sanctions", VERSION).exists()
     report = sorted(layout.reports_dir("uk-test").glob("data-fetch-*.json"))[-1]
     summary = json.loads(report.read_text(encoding="utf-8"))["datasets"][DATASET]
     assert summary["status"] == "partial" and summary["products_stopped"] == 1
     assert summary["products"] == {"sanctions": {"status": "stopped", "rule": "host"}}
+
+
+@pytest.mark.parametrize(
+    "host", ["https://mirror.example.invalid", "http://data.opensanctions.org"]
+)
+def test_a_download_redirect_off_the_pinned_host_is_never_sent(
+    data_env: Any, mock: Transport, host: str
+) -> None:
+    setup(data_env)
+    mock.entities_redirect = f"{host}/artifacts/sanctions/{VERSION}/entities.ftm.json"
+    result = run("data", "fetch")
+    assert result.exit_code == 1 and "a request outside data.opensanctions.org" in result.output
+    assert {(r.url.scheme, r.url.host) for r in mock.requests} == {("https", PINNED)}
+    assert not (layout.sources_dir(DATASET, "sanctions", VERSION) / "entities.ftm.json").exists()
 
 
 @pytest.mark.parametrize("access", ["none", "evaluation"])

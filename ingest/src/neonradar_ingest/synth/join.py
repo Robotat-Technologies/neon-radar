@@ -7,7 +7,10 @@ example spike output in `data/cache/spikes/`:
   `gb_companies_house` or `gleif_lei` (or synthetic `nr_synthetic` records), with no
   `dissolutionDate`, a status that is empty or in LIVE, and an incorporation date before
   LATEST_FOUNDED. Everything else gets nothing: people, bare `LegalEntity` and `PublicBody`
-  records, every other dataset (ICIJ records are leak-derived), and any other status.
+  records, every other dataset (ICIJ records are leak-derived), and any other status. A
+  record that carries any `topics` (a sanctioned overseas entity's owner, for example) is
+  never a holder, and from `gb_companies_house` only register companies (`gbch-co-` ids) are:
+  never a PSC record (`gbch-psc-`, M2.3b), which describes an owner, not a registered company.
 - Each holder only receives payments from new synthetic "customer" companies and only pays new
   synthetic "supplier" companies. Customers never receive and suppliers never pay, so no input
   entity pays another and no cycle runs through an input entity's account.
@@ -78,6 +81,10 @@ def _skip(record: dict[str, Any]) -> str | None:
     dataset = (record.get("datasets") or ["?"])[0]
     if dataset not in DATASETS:
         return f"dataset {dataset}"
+    if dataset == "gb_companies_house" and not str(record.get("id")).startswith("gbch-co-"):
+        return "not a register company"
+    if (record.get("properties") or {}).get("topics"):
+        return "topics"
     if schema.name not in ("Company", "Organization"):
         return f"schema {schema.name}"
     props = record.get("properties") or {}

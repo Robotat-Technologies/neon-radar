@@ -178,3 +178,19 @@ Every model on `main` subclasses `_Model` (`ConfigDict(extra="forbid", strict=Tr
 - **Operator**: `people.heldout_owner` stays `@TODO` (OD-25); only M4.9 needs it.
 
 What the guard hook does not catch (it stops accidents, not a determined person, like the Phase 2 and 3 rules): a model or held-out command written inside `python -c` or `node -e` strings or in a script file; a command name built from a variable or `$(...)`; a renamed or linked `ollama` binary; `docker run` of the `ollama/ollama` image; HTTP calls to an Ollama server that a human already started; another Compose file or a make target that sets the `llm` profile. Two harmless lines it blocks: a launcher line that only names `ollama` as an argument (`command -v ollama`, `xargs grep ollama`), and quoted text that starts with `ollama ` inside `bash -c`, `eval` or a script fed to an interpreter (`bash -c "echo 'ollama serve'"`).
+
+## 7. M4.1 checks its seams again (2026-10-24, on M2.12's branch)
+
+| Seam | Found | Done in M4.1 |
+|---|---|---|
+| F1 `create_app` | `create_app(graph=None, files=None, allowed_hosts=None)`; telemetry all off | `create_app(graph=None, files=None, *, dev=False)`; `harden(app, dev=dev)` after every route; `create_dev_app()` is the factory `api serve --dev` names |
+| F2 trusted hosts | Phase 1's `TrustedHostMiddleware` on `NR_ALLOWED_HOSTS` | one layer, `harden`'s fixed list (`[::1]` is new); `NR_ALLOWED_HOSTS`, the `allowed_hosts` parameter and the tests' `testserver` allowance are gone |
+| F3 the 500 handler | Phase 1's `Exception` handler logs `request.url.path` with the traceback; it sits outside `Contain`, so it is never reached | removed; `Contain` answers; the other handlers log the route template instead of the request path, and the unavailable-graph line names the cause's class only |
+| A5 `Problem` | C3 1.1.0's `Problem` is closed and requires `instance`; `Contain` sends four fields, so Phase 1's 500 test fails on it | `Contain` also sends `instance`, the route template (a recorded deviation of `hardening.py`) |
+| T1 test clients | as found by M4.0, plus `test_routes.py`'s CORS test, which asserts CORS headers on the default app | every client on `http://127.0.0.1`; the CORS test runs its unchanged assertions on `create_app(dev=True)` and checks that the default app sends none |
+| X1 `api serve` | `--port` only; one Phase 1 test refuses `--host` | `--dev`, `--host` (only where `NR_API_IN_IMAGE=1`, which the image sets, so that test still passes), `access_log=False`, `log_config()`; `--real` refuses `--host` and `--dev` |
+| X2 the image | syncs `neonradar-api` only | syncs `neonradar-cli`; `CMD` runs `neonradar api serve --host 0.0.0.0 --port 8000` |
+| X3 plugins mount | unchanged (M4.5) | none |
+| X4 Starlette | no pin; lock 1.9.0; no 1.8 wheel in the offline caches | `starlette>=1.9,<1.10` (lock 1.9.0), the reconciliation's recommendation; the tech lead still answers X4 |
+| Vite proxy | `changeOrigin: false` | `changeOrigin: true` (deliverable 3) |
+| Validation errors | `loc` and `msg` only; an unknown key is reported at its parent | unchanged; the 501-character question case added to `test_routes.py` |

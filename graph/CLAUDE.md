@@ -21,7 +21,10 @@
   `scripts/check_wording.py` scans it), `shapes` (C2 rows to C3 models with property allow-lists
   from `neonradar_contracts.graph`, and Phase 1's subgraph builder; moved from `neonradar_api`
   in M2.12), `ownership` (M2.12: `ownership()` and `paths()` of C3 1.1.0, `resolve_id`, the
-  `read` helper with the 5-second timeout and READ routing; ADR-0019). Every new Cypher
+  `read` helper with the 5-second timeout and READ routing; ADR-0019), `readonly` (M4.1:
+  `run_read`, the one way Phase 4 code reads Neo4j: READ session, explicit transaction with a
+  timeout and metadata naming the query, `max_rows + 1` fetched, never committed, summary
+  checked, `ReadRefused`; ADR-0026; unit-tested on `tests/fakeneo4j.py`). Every new Cypher
   statement lives in `queries/`; the files PHASE-2.md M2.11 gives are verbatim except three
   (phase-2-reconciliation 2.9, J1, J2).
 - Integration tests of every suite share one Neo4j per session (`tests/support/nr_test_neo4j.py`,
@@ -29,7 +32,8 @@
   `graph_db`): a Testcontainers container with the GDS jar from `make plugins` copied in, or
   `NR_TEST_NEO4J_URI` (wiped; refused if it holds any node but `:SchemaMigration` unless
   `NR_TEST_ALLOW_WIPE=1`). Import `Neo4jTarget` and `pinned_gds` from it (or from
-  `tests/conftest.py`), never the fixtures, or pytest starts a second database.
+  `tests/conftest.py`), never the fixtures, or pytest starts a second database. The container
+  runs under `compose.yaml`'s procedure allowlist and `db.memory.transaction.max` (M4.1).
 - Settings: `neonradar_graph.client.Neo4jSettings` (env vars win over the root `.env`,
   `extra="ignore"`); every package's settings follow this pattern. `get_driver()`.
 - Traps:

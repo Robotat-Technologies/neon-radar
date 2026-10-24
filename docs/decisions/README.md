@@ -29,5 +29,6 @@ Every non-obvious architecture decision is recorded here as an ADR, owned by the
 | [0016](0016-canonical-ids-and-source-records.md) | Canonical ids and source records | M2.11 | proposed | tech lead |
 | [0018](0018-real-data-handling.md) | Real-data handling | M2.0 | proposed | data steward |
 | [0019](0019-ownership-and-effective-share.md) | Ownership and effective share calculation | M2.12 | proposed | tech lead, graph mentor |
+| [0026](0026-read-only-defence-layers.md) | Read-only defence layers on Community Edition | M4.1 | proposed | tech lead, graph mentor |
 
 The roles resolve to people in `docs/build/project.yaml` (`people`); until the team joins, @robotat-com holds every role.

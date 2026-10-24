@@ -505,3 +505,22 @@ entries:
       - https://moj-analytical-services.github.io/splink/llms.txt
     verified: 2026-10-18
     note: "Splink 5 documentation: comparisons and comparison levels, term-frequency adjustment, blocking and the comparison counts per rule, training (prior, u by random sampling, expectation maximisation), DuckDB performance. Read for docs/research/2026-10-18/er-splink.md (sources E5, E7, E8, E20) on 2026-10-18; not re-opened by the build."
+  # The API's read-only layers (PHASE-4.md 7.5.2 and 7.9; cited by ADR-0026, M4.1)
+  - key: neo4j_ops_manual_5
+    title: "Neo4j Operations Manual 5: configuration settings (the procedure allowlist, db.memory.transaction.max, the query log), securing extensions, transaction management"
+    publisher: Neo4j
+    year: 2026
+    url: https://neo4j.com/docs/operations-manual/5/configuration/configuration-settings/
+    extra_urls:
+      - https://neo4j.com/docs/operations-manual/5/security/securing-extensions/
+      - https://neo4j.com/docs/operations-manual/5/database-internals/transaction-management/
+    verified: 2026-10-19
+    note: "dbms.security.procedures.allowlist loads only the procedures it names; db.memory.transaction.max caps the memory one transaction may use (zero means the largest possible value). Checked for PHASE-4.md 7.9 on 2026-10-19 and quoted in docs/research/2026-10-19-copilot/api-readonly-cypher.md 2.3 and 2.4; not re-opened by the build."
+  - key: neo4j_cypher_load_csv_5
+    title: "Cypher Manual 5: LOAD CSV"
+    publisher: Neo4j
+    year: 2026
+    url: https://neo4j.com/docs/cypher-manual/5/clauses/load-csv/
+    extra_urls: []
+    verified: 2026-10-19
+    note: "LOAD CSV reads local files (from the import folder, unless configured otherwise) and URLs, and is a read clause. Checked for PHASE-4.md 7.9 on 2026-10-19 and quoted in docs/research/2026-10-19-copilot/api-readonly-cypher.md 2.3; not re-opened by the build."

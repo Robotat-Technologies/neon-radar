@@ -42,11 +42,13 @@ def load_decisions(
     return Decisions(same, different, found.on_file, outside)
 
 
-def supporters(path: Path | None, record_a: str, record_b: str) -> frozenset[str]:
+def supporters(
+    path: Path | None, record_a: str, record_b: str, reviewers: frozenset[str] | None = None
+) -> frozenset[str]:
     """The handles whose own newest line about the pair says `same`, while the pair's newest
-    line says `same` (7.1.8); empty otherwise."""
+    line says `same` (7.1.8); empty otherwise. `reviewers` as in `rules.read_decisions`."""
     pair = (min(record_a, record_b), max(record_a, record_b))
-    found = read_decisions(path).same
+    found = read_decisions(path, reviewers).same
     return next((x.reviewers for x in found if (x.record_a, x.record_b) == pair), frozenset())
 
 
@@ -119,15 +121,18 @@ def review_queue(
     reviewer: str,
     seniors: frozenset[str] | set[str],
     clusters: Mapping[str, Sequence[str]],
+    reviewers: frozenset[str] | None = None,
 ) -> list[Mapping[str, Any]]:
     """The possible matches `er review` shows: by probability, those without one last.
 
     `clusters` maps each canonical id of the run to its record ids. Left out, for the two
     clusters of a possible match: a newest `different` decision about any of their records
     (X8, a hard conflict never reaches review, 7.1.3); a `same` decision that two reviewers or a
-    senior reviewer support (a run applies it); and any decision of this reviewer.
+    senior reviewer support (a run applies it); and any decision of this reviewer. With
+    `reviewers` (a real profile's listed handles, as `er run` passes them) a line by anyone
+    else fails, so an unlisted name never hides a pair.
     """
-    found = read_decisions(path)
+    found = read_decisions(path, reviewers)
     deciders = _deciders(path)
     canonical = {rid: cid for cid, ids in clusters.items() for rid in ids}
 

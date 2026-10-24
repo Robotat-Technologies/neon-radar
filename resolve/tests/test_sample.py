@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from neonradar_cli import er_labelling
 from neonradar_cli.main import app
 from neonradar_ingest.data import layout
 from neonradar_resolve import cluster, run, sample
@@ -133,6 +134,16 @@ def test_the_sample_needs_two_different_labellers() -> None:
     for labellers in (["@a"], ["@a", "@a"]):
         with pytest.raises(SampleError, match="two different labellers"):
             sample.draw(_frames(), 7, labellers)
+
+
+def test_a_real_sample_goes_to_every_listed_labeller_and_no_one_else() -> None:
+    listed = frozenset({"@example-one", "@example-two"})  # people.er_labellers (7.3 rule 1)
+    handles = er_labelling._labellers("@Example-One,@example-two", listed, real_data=True)
+    assert handles == ["@example-one", "@example-two"]
+    for other in ("@example-one", "@example-one,@example-two,@example-three"):
+        with pytest.raises(er_labelling.Refused, match=r"7\.3 rule 1"):
+            er_labelling._labellers(other, listed, real_data=True)
+    assert er_labelling._labellers("@a,@b", frozenset(), real_data=False) == ["@a", "@b"]
 
 
 def test_check_run_refuses_a_run_that_used_decisions_on_a_real_profile() -> None:

@@ -185,3 +185,14 @@ def read(record_dirs: Iterable[Path]) -> Corpus:
         for path in sorted(folder.glob("*-hints.csv")):
             corpus.hints.extend(read_hints(path))
     return corpus
+
+
+def unchanged(record_dirs: Iterable[Path], inputs: Iterable[Mapping[str, Any]]) -> bool:
+    """Whether the folders hold exactly the record files a run read (its `run.json` inputs:
+    file name and sha256), so that cards show what that run resolved (M2.10c)."""
+    now = sorted(
+        (path.name, _sha256(path))
+        for folder in record_dirs
+        for path in sorted(Path(folder).glob("*.ftm.jsonl"))
+    )
+    return now == sorted((str(i.get("file")), str(i.get("sha256"))) for i in inputs)

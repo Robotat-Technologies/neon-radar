@@ -8,7 +8,7 @@ from pathlib import Path
 
 from nr_resolve_support import syn
 
-from neonradar_resolve import cards
+from neonradar_resolve import cards, records
 
 
 def _folder(tmp_path: Path) -> Path:
@@ -67,3 +67,14 @@ def test_a_card_never_shows_a_probability_rule_method_stratum_or_label(tmp_path:
     assert not re.search(r"\b(?:D[1-7]|S[1-4]|X[1-8]|P[1-6])\b", text)
     assert "0." not in text  # no score of any kind
     assert all(len(line) <= 90 for line in text.splitlines())
+
+
+def test_cards_follow_only_the_record_files_the_run_read(tmp_path: Path) -> None:
+    folder = _folder(tmp_path)
+    inputs = [vars(found) for found in records.read([folder]).inputs]  # as run.json holds them
+    assert records.unchanged([folder], inputs)
+    path = folder / "test.ftm.jsonl"
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    assert not records.unchanged([folder], inputs)  # the file changed since the run
+    assert not records.unchanged([folder], [])  # a file the run did not read
+    assert not records.unchanged([], inputs)  # a file the run read is gone

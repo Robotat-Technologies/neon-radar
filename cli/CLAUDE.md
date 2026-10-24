@@ -36,8 +36,10 @@
     into `resolution_dir`, spills DuckDB into `retention.spill_dir` and writes `LATEST` last.
   - `er sample|label|review|precision` (`er_labelling.py`, M2.10c): `--run <id>|latest`; a
     real profile runs the gate, then refuses while people.er_labellers or
-    er_senior_reviewers still hold @TODO (OD-22). `er label` and `er review` are human-only:
-    `require_terminal` first, no default answer; agents never run them (G10).
+    er_senior_reviewers still hold @TODO (OD-22), and `--adjudicate` and `er precision` refuse
+    while people.tech_lead or squads.graph.mentor is not a handle. `er label` and `er review`
+    are human-only: `require_terminal` first, no default answer; agents never run them (G10).
+    They refuse when the record files differ from the run's inputs (`records.unchanged`).
   - `graph load [PATH...] [--profile NAME] [--resolution RUN_DIR|latest] [--no-replace]`,
     `graph verify` and `--real` on migrate, verify, stats and wipe (`graph.py`, M2.11): the
     instance comes from the profile, else from the manifests (C2 L17); the real-data one runs

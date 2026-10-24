@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -162,6 +164,59 @@ def test_real_profile_commands_wait_until_people_are_named(data_env: Any) -> Non
     assert er_labelling._team(named, real) == ({"@example-one", "@example-two"}, frozenset())
 
 
+def test_real_adjudication_waits_until_the_threshold_setters_are_named(data_env: Any) -> None:
+    def project(tech_lead: str, mentor: str | None) -> Any:
+        squads = {"graph": {"mentor": mentor}} if mentor else {}
+        text = yaml.safe_dump({"people": {"tech_lead": tech_lead}, "squads": squads})
+        data_env.project.write_text(text, encoding="utf-8")
+        return load_project()
+
+    for unnamed in (project("@TODO", "@example-mentor"), project(TECH_LEAD, None)):
+        with pytest.raises(er_labelling.Refused, match=r"7\.3 rule 4"):
+            er_labelling._barred(unnamed, real_data=True)  # er label --adjudicate, er precision
+    assert er_labelling._barred(project("@TODO", "@example-mentor")) == {"@example-mentor"}
+    named = project("@Example-Lead", "@example-mentor")
+    assert er_labelling._barred(named, real_data=True) == {TECH_LEAD, "@example-mentor"}
+
+
+def test_cards_show_the_run_s_records_or_nobody_is_asked(tmp_path: Path) -> None:
+    records_dir, run_dir = tmp_path / "records", tmp_path / "run"
+    records_dir.mkdir()
+    run_dir.mkdir()
+    (records_dir / "syn.ftm.jsonl").write_text("{}\n", encoding="utf-8")
+    read = {"file": "syn.ftm.jsonl", "sha256": hashlib.sha256(b"{}\n").hexdigest()}
+    (run_dir / "run.json").write_text(json.dumps({"inputs": [read]}), encoding="utf-8")
+    chosen = SimpleNamespace(record_dirs=lambda project: [records_dir])
+    er_labelling._check_inputs(chosen, None, run_dir)
+    (records_dir / "syn.ftm.jsonl").write_text("{}\n{}\n", encoding="utf-8")
+    with pytest.raises(er_labelling.Refused, match="changed since this run"):
+        er_labelling._check_inputs(chosen, None, run_dir)
+    with pytest.raises(er_labelling.Refused, match="nobody is asked"):
+        er_labelling._show({}, ("syn-r-0001", "syn-x-0001"))
+
+
+def test_adjudication_has_the_cards_of_every_overlap_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pairs = [_pair(1, "S1", ("@a", "@b")), _pair(2, "S3", ("@a", "@c")), _pair(3, "S1", ("@a",))]
+    labels.append_label(tmp_path, "pair-0001", "same", "@a", at=T0)  # synthetic test lines
+    labels.append_label(tmp_path, "pair-0001", "different", "@b", at=T0)
+    loaded: list[list[Pair]] = []
+
+    def no_cards(chosen: Any, project: Any, wanted: list[Pair]) -> dict[str, Any]:
+        loaded.append(wanted)
+        return {}
+
+    def ask(prompt: str, choices: dict[str, str]) -> str:
+        raise AssertionError("asked about a pair without its cards")
+
+    monkeypatch.setattr(er_labelling, "_label_cards", no_cards)
+    monkeypatch.setattr(er_labelling, "_ask", ask)
+    with pytest.raises(er_labelling.Refused, match="nobody is asked"):
+        er_labelling._adjudicate(None, None, tmp_path, pairs, "@e", frozenset(), None)
+    assert loaded == [pairs[:2]]  # pair 2 may come to disagree while the session runs
+
+
 def test_precision_and_the_unsure_bound_match_stats() -> None:
     # 400 drawn: 330 same, 10 different, 60 unsure (7.3 rule 3, test_stats.py)
     pairs = [_pair(n, "S1", ("@a",)) for n in range(1, 401)]
@@ -221,7 +276,12 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
     pairs = [_pair(n, "S1", ("@a", "@b") if n <= 40 else ("@a",)) for n in range(1, 401)]
     pairs += [_pair(n, "S2", ("@b",), f"D{n % 5 + 1}") for n in range(401, 451)]
     pairs += [_pair(n, "S3", ("@a", "@c") if n <= 460 else ("@c",)) for n in range(451, 501)]
-    found = [_label(p.pair_id, "same", h, 1) for p in pairs for h in p.labellers]
+    unsure = {"pair-0402"}  # an S2 pair joined by D3
+    found = [
+        _label(p.pair_id, "unsure" if p.pair_id in unsure else "same", h, 1)
+        for p in pairs
+        for h in p.labellers
+    ]
     found[0] = _label(pairs[0].pair_id, "unsure", "@a", 1)
     found.append(_label(pairs[0].pair_id, "same", "@example-pl", 2, adjudication=True))
     outcome = precision.measure(pairs, found, {TECH_LEAD}, {"S1": False, "S2": True})
@@ -231,7 +291,14 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
         assert handle not in text
     assert text.startswith("# Entity resolution precision, demo, 2026-11-03\n")
     assert "Probabilistic merges (headline): 400 of 400 correct, precision 1.000" in text
-    assert "Deterministic merges: 50 of 50 correct" in text and "D3 10 of 10" in text
+    assert (  # 7.3 rule 5: k, n, u, the point estimate and the interval, overall and per rule
+        "Deterministic merges: 49 of 49 correct, precision 1.000 (Wilson 95% interval 0.927 to"
+        " 1.000); 1 unsure; by rule: D1 10 of 10 (0 unsure, precision 1.000, Wilson 95% interval"
+        " 0.722 to 1.000), D2 10 of 10"
+    ) in text
+    assert "D3 9 of 9 (1 unsure, precision 1.000, Wilson 95% interval 0.701 to 1.000)" in text
+    d3 = precision.summary(outcome)["s2_by_rule"]["d3"]
+    assert (d3["k"], d3["n"], d3["u"], d3["precision"]) == (9, 9, 1, 1.0)
     assert "Joined through a reviewer's decision: 2 records (not sampled)." in text
     assert "on 50 overlapping pairs (40 from S1, 10 from S3)" in text
     assert "Labelled whole (a census of this run, not a sample): S2" in text
@@ -252,6 +319,30 @@ def test_the_report_holds_counts_only_the_readme_sentence_and_the_footer() -> No
     assert footer.endswith(precision.ICIJ_NOTICE)
     assert "Fewer" not in text and "More than 15 percent" not in text
     assert " on a slice of the UK register correct" in _report(outcome, real_data=True)
+
+
+def test_the_report_counts_disagreements_that_wait_for_adjudication() -> None:
+    pairs = [_pair(n, "S1" if n < 3 else "S3", ("@a", "@b")) for n in range(1, 4)]
+    found = [
+        _label("pair-0001", "same", "@a", 1),
+        _label("pair-0001", "different", "@b", 2),
+        _label("pair-0002", "same", "@a", 1),
+        _label("pair-0002", "unsure", "@b", 2),
+        _label("pair-0003", "same", "@a", 1),
+        _label("pair-0003", "same", "@b", 2),
+        _label("pair-0001", "same", TECH_LEAD, 3, adjudication=True),  # barred: not counted
+    ]
+    waiting = precision.measure(pairs, found, {TECH_LEAD})
+    assert waiting.awaiting_adjudication == 2 and not waiting.adjudicators
+    text = _report(waiting)
+    assert "; 2 disagreements not yet adjudicated.\n" in text
+    assert "no pair needed adjudication" not in text
+    by_lead = [*found, _label("pair-0002", "different", "@example-pl", 4, adjudication=True)]
+    assert "; adjudicated by the project lead; 1 disagreement not yet adjudicated.\n" in _report(
+        precision.measure(pairs, by_lead, {TECH_LEAD})
+    )
+    agreed = precision.measure(pairs[2:], found, {TECH_LEAD})
+    assert "; no pair needed adjudication.\n" in _report(agreed)
 
 
 def test_the_first_line_warns_about_unsure_labels_and_a_small_sample() -> None:
@@ -286,8 +377,11 @@ def test_label_files_append_and_read_back(tmp_path: Path) -> None:
         ' "at": "2026-11-02T09:00:00Z", "adjudication": false}\n',
         encoding="utf-8",
     )
-    with pytest.raises(LabelsError, match="not the file's"):
+    with pytest.raises(LabelsError, match="not the file's") as refused:
         labels.read_labels(tmp_path)
+    # the message names the file by its place, never by its name (a handle)
+    assert str(refused.value).startswith("label file 2 of 3, line 1: ")
+    assert "@" not in str(refused.value) and "example" not in str(refused.value)
 
 
 def test_next_pair_resumes_where_the_labeller_stopped() -> None:

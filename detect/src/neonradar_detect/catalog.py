@@ -346,14 +346,17 @@ def _renderable(item: TypologyFile) -> list[str]:
             for key, template in _templates(pair):
                 problems += [f"{where}{key}: {p}" for p in phase3_problems(template)]
                 problems += _lint3(f"{where}{key}", template)
+    # copied unchanged into every alert's explanation.false_positive_notes
+    for i, text in enumerate(item.false_positives):
+        problems += _lint3(f"false_positives[{i}]", text)
     return problems
 
 
 def load(directory: Path = CATALOG_DIR) -> dict[str, Typology]:
     """Every typology file, validated with `TypologyFile`, as the frozen `Typology` view; a
     `CatalogError` when one cannot be run by the Phase 3 code (a detector outside the package,
-    no shape name for a detector, a format spec, a stray brace, a shape name or template that
-    fails the run-time lint)."""
+    no shape name for a detector, a format spec, a stray brace, a shape name, template or
+    false-positive note that fails the run-time lint)."""
     out = {}
     for slug, item in load_catalog(directory).items():
         problems = _renderable(item)

@@ -76,7 +76,7 @@ def build_command(
             # The gate for every dataset and every step that will run, before any builder:
             # the officers step's access rule (access.companies_house_key) is checked here.
             where.dataset = slug
-            for name in chosen_steps or builder.steps or (None,):
+            for name in builder.planned(chosen, chosen_steps) or (None,):
                 gate.check_real_data(project, chosen, slug, step=name)
             plan.append((slug, builder, chosen_steps))
         for slug, builder, chosen_steps in plan:

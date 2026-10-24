@@ -2,8 +2,9 @@
 
 Two runs leave one :DetectionRun and the second run's alerts; the five new :DetectionRun
 properties and the two :Alert properties are set, and `summary` parses as JSON; I17 holds after
-the load; `--keep-previous` keeps earlier runs; a failed run replaces the results with a failed
-:DetectionRun; verify-alert finds every evidence node and relationship, and reports a missing one.
+the load; `--keep-previous` keeps earlier runs; a failed run records a failed :DetectionRun and
+keeps the earlier results (OD-10); verify-alert finds every evidence node and relationship, and
+reports a missing one.
 """
 
 import json
@@ -128,19 +129,31 @@ def test_keep_previous_keeps_earlier_runs(db: Neo4jTarget, tmp_path: Path) -> No
     assert read(db, "MATCH (a:Alert) RETURN count(a) AS n") == [{"n": 2}]
 
 
-def test_a_failed_run_replaces_the_results(db: Neo4jTarget, tmp_path: Path) -> None:
+def test_a_failed_run_keeps_the_last_results(db: Neo4jTarget, tmp_path: Path) -> None:
+    """A failed run has no results to replace the earlier ones with: it records its failed
+    :DetectionRun and deletes nothing (orchestrator decision under OD-10 on L19)."""
     import dataclasses
 
-    detect(db, tmp_path, "run-20261102T090000-0001")
+    first = detect(db, tmp_path, "run-20261102T090000-0001")
     cat = catalog.load()
     bad = dict(cat["circular_flow"].wording, headline_synthetic="Synthetic scenario: layering")
     broken = {**cat, "circular_flow": dataclasses.replace(cat["circular_flow"], wording=bad)}
     with pytest.raises(runs.RunError, match="the headline matches"):
         detect(db, tmp_path, "run-20261102T090100-0002", cat=broken)
-    [run] = read(db, "MATCH (r:DetectionRun) RETURN properties(r) AS r")
-    assert (run["r"]["status"], run["r"]["alert_count"]) == ("failed", 0)
-    assert "params_sha256" not in run["r"] and json.loads(run["r"]["summary"])["alerts"] == 0
-    assert read(db, "MATCH (a:Alert) RETURN count(a) AS n") == [{"n": 0}]
+    found = read(db, "MATCH (r:DetectionRun) RETURN properties(r) AS r ORDER BY r.run_id")
+    assert [(r["r"]["status"], r["r"]["alert_count"]) for r in found] == [("ok", 2), ("failed", 0)]
+    failed = found[1]["r"]
+    assert "params_sha256" not in failed and json.loads(failed["summary"])["alerts"] == 0
+    stored = read(
+        db,
+        "MATCH (r:DetectionRun)-[:PRODUCED]->(a:Alert) RETURN r.run_id AS run, a.alert_id AS id"
+        " ORDER BY id",
+    )
+    assert stored == [
+        {"run": first.run_id, "id": a} for a in sorted(x.alert_id for x in first.alerts)
+    ]
+    for name in ("I15", "I16", "I17"):
+        assert read(db, statements()[name]) == [{"violations": 0}], name
 
 
 def test_verify_finds_the_evidence_and_reports_what_is_missing(

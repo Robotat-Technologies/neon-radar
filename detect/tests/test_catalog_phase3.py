@@ -137,6 +137,47 @@ def test_load_refuses_what_the_phase3_renderer_cannot_render(tmp_path: Path) -> 
         load(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("where", "text", "pattern"),
+    [
+        ("shape_name", "funds layering through accounts", r"\blayering\b"),
+        ("wording.headline_structural", "Funds returned via {cycle_length} smurfs", r"\bsmurf\w*"),
+        (
+            "wording.detail",
+            "The account is blocked after {cycle_length} transfers",
+            r"\bis blocked\b",
+        ),
+        (
+            "wording.variants.same_holder.headline_structural",
+            "A shell held {cycle_length} accounts",
+            r"\bshell\b",
+        ),
+    ],
+)
+def test_load_applies_the_run_time_lint_to_shape_names_and_templates(
+    tmp_path: Path, where: str, text: str, pattern: str
+) -> None:
+    """Phase 1's lint in `TypologyFile` does not know Phase 2's phrases or Phase 3's conduct words,
+    so `load()` applies `wording_lint.violations`: such a file fails when it loads, not mid-run."""
+    data = phase3()
+    data["wording"]["variants"] = {
+        "same_holder": {
+            "headline_structural": "Funds back after {cycle_length} transfers",
+            "headline_synthetic": "Synthetic scenario: funds back after {cycle_length} transfers",
+        }
+    }
+    *parents, key = where.split(".")
+    target: dict[str, Any] = data
+    for part in parents:
+        target = target[part]
+    target[key] = text
+    TypologyFile.model_validate(data)  # Phase 1's lint lets it through
+    write(tmp_path, data)
+    with pytest.raises(CatalogError) as raised:
+        load(tmp_path)
+    assert f"{where} fails the wording lint (7.5.2): {pattern}" in str(raised.value)
+
+
 @dataclass(frozen=True)
 class _Params:
     hops: int = 2

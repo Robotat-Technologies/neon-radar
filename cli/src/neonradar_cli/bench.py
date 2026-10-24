@@ -71,7 +71,7 @@ def measure(graph: GraphConnection, picks: Sequence[str]) -> dict[str, dict[str,
             errors[name] += 1
             return
         seconds[name].append(time.perf_counter() - started)
-        found[name] += _size(answer.subgraph if name == "network" else answer)
+        found[name] += _size(answer)  # paths, search hits, or the network's nodes
 
     for index, entity_id in enumerate(picks):
         timed("ownership_up", partial(main.get_ownership, graph, entity_id, "up", 6, None))
@@ -79,7 +79,10 @@ def measure(graph: GraphConnection, picks: Sequence[str]) -> dict[str, dict[str,
         if index + 1 < len(picks):
             timed("paths", partial(main.find_paths, graph, entity_id, picks[index + 1], 4, None))
         timed("network", partial(main.get_network, graph, entity_id, 2, None, 200))
-        caption = main.get_entity(graph, entity_id).entity.caption
+        try:
+            caption = main.get_entity(graph, entity_id).entity.caption
+        except Exception:  # the search for this pick counts as an error
+            caption, errors["search"] = "", errors["search"] + 1
         token = next(iter(caption.split()), "")
         if len(token) >= 2:  # /search needs 2 characters
             timed("search", partial(main.search, graph, token, None, 20))

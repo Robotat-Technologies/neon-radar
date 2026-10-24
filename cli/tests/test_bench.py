@@ -2,6 +2,7 @@
 route functions are fakes, so no test reaches Neo4j."""
 
 import json
+from functools import partial
 from types import SimpleNamespace
 from typing import Any
 
@@ -47,16 +48,18 @@ class FakeGraph:
 @pytest.fixture
 def fake_api(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, ...]]:
     calls: list[tuple[Any, ...]] = []
-    nodes = SimpleNamespace(nodes=[1, 2, 3])
-    answer = SimpleNamespace(paths=[1, 2], items=[1], subgraph=nodes)
+    answers = {"get_ownership": SimpleNamespace(paths=[1, 2], subgraph=None),
+               "find_paths": SimpleNamespace(paths=[1, 2], subgraph=None),
+               "get_network": SimpleNamespace(nodes=[1, 2, 3], edges=[1]),  # a Subgraph
+               "search": SimpleNamespace(items=[1], query="")}  # fmt: skip
 
-    def route(*args: Any) -> Any:
+    def route(name: str, *args: Any) -> Any:
         calls.append(args)
-        return answer
+        return answers[name]
 
     monkeypatch.setattr(api_graph, "GraphConnection", FakeGraph)
-    for name in ("get_ownership", "find_paths", "get_network", "search"):
-        monkeypatch.setattr(api_main, name, route)
+    for name in answers:
+        monkeypatch.setattr(api_main, name, partial(route, name))
     caption = SimpleNamespace(entity=SimpleNamespace(caption="syn-co-0001 Holdings"))
     monkeypatch.setattr(api_main, "get_entity", lambda graph, entity_id: caption)  # token: an id
     return calls

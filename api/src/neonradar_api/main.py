@@ -336,9 +336,12 @@ def create_app(
     graph: GraphConnection | None = None,
     files: RepoFiles | None = None,
     allowed_hosts: list[str] | None = None,
+    report: Callable[[Exception], None] | None = None,
 ) -> FastAPI:
     """The app; nothing connects to Neo4j or reads the repository files until a route needs
-    them (`uvicorn --factory`). `allowed_hosts` defaults to `NR_ALLOWED_HOSTS`."""
+    them (`uvicorn --factory`). `allowed_hosts` defaults to `NR_ALLOWED_HOSTS`. `report` marks
+    the real-data app: errors are redacted (`problems.install`) and no other origin is allowed,
+    so a page on the UI dev server cannot read it."""
     connection = graph if graph is not None else GraphConnection()
     hosts = allowed_hosts if allowed_hosts is not None else ApiSettings().allowed_hosts
 
@@ -365,13 +368,14 @@ def create_app(
     )
     app.state.graph = connection
     app.state.files = files if files is not None else RepoFiles()
-    problems.install(app)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[UI_DEV_ORIGIN],
-        allow_methods=["GET", "POST"],
-        allow_headers=["content-type"],
-    )
+    problems.install(app, report)
+    if report is None:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[UI_DEV_ORIGIN],
+            allow_methods=["GET", "POST"],
+            allow_headers=["content-type"],
+        )
     # Added last, so it runs first: any other Host header is a 400 (DNS rebinding guard).
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts, www_redirect=False)
     app.include_router(router)

@@ -346,7 +346,7 @@ def load_command(
 
 
 @app.command(name="verify")
-def verify_command(real: Real = False, timeout: Timeout = 30) -> dict[str, int]:
+def verify_command(real: Real = False, timeout: Timeout = 30) -> None:
     """Check the graph invariants I1 to I14: one line per invariant with its violation count
     (exit 1 on any violation)."""
     from neonradar_graph.verify import verify
@@ -361,7 +361,6 @@ def verify_command(real: Real = False, timeout: Timeout = 30) -> dict[str, int]:
     typer.echo(f"{'FAIL' if total else 'OK'}  {total} violation(s) of {len(counts)} invariants")
     if total:
         raise typer.Exit(code=1)
-    return counts
 
 
 @app.command(name="stats")

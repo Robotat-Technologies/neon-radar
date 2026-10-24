@@ -1,13 +1,9 @@
 """`neonradar load --profile NAME`: one profile end to end (PHASE-2.md M2.13 deliverable 1).
 
-The steps run in order and the first failing one stops the load: for a real profile the
-real-data gate and a check that the real-data instance answers, then `data fetch` (real
-profiles only, unless `--skip-fetch`), `ingest build`, `er run` (when `resolution.enabled`),
-`graph migrate`, `graph load --profile NAME [--resolution latest]` and `graph verify`, with
-`--real` for a real profile. Each step is the command's own function, so its gate, redaction
-and counts-only summary hold. The load writes one counts-only summary (`summary.emit`) with each
-step's duration, the counts the steps returned, the record counts and source versions from the
-manifests, the graph's node and relationship counts, the invariants and the hardware.
+`STEPS` run in order (`plan` picks them) and the first failing one stops the load. Each step
+calls the command's own function, so its gate, redaction guard and counts-only summary hold;
+the load writes one counts-only summary with each step's duration and the counts they returned,
+record counts and source versions from the manifests, and the hardware.
 """
 
 import os
@@ -65,8 +61,7 @@ def without_officer_requests(profile: Profile) -> Profile:
 
 
 def counts(value: Any, key: str = "") -> Any:
-    """The numbers (and `status`) of a step's summary: its strings and lists stay out, so the
-    load summary needs none of the step's registered keys."""
+    """The numbers (and `status`) of a step's summary: no string key of the step is needed."""
     if isinstance(value, Mapping):
         kept = {name: counts(item, name) for name, item in value.items()}
         return {name: item for name, item in kept.items() if item is not ...}
@@ -161,8 +156,7 @@ def neo4j_memory(driver: Driver, database: str) -> dict[str, str | None]:
 
 
 def gate_step(run: Run) -> None:
-    """A real profile: the real-data gate for the profile and each dataset, then the real-data
-    instance must answer (`make up-real`)."""
+    """A real profile: the real-data gate for it and each dataset; the real instance answers."""
     from neonradar_cli import graph
     from neonradar_graph.instances import Instance
     from neonradar_ingest.data import gate
@@ -209,22 +203,27 @@ def graph_load_step(run: Run) -> None:
 
 
 def verify_step(run: Run) -> None:
-    """`graph verify`, then the graph's counts and memory settings from the same instance."""
+    """`graph verify` (I1 to I14) and the graph's counts, kept even when an invariant fails."""
     from neonradar_cli import graph
     from neonradar_graph import loader
+    from neonradar_graph.verify import verify
 
-    run.report["invariants"] = _lower(graph.verify_command(real=run.real))
-    with graph._instance(run.real, "graph stats") as instance:
+    with graph._instance(run.real, "graph verify") as instance:
         settings = graph._settings(instance)
         with graph._connected(settings, TIMEOUT_S, real=run.real) as driver:
+            invariants = verify(driver, settings.database)
             found = loader.stats(driver, settings.database)
             run.report["hardware"] |= neo4j_memory(driver, settings.database)
+    run.report["invariants"] = _lower(invariants)
+    typer.echo(f"graph verify: {sum(invariants.values())} violation(s) of I1 to I14")
     run.report["graph"] = {
         "nodes": found.nodes,
         "relationships": found.relationships,
         "nodes_by_label": _lower(found.labels),
         "relationships_by_type": _lower(found.relationship_types),
     }
+    if any(invariants.values()):
+        raise typer.Exit(code=1)
 
 
 Step = Callable[[Run], None]
@@ -252,8 +251,7 @@ def plan(profile: Profile, *, skip_fetch: bool) -> list[str]:
 
 def run_steps(run: Run, names: list[str]) -> str | None:
     """Each step in order; the name of the first that failed, else None."""
-    steps: dict[str, Any] = {}
-    run.report["steps"] = steps
+    steps: dict[str, Any] = run.report.setdefault("steps", {})
     for name in names:
         started, status = time.monotonic(), "failed"
         try:
@@ -274,16 +272,8 @@ def run_steps(run: Run, names: list[str]) -> str | None:
 
 def load_command(
     profile: Annotated[str, typer.Option("--profile", help="A profile in ingest/profiles/.")],
-    skip_fetch: Annotated[
-        bool, typer.Option("--skip-fetch", help="Use the downloads already present.")
-    ] = False,
-    skip_officers: Annotated[
-        bool,
-        typer.Option(
-            "--skip-officers",
-            help="Officers request budget 0 for this run: officer records from the cache only.",
-        ),
-    ] = False,
+    skip_fetch: Annotated[bool, typer.Option("--skip-fetch", help="Reuse downloads.")] = False,
+    skip_officers: Annotated[bool, typer.Option("--skip-officers", help="Cache only.")] = False,
 ) -> None:
     """Fetch (real profiles), build, resolve, migrate, load and verify one profile; write one
     counts-only summary; stop at the first failing step and exit 1."""

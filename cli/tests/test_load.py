@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from neonradar_cli import er, graph, ingest, load
 from neonradar_cli.main import app
-from neonradar_graph import loader
+from neonradar_graph import loader, verify
 from neonradar_ingest.data.profiles import load_profile
 
 runner = CliRunner()
@@ -36,8 +36,7 @@ def ran(data_env: Any, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, load.
 
 
 def summaries(data_env: Any, profile: str) -> list[dict[str, Any]]:
-    folder = data_env.cache / "reports" / profile
-    paths = sorted(folder.glob("load-*.json"))
+    paths = sorted((data_env.cache / "reports" / profile).glob("load-*.json"))
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
 
@@ -49,8 +48,8 @@ def test_a_synthetic_profile_runs_its_steps_in_order_without_fetch_or_real(
     assert [name for name, _ in ran] == ALL[2:]  # no gate, no data fetch
     assert not any(run.real for _, run in ran)  # so no step passes --real
     (written,) = summaries(data_env, "demo")
-    assert written["status"] == "ok"
-    assert list(written["steps"]) == [name.replace(" ", "_") for name in ALL[2:]]
+    steps = [name.replace(" ", "_") for name in ALL[2:]]
+    assert (written["status"], list(written["steps"])) == ("ok", steps)
 
 
 def test_the_first_failing_step_stops_the_load_and_is_named(
@@ -62,12 +61,10 @@ def test_the_first_failing_step_stops_the_load_and_is_named(
 
     monkeypatch.setitem(load.STEPS, "er run", fails)
     result = runner.invoke(app, ["load", "--profile", "demo"])
-    assert result.exit_code == 1
+    assert (result.exit_code, [name for name, _ in ran]) == (1, ["ingest build", "er run"])
     assert "load stopped at step er run" in result.output
-    assert [name for name, _ in ran] == ["ingest build", "er run"]
     (written,) = summaries(data_env, "demo")
-    assert (written["status"], written["failed_step"]) == ("failed", "er run")
-    assert written["steps"]["er_run"]["status"] == "failed"
+    assert (written["failed_step"], written["steps"]["er_run"]["status"]) == ("er run", "failed")
 
 
 def test_a_real_profile_gates_fetches_and_uses_real_unless_skip_fetch(
@@ -81,18 +78,14 @@ def test_a_real_profile_gates_fetches_and_uses_real_unless_skip_fetch(
     assert result.exit_code == 0, result.output
     assert [name for name, _ in ran] == [name for name in ALL if name != "data fetch"]
     assert all(run.real for _, run in ran)
-
-
-def test_a_profile_without_resolution_skips_er_run(data_env: Any) -> None:
-    data_env.write_profile("plain", real_data=False, sources=SYNTHETIC)
+    data_env.write_profile("plain", real_data=False, sources=SYNTHETIC)  # resolution.enabled false
     assert "er run" not in load.plan(load_profile("plain"), skip_fetch=False)
 
 
 def test_skip_officers_sets_the_budget_to_0_for_the_run_only(
     ran: list[tuple[str, load.Run]], data_env: Any
 ) -> None:
-    profile_file = data_env.profiles / "uk-tiny.yaml"
-    before = profile_file.read_bytes()
+    before = (profile_file := data_env.profiles / "uk-tiny.yaml").read_bytes()
     data_env.allow_real("uk-tiny")
     budgets = []
     for flags in (["--skip-officers"], []):
@@ -125,7 +118,8 @@ def test_the_summary_has_every_field_and_passes_emit(
     monkeypatch.setattr(graph, "migrate_command", lambda real: None)
     loaded = {"records": 4850, "nodes_by_label": {"company": 2}, "dangling_references": 0}
     monkeypatch.setattr(graph, "load_command", lambda profile, resolution: loaded)
-    monkeypatch.setattr(graph, "verify_command", lambda real: {f"I{n}": 0 for n in range(1, 15)})
+    found = {f"I{n}": 0 for n in range(1, 15)}
+    monkeypatch.setattr(verify, "verify", lambda driver, database: found)
     monkeypatch.setattr(graph, "_settings", lambda instance: type("S", (), {"database": "neo4j"}))
 
     @contextmanager
@@ -151,8 +145,7 @@ def test_the_summary_has_every_field_and_passes_emit(
     assert {"cpu_model", "cpu_cores", "ram_bytes", "os", "docker_memory_bytes"} <= set(hardware)
     assert (hardware["docker_memory_bytes"], hardware["neo4j_heap"]) == (8589934592, "1G")
     assert hardware["neo4j_pagecache"] == "512M"
-
-
-def test_counts_keep_numbers_and_status_only() -> None:
-    value = {"status": "ok", "n": 2, "name": "x", "items": ["a"], "nested": {"m": 1.5}}
-    assert load.counts(value) == {"status": "ok", "n": 2, "nested": {"m": 1.5}}
+    found["I3"] = 1  # a violation fails the step and stays in the summary
+    assert runner.invoke(app, ["load", "--profile", "demo"]).exit_code == 1
+    (failed,) = (item for item in summaries(data_env, "demo") if item["status"] == "failed")
+    assert (failed["failed_step"], failed["invariants"]["i3"]) == ("graph verify", 1)

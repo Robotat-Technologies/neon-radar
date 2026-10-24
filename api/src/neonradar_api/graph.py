@@ -18,6 +18,7 @@ from neo4j.exceptions import AuthError, DriverError, Neo4jError, TransientError
 from pydantic import ValidationError
 
 from neonradar_graph.client import Neo4jSettings, get_driver
+from neonradar_graph.instances import Instance, InstanceRefused
 from neonradar_graph.ownership import TIMED_OUT, TIMEOUT_DETAIL, QueryTimeout
 
 # `execute_query` retries an unavailable database for 30 s by default; the API stops retrying
@@ -34,7 +35,7 @@ class GraphUnavailable(Exception):
 class GraphConnection:
     """A lazily created driver; nothing connects until the first query."""
 
-    def __init__(self, settings: Callable[[], Neo4jSettings] = Neo4jSettings) -> None:
+    def __init__(self, settings: Callable[[], Neo4jSettings] = Instance.DEFAULT.settings) -> None:
         self._settings = settings
         self._lock = threading.Lock()
         self._driver: Driver | None = None
@@ -47,6 +48,8 @@ class GraphConnection:
                     settings = self._settings()
                 except ValidationError as error:
                     raise GraphUnavailable("Neo4j is not configured (NEO4J_PASSWORD)") from error
+                except InstanceRefused as error:  # NEO4J_DATABASE names the real-data database
+                    raise GraphUnavailable("Neo4j is not configured (NEO4J_DATABASE)") from error
                 try:
                     driver = get_driver(settings, max_transaction_retry_time=RETRY_SECONDS)
                 except (DriverError, ValueError, ImportError) as error:  # e.g. NEO4J_URI=nonsense

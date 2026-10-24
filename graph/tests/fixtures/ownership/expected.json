@@ -1,0 +1,249 @@
+{
+ "about": "PHASE-2.md M2.12, the ownership fixture table: the oracle. Node ids without the prefix; upward paths are written owner first, as in the table, and the API lists them root first (phase-2-reconciliation E13). An interval writes ( or ) for an open bound and [ or ] for a closed one; null means both bounds are unknown.",
+ "prefix": "syn-own-",
+ "ownership": [
+  {
+   "root": "co-3",
+   "direction": "up",
+   "max_hops": 6,
+   "min_share": 0,
+   "paths": [
+    [
+     [
+      "co-2",
+      "co-3"
+     ],
+     "[75, 100]"
+    ],
+    [
+     [
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(37.5, 75)"
+    ],
+    [
+     [
+      "p-2",
+      "co-2",
+      "co-3"
+     ],
+     "(18.75, 50]"
+    ],
+    [
+     [
+      "p-1",
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(9.375, 37.5)"
+    ],
+    [
+     [
+      "co-4",
+      "co-3"
+     ],
+     null
+    ]
+   ]
+  },
+  {
+   "root": "co-3",
+   "direction": "up",
+   "max_hops": 6,
+   "min_share": 40,
+   "paths": [
+    [
+     [
+      "co-2",
+      "co-3"
+     ],
+     "[75, 100]"
+    ],
+    [
+     [
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(37.5, 75)"
+    ],
+    [
+     [
+      "p-2",
+      "co-2",
+      "co-3"
+     ],
+     "(18.75, 50]"
+    ]
+   ]
+  },
+  {
+   "root": "co-3",
+   "direction": "up",
+   "max_hops": 6,
+   "min_share": 37.5,
+   "paths": [
+    [
+     [
+      "co-2",
+      "co-3"
+     ],
+     "[75, 100]"
+    ],
+    [
+     [
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(37.5, 75)"
+    ],
+    [
+     [
+      "p-2",
+      "co-2",
+      "co-3"
+     ],
+     "(18.75, 50]"
+    ]
+   ]
+  },
+  {
+   "root": "co-3",
+   "direction": "up",
+   "max_hops": 6,
+   "min_share": 50,
+   "paths": [
+    [
+     [
+      "co-2",
+      "co-3"
+     ],
+     "[75, 100]"
+    ],
+    [
+     [
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(37.5, 75)"
+    ],
+    [
+     [
+      "p-2",
+      "co-2",
+      "co-3"
+     ],
+     "(18.75, 50]"
+    ]
+   ]
+  },
+  {
+   "root": "co-3",
+   "direction": "up",
+   "max_hops": 1,
+   "min_share": 0,
+   "paths": [
+    [
+     [
+      "co-2",
+      "co-3"
+     ],
+     "[75, 100]"
+    ],
+    [
+     [
+      "co-4",
+      "co-3"
+     ],
+     null
+    ]
+   ]
+  },
+  {
+   "root": "p-1",
+   "direction": "down",
+   "max_hops": 6,
+   "min_share": 0,
+   "paths": [
+    [
+     [
+      "p-1",
+      "co-1"
+     ],
+     "(25, 50]"
+    ],
+    [
+     [
+      "p-1",
+      "co-1",
+      "co-2"
+     ],
+     "(12.5, 37.5)"
+    ],
+    [
+     [
+      "p-1",
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(9.375, 37.5)"
+    ]
+   ]
+  },
+  {
+   "root": "co-5",
+   "direction": "up",
+   "max_hops": 4,
+   "min_share": 0,
+   "paths": [
+    [
+     [
+      "co-6",
+      "co-5"
+     ],
+     "(25, 50]"
+    ]
+   ]
+  }
+ ],
+ "paths": [
+  {
+   "from": "p-1",
+   "to": "co-3",
+   "max_hops": 4,
+   "paths": [
+    [
+     [
+      "p-1",
+      "co-1",
+      "co-2",
+      "co-3"
+     ],
+     "(9.375, 37.5)"
+    ]
+   ]
+  },
+  {
+   "from": "p-1",
+   "to": "p-2",
+   "max_hops": 4,
+   "paths": [
+    [
+     [
+      "p-1",
+      "co-1",
+      "co-2",
+      "p-2"
+     ],
+     null
+    ]
+   ]
+  }
+ ]
+}

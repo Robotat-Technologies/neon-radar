@@ -1,0 +1,9 @@
+# synthetic: true
+record_id,canonical_id,class,cluster_size,method,rule,match_probability,via,path_methods,features
+syn-res-co-1,nr-syn-res-co-1,org,3,anchor,,1.0,,,
+syn-res-co-2,nr-syn-res-co-1,org,3,deterministic,D1,1.0,syn-res-co-1,deterministic,
+syn-res-co-3,nr-syn-res-co-1,org,3,probabilistic,,0.987,syn-res-co-1,probabilistic,"{""jurisdiction"":""Exact match on jurisdiction"",""org_name"":""name key equal""}"
+syn-res-co-4,syn-res-co-4,org,1,identity,,,,,
+syn-res-co-5,syn-res-co-5,org,1,identity,,,,,
+syn-res-co-6,syn-res-co-6,org,1,identity,,,,,
+syn-res-co-7,syn-res-co-7,org,1,identity,,,,,

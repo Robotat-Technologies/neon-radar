@@ -10,6 +10,7 @@ from fastapi import Depends
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from neo4j import Driver
+from neo4j.exceptions import Neo4jError
 
 from neonradar_api.graph import GraphConnection, GraphUnavailable, get_graph
 from neonradar_api.main import create_app, router
@@ -162,6 +163,33 @@ def test_pending_routes_answer_501_naming_their_milestone(
     assert problem.title == "Not Implemented"
     assert problem.detail.endswith(f"it arrives in {arrives_in}.")
     assert problem.instance == url.split("?")[0]
+
+
+class TimedOutDriver:
+    """A driver whose every query runs out of its transaction timeout."""
+
+    def execute_query(self, *args: Any, **kwargs: Any) -> Any:
+        code = "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration"
+        raise Neo4jError._hydrate_neo4j(code=code, message="timed out")
+
+    def close(self) -> None:
+        return None
+
+
+class TimedOutGraph(GraphConnection):
+    def __init__(self) -> None:
+        super().__init__()
+        self._driver = cast(Driver, TimedOutDriver())
+
+
+@pytest.mark.parametrize("url", PHASE_2_REQUESTS)
+def test_the_phase_2_routes_answer_503_problems_with_advice_on_timeouts(url: str) -> None:
+    with TestClient(create_app(TimedOutGraph()), raise_server_exceptions=False) as test_client:
+        problem = _problem(test_client.get(url), 503)
+    assert problem.detail == (
+        "The query did not finish within 5 seconds. Try again with a smaller max_hops or fewer"
+        " relationship types."
+    )
 
 
 @pytest.mark.parametrize("url", PHASE_2_REQUESTS)

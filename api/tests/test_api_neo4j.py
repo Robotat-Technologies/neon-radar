@@ -14,12 +14,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from neo4j import Driver
 from neo4j.exceptions import ClientError
 from nr_test_neo4j import Neo4jTarget
 
 from neonradar_api.files import RepoFiles
-from neonradar_api.graph import GraphConnection
 from neonradar_api.main import create_app
 from neonradar_contracts.api import (
     AlertDetail,
@@ -37,7 +35,7 @@ from neonradar_graph.loader import collect_files, load_records, read_records, wi
 from neonradar_graph.mapping import NodeRow, RelationshipRow, to_node_rows, to_relationship_rows
 from neonradar_graph.migrate import migrate
 
-from .conftest import REPO_ROOT, TEST_HOSTS
+from .conftest import REPO_ROOT, TEST_HOSTS, SessionGraph
 
 pytestmark = pytest.mark.integration
 
@@ -85,18 +83,6 @@ def breadth_first(rels: list[RelationshipRow], root: str, depth: int) -> set[str
         }
         seen |= frontier
     return seen
-
-
-class SessionGraph(GraphConnection):
-    """The API's connection on the test session's driver, which it must not close."""
-
-    def __init__(self, target: Neo4jTarget) -> None:
-        super().__init__()
-        self._driver: Driver | None = target.driver
-        self._database = target.database
-
-    def close(self) -> None:
-        return None
 
 
 @dataclass

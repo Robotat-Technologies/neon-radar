@@ -48,3 +48,16 @@ class ScriptedGraph(GraphConnection):
         params = dict(parameters or {})
         self.calls.append((query, params))
         return self.answer(query, params)
+
+
+class SessionGraph(GraphConnection):
+    """The API's connection on the test session's driver (integration tests), which it must not
+    close: `SessionGraph(neo4j)` with the shared `neo4j` fixture's `Neo4jTarget`."""
+
+    def __init__(self, target: Any) -> None:
+        super().__init__()
+        self._driver: Driver | None = target.driver
+        self._database = target.database
+
+    def close(self) -> None:
+        return None

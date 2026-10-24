@@ -110,3 +110,20 @@ def test_parameter_limits_are_the_ones_of_5_3(
     operation = document["paths"][f"{API_PREFIX}{path}"]["get"]
     schema = next(p["schema"] for p in operation["parameters"] if p["name"] == name)
     assert {key: schema[key] for key in expected} == expected
+
+
+def test_every_module_on_c3s_code_line_imports() -> None:
+    """C3's Code line points at modules; a move must leave the pointer working (M2.12)."""
+    import importlib
+    import re
+
+    text = (schemas.CONTRACTS_DIR / "C3-api.md").read_text(encoding="utf-8")
+    code = next(line for line in text.splitlines() if line.startswith("- Code:"))
+    named = re.findall(r"`(neonradar_[a-z_]+(?:\.[a-z_]+)*)", code)
+    assert "neonradar_api.shapes" in named
+    for name in named:  # a module, or a module's attribute (`neonradar_api.main.create_app`)
+        try:
+            importlib.import_module(name)
+        except ModuleNotFoundError:
+            module, _, attribute = name.rpartition(".")
+            assert hasattr(importlib.import_module(module), attribute), name

@@ -46,7 +46,7 @@ def targets(load: dict[str, Any] | None, queries: dict[str, Any] | None) -> str:
     parts = []
     if load is not None:
         total = sum(step["duration_s"] for step in load.get("steps", {}).values())
-        met = "met" if total < LOAD_TARGET_S else "not met"
+        met = "met" if total < LOAD_TARGET_S and load.get("status") == "ok" else "not met"
         parts.append(f"whole load {total / 60:.1f} min, graph load under 10 minutes: {met}")
     if queries is not None:
         slowest = [e["max_ms"] for e in queries.get("endpoints", {}).values() if e["max_ms"]]

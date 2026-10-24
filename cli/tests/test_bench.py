@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from neonradar_api import graph as api_graph
 from neonradar_api import main as api_main
-from neonradar_cli import bench
+from neonradar_cli import bench, bench_report
 from neonradar_cli.main import app
 
 runner = CliRunner()
@@ -114,6 +114,7 @@ def test_bench_report_renders_the_newest_summaries_with_targets_and_footer(
     assert "whole load 12.2 min, graph load under 10 minutes: not met" in text
     assert "slowest query 0.01 s, demo queries under 2 seconds: met" in text
     assert "| search | 3 | 4.0 | 9.0 | 12.5 | 3 | 0 | 0 |" in text
+    assert bench_report.targets({"status": "failed", "steps": {}}, None).endswith("not met.")
     assert text.rstrip().splitlines()[-1].startswith("Sources and licences: NeonRadar synthetic")
 
 

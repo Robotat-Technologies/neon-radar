@@ -5,11 +5,13 @@ phrase, `detail` a sentence for people and `instance` the request path. Validati
 `<location>: <message>` pairs in `detail` without echoing the input (pydantic's `input` and
 `ctx` never reach a response). An exception no handler takes is `hardening.Contain`'s fixed 500
 problem (PHASE-4.md M4.1). Log lines name the route template, never the request path, which can
-hold an entity id (G15).
+hold an entity id (G15). The real-data app (`api serve --real`, PHASE-2.md G9) passes `report`:
+`Reported`, inside `Contain`, hands such an exception to it, and `report` keeps its traceback in
+the redacted log.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from http import HTTPStatus
 from typing import Any, Final, NoReturn
 
@@ -17,6 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from neonradar_api.files import RepoRootNotFound
 from neonradar_api.graph import GraphUnavailable
@@ -91,8 +94,31 @@ def _validation_detail(error: RequestValidationError) -> str:
     return "; ".join(parts) or "The request is not valid."
 
 
-def install(app: FastAPI) -> None:
-    """Answer every error with a problem."""
+class Reported:
+    """The real-data app's innermost layer: an exception no handler took goes to `report`, which
+    keeps its traceback in the redacted log, then on to `hardening.Contain`, which answers the
+    fixed 500 problem and logs only the class and the route template."""
+
+    def __init__(self, app: ASGIApp, report: Callable[[Exception], None]) -> None:
+        self.app = app
+        self.report = report
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        try:
+            await self.app(scope, receive, send)
+        except Exception as error:
+            self.report(error)
+            raise
+
+
+def install(app: FastAPI, report: Callable[[Exception], None] | None = None) -> None:
+    """Answer every error with a problem. Call it before `hardening.harden`, so that `Reported`
+    (real data only) sits inside `Contain`."""
+    if report is not None:
+        app.add_middleware(Reported, report=report)
 
     @app.exception_handler(ProblemError)
     async def on_problem(request: Request, error: ProblemError) -> JSONResponse:

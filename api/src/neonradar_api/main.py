@@ -334,11 +334,16 @@ def create_app(
     files: RepoFiles | None = None,
     *,
     dev: bool = False,
+    report: Callable[[Exception], None] | None = None,
 ) -> FastAPI:
     """The app; nothing connects to Neo4j or reads the repository files until a route needs
     them (`uvicorn --factory`). `harden` (PHASE-4.md M4.1) answers only this machine's host
     names, logs route templates only and contains unexpected errors; `dev` adds CORS for a UI
-    served by the Vite dev server from another origin (`neonradar api serve --dev`)."""
+    served by the Vite dev server from another origin (`neonradar api serve --dev`). `report`
+    marks the real-data app (PHASE-2.md M2.12): an unhandled error's traceback goes to it
+    (`problems.install`), and it never sends CORS headers, so `dev` is refused with it."""
+    if dev and report is not None:
+        raise ValueError("the real-data app sends no CORS headers: dev and report exclude")
     connection = graph if graph is not None else GraphConnection()
 
     @asynccontextmanager
@@ -364,7 +369,7 @@ def create_app(
     )
     app.state.graph = connection
     app.state.files = files if files is not None else RepoFiles()
-    problems.install(app)
+    problems.install(app, report)  # before harden: `report`'s layer sits inside `Contain`
     app.include_router(router)
     app.add_api_route("/docs", _docs_page, methods=["GET"], include_in_schema=False)
     harden(app, dev=dev)  # after every route: trusted hosts, access log, CORS (dev), limits

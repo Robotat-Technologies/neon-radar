@@ -45,6 +45,12 @@
     instance comes from the profile, else from the manifests (C2 L17); the real-data one runs
     the gate before connecting, inside `redact.guard`, and prints counts only (a load through
     `summary.emit`). Tests replace `loader.load`, `get_driver` and `wait_until_ready`.
+  - `load --profile NAME [--skip-fetch] [--skip-officers]` (`load.py`, M2.13): the steps in
+    `load.STEPS` call the commands' own functions (`data.fetch_command`, `ingest.run_build`,
+    `er.run_command`, `graph.migrate_command|load_command|verify_command`), which return their
+    summaries; only their numbers (and `status`) go into the load summary. A real profile gates
+    and checks the real instance first; `--skip-officers` changes the profile in memory only.
+    Tests replace the entries of `load.STEPS`, or the commands a step calls.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

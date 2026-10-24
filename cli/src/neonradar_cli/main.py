@@ -16,6 +16,7 @@ from neonradar_cli import (
     gate,
     graph,
     ingest,
+    load,
     onboarding,
     spike,
     synth,
@@ -43,6 +44,7 @@ app.add_typer(ingest.app, name="ingest")
 app.add_typer(onboarding.app, name="onboarding")
 app.add_typer(spike.app, name="spike")
 app.add_typer(synth.app, name="synth")
+app.command(name="load")(load.load_command)
 
 
 def _print_version(value: bool) -> None:

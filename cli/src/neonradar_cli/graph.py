@@ -9,7 +9,7 @@ counts only.
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from neo4j import Driver
@@ -291,7 +291,7 @@ def load_command(
         ),
     ] = True,
     timeout: Timeout = 30,
-) -> None:
+) -> dict[str, Any]:
     """Load C1 records into the graph, through a resolution run when given; nodes before
     relationships; loading the same records twice leaves every count unchanged."""
     from neonradar_cli import redact, summary
@@ -342,10 +342,11 @@ def load_command(
     if instance is Instance.DEFAULT:
         warned = report.dangling or report.rejected or report.skipped or report.empty_files
         typer.echo(f"{'WARN' if warned else 'OK'} in {report.duration_s:.1f} s")
+    return report.counts()
 
 
 @app.command(name="verify")
-def verify_command(real: Real = False, timeout: Timeout = 30) -> None:
+def verify_command(real: Real = False, timeout: Timeout = 30) -> dict[str, int]:
     """Check the graph invariants I1 to I14: one line per invariant with its violation count
     (exit 1 on any violation)."""
     from neonradar_graph.verify import verify
@@ -360,6 +361,7 @@ def verify_command(real: Real = False, timeout: Timeout = 30) -> None:
     typer.echo(f"{'FAIL' if total else 'OK'}  {total} violation(s) of {len(counts)} invariants")
     if total:
         raise typer.Exit(code=1)
+    return counts
 
 
 @app.command(name="stats")

@@ -107,7 +107,7 @@ def run_command(
     keep_features: Annotated[
         bool, typer.Option("--keep-features", help="Keep features.duckdb in the run folder.")
     ] = False,
-) -> None:
+) -> dict[str, Any]:
     """Resolve a profile's records; print and write a counts-only summary."""
     from neonradar_cli import redact, summary
     from neonradar_cli.data import profile_or_exit, project_or_exit
@@ -162,7 +162,7 @@ def run_command(
             "counts": _lower_keys(result.counts),
             "timings": result.timings,
         }
-        summary.emit(chosen, "er run", report, string_keys=LIBRARIES)
+        return summary.emit(chosen, "er run", report, string_keys=LIBRARIES)
 
 
 @app.command(name="show-config")

@@ -7,9 +7,12 @@ folder. A builder that is not implemented yet is named with its milestone and sk
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
+
+if TYPE_CHECKING:
+    from neonradar_ingest.data.profiles import Profile
 
 app = typer.Typer(help="Build C1 records for a profile.", no_args_is_help=True)
 
@@ -37,16 +40,30 @@ def build_command(
     ] = False,
 ) -> None:
     """Run the gate, then each enabled dataset's builder; print and write the summary."""
-    from neonradar_cli import redact, summary
-    from neonradar_cli.data import profile_or_exit, project_or_exit, run_prechecks, selected
-    from neonradar_ingest.data import gate, layout, sources
-    from neonradar_ingest.data.build import build_dataset
+    from neonradar_cli.data import profile_or_exit
 
     steps = tuple(step or ())
     if steps and dataset is None:
         typer.echo("FAIL  --step needs --dataset", err=True)
         raise typer.Exit(code=2)
-    project, chosen = project_or_exit(), profile_or_exit(profile)
+    run_build(profile_or_exit(profile), dataset, steps, keep_work, accept_size)
+
+
+def run_build(
+    chosen: Profile,
+    dataset: str | None = None,
+    steps: tuple[str, ...] = (),
+    keep_work: bool = False,
+    accept_size: bool = False,
+) -> dict[str, Any]:
+    """`ingest build` of a profile already read (`neonradar load` changes it in memory); the
+    summary as written."""
+    from neonradar_cli import redact, summary
+    from neonradar_cli.data import project_or_exit, run_prechecks, selected
+    from neonradar_ingest.data import gate, layout, sources
+    from neonradar_ingest.data.build import build_dataset
+
+    project = project_or_exit()
     with redact.guard(chosen, "ingest build") as where:
         where.step = "gate"
         gate.check_real_data(project, chosen, dataset)
@@ -97,4 +114,6 @@ def build_command(
             string_keys.update(builder.string_keys)
             list_keys.update(builder.list_keys)
         report["datasets"] = results
-        summary.emit(chosen, "ingest build", report, string_keys=string_keys, list_keys=list_keys)
+        return summary.emit(
+            chosen, "ingest build", report, string_keys=string_keys, list_keys=list_keys
+        )

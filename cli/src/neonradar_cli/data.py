@@ -4,7 +4,7 @@ Every command that touches a real profile runs the real-data gate first and prin
 (`summary.emit`); its errors go through `redact.guard`.
 """
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -108,7 +108,7 @@ def profiles_command() -> None:
 
 
 @app.command(name="fetch")
-def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None:
+def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> dict[str, Any]:
     """Run the gate, then download the current files of every enabled source."""
     from neonradar_cli import redact, summary
     from neonradar_ingest.data import download, gate, sources
@@ -152,9 +152,10 @@ def fetch_command(profile: ProfileOption, dataset: DatasetOption = None) -> None
         if not datasets:
             typer.echo(f"{chosen.profile} has no dataset to download")
         report["datasets"] = results
-        summary.emit(chosen, "data fetch", report)
+        written = summary.emit(chosen, "data fetch", report)
     if failed:
         raise typer.Exit(code=1)
+    return written
 
 
 @app.command(name="status")

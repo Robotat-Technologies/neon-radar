@@ -52,7 +52,10 @@
     only into the default instance; checked on the records before connecting and again on the
     rows in `execute_plan`, keyed by the database name. Tests build non-synthetic look-alikes
     in code and load them only into a second container started with
-    `NEO4J_initial_dbms_default__database=realdata` (`test_loader_resolution.py`).
+    `NEO4J_initial_dbms_default__database=realdata` (`test_loader_resolution.py`). The one
+    exception is detection case F (`detect/tests/test_circular_flow_neo4j.py`, reconciliation
+    J7), which writes its look-alike holder itself and is skipped when `NR_TEST_NEO4J_URI` is
+    set, so the look-alike only reaches a Testcontainers database.
   - Resolved loads (L8 to L16): single-record entities keep their record id; merged ones get
     `nr-<anchor>` plus one `:SourceRecord` and `RESOLVED_TO` per member. A load with a run first
     purges what it replaces (`--no-replace` skips it), so `written` is not 0 on a reload; the

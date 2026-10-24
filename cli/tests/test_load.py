@@ -68,11 +68,17 @@ def test_the_first_failing_step_stops_the_load_and_is_named(
 
 
 def test_a_real_profile_gates_fetches_and_uses_real_unless_skip_fetch(
-    ran: list[tuple[str, load.Run]], data_env: Any
+    ran: list[tuple[str, load.Run]], data_env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tiny = load_profile("uk-tiny")
     assert load.plan(tiny, skip_fetch=False) == ALL
     assert load.plan(tiny, skip_fetch=True) == [name for name in ALL if name != "data fetch"]
+    gate = load.STEPS["gate"]
+    monkeypatch.setitem(load.STEPS, "gate", load.gate_step)  # the real gate: no approvals yet
+    refused = runner.invoke(app, ["load", "--profile", "uk-tiny"])
+    assert (refused.exit_code, ran) == (1, []) and "load stopped at step gate" in refused.output
+    assert summaries(data_env, "uk-tiny")[0]["failed_step"] == "gate"
+    monkeypatch.setitem(load.STEPS, "gate", gate)
     data_env.allow_real("uk-tiny")
     result = runner.invoke(app, ["load", "--profile", "uk-tiny", "--skip-fetch"])
     assert result.exit_code == 0, result.output

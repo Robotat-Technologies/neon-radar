@@ -81,6 +81,57 @@ def run(*command: str) -> Any:
     return runner.invoke(app, [*command, "--profile", "uk-test", "--dataset", DATASET])
 
 
+def test_fetch_follows_the_redirect_and_downloads_the_collection(
+    data_env: Any, mock: Transport
+) -> None:
+    setup(data_env)
+    assert run("data", "fetch").exit_code == 0
+    artifact = f"/artifacts/sanctions/{VERSION}"  # `sanctions` is the default collection
+    assert [request.url.path for request in mock.requests] == [
+        "/datasets/latest/sanctions/index.json",
+        f"{artifact}/index.json",
+        f"{artifact}/index.json",
+        f"{artifact}/entities.ftm.json",
+    ]
+    folder = layout.sources_dir(DATASET, "sanctions", VERSION)
+    assert (folder / "entities.ftm.json").read_bytes() == EXPORT
+    assert json.loads((folder / "download.json").read_text(encoding="utf-8"))["complete"]
+
+
+def test_the_default_collection_downloads_only_that_collection(
+    data_env: Any, mock: Transport
+) -> None:
+    setup(data_env, collection="default")
+    assert run("data", "fetch").exit_code == 0
+    paths = [request.url.path for request in mock.requests]
+    assert paths[0] == "/datasets/latest/default/index.json"
+    assert all("/default/" in path for path in paths)
+
+
+@pytest.mark.parametrize("access", ["none", "evaluation"])
+@pytest.mark.parametrize("command", [("data", "fetch"), ("ingest", "build")])
+def test_gate_refuses_without_licensed_or_exempt_access(
+    data_env: Any, mock: Transport, access: str, command: tuple[str, str]
+) -> None:
+    setup(data_env, access=access)  # the profile and the machine are allowed
+    result = run(*command)
+    assert result.exit_code == 3, result.output
+    assert REFUSAL in result.output and f"(it is {access})" in result.output
+    assert mock.requests == []
+    real = data_env.cache / "real"
+    assert not [path for path in real.rglob("*") if path.is_file()] if real.exists() else True
+
+
+def test_gate_in_the_loader_itself_sends_no_request(data_env: Any, mock: Transport) -> None:
+    setup(data_env, access="none")
+    profile = load_profile("uk-test")
+    spec = sources.source_spec(DATASET)
+    assert spec is not None and spec.products is not None
+    with pytest.raises(RealDataRefused, match=r"needs access\.opensanctions licensed or exempt"):
+        spec.products(profile)["sanctions"](mock.client())
+    assert mock.requests == []
+
+
 def fetch_and_build() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """Records by OpenSanctions id (from `nr.source_ref`) and the build summary's counts."""
     for command in (("data", "fetch"), ("ingest", "build")):
@@ -113,9 +164,6 @@ def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     assert summary["skipped_by_schema"] == {"identification": 1, "unknown": 1, "vessel": 1}
     assert summary["relationships_dropped"] == {"ownership": 1}
     assert summary["records"] == len(by_source) == 16
-    paths = [r.url.path for r in mock.requests]
-    assert paths[0] == "/datasets/latest/sanctions/index.json"  # the default collection
-    assert not any("/default/" in path for path in paths)
 
 
 def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Transport) -> None:
@@ -148,16 +196,6 @@ def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Trans
     assert summary["flags"] == {"sanctioned": 3}  # Gamma, Epsilon, Zeta; sanction.linked sets none
 
 
-def test_the_default_collection_downloads_only_that_collection(
-    data_env: Any, mock: Transport
-) -> None:
-    setup(data_env, collection="default")
-    fetch_and_build()
-    paths = [request.url.path for request in mock.requests]
-    assert paths[0] == "/datasets/latest/default/index.json"
-    assert all("/default/" in path for path in paths)
-
-
 def test_a_checksum_that_does_not_match_stops_the_build(data_env: Any, mock: Transport) -> None:
     setup(data_env)
     mock.checksum = "0" * 40
@@ -166,27 +204,3 @@ def test_a_checksum_that_does_not_match_stops_the_build(data_env: Any, mock: Tra
     assert result.exit_code == 1
     assert "SHA-1" in result.output
     assert not layout.records_dir("uk-test", DATASET).exists()
-
-
-@pytest.mark.parametrize("access", ["none", "evaluation"])
-@pytest.mark.parametrize("command", [("data", "fetch"), ("ingest", "build")])
-def test_gate_refuses_without_licensed_or_exempt_access(
-    data_env: Any, mock: Transport, access: str, command: tuple[str, str]
-) -> None:
-    setup(data_env, access=access)  # the profile and the machine are allowed
-    result = run(*command)
-    assert result.exit_code == 3, result.output
-    assert REFUSAL in result.output and f"(it is {access})" in result.output
-    assert mock.requests == []
-    real = data_env.cache / "real"
-    assert not [path for path in real.rglob("*") if path.is_file()] if real.exists() else True
-
-
-def test_gate_in_the_loader_itself_sends_no_request(data_env: Any, mock: Transport) -> None:
-    setup(data_env, access="none")
-    profile = load_profile("uk-test")
-    spec = sources.source_spec(DATASET)
-    assert spec is not None and spec.products is not None
-    with pytest.raises(RealDataRefused, match=r"needs access\.opensanctions licensed or exempt"):
-        spec.products(profile)["sanctions"](mock.client())
-    assert mock.requests == []

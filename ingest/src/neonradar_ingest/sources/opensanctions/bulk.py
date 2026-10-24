@@ -3,8 +3,9 @@
 This part is the download: `data fetch` reads the collection's `index.json` (following the 307
 redirect) and downloads it with `entities.ftm.json`, whose size it checks. The loader refuses
 first, before any request, unless `access.opensanctions` is `licensed` or `exempt` (the data
-manager's gate runs before it), and stops the collection when `index.json` names a file outside
-data.opensanctions.org. The builder follows in the second M2.7 pull request.
+manager's gate runs before it). It sends no request, redirects included, outside
+data.opensanctions.org, and stops the collection when `index.json` names a file elsewhere. The
+builder follows in the second M2.7 pull request.
 """
 
 from collections.abc import Callable, Mapping
@@ -48,10 +49,18 @@ def refuse_unless_allowed(project: Project) -> None:
         raise RealDataRefused(*refusal)
 
 
+def _pinned(request: httpx.Request) -> None:
+    """A request hook: no request or redirect hop off data.opensanctions.org is ever sent."""
+    if (request.url.scheme, request.url.host) != ("https", PINNED_HOST):
+        raise DownloadError(f"a request outside {PINNED_HOST}", "host")
+
+
 def discover_for(collection: str) -> Callable[[HttpClient], list[RemoteFile]]:
     def discover(client: HttpClient) -> list[RemoteFile]:
         project = load_project()
         refuse_unless_allowed(project)  # before any request
+        if _pinned not in client.event_hooks["request"]:  # also for the downloads that follow
+            client.event_hooks["request"].append(_pinned)
         info = read_index(client, collection, access=project.access.opensanctions)
         if {httpx.URL(url).host for url in (info.url, info.entities_url)} != {PINNED_HOST}:
             raise DownloadError(f"{collection}: a file outside {PINNED_HOST}", "host")

@@ -30,18 +30,21 @@ COPY graph/pyproject.toml graph/
 COPY ingest/pyproject.toml ingest/
 COPY keys/pyproject.toml keys/
 COPY resolve/pyproject.toml resolve/
+# The CLI package depends on every other member, the API among them: the image starts the API
+# with `neonradar api serve`, exactly as a laptop does (PHASE-4.md M4.1).
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --package neonradar-api --no-install-workspace
+    uv sync --locked --no-dev --package neonradar-cli --no-install-workspace
 
 # Then the repository. Workspace members stay editable, so contracts/, detect/ and docs/ files
 # resolve as in development (NR_REPO_ROOT).
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --package neonradar-api
+    uv sync --locked --no-dev --package neonradar-cli
 
 # At run time uv only starts the installed environment and needs no cache.
 ENV NR_REPO_ROOT=/app \
-    UV_NO_CACHE=1
+    UV_NO_CACHE=1 \
+    NR_API_IN_IMAGE=1
 
 # The files stay owned by root and read-only for the user that runs the API.
 RUN useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent \
@@ -49,5 +52,6 @@ RUN useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent \
 USER 10001:10001
 
 EXPOSE 8000
-# All interfaces inside the container; Compose publishes the port on 127.0.0.1 only.
-CMD ["uv", "run", "--no-sync", "uvicorn", "neonradar_api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+# All interfaces inside the container; Compose publishes the port on 127.0.0.1 only. `api serve`
+# turns off uvicorn's access log (it writes query strings) and logs route templates only.
+CMD ["uv", "run", "--no-sync", "neonradar", "api", "serve", "--host", "0.0.0.0", "--port", "8000"]

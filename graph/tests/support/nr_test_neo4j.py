@@ -42,6 +42,9 @@ IMAGE = os.environ.get("NR_NEO4J_IMAGE", "neo4j:5.26.32-community")
 CONTAINER_ENV = {
     "NEO4J_PLUGINS": '["apoc"]',  # APOC Core is in the image's labs/ folder
     "NEO4J_dbms_security_procedures_unrestricted": "apoc.*,gds.*",
+    # compose.yaml's procedure allowlist and transaction memory limit (PHASE-4.md M4.1)
+    "NEO4J_dbms_security_procedures_allowlist": "apoc.version,apoc.meta.stats,apoc.coll.*,gds.*",
+    "NEO4J_db_memory_transaction_max": "1G",
     "NEO4J_client_allow__telemetry": "false",
     "NEO4J_dbms_usage__report_enabled": "false",
     # Small enough to run next to the local stack and on a 7 GB CI runner.

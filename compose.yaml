@@ -26,6 +26,10 @@ services:
       # fetches a pinned jar once instead; nothing is downloaded when the container starts.
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      # Only the procedures Phases 1 to 4 call: no APOC file or web procedure is loaded (they run
+      # in READ mode), and one transaction holds at most 1G (PHASE-4.md M4.1, ADR-0026).
+      NEO4J_dbms_security_procedures_allowlist: "apoc.version,apoc.meta.stats,apoc.coll.*,gds.*"
+      NEO4J_db_memory_transaction_max: "1G"
       NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-2G}"
       NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-2G}"
       NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-2G}"
@@ -75,6 +79,13 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    # Docker keeps a container's log on disk (and Docker Desktop's diagnostics collect it): the
+    # local driver rotates it (PHASE-4.md M4.1).
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       # Healthy once the API answers and reports Neo4j, APOC and GDS ("ok"); no curl in the image.
       test:
@@ -141,6 +152,10 @@ services:
       NEO4J_initial_dbms_default__database: realdata
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      # Only the procedures Phases 1 to 4 call: no APOC file or web procedure is loaded (they run
+      # in READ mode), and one transaction holds at most 1G (PHASE-4.md M4.1, ADR-0026).
+      NEO4J_dbms_security_procedures_allowlist: "apoc.version,apoc.meta.stats,apoc.coll.*,gds.*"
+      NEO4J_db_memory_transaction_max: "1G"
       NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-2G}"
       NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-2G}"
       NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-2G}"

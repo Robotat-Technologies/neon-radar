@@ -52,7 +52,7 @@ def test_both_endpoints_give_the_same_figures_for_the_same_chain(client: TestCli
     assert backward.node_ids == forward.node_ids[::-1]
 
 
-def test_other_relationship_types_leave_the_shares_null(client: TestClient) -> None:
+def test_rel_types_limit_the_search_and_an_owns_chain_keeps_its_shares(client: TestClient) -> None:
     body = _paths(client, "p-1", "co-3", rel_types=["CONTROLS"])
     assert body.paths == [] and body.subgraph.nodes == []
     assert table_row(_paths(client, "p-1", "co-2", rel_types=["OWNS", "CONTROLS"]).paths[0])[1] == (

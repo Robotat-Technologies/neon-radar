@@ -194,6 +194,24 @@ def test_a_wording_failure_fails_the_whole_run(tmp_path: Path) -> None:
     assert driver.calls[2][1]["rows"] == []
 
 
+def test_a_failed_run_given_an_earlier_runs_id_replaces_that_run(tmp_path: Path) -> None:
+    # the one exception to "a failed run deletes nothing" (F11, ADR-0020, --run-id help)
+    run_id = "run-20261021T101500-0004"
+    first = run(tmp_path, FakeDriver(), run_id=run_id)
+    assert first.status == "ok" and (first.directory / "alerts.jsonl").exists()
+    cat = catalog.load()
+    bad = dict(cat["circular_flow"].wording, headline_synthetic="Synthetic scenario: layering")
+    broken = {**cat, "circular_flow": dataclasses.replace(cat["circular_flow"], wording=bad)}
+    driver = FakeDriver()
+    with pytest.raises(runs.RunError):
+        run(tmp_path, driver, cat=broken, run_id=run_id)
+    assert not (first.directory / "alerts.jsonl").exists()
+    assert driver.names() == ["merge_run", "prune_run", "merge_alerts"]
+    node = driver.calls[0][1]["run"]
+    assert (node["run_id"], node["status"], node["alert_count"]) == (run_id, "failed", 0)
+    assert driver.calls[1][1] == {"run_id": run_id, "alert_ids": []}
+
+
 def test_an_alert_that_fails_c4_names_the_typology_and_fields_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

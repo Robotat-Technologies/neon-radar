@@ -36,6 +36,12 @@
   - `harden` (added after every route) answers only the fixed hosts `127.0.0.1`, `localhost`,
     `[::1]` and `api`: a proxy must pass one of them as `Host` (Vite: `changeOrigin`). Every
     test client uses `base_url="http://127.0.0.1"`, never TestClient's `http://testserver`.
+    Behind the Vite proxy the API sees `127.0.0.1`, so Vite's default `server.allowedHosts`
+    is what refuses a rebound domain there: keep it, never `allowedHosts: true`.
+  - A 422's detail keeps pydantic's `msg`, and a few error types quote the input
+    (`union_tag_invalid`, a `value_error` from a validator that formats its value): request
+    models use no discriminated union and no such validator, or `problems._validation_detail`
+    maps `msg` from a fixed table keyed by the error's `type` (G15).
   - Logs name route templates (`hardening.route_template`), never `request.url.path` or an
     exception's message. An exception no handler takes is `Contain`'s fixed 500 problem; do
     not add an `Exception` handler. CORS only with `create_app(dev=True)` (`api serve --dev`).

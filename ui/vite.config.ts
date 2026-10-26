@@ -6,7 +6,8 @@ import vue from '@vitejs/plugin-vue'
 // The API (contract C3) runs on 127.0.0.1:8000 (`neonradar api serve`); the dev and preview
 // servers forward /api to it, so the browser only ever talks to its own origin. changeOrigin
 // sends the target's Host, which the API's trusted-host check accepts even when the UI is opened
-// through a forwarded address such as a Codespace (PHASE-4.md M4.1).
+// through a forwarded address such as a Codespace (PHASE-4.md M4.1). The API then sees 127.0.0.1,
+// so Vite's default server.allowedHosts guards against DNS rebinding: never set it to true.
 const apiProxy = {
   '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
 }

@@ -138,9 +138,11 @@ def test_the_default_app_logs_the_route_template(caplog: pytest.LogCaptureFixtur
     default = create_app(ScriptedGraph(_failing), RepoFiles(REPO_ROOT))
     with (
         caplog.at_level(logging.DEBUG, logger="neonradar_api"),
+        caplog.at_level(logging.DEBUG, logger="neonradar.api"),
         TestClient(default, base_url=BASE_URL) as client,
     ):
         assert client.get(f"/api/v1/entities/{RECORD_ID}").status_code == 500
     (record,) = [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert record.getMessage() == "unhandled ValueError on GET /api/v1/entities/{entity_id}"
     assert record.exc_info is None  # `hardening.Contain`: the class only, never a traceback
+    assert not [r for r in caplog.records if RECORD_ID in r.getMessage()]  # access lines too

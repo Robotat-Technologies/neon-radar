@@ -55,6 +55,9 @@
     serves `create_app(..., report=...)` with `access_log=False`, `hardening.log_config()` and
     log level warning (G9): a request line holds ids and names; `redact.report` keeps tracebacks
     in data/cache/real/logs. `--port` with `--real` exits 2.
+  - `api serve --host` needs `NR_API_IN_IMAGE=1` (set by api/Dockerfile). The switch is a
+    convenience, not a security boundary: anyone can set it, `--host` only ever serves the
+    default (synthetic) instance, and `--real` refuses `--host` and `--dev` before anything.
   - `gate.py` (Gate 1, PHASE-1.md section 8): one `@gate_check` function per GC check returns
     `(Status, evidence)`; it only reads and never tags, approves or edits (OD-5). Every command
     goes through `Context.run`, so tests pass a fake runner and tmp folders and never call gh,

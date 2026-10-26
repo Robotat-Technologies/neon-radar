@@ -133,7 +133,10 @@ def queries_command(
     with redact.guard(chosen, "bench queries", real=real) as where:
         where.step = "gate"
         gate.check_real_data(project, chosen)
-        where.step = "bench"
+        for dataset in chosen.enabled_sources(project):
+            where.dataset = dataset
+            gate.check_real_data(project, chosen, dataset)
+        where.step, where.dataset = "bench", None
         instance = Instance.REAL if real else Instance.DEFAULT
         graph = GraphConnection(instance.settings)
         try:

@@ -132,7 +132,7 @@ class Unmigrated(FakeDriver):
 @pytest.mark.parametrize(
     ("records", "database", "code"),
     [
-        ([record("syn-co-0001", "Company", name="Example Ltd")], "neo4j", 1),
+        ([record("syn-co-0001", "Company", name="Syn Company 0001 Ltd")], "neo4j", 1),
         ([record("gbch-co-T0000001", "Company", name="Test Holder Ltd")], REAL_DATABASE, 2),
     ],
 )

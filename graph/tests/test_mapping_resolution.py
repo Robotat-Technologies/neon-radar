@@ -89,7 +89,7 @@ def records() -> list[dict[str, Any]]:
             "syn-p-0101",
             "Person",
             {"address_roles": {"syn-addr-0101": "residential"}},
-            name="Ada Example",
+            name="Syn Ada 0101",
             birthDate="1980",
             topics=["role.pep"],
             addressEntity="syn-addr-0101",
@@ -98,13 +98,13 @@ def records() -> list[dict[str, Any]]:
             "syn-p-0102",
             "Person",
             {"address_roles": {"syn-addr-0101": "service"}},
-            name=["A. Example", "Ada Example"],
+            name=["S. Ada 0101", "Syn Ada 0101"],
             birthDate="1980-02-03",
             nationality="gb",
             topics=["role.pep"],  # P1 (7.1.4): a probabilistic merge joins equal flag topics
             addressEntity="syn-addr-0101",
         ),
-        record("syn-p-0103", "Person", name="Ada Exampel"),
+        record("syn-p-0103", "Person", name="Syn Ada 0103"),
         record("syn-addr-0101", "Address", full="7 Example Road, Testtown, QQ1 1QQ"),
         record("syn-family-0101", "Family", person="syn-p-0101", relative="syn-p-0102"),
         record("syn-acct-0101", "BankAccount", accountNumber="NRSYN0000000101"),
@@ -168,7 +168,7 @@ def test_merged_entity_and_source_records(resolution: ResolutionMap) -> None:
     merged = nodes[MERGED]
     assert merged.labels == ("Entity", "LegalEntity", "Person")
     assert merged.flags == ("Synthetic", "PEP")
-    assert merged.props["names"] == ["Ada Example", "A. Example"]  # anchor first, no duplicate
+    assert merged.props["names"] == ["Syn Ada 0101", "S. Ada 0101"]  # anchor first, no duplicate
     assert merged.props["topics"] == ["role.pep"]
     assert merged.props["referents"] == ["syn-p-0101", "syn-p-0102"]
     assert merged.props["birth_date"] == "1980-02-03"  # the most precise
@@ -355,9 +355,9 @@ def test_members_of_a_merged_entity_that_was_skipped_get_no_source_record(
     ]
     run = ResolutionMap.load(write_run(tmp_path, rows, []))
     found = [
-        record("syn-p-0101", "Person", name="Ada Example"),
-        record("syn-co-0102", "Company", name="Ada Example Ltd"),  # no schema common with Person
-        record("syn-p-0103", "Person", name="Ada Exampel"),
+        record("syn-p-0101", "Person", name="Syn Ada 0101"),
+        record("syn-co-0102", "Company", name="Syn Co 0102 Ltd"),  # no schema common with Person
+        record("syn-p-0103", "Person", name="Syn Ada 0103"),
     ]
     plan = plan_load(found, strict=False, resolution=run)
     assert (plan.source_records, plan.resolved_to) == ([], [])  # I7 holds

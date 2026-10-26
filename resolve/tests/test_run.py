@@ -242,7 +242,7 @@ def _opaque_copy(source: Path, target: Path, seed: int | None) -> None:
 
 def _scores(tmp_path: Path, seed: int | None) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
-    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill")
+    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill", real_data=False)
     opaque = tmp_path / "opaque"
     _opaque_copy(BENCH, opaque, seed)
     scores = []
@@ -291,7 +291,7 @@ def test_an_address_with_a_flag_topic_stops_the_run(tmp_path: Path) -> None:
         folder, [syn("syn-addr-flag", "Address", full="1 Test Road, QQ1 2AB", topics="sanction")]
     )
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
-    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill")
+    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill", real_data=False)
     with pytest.raises(run.RunError, match="1 Address records carry flag topics"):
         run.run([folder], tmp_path / "run", config, probabilistic=False)
     assert not list((tmp_path / "run").iterdir())  # no feature tables left behind

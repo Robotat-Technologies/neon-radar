@@ -245,9 +245,10 @@ class LoadReport:
     merged_entities: int = 0
     source_records: int = 0
     possible_matches: int = 0
+    possible_matches_outside_load: int = 0  # a canonical node of the line is not in this load
     self_loops_dropped: int = 0
     duplicate_relationships_merged: int = 0
-    superseded_removed: int = 0
+    superseded_removed: int = 0  # every node the L9 purge removed before the load
     detection_results_removed: int = 0
     resolved_through_source_record: int = 0
 
@@ -271,9 +272,10 @@ class LoadReport:
             "merged_entities": self.merged_entities,
             "source_records": self.source_records,
             "possible_matches": self.possible_matches,
+            "possible_matches_outside_load": self.possible_matches_outside_load,
             "self_loops_dropped": self.self_loops_dropped,
             "duplicate_relationships_merged": self.duplicate_relationships_merged,
-            "superseded_nodes_removed": self.superseded_removed,
+            "nodes_removed_before_load": self.superseded_removed,
             "detection_results_removed": self.detection_results_removed,
             "resolved_through_source_record": self.resolved_through_source_record,
             "dangling_references": len(self.dangling),
@@ -412,6 +414,9 @@ def _usable(
     return [r for r in valid if r.get("id") not in left_out], rejected, held_outside
 
 
+ORPHAN = "a member of a merged entity whose node was not mapped"
+
+
 def plan_load(
     records: Sequence[Record],
     *,
@@ -449,10 +454,17 @@ def plan_load(
     plan.record_ids = [rid for rid, schema in schemas.items() if schema in NODE_MAPPINGS]
     found = [*nodes.skipped, *relationships.skipped]
     if resolution is not None:
+        loaded = {row.id: row for row in nodes.rows}
         sources = to_source_record_rows(usable, resolution, retrieved_at)
-        possible = to_possibly_same_as_rows(resolution, {row.id: row for row in nodes.rows})
-        plan.source_records, plan.possible_matches = sources.rows, possible.rows
-        plan.resolved_to = to_resolved_to_rows(resolution, {row.keys["id"] for row in sources.rows})
+        # a member of a merged entity whose node was skipped would have no RESOLVED_TO (I7)
+        orphans = {r.keys["id"] for r in sources.rows if r.props["canonical_id"] not in loaded}
+        found.extend(MappingIssue(rid, ORPHAN) for rid in sorted(orphans))
+        plan.source_records = [r for r in sources.rows if r.keys["id"] not in orphans]
+        possible = to_possibly_same_as_rows(resolution, loaded)
+        plan.possible_matches = possible.rows
+        plan.counts["possible_matches_outside_load"] = possible.counts["outside_this_load"]
+        record_ids = {row.keys["id"] for row in plan.source_records}
+        plan.resolved_to = to_resolved_to_rows(resolution, record_ids)
         found.extend([*sources.skipped, *possible.skipped])
     plan.skipped = list(dict.fromkeys(found))
     if strict and plan.skipped:
@@ -676,6 +688,7 @@ def execute_plan(
     report.instance = for_database(database)
     report.self_loops_dropped = plan.counts["self_loops_dropped"]
     report.duplicate_relationships_merged = plan.counts["duplicate_relationships_merged"]
+    report.possible_matches_outside_load = plan.counts["possible_matches_outside_load"]
     if plan.resolution is not None:
         report.resolution_run = plan.resolution.run_id
         if replace:

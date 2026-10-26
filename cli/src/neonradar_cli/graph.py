@@ -164,10 +164,23 @@ def _real_path(path: Path) -> bool:
     return any(where.is_relative_to(root.resolve()) for root in roots)
 
 
+def _run_of(profile: Profile, path: Path) -> bool:
+    """A run folder of the profile's own resolution folder, where `er run` writes its runs."""
+    from neonradar_ingest.data import layout
+
+    try:
+        return layout.resolution_dir(profile, path.name).resolve() == path.resolve()
+    except ValueError:  # not a run id
+        return False
+
+
 def _resolution_dir(value: str | None, profile: Profile | None, *, real: bool) -> Path | None:
     """`--resolution RUN_DIR`, or `latest` with `--profile`: the run whose id `er run` wrote last
     into LATEST, so an unfinished run is never loaded. A load into the default instance never
-    reads a run folder of real data (exit 2)."""
+    reads a run folder of real data (exit 2). A load into the real instance takes only a run of
+    its profile's resolution folder, so a run folder written by hand never merges real records
+    (G8; the run does not record its merge order, so the loader cannot check the policy itself):
+    exit 2 otherwise."""
     from neonradar_ingest.data import layout
 
     if value is None:
@@ -178,6 +191,13 @@ def _resolution_dir(value: str | None, profile: Profile | None, *, real: bool) -
             raise _fail(
                 "--resolution names a folder of real data: the default instance holds synthetic"
                 " data only (C2 L17); nothing was read",
+                2,
+            )
+        if real and (profile is None or not _run_of(profile, path)):
+            raise _fail(
+                "a load into the real instance takes only a run that `er run` wrote for its"
+                " profile: give --profile NAME with --resolution latest or one of the profile's"
+                " run folders (G8)",
                 2,
             )
         if not path.is_dir():
@@ -199,23 +219,30 @@ def _instance_of(paths: Sequence[Path], profile: Profile | None) -> Instance:
     """L17, before any record is read: a real profile, or without a profile any path of real
     data or any manifest that says the data is real, takes the real-data instance and its gate
     (the loader then checks every record again, so a mixed load is refused there, exit 2). A
-    synthetic profile with such a path or manifest is refused here (exit 2)."""
+    synthetic profile with such a path or manifest is refused here (exit 2). The paths are
+    checked first, from their names alone, so a folder under the real roots is neither listed
+    nor has a manifest opened before the gate runs (M2.2); then the files the folders hold, and
+    only then their manifests."""
     from neonradar_graph import loader
 
     if profile is not None and profile.real_data:
         return Instance.REAL
-    try:
-        files = loader.collect_files(paths)
-    except loader.LoadError as error:
-        if profile is None:
+    files: list[Path] = []
+    real = sum(_real_path(path) for path in paths)
+    if not real:
+        try:
+            files = loader.collect_files(paths)
+        except loader.LoadError as error:
+            if profile is None:
+                raise _fail(str(error), 1) from None
+            files = []  # the loader stops on the same error before it reads any record
+        real = sum(_real_path(path) for path in files)
+    if not real:
+        try:
+            manifests = [m for path in files if (m := loader.read_manifest(path))]
+        except loader.LoadError as error:
             raise _fail(str(error), 1) from None
-        files = []  # the loader stops on the same error before it reads any record
-    try:
-        manifests = [m for path in files if (m := loader.read_manifest(path))]
-    except loader.LoadError as error:
-        raise _fail(str(error), 1) from None
-    real = sum(not manifest.synthetic for manifest in manifests)
-    real += sum(_real_path(path) for path in [*paths, *files])
+        real = sum(not manifest.synthetic for manifest in manifests)
     if not real:
         return Instance.DEFAULT
     if profile is not None:
@@ -247,7 +274,7 @@ def _echo_report(report: LoadReport) -> None:
             f" records, {report.possible_matches} possible matches (not confirmed)"
         )
         typer.echo(
-            "possible matches not written (a node outside this load):"
+            "possible matches (not confirmed) not written (a node outside this load):"
             f" {report.possible_matches_outside_load}"
         )
     typer.echo(

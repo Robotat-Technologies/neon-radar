@@ -36,7 +36,8 @@ def resolve(record_dirs: list[Path], run_dir: Path) -> Path:
     from neonradar_resolve.config import load_config
 
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
-    config = run.RunConfig(resolver, sha, temp_directory=run_dir.parent / f"{run_dir.name}-spill")
+    spill = run_dir.parent / f"{run_dir.name}-spill"
+    config = run.RunConfig(resolver, sha, temp_directory=spill, real_data=False)
     run.run(record_dirs, run_dir, config, probabilistic=False)
     return run_dir
 

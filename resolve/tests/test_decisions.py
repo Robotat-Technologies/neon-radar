@@ -152,7 +152,7 @@ def _run(tmp_path: Path, name: str, path: Path, use: bool) -> dict[str, Any]:
         lines = "".join(json.dumps(x) + "\n" for x in items)
         (folder / "test.ftm.jsonl").write_text(lines, encoding="utf-8")
     resolver, sha = load_config(CONFIG)
-    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill")
+    config = run.RunConfig(resolver, sha, temp_directory=tmp_path / "spill", real_data=False)
     result = run.run(
         [folder], tmp_path / name, config, path, probabilistic=False, use_decisions=use
     )

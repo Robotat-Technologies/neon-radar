@@ -2,9 +2,11 @@
 
 The export is the M1.8d fixture (`fixtures/opensanctions/entities.ftm.json`) extended with
 `bulk-extra.ftm.json`: a sanctioned person who is also a PEP, a sanctioned company, an
-associated company without topics, a `Vessel` and the relationships between them. The mock
-transport answers `index.json` with a 307 like data.opensanctions.org; nothing touches the
-network, and no row comes from OpenSanctions.
+associated company without topics, a `Vessel` and the relationships between them, and lines
+that strict C1 would reject: a directorship of a person, an ownership without an asset, an
+account no ownership holds (and a sanction on it), and a held account whose bank is a person.
+The mock transport answers `index.json` with a 307 like data.opensanctions.org; nothing
+touches the network, and no row comes from OpenSanctions.
 """
 
 import hashlib
@@ -19,6 +21,7 @@ from followthemoney import registry
 from typer.testing import CliRunner
 
 from neonradar_cli.main import app
+from neonradar_contracts.records import ALLOWED_SCHEMATA
 from neonradar_ingest.data import layout, sources
 from neonradar_ingest.data.gate import RealDataRefused
 from neonradar_ingest.data.profiles import load_profile
@@ -217,9 +220,24 @@ def test_ids_references_and_schemata(data_env: Any, mock: Transport) -> None:
     records = layout.records_dir("uk-test", DATASET)
     written = [*layout.reports_dir("uk-test").glob("*.json"), *records.iterdir()]  # manifest too
     assert not any("syn-leak" in path.read_text(encoding="utf-8") for path in written)
-    assert summary["relationships_dropped"] == {"ownership": 1}
+    assert summary["relationships_dropped"] == {"directorship": 1, "ownership": 1, "sanction": 1}
     assert summary["pep_relationships_dropped"] == {}
-    assert summary["records"] == len(by_source) == 18
+    assert summary["records"] == len(by_source) == 20
+    # `ingest build` passed strict C1: what would fail it is skipped, dropped or removed, counted.
+    gone = {"syn-os-directorship-02", "syn-os-ownership-04", "syn-os-account-01"}
+    assert not (gone | {"syn-os-sanction-03"}) & set(by_source)  # the sanction on account-01
+    assert summary["c1_records_skipped"] == {"bankaccount": 1, "ownership": 1}
+    assert summary["c1_issues"] == {"r3": 1, "r8": 1}  # no asset; account-01 has no holder
+    assert by_source["syn-os-account-02"]["properties"] == {"accountNumber": ["NRSYN0000000002"]}
+    assert summary["references_removed"] == {"bankaccount:bank": 1}  # a person, not a bank
+
+
+def test_no_relationship_end_can_be_a_relationship() -> None:
+    """Pass 2 relies on it: dropping a relationship never leaves another one without an end."""
+    ends = {name: bulk._ends(name) for name in sorted(ALLOWED_SCHEMATA) if bulk._ends(name)}
+    for name, props in ends.items():
+        for prop in props:
+            assert not [other for other in ends if bulk._in_range(name, prop, other)], prop
 
 
 def test_with_the_pep_decision_topics_are_kept_exactly(data_env: Any, mock: Transport) -> None:
@@ -249,9 +267,11 @@ def test_without_the_pep_decision_pep_data_is_removed(data_env: Any, mock: Trans
     assert summary["pep_role_topics_removed"] == {"role.pep": 2}
     assert summary["pep_schemata_skipped"] == {"occupancy": 2, "position": 1}
     assert summary["pep_only_entities_skipped"] == {"person": 2}
-    assert summary["relationships_dropped"] == {"directorship": 1, "family": 1, "ownership": 1}
+    dropped = {"directorship": 2, "family": 1, "ownership": 1, "sanction": 1}
+    assert summary["relationships_dropped"] == dropped
     assert summary["pep_relationships_dropped"] == {"directorship": 1, "family": 1}
-    assert summary["references_removed"] == {"company:parent": 1}  # none from a dropped one
+    removed = {"bankaccount:bank": 1, "company:parent": 1}  # none from a dropped one
+    assert summary["references_removed"] == removed
     assert summary["pep_linked_entities_kept"] == {"address": 1}  # Alpha's; Iota has a flag
     assert summary["flags"] == {"sanctioned": 3}  # Gamma, Epsilon, Zeta; sanction.linked sets none
 

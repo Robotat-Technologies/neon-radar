@@ -8,15 +8,18 @@ data.opensanctions.org, and stops the collection when `index.json` names a file 
 
 The build checks the SHA-1 against that `index.json`, streams the export through
 `mapping.map_entity` and writes one record file with its manifest, after the same refusal.
-Unless `opensanctions_default` is in `access.pep_sources`, PEP data is removed (`_Pep`); then
-dangling references are dropped or removed so that the records pass C1 in strict mode.
+Unless `opensanctions_default` is in `access.pep_sources`, PEP data is removed (`_Pep`). So that
+the records pass C1 in strict mode, a record that fails C1 on its own is skipped, then
+relationships whose end is not written or not of its range are dropped, then BankAccounts no
+written Ownership holds (R8), and every other such reference is removed; all of it counted.
 """
 
 import hashlib
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,7 +27,13 @@ import httpx
 from followthemoney import model, registry
 from pydantic import BaseModel, ConfigDict, StrictBool
 
-from neonradar_contracts.records import Producer, Source, write_manifest
+from neonradar_contracts.records import (
+    REFERENCE_RANGES,
+    Producer,
+    Source,
+    validate_record,
+    write_manifest,
+)
 from neonradar_ingest import __version__
 from neonradar_ingest.data import layout
 from neonradar_ingest.data.download import DownloadError
@@ -173,11 +182,25 @@ def _vocab(counter: Mapping[str, int]) -> dict[str, int]:
     return dict(sorted(out.items()))
 
 
+@cache
 def _ends(schema_name: str) -> tuple[str, ...]:
+    """The required references: an edge's two ends, or a Sanction's entity."""
     schema = model[schema_name]
-    if schema.edge and schema.edge_source and schema.edge_target:
-        return (schema.edge_source, schema.edge_target)
-    return ("entity",) if schema_name == "Sanction" else ()
+    return tuple(sorted(n for n in schema.required if schema.properties[n].type == registry.entity))
+
+
+@cache
+def _in_range(schema_name: str, prop: str, target: str) -> bool:
+    """`schema_name:prop` may point to a `target` record (R4 in strict mode, REFERENCE_RANGES)."""
+    prop_range = model[schema_name].properties[prop].range
+    names = REFERENCE_RANGES.get((schema_name, prop)) or ((prop_range.name,) if prop_range else ())
+    return not names or any(model[target].is_a(name) for name in names)
+
+
+def _fits(schema: str, prop: str, value: str, kinds: Mapping[str, str]) -> bool:
+    """The reference is to a written record of the property's range."""
+    target = kinds.get(value)
+    return target is not None and _in_range(schema, prop, target)
 
 
 def _links(record: dict[str, Any]) -> dict[str, list[str]]:
@@ -216,23 +239,64 @@ class _Pep:
         return True
 
 
-def _map(entities: Path, work: Path, pep: _Pep | None, stats: MappingStats) -> tuple[set[str], str]:
-    """Pass 1: map every line to the work file; return the written ids and the SHA-1."""
+Counts = defaultdict[str, Counter[str]]
+
+
+def _map(
+    entities: Path, work: Path, pep: _Pep | None, stats: MappingStats, counts: Counts
+) -> tuple[dict[str, str], str]:
+    """Pass 1: map every line to the work file, skipping a record that fails C1 on its own or
+    repeats an id (counted by schema and by rule); return the written ids' schemata, the SHA-1."""
     digest = hashlib.sha1(usedforsecurity=False)
-    kept: set[str] = set()
+    kinds: dict[str, str] = {}
     with work.open("w", encoding="utf-8", newline="\n") as out:
         for record in map_lines(_hashed_lines(entities, digest), stats):
-            if pep is None or pep.keep(record):
-                kept.add(record["id"])
-                out.write(json.dumps(record, ensure_ascii=False) + "\n")
-    return kept, digest.hexdigest()
+            if pep is not None and not pep.keep(record):
+                continue
+            rules = {issue.rule for issue in validate_record(record)}
+            if rules or record["id"] in kinds:  # a repeated id is R4
+                counts["invalid"][record["schema"]] += 1
+                counts["rules"].update(rules or {"R4"})
+                continue
+            kinds[record["id"]] = record["schema"]
+            out.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return kinds, digest.hexdigest()
 
 
-def _write(work: Path, path: Path, kept: set[str], pep: _Pep) -> dict[str, Counter[str]]:
-    """Pass 2: drop a relationship with an end that is not written (before counting anything
-    else in it), remove every other reference to a record not written, write, count."""
-    counts = {key: Counter[str]() for key in ("written", "dropped", "removed", "topics", "flags")}
-    counts["pep_dropped"] = Counter()  # dropped relationships with an end the PEP rule skipped
+def _resolve(work: Path, kinds: dict[str, str], pep: _Pep, counts: Counts) -> None:
+    """Pass 2: take out of `kinds` every relationship with an end that is not written or not of
+    its range (R4), then every BankAccount no Ownership left holds (R8) and every relationship
+    that ends at one. No end can be a relationship (tested), so nothing else follows."""
+    held: set[str] = set()
+    at_accounts: dict[str, tuple[str, set[str]]] = {}  # relationship id: schema, accounts
+    with work.open(encoding="utf-8") as lines:
+        for line in lines:
+            record = json.loads(line)
+            schema, props = record["schema"], record["properties"]
+            ends = {(name, value) for name in _ends(schema) for value in props.get(name, [])}
+            if not all(_fits(schema, name, value, kinds) for name, value in ends):
+                del kinds[record["id"]]
+                counts["dropped"][schema] += 1
+                if any(value in pep.skipped_ids for _, value in ends):
+                    counts["pep_dropped"][schema] += 1
+            elif schema == "Ownership":  # its owner is a written LegalEntity (range)
+                held.update(props["asset"])
+            elif accounts := {value for _, value in ends if kinds[value] == "BankAccount"}:
+                at_accounts[record["id"]] = (schema, accounts)
+    unheld = {id_ for id_, schema in kinds.items() if schema == "BankAccount"} - held
+    for id_ in unheld:
+        del kinds[id_]
+    counts["invalid"]["BankAccount"] += len(unheld)
+    counts["rules"]["R8"] += len(unheld)
+    for id_, (schema, accounts) in at_accounts.items():
+        if accounts & unheld:
+            del kinds[id_]
+            counts["dropped"][schema] += 1
+
+
+def _write(work: Path, path: Path, kinds: Mapping[str, str], pep: _Pep, counts: Counts) -> None:
+    """Pass 3: write the records left in `kinds` without any reference to a record that is not
+    written or not of the property's range (counted), and count what is written."""
     linked: dict[str, str] = {}  # written, no flag topic, referenced by a skipped PEP record
     referenced: set[str] = set()  # what the written records reference
     with (
@@ -241,20 +305,17 @@ def _write(work: Path, path: Path, kept: set[str], pep: _Pep) -> dict[str, Count
     ):
         for line in lines:
             record = json.loads(line)
-            schema, props, links = record["schema"], record["properties"], _links(record)
-            ends = {value for end in _ends(schema) for value in links.get(end, [])}
-            if ends - kept:  # a relationship with an end that is not written is dropped
-                counts["dropped"][schema] += 1
-                if ends & pep.skipped_ids:
-                    counts["pep_dropped"][schema] += 1
+            schema, props = record["schema"], record["properties"]
+            if record["id"] not in kinds:  # dropped in pass 2, and counted there
                 continue
-            for name, values in links.items():  # any other reference to one is removed
-                if dangling := [value for value in values if value not in kept]:
-                    counts["removed"][f"{schema}:{name}"] += len(dangling)
-                    props[name] = [value for value in values if value in kept]
-                    if not props[name]:
+            for name, values in _links(record).items():
+                kept = [value for value in values if _fits(schema, name, value, kinds)]
+                if len(kept) < len(values):
+                    counts["removed"][f"{schema}:{name}"] += len(values) - len(kept)
+                    props[name] = kept
+                    if not kept:
                         del props[name]
-            referenced.update(value for values in links.values() for value in values)
+                referenced.update(kept)
             topics = props.get("topics", [])
             if record["id"] in pep.referenced and not flag_topics(topics):
                 linked[record["id"]] = schema
@@ -262,8 +323,7 @@ def _write(work: Path, path: Path, kept: set[str], pep: _Pep) -> dict[str, Count
             counts["topics"].update(topics)
             counts["flags"].update(flag_labels(topics))
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
-    counts["pep_linked"] = Counter(s for id_, s in linked.items() if id_ not in referenced)
-    return counts
+    counts["pep_linked"].update(s for id_, s in linked.items() if id_ not in referenced)
 
 
 def build(profile: Profile, context: BuildContext) -> BuildResult:
@@ -276,16 +336,18 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
     if not checksum:
         raise BuildError(f"{DATASET}: index.json gives no checksum", "checksum", counts_only=True)
     pep_decision = DATASET in project.access.pep_sources
-    stats, pep = MappingStats(), _Pep()
+    stats, pep, counts = MappingStats(), _Pep(), Counts(Counter)
     context.work_dir.mkdir(parents=True, exist_ok=True)
     work = context.work_dir / f"{context.run_id}.mapped.jsonl"
     path = context.out_dir / f"{DATASET}-{collection}.ftm.jsonl"
     try:
-        kept, sha1 = _map(folder / ENTITIES_FILE, work, None if pep_decision else pep, stats)
+        entities, maybe_pep = folder / ENTITIES_FILE, None if pep_decision else pep
+        kinds, sha1 = _map(entities, work, maybe_pep, stats, counts)
         if sha1 != checksum.lower():
             message = f"{DATASET}: the SHA-1 of {ENTITIES_FILE} does not match index.json"
             raise BuildError(message, "checksum", counts_only=True)
-        counts = _write(work, path, kept, pep)
+        _resolve(work, kinds, pep, counts)
+        _write(work, path, kinds, pep, counts)
     finally:
         if not context.keep_work:
             work.unlink(missing_ok=True)
@@ -301,7 +363,11 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             source_version=folder.name,
         ),
         skipped=_vocab(  # FtM vocabulary only, as in the summary
-            stats.skipped + pep.schemata_skipped + pep.pep_only_skipped + counts["dropped"]
+            stats.skipped
+            + pep.schemata_skipped
+            + pep.pep_only_skipped
+            + counts["dropped"]
+            + counts["invalid"]
         ),
         notes=[
             f"collection {collection}",
@@ -319,6 +385,8 @@ def build(profile: Profile, context: BuildContext) -> BuildResult:
             "pep_role_topics_removed": _vocab(pep.topics_removed),
             "pep_schemata_skipped": _vocab(pep.schemata_skipped),
             "pep_only_entities_skipped": _vocab(pep.pep_only_skipped),
+            "c1_records_skipped": _vocab(counts["invalid"]),
+            "c1_issues": {rule.lower(): n for rule, n in sorted(counts["rules"].items())},  # r1-r10
             "relationships_dropped": _vocab(counts["dropped"]),
             "pep_relationships_dropped": _vocab(counts["pep_dropped"]),
             "pep_linked_entities_kept": _vocab(counts["pep_linked"]),

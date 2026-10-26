@@ -140,6 +140,14 @@ def _check_clusters(members: Mapping[str, Member]) -> None:
         )
 
 
+def _is_probability(line: Mapping[str, Any]) -> bool:
+    """A probabilistic possible match carries a finite `match_probability` from 0 to 1 (C2)."""
+    value = line.get("match_probability")
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return False
+    return math.isfinite(value) and 0.0 <= value <= 1.0
+
+
 def _read_candidates(path: Path, members: Mapping[str, Member]) -> list[dict[str, Any]]:
     lines: list[dict[str, Any]] = []
     unreadable = order = classes = 0
@@ -152,6 +160,7 @@ def _read_candidates(path: Path, members: Mapping[str, Member]) -> list[dict[str
                 a, b, record_a, record_b = (line[k] for k in ("a", "b", "record_a", "record_b"))
                 ok = isinstance(line, dict) and line["method"] in POSSIBLY_SAME_AS_METHODS
                 ok = ok and isinstance(line["reasons"], list) and isinstance(line["features"], dict)
+                ok = ok and (line["method"] != "probabilistic" or _is_probability(line))
             except ValueError, KeyError, TypeError:
                 unreadable += 1
                 continue
@@ -191,13 +200,20 @@ class ResolutionMap:
     def load(cls, run_dir: Path) -> Self:
         """Read and check a finished run folder (ResolutionError on any problem)."""
         try:
-            summary = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
-            members = _read_canonical(run_dir / "canonical.csv")
-            candidates = _read_candidates(run_dir / "candidates.jsonl", members)
+            try:
+                summary = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            except ValueError:  # UnicodeDecodeError included
+                raise ResolutionError("run.json is not a JSON object") from None
+            try:
+                members = _read_canonical(run_dir / "canonical.csv")
+            except UnicodeDecodeError, csv.Error:
+                raise ResolutionError("canonical.csv is not a UTF-8 CSV file") from None
+            try:
+                candidates = _read_candidates(run_dir / "candidates.jsonl", members)
+            except UnicodeDecodeError:
+                raise ResolutionError("candidates.jsonl is not a UTF-8 file") from None
         except FileNotFoundError as missing:
             raise ResolutionError(f"{Path(str(missing.filename)).name} is missing") from None
-        except ValueError, UnicodeDecodeError:
-            raise ResolutionError("run.json is not a JSON object") from None
         if not isinstance(summary, dict):
             raise ResolutionError("run.json is not a JSON object")
         run_id, version = summary.get("run_id"), summary.get("resolver_version")

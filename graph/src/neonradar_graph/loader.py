@@ -656,8 +656,8 @@ def _write_possible_matches(
         report.possible_matches += written
         if written != len(chunk):
             raise PossibleMatchesNotWritten(
-                f"{len(chunk) - written} of {len(chunk)} possible matches found no two"
-                " :LegalEntity nodes (L14); the rest of the load was written"
+                f"{len(chunk) - written} of {len(chunk)} possible matches (not confirmed) found"
+                " no two :LegalEntity nodes (L14); the rest of the load was written"
             )
 
 

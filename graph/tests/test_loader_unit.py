@@ -132,7 +132,7 @@ class Unmigrated(FakeDriver):
 @pytest.mark.parametrize(
     ("records", "database", "code"),
     [
-        ([record("syn-co-0001", "Company", name="Example Ltd")], "neo4j", 1),
+        ([record("syn-co-0001", "Company", name="Syn Company 0001 Ltd")], "neo4j", 1),
         ([record("gbch-co-T0000001", "Company", name="Test Holder Ltd")], REAL_DATABASE, 2),
     ],
 )
@@ -206,6 +206,15 @@ def test_a_non_strict_plan_drops_an_account_whose_holding_was_skipped() -> None:
     ]
     assert account not in {row.id for row in plan.nodes}  # else invariant I4 would break
     assert [(i.rule, i.record_id) for i in plan.rejected] == [("R8", account)]
+
+
+def test_a_non_strict_plan_drops_an_account_held_only_outside_the_load() -> None:
+    """C1 R8 wants a holder in the same load, even when the graph holds one (OD-17, 2.9 J5)."""
+    account = record("syn-acct-0902", "BankAccount", accountNumber="NRSYN0000000902")
+    holding = record("syn-ownership-0903", "Ownership", owner="syn-p-0005", asset=account["id"])
+    plan = plan_load([account, holding], strict=False)
+    assert [(i.rule, i.record_id) for i in plan.rejected] == [("R8", account["id"])]
+    assert plan.nodes == []
 
 
 def test_rows_go_in_batches_as_parameters_and_never_into_query_text() -> None:

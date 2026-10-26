@@ -131,13 +131,20 @@ RETURN COUNT { (:SourceRecord) } AS I7, COUNT { (e:Entity) WHERE e.cluster_size 
        COUNT { (e:Entity) WHERE e.cluster_size >= 2 AND size(e.topics) > 0 } AS I11,
        COUNT { ()-[:OWNS]->() } AS I12
 """
-# One violation of each kind, written straight into the graph.
+# One violation of each Phase 2 invariant (I7 to I14), written straight into the graph.
 BREAK = {
     "I7": "CREATE (:SourceRecord {id: 'syn-p-0990', synthetic: true})",
     "I8": "CREATE (:Entity {id: 'syn-p-0991', referents: ['syn-p-0992'], synthetic: true})",
+    "I9": "MATCH (e:Entity) WHERE e.cluster_size >= 2 WITH e ORDER BY e.id LIMIT 1"
+    " CREATE (:SourceRecord {id: 'syn-p-0994', synthetic: false})-[:RESOLVED_TO]->(e)",
+    "I10": "MATCH (e:LegalEntity) WITH e ORDER BY e.id LIMIT 1 CREATE (e)-[:POSSIBLY_SAME_AS]->(e)",
     "I11": "CREATE (:Entity:PEP {id: 'syn-p-0993', topics: [], referents: ['syn-p-0993']})",
-    "I13": "MATCH (s:SourceRecord) WITH s LIMIT 1"
+    "I12": "MATCH (e:LegalEntity) WITH e ORDER BY e.id LIMIT 1 CREATE (e)-[:OWNS]->(e)",
+    "I13": "MATCH (s:SourceRecord) WITH s ORDER BY s.id LIMIT 1"
     " CREATE (:Entity {id: s.id, referents: [s.id], synthetic: true})",
+    "I14": "MATCH (c:Company) WITH c ORDER BY c.id LIMIT 2 WITH collect(c) AS cs"
+    " WITH cs[0] AS a, cs[1] AS b"
+    " CREATE (a)-[:CONTROLS {share_pct_min: 75.0, share_pct_max: 50.0}]->(b)",
 }
 
 

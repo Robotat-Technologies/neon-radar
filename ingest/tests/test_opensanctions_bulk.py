@@ -139,7 +139,12 @@ def test_a_file_outside_data_opensanctions_org_stops_the_collection(
 
 
 @pytest.mark.parametrize(
-    "host", ["https://mirror.example.invalid", "http://data.opensanctions.org"]
+    "host",
+    [
+        "https://mirror.example.invalid",
+        "http://data.opensanctions.org",
+        "https://data.opensanctions.org:8443",
+    ],
 )
 def test_a_download_redirect_off_the_pinned_host_is_never_sent(
     data_env: Any, mock: Transport, host: str
@@ -148,7 +153,8 @@ def test_a_download_redirect_off_the_pinned_host_is_never_sent(
     mock.entities_redirect = f"{host}/artifacts/sanctions/{VERSION}/entities.ftm.json"
     result = run("data", "fetch")
     assert result.exit_code == 1 and "a request outside data.opensanctions.org" in result.output
-    assert {(r.url.scheme, r.url.host) for r in mock.requests} == {("https", PINNED)}
+    sent = {(r.url.scheme, r.url.host, r.url.port) for r in mock.requests}
+    assert sent == {("https", PINNED, None)}
     assert not (layout.sources_dir(DATASET, "sanctions", VERSION) / "entities.ftm.json").exists()
 
 

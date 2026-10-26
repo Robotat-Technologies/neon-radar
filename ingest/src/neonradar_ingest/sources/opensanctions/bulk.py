@@ -93,8 +93,10 @@ def refuse_unless_allowed(project: Project) -> None:
 
 
 def _pinned(request: httpx.Request) -> None:
-    """A request hook: no request or redirect hop off data.opensanctions.org is ever sent."""
-    if (request.url.scheme, request.url.host) != ("https", PINNED_HOST):
+    """A request hook: no request or redirect hop off https://data.opensanctions.org (port 443)
+    is ever sent."""
+    url = request.url
+    if (url.scheme, url.host) != ("https", PINNED_HOST) or url.port not in (None, 443):
         raise DownloadError(f"a request outside {PINNED_HOST}", "host")
 
 

@@ -167,7 +167,7 @@ The loader of M2.11 answers questions E2 and E4 and meets nine more places where
 
 ### 2.10 The graph API on the resolved graph (M2.12)
 
-The review of M2.12 found four places where C3 1.1.0 and the code differ. M2.12 leaves `contracts/**` alone; the orchestrator took the stricter option under OD-10 where behaviour is involved, and the tech lead decides the contract questions.
+The reviews of M2.12 found five places where C3 1.1.0 and the code differ. M2.12 leaves `contracts/**` alone; the orchestrator took the stricter option under OD-10 where behaviour is involved, and the tech lead decides the contract questions.
 
 | # | C3 1.1.0 says | Found | Class | Decision |
 |---|---|---|---|---|
@@ -175,6 +175,7 @@ The review of M2.12 found four places where C3 1.1.0 and the code differ. M2.12 
 | K2 | `run_id` and `resolver_version` are null "when the graph was loaded without a resolution run" | C2 1.1.0 keeps the run on `RESOLVED_TO`, `POSSIBLY_SAME_AS` and `:SourceRecord` only; a single-record entity with no possible match has no link that records it, so both are null after a load with a run | Q tech lead (contract) | Fail closed: null (OD-10), pinned by `test_resolution.py`. Either a C3 clarification (minor: null when none of the entity's links records a run) or a C2 1.x minor change that puts the run on every `:Entity` loaded with one |
 | K3 | Ids on `/ownership`, `/paths` and `/resolution` "are resolved as for entity detail", which accepts `:Sanction` ids | The verbatim `resolve_id.cypher` and `paths.cypher` match `:Entity` only, so a `:Sanction` id is a 404 on these routes; `/paths` still crosses `:Sanction` nodes through `SUBJECT_OF` | Q tech lead (contract) | No change (verbatim queries). Ask for a C3 patch: ids on these routes are `:Entity` ids or merged-record ids |
 | K4 | G9: real data never reaches a log above DEBUG | `api serve --real` used uvicorn's INFO access log (full paths and query strings), and the error handlers logged the request path and a traceback | D (orchestrator under OD-10) | The real server runs with no access log, at log level warning and with no CORS origin; every handler logs the route template; an unhandled error logs its class, and its traceback goes to the redacted log under `data/cache/real/logs` (`redact.report`). M4.1 still plans the general log fix for both modes |
+| K5 | A query that times out on `/ownership` or `/paths` "returns a 503 problem whose detail suggests a smaller `max_hops` or fewer relationship types" | The resolution route (and entity provenance) gave the same advice, though it takes neither parameter | M | A timed-out `read` answers `neonradar_api.graph.READ_TIMEOUT_DETAIL` ("The query did not finish within 5 seconds."); `/ownership` and `/paths` keep the C3 advice |
 
 ## 3. Cypher that Phase 1 runs from Python strings
 
@@ -188,7 +189,7 @@ From now on every Cypher statement that new or changed code runs lives in a `.cy
 | `graph/src/neonradar_graph/loader.py` | `APPLIED`, `WIPE`, `STATS`, `node_query()` | Pending-migration check, `graph wipe`, `apoc.meta.stats`, node upserts built per schema (M2.11 moved the relationship upserts into `graph/src/neonradar_graph/queries/`) |
 | `graph/tests/test_invariants.py` | I1 to I6 | Test strings; M2.11 wrote the same checks as counts into `graph/src/neonradar_graph/queries/verify_base.cypher` |
 | `detect/src/neonradar_detect/runner.py` | `MERGE_RUN`, `PRUNE_RUN`, `MERGE_ALERTS` | Detection runs and alerts |
-| `api/src/neonradar_api/entities.py`, `alerts.py`, `reference.py` (M1.9c, #44) | `FULLTEXT`, `ACCOUNT`, `ROOT`, `_HOP`, `_END`; `QUEUE`, `PAYLOAD`, `EVIDENCE`; `RECORD_COUNTS` | Search, entity detail and network, the alert queue and alert evidence, the meta counts; M2.12 moves the ones it changes into `.cypher` files |
+| `api/src/neonradar_api/entities.py`, `alerts.py`, `reference.py` (M1.9c, #44) | `FULLTEXT`, `ACCOUNT`, `ROOT`, `_HOP`, `_END`; `QUEUE`, `PAYLOAD`, `EVIDENCE`; `RECORD_COUNTS` | Search, entity detail and network, the alert queue and alert evidence, the meta counts; M2.12 moved the statement it changed, entity detail, into `graph/src/neonradar_graph/queries/entity_detail.cypher` |
 
 The `.cypher` files on `main` are `graph/schema/migrations/0001_init.cypher` and the circular-flow template; `make cypher-lint` checks 32 statements (29 plus the template's three lint variants) with 0 problems. The API queries of M1.9c (#44) merged as Python strings (above); a later milestone that changes one moves it into a `.cypher` file that passes the lint.
 

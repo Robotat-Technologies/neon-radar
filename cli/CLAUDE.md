@@ -47,15 +47,20 @@
     `summary.emit`). Tests replace `loader.load`, `get_driver` and `wait_until_ready`.
   - `load --profile NAME [--skip-fetch] [--skip-officers]` (`load.py`, M2.13): the steps in
     `load.STEPS` call the commands' own functions (`data.fetch_command`, `ingest.run_build`,
-    `er.run_command`, `graph.migrate_command|load_command|verify_command`), which return their
-    summaries; only their numbers (and `status`) go into the load summary. A real profile gates
-    and checks the real instance first; `--skip-officers` changes the profile in memory only.
-    Tests replace the entries of `load.STEPS`, or the commands a step calls.
+    `er.run_command`, `graph.migrate_command|load_command`), which return their summaries; only
+    their numbers (and `status`) go into the load summary. The verify step calls
+    `neonradar_graph.verify.verify` and `loader.stats` on one connection (`graph._instance`,
+    `graph._connected`) and keeps the invariant counts when an invariant fails. A real profile
+    gates and checks the real instance first; `--skip-officers` changes the profile in memory
+    only. Tests replace the entries of `load.STEPS`, or the commands a step calls.
   - `bench queries --profile NAME [--n] [--seed] [--real]` (`bench.py`) and `bench report`
     (`bench_report.py`, M2.13): queries times the API's route functions (no HTTP) on picks from
     `bench_entities.cypher` and emits latencies only; `--real` must match the profile's
-    `real_data` and runs the gate. `report` reads only `data/cache/reports/<profile>/` (the
-    newest `load-*` and `bench-queries-*`). Tests replace `GraphConnection` and the routes.
+    `real_data` and runs the gate for the profile and each enabled dataset; the eligible scan
+    has its own timeout (`ELIGIBLE_TIMEOUT_S`). `report` reads only
+    `data/cache/reports/<profile>/` (the newest `load-*` and `bench-queries-*`), checks both
+    again with `summary.clean` (exit 1 on a refusal), and compares the `graph load` step and the
+    ownership and paths p95 with G2-09. Tests replace `GraphConnection` and the routes.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

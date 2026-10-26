@@ -6,7 +6,7 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 
 | What | Why |
 |---|---|
-| macOS or Linux (on Windows, WSL 2) with 16 GB of memory; 8 GB works with the small profile below | Neo4j, the API and the UI run side by side |
+| macOS or Linux (on Windows, WSL 2) with 16 GB of memory; the small profile below is meant for 8 GB, but v0.1.0 has not verified it (see the known issues in [releases/v0.1.0.md](releases/v0.1.0.md)) | Neo4j, the API and the UI run side by side |
 | Docker Desktop or Docker Engine with Compose v2.20 or later; give Docker's VM at least 6 GB (Docker Desktop, Settings, Resources) | everything runs in containers |
 | [uv](https://docs.astral.sh/uv/) 0.13 (it installs Python 3.14) | the `neonradar` command loads the data |
 | ICU headers and `pkg-config` (macOS: `brew install icu4c pkg-config` and point `PKG_CONFIG_PATH` at icu4c's `lib/pkgconfig`; Debian or Ubuntu: `sudo apt-get install pkg-config libicu-dev`) | PyICU, which FollowTheMoney needs, builds from source |

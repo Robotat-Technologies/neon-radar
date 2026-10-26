@@ -10,6 +10,7 @@ counts the comparisons of the Splink blocking rules; `er bench` checks the G2-05
 `er sample`, `er label`, `er review` and `er precision` (M2.10c) live in `er_labelling.py`.
 """
 
+import contextlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -55,7 +56,7 @@ def _run_config(
     keep: bool,
     seniors: list[str],
     reviewers: frozenset[str] | None = None,
-    real_data: bool = False,
+    real_data: bool,
 ) -> RunConfig:
     from neonradar_resolve.config import load_config
     from neonradar_resolve.run import RunConfig
@@ -222,8 +223,9 @@ def _resolve_bench(
     run_id = layout.new_run_id("er")
     with redact.guard(None, command), retention.spill_dir(pseudo, run_id) as temp:
         config = _run_config(
-            REPO_ROOT / DEFAULT_CONFIG, profile=pseudo, temp=temp, keep=False, seniors=[]
-        )
+            REPO_ROOT / DEFAULT_CONFIG, profile=pseudo, temp=temp, keep=False, seniors=[],
+            real_data=False,  # the synthetic benchmark
+        )  # fmt: skip
         resolver = config.resolver.with_threads(1)
         if candidate_threshold is not None:  # er calibrate scores down to 0.50 (this run only)
             resolver = resolver.model_copy(update={"candidate_threshold": candidate_threshold})
@@ -305,14 +307,15 @@ def blocking_command(
         with retention.spill_dir(chosen, run_id) as temp:
             config = _run_config(
                 REPO_ROOT / chosen.resolution.config, profile=chosen.profile, temp=temp,
-                keep=False, seniors=[],
+                keep=False, seniors=[], real_data=chosen.real_data,
             )  # fmt: skip
             corpus = records.read(chosen.record_dirs(project))
             members = features.members(corpus)
             tables = dict(zip(scoring.KINDS, features.feature_tables(corpus, members), strict=True))
             duck = config.resolver.duckdb
             con = models.connect(duck.threads, duck.memory_limit, str(temp / "splink"))
-            try:
+            # A handler on the `splink` logger: nothing Splink logs reaches stderr directly
+            with scoring.splink_warnings(), contextlib.closing(con):
                 for kind, table in tables.items():
                     counts = scoring.count_comparisons(con, kind, table) if len(table) > 1 else []
                     blocks = scoring.largest_blocks(con, kind, table) if counts else []
@@ -324,8 +327,6 @@ def blocking_command(
                         for n, found in enumerate(blocks, 1)
                     }
                     _echo_blocks(kind, counts, blocks, keys=not chosen.real_data)
-            finally:
-                con.close()
         summary.emit(chosen, "er blocking", _flatten_blocks(report), echo=False)
 
 

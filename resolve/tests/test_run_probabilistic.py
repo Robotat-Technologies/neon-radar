@@ -71,12 +71,27 @@ def _latest(profile: str) -> Path:
     return layout.resolution_dir(profile, run_id)
 
 
+def _counting_spy(monkeypatch: pytest.MonkeyPatch, splink_log: logging.Logger) -> list[bool]:
+    """Whether scoring's handler was on the `splink` logger at each comparison count: Splink's
+    blocking analysis logs too, and without a handler that would reach stderr directly."""
+    seen: list[bool] = []
+    count = scoring.count_comparisons
+
+    def spy(con: Any, kind: Any, table: Any) -> list[int]:
+        seen.append(any(isinstance(h, scoring._Untrained) for h in splink_log.handlers))
+        return count(con, kind, table)
+
+    monkeypatch.setattr(scoring, "count_comparisons", spy)
+    return seen
+
+
 def test_er_run_demo_scores_pairs_and_is_byte_stable(
     data_env: Any, one_thread: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     splink_log = logging.getLogger("splink")
     monkeypatch.setattr(splink_log, "propagate", False)  # as in a CLI process: no root handler
     monkeypatch.setattr(splink_log, "handlers", [])
+    counted = _counting_spy(monkeypatch, splink_log)
     dirs = []
     for _ in range(2):
         result = runner.invoke(app, ["er", "run", "--profile", "demo"])
@@ -84,6 +99,7 @@ def test_er_run_demo_scores_pairs_and_is_byte_stable(
         assert "not observed in dataset" not in result.output  # Splink's warnings: counted only
         assert splink_log.handlers == []  # Splink added no stderr handler of its own
         dirs.append(_latest("demo"))
+    assert counted and all(counted)
     first, second = dirs
     assert first != second
     names = sorted(p.name for p in first.iterdir())
@@ -196,7 +212,7 @@ def test_the_guard_and_the_clustering_get_one_list_of_links(
     folder = tmp_path / "records"
     corpus_of(folder, [syn(f"syn-p-{n}", "Person", name="Testa Example") for n in (1, 2)])
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
-    result = run.run([folder], tmp_path / "run", run.RunConfig(resolver, sha))
+    result = run.run([folder], tmp_path / "run", run.RunConfig(resolver, sha, real_data=False))
     assert seen["guard"] is seen["resolve"] and len(seen["guard"]) == 1
     assert {r["canonical_id"] for r in result.result.canonical} == {"nr-syn-p-1"}
     assert not (tmp_path / "run" / "duckdb-tmp").exists()
@@ -224,6 +240,29 @@ def test_er_blocking_on_a_real_profile_prints_no_block_key(data_env: Any, one_th
     assert "person rule 1: " in real.output and "largest blocks (records): " in real.output
     assert not [k for k in keys if k in real.output]
     assert list(layout.reports_dir("real-er-test").glob("er-blocking-*.json"))
+
+
+def test_er_blocking_keeps_splink_logs_off_stderr(
+    data_env: Any, one_thread: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    splink_log = logging.getLogger("splink")
+    monkeypatch.setattr(splink_log, "propagate", False)  # as in a CLI process: no root handler
+    monkeypatch.setattr(splink_log, "handlers", [])
+    counted = _counting_spy(monkeypatch, splink_log)
+    result = runner.invoke(app, ["er", "blocking", "--profile", "demo"])
+    assert result.exit_code == 0, result.output
+    assert counted and all(counted)
+    assert splink_log.handlers == []
+
+
+def test_a_caller_says_whether_it_runs_on_real_data() -> None:
+    """Fail closed (OD-10): no default for real_data, and scoring.score fails on a model the
+    data cannot train unless a synthetic caller asks to skip it."""
+    resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
+    with pytest.raises(TypeError, match="real_data"):
+        run.RunConfig(resolver, sha)  # type: ignore[call-arg]
+    assert scoring.score.__kwdefaults__["skip_untrainable"] is False
+    assert "real_data" not in (er_cli._run_config.__kwdefaults__ or {})
 
 
 @pytest.mark.parametrize("kind", ["person", "org"])
@@ -274,7 +313,9 @@ def test_a_class_whose_model_cannot_be_trained_scores_nothing(tmp_path: Path) ->
     folder = tmp_path / "records"
     _tiny_corpus(folder)
     resolver, sha = load_config(REPO_ROOT / "resolve" / "config" / "er.yaml")
-    config = run.RunConfig(resolver.with_threads(1), sha, temp_directory=tmp_path / "spill")
+    config = run.RunConfig(
+        resolver.with_threads(1), sha, temp_directory=tmp_path / "spill", real_data=False
+    )
     result = run.run([folder], tmp_path / "run", config)
     assert result.probabilistic is not None
     assert result.probabilistic["models_skipped"] == {"person": 1, "org": 1}
@@ -351,7 +392,7 @@ def test_on_a_real_profile_a_model_that_cannot_be_trained_fails_the_run(
 def test_untrained_levels_are_counted_from_splink_warnings() -> None:
     """The handler's parsing and de-duplication, on the text of Splink 5.0.0's
     expectation_maximisation.py written here; the demo run test checks Splink's real output."""
-    with scoring._untrained() as handler:
+    with scoring.splink_warnings() as handler:
         log = logging.getLogger("splink.internals.expectation_maximisation")
         for level, comparison, value in [("same birth date", "birth", "m"),
                                          ("same birth date", "birth", "m"),

@@ -10,10 +10,10 @@ pairs in `pairs.parquet`, which `er calibrate` clusters again without scoring ag
 A class whose table has fewer than two records, whose blocking rules generate no comparison, or
 whose model Splink cannot train on the run's data (too few pairs for the prior or an EM session)
 gets no model: it scores no pair, so nothing of that class merges or becomes a possible match by
-probability, and `models_skipped` counts it (an orchestrator decision under OD-10). With
-`skip_untrainable=False` (real profiles) such a training error fails the run instead, and any
-other error always does: a DuckDB error in Splink's SQL (an interrupt, memory, disk) is never
-read as "cannot be trained".
+probability, and `models_skipped` counts it (an orchestrator decision under OD-10). Only a
+synthetic run asks for that with `skip_untrainable=True`; by default (real profiles) such a
+training error fails the run instead, and any other error always does: a DuckDB error in
+Splink's SQL (an interrupt, memory, disk) is never read as "cannot be trained".
 
 While Splink runs, a handler of this module sits on the `splink` logger: it counts the levels
 Splink could not train, and Splink's `Linker` then installs no stderr handler of its own
@@ -171,7 +171,7 @@ class _Untrained(logging.Handler):
 
 
 @contextmanager
-def _untrained() -> Iterator[_Untrained]:
+def splink_warnings() -> Iterator[_Untrained]:
     handler, logger = _Untrained(), logging.getLogger("splink")
     logger.addHandler(handler)
     try:
@@ -185,18 +185,22 @@ def score(
     config: ResolverConfig,
     temp_directory: Path,
     *,
-    skip_untrainable: bool = True,
+    skip_untrainable: bool = False,
 ) -> Scored:
     """Train both models on this run's own data and score pairs at the candidate threshold.
 
-    `skip_untrainable=False` (real profiles): a model the data cannot train fails the run.
+    By default a model the data cannot train fails the run (real profiles); only a synthetic
+    run passes `skip_untrainable=True` and skips it.
     """
     out = Scored(skipped=dict.fromkeys(KINDS, 0))
     tables = {kind: read_features(features_path, kind) for kind in KINDS}
     con = models.connect(config.duckdb.threads, config.duckdb.memory_limit, str(temp_directory))
     try:
-        for kind, table in tables.items():
-            out.comparisons[kind] = count_comparisons(con, kind, table) if len(table) > 1 else []
+        with splink_warnings():  # Splink's blocking analysis logs too
+            for kind, table in tables.items():
+                out.comparisons[kind] = (
+                    count_comparisons(con, kind, table) if len(table) > 1 else []
+                )
         over = {k: sum(c) for k, c in out.comparisons.items() if sum(c) > config.max_comparisons}
         if over:
             counts = "; ".join(
@@ -218,7 +222,7 @@ def score(
                 out.skipped[kind] = 1
                 continue
             start = time.perf_counter()
-            with _untrained() as handler:  # before make_linker: see the module docstring
+            with splink_warnings() as handler:  # before make_linker: see the module docstring
                 linker = models.make_linker(con, kind, table)
                 try:
                     models.train(linker, kind, training)

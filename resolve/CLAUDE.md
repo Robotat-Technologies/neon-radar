@@ -24,7 +24,7 @@
     `cluster.resolve` get one list object of probabilistic links.
   - Every Splink comparison level needs a fixed `label_for_charts`, never a literal value:
     labels go into `pairs.parquet`, `candidates.jsonl` and Splink's own warnings.
-  - Build a Splink `Linker` only inside `scoring._untrained()`: on a `splink` logger without
+  - Build a Splink `Linker` only inside `scoring.splink_warnings()`: on a `splink` logger without
     handlers, Splink installs its own stderr handler, which bypasses the run's summary.
   - Person EM sessions (OD-26): postcode first, then the first linked organisation with the
     birth year. A session blocked on surname and birth year is full of near twins, and in

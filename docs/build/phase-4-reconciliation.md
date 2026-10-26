@@ -194,3 +194,17 @@ What the guard hook does not catch (it stops accidents, not a determined person,
 | X4 Starlette | no pin; lock 1.9.0; no 1.8 wheel in the offline caches | `starlette>=1.9,<1.10` (lock 1.9.0), the reconciliation's recommendation; the tech lead still answers X4 |
 | Vite proxy | `changeOrigin: false` | `changeOrigin: true` (deliverable 3) |
 | Validation errors | `loc` and `msg` only; an unknown key is reported at its parent | unchanged; the 501-character question case added to `test_routes.py` |
+
+### 7.1 C3 1.1.0 text that the hardening outdates (for M4.2's contract change)
+
+M4.1 leaves `contracts/**` alone (frozen since `contracts-v1.0.0`). The behaviour below is what the spec asks for (deliverables 2 to 4, 3.5 items 6 and 7, 7.5.3), but `contracts/C3-api.md` 1.1.0 still describes Phase 1's. The section 5.0 issue text does not name these points, so the C3 1.2.0 change (M4.2) should add them, or the tech lead decides otherwise.
+
+| # | C3 1.1.0 says | From M4.1 | Class | Decision |
+|---|---|---|---|---|
+| H1 | CORS allows exactly `http://localhost:5173` in every mode; another origin's preflight gets Starlette's `400 text/plain` | CORS only under `neonradar api serve --dev`, for `http://localhost:5173` and `http://127.0.0.1:5173`; the default app sends no CORS header | Q tech lead (contract) | Spec (3.5 item 6), and the stricter option: C3 1.2.0 says CORS is for development only |
+| H2 | Host check on `NR_ALLOWED_HOSTS` (default `localhost`, `127.0.0.1`, `api`); the Code line lists `neonradar_api.settings` (`NR_REPO_ROOT`, `NR_ALLOWED_HOSTS`) | the fixed list `hardening.ALLOWED_HOSTS` (`127.0.0.1`, `localhost`, `[::1]`, `api`), still a `400 text/plain` before anything else; `NR_ALLOWED_HOSTS` is gone | Q tech lead (contract) | Spec (7.5.3); a fixed list has no environment override; `[::1]` is new |
+| H3 | `instance` is the request path | `Contain`'s 500 sends the route template (`/api/v1/entities/{entity_id}`, `unmatched` or `redacted`); every other problem keeps the path | Q tech lead (contract) | OD-10 (A5): C3's `Problem` requires `instance`, and the template keeps a path value out of an unexpected error |
+| H4 | a 500's "`detail` is generic or names the fix, and the API log has the details" | an unexpected error's detail is "The API could not answer this request. Please report it to the maintainers."; the API log names the exception's class and the route template only (the real-data app's redacted log keeps the traceback) | Q tech lead (contract) | Spec (deliverable 3) |
+| H5 | no 413 in the status table | a body over 64 KiB is a 413: Starlette's `text/plain` "Content Too Large" when `Content-Length` says so, a 413 problem when a streamed body passes the limit | Q tech lead (contract) | Spec (7.5.3) |
+
+Found in a verbatim file and left as it is (2.5 item 11): `harden` puts `Contain` inside the body limit, and Starlette's `RequestBodyLimitMiddleware` stops an over-long response with an internal exception (`_RequestBodyLimitResponseSent`) after it has sent its own 413. `Contain` catches that exception, so every request whose `Content-Length` is over 64 KiB also writes `unhandled _RequestBodyLimitResponseSent on POST <route template>` at ERROR (on the real-data app, `Reported` also sends its traceback to the redacted log). The answer is still the 413 and no value reaches the log; the tech lead decides whether the code book should let `Contain` pass that exception on.

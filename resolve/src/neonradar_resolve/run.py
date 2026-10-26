@@ -73,8 +73,9 @@ class RunConfig:
     temp_directory: Path | None = None
     keep_features: bool = False
     # A real profile: a Splink model the data cannot train fails the run instead of being
-    # skipped (scoring.score, an orchestrator decision under OD-10)
-    real_data: bool = False
+    # skipped (scoring.score, an orchestrator decision under OD-10). Required, so that no
+    # caller can reach a real profile without saying which kind of data it runs on.
+    real_data: bool = field(kw_only=True)
 
 
 @dataclass

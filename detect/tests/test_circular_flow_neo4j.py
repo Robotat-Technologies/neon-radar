@@ -8,6 +8,7 @@ and on demo-mini the labelled round_trip scenario's payments appear together in 
 
 import csv
 import io
+import os
 from pathlib import Path
 from typing import Any
 
@@ -237,7 +238,11 @@ def test_a_run_id_used_again_keeps_only_what_it_finds(cases: Neo4jTarget, tmp_pa
 def load_case_f(db: Neo4jTarget) -> Neo4jTarget:
     """Case F's graph. The loader refuses a load that mixes synthetic and real records (C2 L17,
     M2.11), so the synthetic fixture is loaded and the test then writes the real-looking holder
-    itself and moves the origin account's holding to it, as case_f_records() describes."""
+    itself and moves the origin account's holding to it, as case_f_records() describes. The
+    look-alike reaches only a Testcontainers database, never an instance named by
+    NR_TEST_NEO4J_URI (graph/CLAUDE.md)."""
+    if os.environ.get("NR_TEST_NEO4J_URI"):
+        pytest.skip("case F writes a non-synthetic look-alike: Testcontainers databases only")
     load(db, fixture_records())
     (holder,) = to_node_rows([REAL_HOLDER]).rows
     db.driver.execute_query(node_query("Company"), rows=[holder.as_param()], database_=db.database)

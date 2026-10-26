@@ -88,6 +88,20 @@ def test_a_real_profile_gates_fetches_and_uses_real_unless_skip_fetch(
     assert "er run" not in load.plan(load_profile("plain"), skip_fetch=False)
 
 
+def test_graph_migrate_passes_real_only_for_a_real_profile(
+    ran: list[tuple[str, load.Run]], data_env: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The real `migrate_step`, with `graph.migrate_command` recording its `real` argument."""
+    migrated: list[bool] = []
+    monkeypatch.setattr(graph, "migrate_command", lambda real: migrated.append(real))
+    monkeypatch.setitem(load.STEPS, "graph migrate", load.migrate_step)
+    data_env.allow_real("uk-tiny")
+    for profile in ("demo", "uk-tiny"):
+        result = runner.invoke(app, ["load", "--profile", profile, "--skip-fetch"])
+        assert result.exit_code == 0, result.output
+    assert migrated == [False, True]
+
+
 def test_skip_officers_sets_the_budget_to_0_for_the_run_only(
     ran: list[tuple[str, load.Run]], data_env: Any
 ) -> None:

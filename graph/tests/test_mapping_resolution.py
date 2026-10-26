@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from neonradar_graph.loader import ORPHAN, LoadRefused, load_records, plan_load
 from neonradar_graph.mapping import (
     to_node_rows,
     to_possibly_same_as_rows,
@@ -20,7 +21,7 @@ from neonradar_graph.mapping import (
 )
 from neonradar_graph.resolution import CANONICAL_HEADER, ResolutionError, ResolutionMap
 
-from .conftest import record
+from .conftest import FakeDriver, record
 
 RUN_ID = "er-20261023T120000-0a0b"
 FEATURES = '{"birth":"same date","name":"name key equal"}'
@@ -100,6 +101,7 @@ def records() -> list[dict[str, Any]]:
             name=["A. Example", "Ada Example"],
             birthDate="1980-02-03",
             nationality="gb",
+            topics=["role.pep"],  # P1 (7.1.4): a probabilistic merge joins equal flag topics
             addressEntity="syn-addr-0101",
         ),
         record("syn-p-0103", "Person", name="Ada Exampel"),
@@ -165,7 +167,7 @@ def test_merged_entity_and_source_records(resolution: ResolutionMap) -> None:
     assert "syn-p-0101" not in nodes and "syn-p-0102" not in nodes  # I13
     merged = nodes[MERGED]
     assert merged.labels == ("Entity", "LegalEntity", "Person")
-    assert merged.flags == ("Synthetic", "PEP")  # the union of the members' own topics
+    assert merged.flags == ("Synthetic", "PEP")
     assert merged.props["names"] == ["Ada Example", "A. Example"]  # anchor first, no duplicate
     assert merged.props["topics"] == ["role.pep"]
     assert merged.props["referents"] == ["syn-p-0101", "syn-p-0102"]
@@ -177,12 +179,40 @@ def test_merged_entity_and_source_records(resolution: ResolutionMap) -> None:
     assert single.props["referents"] == ["syn-p-0103"]
     sources = {r.keys["id"]: r.props for r in to_source_record_rows(records(), resolution).rows}
     assert set(sources) == {"syn-p-0101", "syn-p-0102"}
-    assert sources["syn-p-0102"]["topics"] == []  # its own topics, never the merged ones
+    assert sources["syn-p-0102"]["topics"] == ["role.pep"]
     assert sources["syn-p-0102"]["canonical_id"] == MERGED
     assert (sources["syn-p-0101"]["retrieved_at"], sources["syn-p-0101"]["run_id"]) == (
         None,
         RUN_ID,
     )
+
+
+def test_an_unlisted_record_joined_by_a_deterministic_rule_takes_the_union_of_topics(
+    tmp_path: Path,
+) -> None:
+    """P1 (7.1.4): a listed and an unlisted record merge only through D1 to D5 or D7; the
+    merged node's topics and flags are the union of its members' own topics (G8)."""
+    linked = row(
+        "syn-p-0102",
+        MERGED,
+        "person",
+        2,
+        "deterministic",
+        rule="D1",
+        match_probability="1.0",
+        via="syn-p-0101",
+        path_methods="deterministic",
+    )
+    run = ResolutionMap.load(write_run(tmp_path, [ROWS[0], linked, *ROWS[2:]], [CANDIDATE]))
+    found = records()
+    for found_record in found:
+        if found_record["id"] == "syn-p-0102":
+            del found_record["properties"]["topics"]
+    merged = {r.id: r for r in to_node_rows(found, run).rows}[MERGED]
+    assert (merged.flags, merged.props["topics"]) == (("Synthetic", "PEP"), ["role.pep"])
+    assert merged.props["resolution"] == "deterministic"
+    sources = {r.keys["id"]: r.props for r in to_source_record_rows(found, run).rows}
+    assert sources["syn-p-0102"]["topics"] == []  # its own topics, never the merged ones
 
 
 def test_has_address_rows_merge_after_re_pointing_and_a_self_loop_is_dropped(
@@ -253,6 +283,11 @@ def test_a_candidate_between_addresses_stops_the_load(tmp_path: Path) -> None:
         (lambda rows, lines: rows[0].__setitem__(1, "syn-p-0101x"), "cluster_size"),
         (lambda rows, lines: lines[0].update(a="syn-p-0103", b=MERGED), "a < b"),
         (lambda rows, lines: lines[0].update(record_b="syn-p-0999"), "lacks"),
+        (lambda rows, lines: lines[0].update(method="probabilistic", rule=None), "unreadable"),
+        (
+            lambda rows, lines: lines[0].update(method="probabilistic", match_probability=1.5),
+            "unreadable",
+        ),
     ],
 )
 def test_a_run_that_breaks_7_1_8_stops_the_load(tmp_path: Path, change: Any, message: str) -> None:
@@ -272,3 +307,69 @@ def test_a_load_that_does_not_fit_the_run_is_refused(resolution: ResolutionMap) 
     resolution.check_load(extra, complete=False)  # an additive load may add records
     with pytest.raises(ResolutionError, match="1 resolvable record"):
         resolution.check_load(extra, complete=True)
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "message"),
+    [
+        ("run.json", b"\xff", "run.json is not a JSON object"),
+        ("canonical.csv", b"\xff", "canonical.csv is not a UTF-8 CSV file"),
+        (
+            "canonical.csv",
+            (",".join(CANONICAL_HEADER) + "\n" + "x" * 2_000 + "\n").encode(),
+            "canonical.csv is not a UTF-8 CSV file",  # a field above the limit set below
+        ),
+        ("candidates.jsonl", b"\xff\n", "candidates.jsonl is not a UTF-8 file"),
+    ],
+)
+def test_an_unreadable_file_of_the_run_is_named(
+    tmp_path: Path, name: str, content: bytes, message: str
+) -> None:
+    run_dir = write_run(tmp_path, ROWS, [CANDIDATE])
+    (run_dir / name).write_bytes(content)
+    limit = csv.field_size_limit(1_000)  # other imports may raise the limit
+    try:
+        with pytest.raises(ResolutionError, match=message):
+            ResolutionMap.load(run_dir)
+    finally:
+        csv.field_size_limit(limit)
+
+
+def test_members_of_a_merged_entity_that_was_skipped_get_no_source_record(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        row("syn-p-0101", MERGED, "person", 2, "anchor", match_probability="1.0"),
+        row(
+            "syn-co-0102",
+            MERGED,
+            "org",
+            2,
+            "deterministic",
+            rule="D1",
+            match_probability="1.0",
+            via="syn-p-0101",
+            path_methods="deterministic",
+        ),
+        row("syn-p-0103", "syn-p-0103", "person", 1, "identity"),
+    ]
+    run = ResolutionMap.load(write_run(tmp_path, rows, []))
+    found = [
+        record("syn-p-0101", "Person", name="Ada Example"),
+        record("syn-co-0102", "Company", name="Ada Example Ltd"),  # no schema common with Person
+        record("syn-p-0103", "Person", name="Ada Exampel"),
+    ]
+    plan = plan_load(found, strict=False, resolution=run)
+    assert (plan.source_records, plan.resolved_to) == ([], [])  # I7 holds
+    orphans = {issue.record_id for issue in plan.skipped if issue.message == ORPHAN}
+    assert orphans == {"syn-p-0101", "syn-co-0102"}
+    with pytest.raises(LoadRefused):
+        plan_load(found, strict=True, resolution=run)
+
+
+def test_a_possible_match_outside_an_additive_load_is_counted(resolution: ResolutionMap) -> None:
+    left_out = {"syn-p-0103", "syn-ownership-0102", "syn-acct-0102", "syn-payment-000101"}
+    found = [r for r in records() if r["id"] not in left_out]
+    report = load_records(FakeDriver(), found, resolution=resolution, replace=False)
+    assert (report.possible_matches, report.possible_matches_outside_load) == (0, 1)
+    assert report.counts()["possible_matches_outside_load"] == 1

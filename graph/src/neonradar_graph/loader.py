@@ -218,7 +218,6 @@ class LoadPlan:
     resolved_to: list[SupportRow] = field(default_factory=list)
     possible_matches: list[SupportRow] = field(default_factory=list)
     counts: Counter[str] = field(default_factory=Counter)
-    held_outside: dict[str, list[str]] = field(default_factory=dict)  # account -> owners (L13)
 
 
 @dataclass(slots=True)
@@ -365,31 +364,15 @@ def read_input(paths: Iterable[Path]) -> LoadInput:
     return loaded
 
 
-def _owners_outside(records: Sequence[Record]) -> dict[str, list[str]]:
-    """Each asset of an Ownership in `records` with the owners that are not records of them."""
-    ids = {record.get("id") for record in records}
-    found: dict[str, list[str]] = {}
-    for record in records:
-        if record.get("schema") != "Ownership":
-            continue
-        props = record.get("properties") or {}
-        for owner in props.get("owner") or []:
-            for asset in props.get("asset") or []:
-                if owner not in ids:
-                    found.setdefault(str(asset), []).append(str(owner))
-    return found
-
-
 def _usable(
     records: Sequence[Record], record_issues: Sequence[list[RecordIssue]]
-) -> tuple[list[Record], list[RecordIssue], dict[str, list[str]]]:
-    """Non-strict: the records that pass C1, the issues of those left out, and the accounts
-    whose holder is outside the load (with those holders).
+) -> tuple[list[Record], list[RecordIssue]]:
+    """Non-strict: the records that pass C1, and the issues of those left out.
 
     A later record with an id already seen is left out even when the first one failed C1 (a
     duplicate never replaces the first record); a BankAccount without a holder among the
-    records that pass fails R8 and is left out too, unless an Ownership names a holder outside
-    the load: the loader then keeps it only if the graph holds that holder (L13, M2.11).
+    records that pass fails R8 and is left out too, even when the graph holds an owner its
+    Ownership names (C1 R8: the holder is in the same load; OD-17, 2.9 J5).
     """
     rejected: list[RecordIssue] = []
     valid: list[Record] = []
@@ -407,11 +390,9 @@ def _usable(
         else:
             valid.append(record)
     unheld = [issue for issue in validate_batch(valid, strict=False) if issue.rule == "R8"]
-    outside = _owners_outside(valid)
-    held_outside = {i.record_id: outside[i.record_id] for i in unheld if i.record_id in outside}
-    rejected.extend(issue for issue in unheld if issue.record_id not in held_outside)
-    left_out = {issue.record_id for issue in unheld} - set(held_outside)
-    return [r for r in valid if r.get("id") not in left_out], rejected, held_outside
+    rejected.extend(unheld)
+    left_out = {issue.record_id for issue in unheld}
+    return [record for record in valid if record.get("id") not in left_out], rejected
 
 
 ORPHAN = "a member of a merged entity whose node was not mapped"
@@ -440,9 +421,8 @@ def plan_load(
         if issues:
             raise LoadRefused(issues, [])
         usable = list(records)
-        held_outside: dict[str, list[str]] = {}
     else:
-        usable, rejected, held_outside = _usable(records, record_issues)
+        usable, rejected = _usable(records, record_issues)
     schemas = resolvable_ids(usable)
     if resolution is not None:
         resolution.check_load(schemas, complete=replace)
@@ -450,7 +430,6 @@ def plan_load(
     relationships = to_relationship_rows(usable, resolution, {row.id for row in nodes.rows})
     plan = LoadPlan(len(records), nodes.rows, relationships.rows, rejected, resolution=resolution)
     plan.counts.update(relationships.counts)
-    plan.held_outside = held_outside
     plan.record_ids = [rid for rid, schema in schemas.items() if schema in NODE_MAPPINGS]
     found = [*nodes.skipped, *relationships.skipped]
     if resolution is not None:
@@ -540,25 +519,6 @@ def _purge(driver: Driver, plan: LoadPlan, database: str, report: LoadReport) ->
         report.superseded_removed = session.run(entities, params).consume().counters.nodes_deleted
         removed = session.run(detections).consume().counters.nodes_deleted
         report.detection_results_removed = removed
-
-
-def _check_holders(driver: Driver, plan: LoadPlan, report: LoadReport, database: str) -> None:
-    """Keep an account whose holder is outside the load only if the graph holds that holder as
-    a :LegalEntity (by id or through a :SourceRecord); drop the others with R8 (invariant I4)."""
-    if not plan.held_outside:
-        return
-    owners = sorted({owner for owners in plan.held_outside.values() for owner in owners})
-    query = cypher.query("find_holders.cypher")
-    found = {
-        str(row["id"])
-        for ids in batched(owners, BATCH_SIZE, strict=False)
-        for row in _run(driver, query, database, report, ids=list(ids), limit=len(ids))
-    }
-    unheld = sorted(a for a, owners in plan.held_outside.items() if not found & set(owners))
-    message = "BankAccount has no holder in this load or in the graph"
-    report.rejected.extend(RecordIssue("R8", account, message) for account in unheld)
-    dropped = frozenset(unheld)
-    plan.nodes = [row for row in plan.nodes if row.id not in dropped]
 
 
 def _write_nodes(
@@ -693,7 +653,6 @@ def execute_plan(
         report.resolution_run = plan.resolution.run_id
         if replace:
             _purge(driver, plan, database, report)
-    _check_holders(driver, plan, report, database)
     _write_nodes(driver, plan, report, database, batch_size)
     _write_support(
         driver, "upsert_source_records.cypher", plan.source_records, report, database, batch_size

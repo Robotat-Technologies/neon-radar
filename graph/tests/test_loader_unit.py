@@ -208,6 +208,15 @@ def test_a_non_strict_plan_drops_an_account_whose_holding_was_skipped() -> None:
     assert [(i.rule, i.record_id) for i in plan.rejected] == [("R8", account)]
 
 
+def test_a_non_strict_plan_drops_an_account_held_only_outside_the_load() -> None:
+    """C1 R8 wants a holder in the same load, even when the graph holds one (OD-17, 2.9 J5)."""
+    account = record("syn-acct-0902", "BankAccount", accountNumber="NRSYN0000000902")
+    holding = record("syn-ownership-0903", "Ownership", owner="syn-p-0005", asset=account["id"])
+    plan = plan_load([account, holding], strict=False)
+    assert [(i.rule, i.record_id) for i in plan.rejected] == [("R8", account["id"])]
+    assert plan.nodes == []
+
+
 def test_rows_go_in_batches_as_parameters_and_never_into_query_text() -> None:
     records = fixture()
     odd = "x}) DETACH DELETE n //"

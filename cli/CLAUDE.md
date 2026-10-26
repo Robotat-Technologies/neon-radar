@@ -36,8 +36,10 @@
     into `resolution_dir`, spills DuckDB into `retention.spill_dir` and writes `LATEST` last.
   - `graph load [PATH...] [--profile NAME] [--resolution RUN_DIR|latest] [--no-replace]`,
     `graph verify` and `--real` on migrate, verify, stats and wipe (`graph.py`, M2.11): the
-    instance comes from the profile, else from the manifests (C2 L17); the real-data one runs
-    the gate before connecting, inside `redact.guard`, and prints counts only (a load through
+    instance comes from the profile, else from the paths and then the manifests (C2 L17; a
+    path under the real roots is decided from its name, before its folder is listed); the
+    real-data one runs the gate before connecting, inside `redact.guard`, takes only a run
+    folder of its profile's resolution folder (G8), and prints counts only (a load through
     `summary.emit`). Tests replace `loader.load`, `get_driver` and `wait_until_ready`.
   - `graph load --overlay DIR` or `--profile NAME --overlay latest` (M3.4, C2 L18) calls
     `neonradar_graph.overlay.load_overlay`. A folder in a protected cache folder (real, spikes,

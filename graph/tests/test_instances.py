@@ -21,7 +21,7 @@ from neonradar_graph.loader import LoadReport, execute_plan, load, load_records,
 from .conftest import FakeDriver, record
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mapping" / "all-schemata.ftm.jsonl"
-NAMES = ("Test Holder Ltd", "Test Subsidiary Ltd", "Test Person")
+NAMES = ("Test Holder Ltd", "Test Holder T0000002 Ltd", "Test Person")
 
 
 def look_alikes() -> list[dict[str, Any]]:
@@ -121,7 +121,7 @@ def test_a_mixed_load_is_refused_by_both_instances(tmp_path: Path) -> None:
     mixed = write(tmp_path, "mixed", [*iter_records(FIXTURE), *look_alikes()])
     for instance in Instance:
         refused(FakeDriver(), [mixed], instance)
-    unknown = record("syn-co-0901", "Company", name="Test Unknown Ltd")
+    unknown = record("syn-co-0901", "Company", name="Syn Company 0901 Ltd")
     unknown["datasets"] = ["no_such_dataset"]  # no known dataset: neither instance takes it
     for instance in Instance:
         refused(FakeDriver(), [write(tmp_path, f"unknown-{instance}", [unknown])], instance)

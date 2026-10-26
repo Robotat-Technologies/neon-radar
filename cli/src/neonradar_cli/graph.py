@@ -155,15 +155,31 @@ def _fail(message: str, code: int) -> typer.Exit:
     return typer.Exit(code=code)
 
 
-def _resolution_dir(value: str | None, profile: Profile | None) -> Path | None:
+def _real_path(path: Path) -> bool:
+    """A path under the real-data or spike cache roots (decided from the path alone)."""
+    from neonradar_ingest.data import layout
+
+    where = path.resolve()
+    roots = (layout.real_root(), layout.spikes_root())
+    return any(where.is_relative_to(root.resolve()) for root in roots)
+
+
+def _resolution_dir(value: str | None, profile: Profile | None, *, real: bool) -> Path | None:
     """`--resolution RUN_DIR`, or `latest` with `--profile`: the run whose id `er run` wrote last
-    into LATEST, so an unfinished run is never loaded."""
+    into LATEST, so an unfinished run is never loaded. A load into the default instance never
+    reads a run folder of real data (exit 2)."""
     from neonradar_ingest.data import layout
 
     if value is None:
         return None
     if value != "latest":
         path = Path(value)
+        if not real and _real_path(path):
+            raise _fail(
+                "--resolution names a folder of real data: the default instance holds synthetic"
+                " data only (C2 L17); nothing was read",
+                2,
+            )
         if not path.is_dir():
             raise _fail(f"--resolution {value}: no such run folder", 2)
         return path
@@ -180,18 +196,35 @@ def _resolution_dir(value: str | None, profile: Profile | None) -> Path | None:
 
 
 def _instance_of(paths: Sequence[Path], profile: Profile | None) -> Instance:
-    """L17: the profile's instance; without a profile, the real-data instance when every
-    manifest of the files says the data is real (the loader checks every record again)."""
+    """L17, before any record is read: a real profile, or without a profile any path of real
+    data or any manifest that says the data is real, takes the real-data instance and its gate
+    (the loader then checks every record again, so a mixed load is refused there, exit 2). A
+    synthetic profile with such a path or manifest is refused here (exit 2)."""
     from neonradar_graph import loader
 
-    if profile is not None:
-        return Instance.REAL if profile.real_data else Instance.DEFAULT
+    if profile is not None and profile.real_data:
+        return Instance.REAL
     try:
-        manifests = [m for path in loader.collect_files(paths) if (m := loader.read_manifest(path))]
+        files = loader.collect_files(paths)
+    except loader.LoadError as error:
+        if profile is None:
+            raise _fail(str(error), 1) from None
+        files = []  # the loader stops on the same error before it reads any record
+    try:
+        manifests = [m for path in files if (m := loader.read_manifest(path))]
     except loader.LoadError as error:
         raise _fail(str(error), 1) from None
-    real = bool(manifests) and not any(manifest.synthetic for manifest in manifests)
-    return Instance.REAL if real else Instance.DEFAULT
+    real = sum(not manifest.synthetic for manifest in manifests)
+    real += sum(_real_path(path) for path in [*paths, *files])
+    if not real:
+        return Instance.DEFAULT
+    if profile is not None:
+        raise _fail(
+            f"profile {profile.profile} is synthetic, but {real} path(s) or manifest(s) of this"
+            " load are of real data (C2 L17); nothing was read",
+            2,
+        )
+    return Instance.REAL
 
 
 def _echo_report(report: LoadReport) -> None:
@@ -213,9 +246,13 @@ def _echo_report(report: LoadReport) -> None:
             f" entities, {report.merged_entities} merged, {report.source_records} source"
             f" records, {report.possible_matches} possible matches (not confirmed)"
         )
+        typer.echo(
+            "possible matches not written (a node outside this load):"
+            f" {report.possible_matches_outside_load}"
+        )
     typer.echo(
         f"self-loops dropped: {report.self_loops_dropped}; duplicate relationships merged:"
-        f" {report.duplicate_relationships_merged}; superseded nodes removed:"
+        f" {report.duplicate_relationships_merged}; nodes removed before the load (L9 purge):"
         f" {report.superseded_removed}; references resolved through :SourceRecord:"
         f" {report.resolved_through_source_record}"
     )
@@ -317,7 +354,7 @@ def load_command(
     folders = list(paths) if paths else chosen.record_dirs(project) if chosen else []
     instance = _instance_of(folders, chosen)
     if instance is Instance.DEFAULT:
-        run_dir = _resolution_dir(resolution, chosen)
+        run_dir = _resolution_dir(resolution, chosen, real=False)
         report = _load_default(
             lambda: loader.load(
                 folders, run_dir, not no_replace, Instance.DEFAULT, strict=strict,
@@ -337,7 +374,7 @@ def load_command(
             else:
                 gate.check_real_instance(project)
             where.step, where.dataset = "load", None
-            run_dir = _resolution_dir(resolution, chosen)
+            run_dir = _resolution_dir(resolution, chosen, real=True)
             _settings(Instance.REAL)
             report = loader.load(
                 folders, run_dir, not no_replace, Instance.REAL, strict=strict, timeout_s=timeout

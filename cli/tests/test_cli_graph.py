@@ -336,6 +336,8 @@ def test_load_profile_resolution_latest_takes_the_run_er_run_finished_last(
         }
     ]
     assert "resolution run er-20261023T120000-0a0b: 0 canonical entities" in result.output
+    assert "possible matches not written (a node outside this load): 0" in result.output
+    assert "nodes removed before the load (L9 purge): 0" in result.output
 
 
 def test_load_needs_paths_or_a_profile_and_latest_needs_a_profile(
@@ -360,6 +362,37 @@ def test_a_real_profile_or_real_manifests_hit_the_gate_before_any_connection(
     result = runner.invoke(app, ["graph", "load", real])
     assert (result.exit_code, calls) == (3, [])
     assert "access.real_data_profiles is empty" in result.output
+
+
+def test_one_real_manifest_among_synthetic_ones_takes_the_gate(
+    monkeypatch: pytest.MonkeyPatch, data_env: Any, tmp_path: Path
+) -> None:
+    calls = use_loader(monkeypatch, load_report())
+    (tmp_path / "real").mkdir()
+    (tmp_path / "synthetic").mkdir()
+    real = str(records_folder(tmp_path / "real", synthetic=False))
+    synthetic = str(records_folder(tmp_path / "synthetic", synthetic=True))
+    result = runner.invoke(app, ["graph", "load", synthetic, real])
+    assert (result.exit_code, calls) == (3, [])
+    assert "access.real_data_profiles is empty" in result.output
+
+
+def test_a_synthetic_profile_never_reads_real_records_or_a_real_run(
+    monkeypatch: pytest.MonkeyPatch, data_env: Any, tmp_path: Path
+) -> None:
+    from neonradar_ingest.data import layout
+
+    calls = use_loader(monkeypatch, load_report())
+    real = str(records_folder(tmp_path, synthetic=False))
+    result = runner.invoke(app, ["graph", "load", real, "--profile", "demo"])
+    assert (result.exit_code, calls) == (2, [])
+    assert "profile demo is synthetic, but 1 path(s) or manifest(s)" in result.output
+    run_dir = layout.real_root() / "uk-tiny" / "resolution" / "er-20261023T120000-0a0b"
+    run_dir.mkdir(parents=True)  # under the test's cache root (data_env)
+    command = ["graph", "load", "--profile", "demo", "--resolution", str(run_dir)]
+    result = runner.invoke(app, command)
+    assert (result.exit_code, calls) == (2, [])
+    assert "--resolution names a folder of real data" in result.output
 
 
 def test_a_real_load_prints_counts_only(

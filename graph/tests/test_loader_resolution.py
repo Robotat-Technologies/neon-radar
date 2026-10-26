@@ -268,7 +268,7 @@ def look_alike_set(folder: Path, tag: str) -> tuple[Path, Path]:
     company, owner = f"gbch-co-T000000{tag}", f"gbch-psc-T000000{tag}1"
     native = {"v": "1.1", "source_ref": f"T-{tag}"}
     rows = [
-        record(company, "Company", name=f"Test Holder {tag} Ltd", jurisdiction="gb"),
+        record(company, "Company", name=f"Test Holder T000000{tag} Ltd", jurisdiction="gb"),
         record(owner, "Person", native, name="Test Person"),
         record(f"gbch-psc-T000000{tag}2", "Person", native, name="Test Person"),
         record(f"gbch-ownership-T{tag}", "Ownership", owner=owner, asset=company),

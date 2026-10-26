@@ -277,3 +277,9 @@ def test_catalog_and_file_errors_print_a_fail_line(
 
 def test_run_help_explains_a_reused_run_id() -> None:
     assert "Given again" in invoke("run", "--help").output
+
+
+def test_list_shows_the_sanctions_exposure_detector() -> None:
+    lines = invoke("list").output.splitlines()
+    module = "neonradar_detect.detectors.sanctions_exposure 0.2.0"
+    assert f"sanctions_exposure  0.2.0  draft  core  {module}" in lines

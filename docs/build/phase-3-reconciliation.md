@@ -317,7 +317,7 @@ Built on the M3.3 branch `p3/m3-3c-generator-notes` (#79, at `2473f54`, which ca
 
 ## 10. Checked again in M3.5f (23 October 2026)
 
-Built on the M3.2 branch `p3/m3-2-detection-core` (#84, at `0109ce2`, and since 24 October at `ad95409`, its review fixes, then `d9bb494`, a docs-only commit, merged into this branch); nothing in that stack has merged. The Neo4j-mode runs of the two test files and of every detector test (2.2 step 6c) pass on that base, and no GDS projection is left behind. M3.5f adds the four `extended` detectors; the rows below are what its review found outside the verbatim files.
+Built on the M3.2 branch `p3/m3-2-detection-core` (#84, at `0109ce2`, then `ad95409`, its review fixes, and `d9bb494`, a docs-only commit, merged into this branch on 24 October); nothing in that stack has merged. Since 26 October the base is `324eddc` (M3.2's second review fixes and M3.3's generator notes, merged at `ef0d392`), with the docs-only `070db75` merged after it. The Neo4j-mode runs of the two test files and of every detector test (2.2 step 6c), and the count of GDS projections left behind (0), were last made on `d9bb494`; they are pending on `324eddc`, because Docker was not running when the branch was re-checked (the merge changed `detect/src/neonradar_detect/catalog.py`, which every Neo4j-mode detector test loads, but no query file, `neo4jsource.py`, loader or Neo4j test harness). M3.5f adds the four `extended` detectors; the rows below are what its review found outside the verbatim files.
 
 | # | Item | Class | Found in M3.5f |
 |---|---|---|---|

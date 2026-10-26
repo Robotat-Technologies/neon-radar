@@ -2,24 +2,33 @@
 batching. The database side is in test_loader.py (integration)."""
 
 import copy
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from neonradar_contracts.graph import FLAG_LABELS
+from neonradar_contracts.graph import FLAG_LABELS, NODE_MAPPINGS
 from neonradar_contracts.records import iter_records
 from neonradar_graph import cypher, loader
+from neonradar_graph.instances import REAL_DATABASE
 from neonradar_graph.loader import (
     LoadError,
+    LoadPlan,
     LoadRefused,
+    LoadReport,
+    PossibleMatchesNotWritten,
     collect_files,
+    execute_plan,
     load_files,
     load_records,
     node_query,
     plan_load,
     read_records,
 )
+from neonradar_graph.mapping import SupportRow
 
 from .conftest import FakeDriver, record
 
@@ -92,6 +101,66 @@ def test_relationship_queries_come_from_the_query_files_with_c2_names_only() -> 
     moved = cypher.query("delete_relationships.cypher", rel_type="CONSOLIDATES")
     assert "MATCH ()-[old:CONSOLIDATES {id: id}]->()" in moved
     assert loader.SIBLING_TYPES["OWNS"] == ("HOLDS_ACCOUNT", "CONSOLIDATES")
+
+
+@pytest.mark.parametrize("name", ["Company`) DETACH DELETE n //", "company", "", "UNKNOWN"])
+def test_a_name_that_is_not_a_c2_name_never_reaches_query_text(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setitem(NODE_MAPPINGS, "Company", SimpleNamespace(labels=("Entity", name)))
+    with pytest.raises(ValueError, match="not a label name"):
+        node_query("Company")
+    with pytest.raises(ValueError, match="not a label or relationship type of C2"):
+        cypher.query("upsert_relationships.cypher", rel_type=name, target_label="Entity")
+    with pytest.raises(ValueError, match="not a label or relationship type of C2"):
+        cypher.query("upsert_relationships.cypher", rel_type="PAID", target_label=name)
+
+
+def test_a_placeholder_without_a_value_stops_the_query() -> None:
+    with pytest.raises(ValueError, match="no value for the placeholder"):
+        cypher.query("upsert_relationships.cypher", rel_type="PAID")
+
+
+class Unmigrated(FakeDriver):
+    """A FakeDriver whose migration check finds no applied migration."""
+
+    @contextmanager
+    def session(self, database: str | None = None, **kwargs: Any) -> Iterator[Any]:
+        yield SimpleNamespace(run=lambda query, parameters=None: [])
+
+
+@pytest.mark.parametrize(
+    ("records", "database", "code"),
+    [
+        ([record("syn-co-0001", "Company", name="Example Ltd")], "neo4j", 1),
+        ([record("gbch-co-T0000001", "Company", name="Test Holder Ltd")], REAL_DATABASE, 2),
+    ],
+)
+def test_a_pending_migration_stops_the_load(
+    records: list[dict[str, Any]], database: str, code: int
+) -> None:
+    with pytest.raises(loader.SchemaNotMigrated) as stopped:
+        load_records(Unmigrated(), records, database=database)
+    assert stopped.value.exit_code == code
+
+
+class WritesNoPossibleMatch(FakeDriver):
+    """A FakeDriver on which the possible-match query finds neither end."""
+
+    def execute_query(
+        self, query: str, parameters: dict[str, Any] | None = None, **kwargs: Any
+    ) -> Any:
+        records, summary, keys = super().execute_query(query, parameters, **kwargs)
+        return ([{"written": 0}] if "POSSIBLY_SAME_AS" in query else records), summary, keys
+
+
+def test_possible_matches_the_database_did_not_write_stop_the_load() -> None:
+    keys = {"id": "syn-p-0001|psa|syn-p-0002", "a": "syn-p-0001", "b": "syn-p-0002"}
+    plan = LoadPlan(0, [], [], possible_matches=[SupportRow(keys, {"synthetic": True})])
+    report = LoadReport(strict=True)
+    with pytest.raises(PossibleMatchesNotWritten) as stopped:
+        execute_plan(WritesNoPossibleMatch(), plan, report, database="neo4j")
+    assert stopped.value.exit_code == 1 and report.possible_matches == 0
 
 
 def test_a_strict_plan_refuses_c1_issues_and_mapping_issues() -> None:

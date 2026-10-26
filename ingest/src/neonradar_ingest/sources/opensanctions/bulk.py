@@ -16,6 +16,7 @@ written Ownership holds (R8), and every other such reference is removed; all of 
 
 import hashlib
 import json
+import sys
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
@@ -258,7 +259,7 @@ def _map(
                 counts["invalid"][record["schema"]] += 1
                 counts["rules"].update(rules or {"R4"})
                 continue
-            kinds[record["id"]] = record["schema"]
+            kinds[record["id"]] = sys.intern(record["schema"])  # one string per schema
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
     return kinds, digest.hexdigest()
 
@@ -286,8 +287,8 @@ def _resolve(work: Path, kinds: dict[str, str], pep: _Pep, counts: Counts) -> No
     unheld = {id_ for id_, schema in kinds.items() if schema == "BankAccount"} - held
     for id_ in unheld:
         del kinds[id_]
-    counts["invalid"]["BankAccount"] += len(unheld)
-    counts["rules"]["R8"] += len(unheld)
+        counts["invalid"]["BankAccount"] += 1
+        counts["rules"]["R8"] += 1
     for id_, (schema, accounts) in at_accounts.items():
         if accounts & unheld:
             del kinds[id_]

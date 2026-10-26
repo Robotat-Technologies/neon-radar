@@ -10,13 +10,14 @@ writes inside READ transactions, so the API is read-only by construction. Settin
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from typing import Any, LiteralString
+from typing import Any, Final, LiteralString
 
 from fastapi import Request
 from neo4j import Driver, Query, Record, RoutingControl
 from neo4j.exceptions import AuthError, DriverError, Neo4jError, TransientError
 from pydantic import ValidationError
 
+from neonradar_contracts.api import QUERY_TIMEOUT_SECONDS
 from neonradar_graph.client import Neo4jSettings, get_driver
 from neonradar_graph.instances import Instance, InstanceRefused
 from neonradar_graph.ownership import TIMED_OUT, TIMEOUT_DETAIL, QueryTimeout
@@ -26,6 +27,10 @@ from neonradar_graph.ownership import TIMED_OUT, TIMEOUT_DETAIL, QueryTimeout
 # to the driver's 10 s connect timeout (neonradar_graph.client.get_driver).
 RETRY_SECONDS = 1.0
 DATABASE_NOT_FOUND = "Neo.ClientError.Database.DatabaseNotFound"
+# A timed-out `read` (the resolution route and entity provenance): those routes take neither
+# max_hops nor relationship types, so the detail gives no advice on them (C3 gives that advice
+# only for /ownership and /paths, which time out with `TIMEOUT_DETAIL`).
+READ_TIMEOUT_DETAIL: Final = f"The query did not finish within {QUERY_TIMEOUT_SECONDS:g} seconds."
 
 
 class GraphUnavailable(Exception):
@@ -59,12 +64,12 @@ class GraphConnection:
             return self._driver, self._database
 
     @contextmanager
-    def _unavailable(self, database: str) -> Iterator[None]:
+    def _unavailable(self, database: str, timed_out: str) -> Iterator[None]:
         try:
             yield
         except Neo4jError as error:
             if TIMED_OUT in (error.code or ""):  # the transaction timeout of `read`
-                raise QueryTimeout(TIMEOUT_DETAIL) from error
+                raise QueryTimeout(timed_out) from error
             if isinstance(error, AuthError | TransientError):
                 raise GraphUnavailable(f"Neo4j is not available: {error}") from error
             if error.code == DATABASE_NOT_FOUND:  # a wrong NEO4J_DATABASE
@@ -83,7 +88,7 @@ class GraphConnection:
         """Run one parameterised query in a READ transaction (with a transaction timeout in
         seconds when given) and return its records."""
         driver, database = self._connect()
-        with self._unavailable(database):
+        with self._unavailable(database, READ_TIMEOUT_DETAIL):
             records, _, _ = driver.execute_query(
                 query if timeout is None else Query(query, timeout=timeout),
                 dict(parameters or {}),
@@ -96,7 +101,7 @@ class GraphConnection:
         """Run `work(driver, database)`, a graph function that reads through the driver in READ
         transactions (`neonradar_graph.ownership`), with the driver errors mapped as in `read`."""
         driver, database = self._connect()
-        with self._unavailable(database):
+        with self._unavailable(database, TIMEOUT_DETAIL):
             return work(driver, database)
 
     def close(self) -> None:

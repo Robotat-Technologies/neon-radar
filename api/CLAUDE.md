@@ -77,9 +77,12 @@
     `GraphConnection.call`; `UnknownId` answers the 404 problem and `QueryTimeout` the 503
     with advice (`problems.install`). Upward ownership paths come back root first (C3; the
     query lists the owner first, reconciliation E13). Unit-test doubles override `read` and
-    `call` (`OfflineGraph`); a fake driver needs `execute_query` and `close`.
+    `call` (`OfflineGraph`); a fake driver needs `execute_query` and `close`. A timed-out `read`
+    (resolution, provenance) answers `graph.READ_TIMEOUT_DETAIL`, with no max_hops advice.
   - Entity detail and every M2.12 route also take the id of a record merged into an entity
     (`:SourceRecord` and `RESOLVED_TO`); a merged entity's provenance is its source records.
+    Entity detail reads `queries/entity_detail.cypher` and refuses a record id that leads to
+    two entities (I7), as `pick_entity` does for the M2.12 routes.
   - Logs name the route template (`request.scope["route"].path`), never `request.url.path`:
     a path holds ids. `create_app(report=...)` builds the real-data app: no CORS, unhandled
     errors log their class only and `report` keeps the traceback (`problems.Reported`, inside

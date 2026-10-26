@@ -10,8 +10,10 @@ Both start uvicorn without its own access log, which writes every query string, 
 `neonradar_api.hardening.log_config()` (PHASE-4.md M4.1, G15). `api serve` logs the API's access
 lines (route templates only). A real request line holds ids and names, so `--real` logs warnings
 only: errors name the route template and the class, and their tracebacks go to the redacted log
-under data/cache/real/logs. `--dev` adds CORS for a UI served from another origin; `--host` is for
-the API image only (it sets `NR_API_IN_IMAGE=1`) and is refused together with `--real`.
+under data/cache/real/logs. The driver's and the HTTP clients' loggers are held at WARNING
+(`hardening.QUIET_LOGGERS`): their debug lines print query parameters (ids and names). `--dev`
+adds CORS for a UI served from another origin; `--host` is for the API image only (it sets
+`NR_API_IN_IMAGE=1`) and is refused together with `--real`.
 """
 
 import os
@@ -73,7 +75,7 @@ def serve_command(
     # Imported here so that `neonradar --help` does not load FastAPI.
     import uvicorn
 
-    from neonradar_api.hardening import log_config
+    from neonradar_api.hardening import log_config, quiet_loggers
 
     if not real:  # the app's default connection is Instance.DEFAULT (neonradar_api.graph)
         uvicorn.run(
@@ -103,6 +105,7 @@ def serve_command(
         where.step = "gate"
         gate.check_real_instance(project)
         where.step = "serve"
+        quiet_loggers()  # before the app: its driver's debug lines quote parameters
         report = partial(redact.report, command=REAL_COMMAND, step="request")
         served = create_app(GraphConnection(Instance.REAL.settings), report=report)
         typer.echo(

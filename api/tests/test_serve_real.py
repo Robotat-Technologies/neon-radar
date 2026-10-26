@@ -84,8 +84,18 @@ def test_past_the_checks_it_serves_8001_without_an_access_log(
     monkeypatch.setattr(gate, "check_real_instance", lambda project: None)
     monkeypatch.setattr(main, "create_app", build)
     monkeypatch.setattr(uvicorn, "run", lambda target, **kw: served.append((target, kw)))
-    result = CliRunner().invoke(app, ["api", "serve", "--real"])
+    saved = {name: logging.getLogger(name).level for name in ("neo4j", "httpx", "httpcore")}
+    for name in saved:  # as if a logging setup had lowered them
+        logging.getLogger(name).setLevel(logging.DEBUG)
+    try:
+        result = CliRunner().invoke(app, ["api", "serve", "--real"])
+        levels = {logging.getLogger(name).level for name in saved}
+    finally:
+        for name, level in saved.items():
+            logging.getLogger(name).setLevel(level)
     assert result.exit_code == 0, result.output
+    # The driver's debug log prints query parameters: held at WARNING explicitly.
+    assert levels == {logging.WARNING}
     assert callable(built[0]["report"])  # the redacted app: no CORS, no tracebacks in logs
     (target, options), *_ = served
     assert target is real_app  # `hardening.Contain` keeps errors from reaching uvicorn

@@ -219,14 +219,14 @@ def test_an_alert_that_fails_c4_names_the_typology_and_fields_only(
 
     def doctored(*args: Any, **kwargs: Any) -> runner.RunResult:
         result = real(*args, **kwargs)
-        result.alerts[0]["headline"] = "Funds went to Secret Name Ltd" + "!" * 140
+        result.alerts[0]["headline"] = "Funds went to Umber Garth Foods Ltd" + "!" * 140
         return result
 
     monkeypatch.setattr(runner, "run_detection", doctored)
     with pytest.raises(runs.RunError) as raised:
         run(tmp_path)
     assert "a circular_flow alert does not validate against C4: headline" in str(raised.value)
-    assert "Secret Name" not in str(raised.value)
+    assert "Umber Garth" not in str(raised.value)
     assert not (tmp_path / "run-20261021T101500-0001" / "alerts.jsonl").exists()
 
 
@@ -303,13 +303,13 @@ def test_verify_names_the_fields_of_a_stored_payload_never_its_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     alert_id = "alr-0123456789abcdef0123"
-    stored = json.dumps({"alert_id": alert_id, "headline": "Funds went to Secret Name Ltd"})
+    stored = json.dumps({"alert_id": alert_id, "headline": "Funds went to Umber Garth Foods Ltd"})
     rows = [{"alert_id": alert_id, "payload": stored}]
     monkeypatch.setattr(runs, "_read", lambda *args, **kwargs: rows)
     with pytest.raises(runs.RunError, match="does not validate against C4") as raised:
         list(runs.verify(None, "neo4j", [alert_id]))  # type: ignore[arg-type]
     assert f"alert {alert_id}:" in str(raised.value) and "typology" in str(raised.value)
-    assert "Secret Name" not in str(raised.value)
+    assert "Umber Garth" not in str(raised.value)
 
 
 def test_windows_from_days_and_the_overlay(tmp_path: Path) -> None:

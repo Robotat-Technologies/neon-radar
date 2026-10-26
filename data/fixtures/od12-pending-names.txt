@@ -1,0 +1,161 @@
+# synthetic: true
+#
+# Fixed synthetic names awaiting the OD-12 Companies House check, collected on 27 Oct 2026 from
+# the local unmerged branches (git diff origin/main...<branch> on fixtures, tests, docs and the
+# generator, plus each worktree's "Needs human check (OD-12)" notes). One name per line, then a
+# tab and its kind (company, person or place), then "# <branch>": the lowest branch of its stack
+# that adds it. Names already on origin/main outside docs/build are left out (checked before),
+# except those reconciliation N3 or a pull request still asks the operator to check, which say
+# so. Names generated at run time from word lists or ids are left out; f-string patterns are
+# listed by their stem. Names in Cyrillic script are not sent; their Latin spelling follows.
+#
+#   uv run python scripts/check_names_list.py data/fixtures/od12-pending-names.txt --list
+#   uv run python scripts/check_names_list.py data/fixtures/od12-pending-names.txt
+
+# Assignment 5 (on main)
+Calvane Holdings Ltd	company  # main (docs/team/assignment-5.md)
+Orvelle Services Ltd	company  # main (docs/team/assignment-5.md)
+Zorvex Trading FZE	company  # main (docs/team/assignment-5.md)
+Kestrow Partners	company  # main (docs/team/assignment-5.md)
+Орин Хаскарн	person  # main (docs/team/assignment-5.md; Latin spelling on the next line)
+Orin Haskarn	person  # main (docs/build/PHASE-4-CODE.md, the Latin spelling of the line above)
+
+# Generator v1: verbatim names and placeholders
+Synthetic Bank One plc	company  # p3/m3-3-generator-v1
+Synthetic Bank Two plc	company  # p3/m3-3-generator-v1
+Synthetic Bank Three plc	company  # p3/m3-3-generator-v1
+Synthetic Bank Four plc	company  # p3/m3-3-generator-v1
+Synthetic Bank Five plc	company  # p3/m3-3-generator-v1
+Synthetic Card Acquiring Ltd	company  # p3/m3-3-generator-v1 (reconciliation N3)
+Synthetic Business Lending plc	company  # p3/m3-3-generator-v1 (reconciliation N3)
+Synthetic Revenue Office	company  # p3/m3-3-generator-v1
+Synthetic Lending Ltd	company  # p3/m3-3-generator-v1 (stem of "Synthetic Lending <scenario> Ltd")
+Synthetic Mortgages plc	company  # p3/m3-3-generator-v1 (stem of "Synthetic Mortgages <scenario> plc")
+Synthetic Member of Assembly	company  # p3/m3-3-generator-v1 (position, stem of "... <n>")
+Synthetic Minister of Department	company  # p3/m3-3-generator-v1 (position, stem of "... <n>")
+Synthetic Programme 1	company  # p3/m3-3-generator-v1 (sanctions programme placeholder)
+Test Company 101	company  # p3/m3-3-generator-v1 (ingest/tests/test_synth_v1.py)
+Test Company 102	company  # p3/m3-3-generator-v1 (ingest/tests/test_synth_v1.py)
+Testcompany Ltd	company  # p3/m3-3-generator-v1 (names_simple.py stem of "Testcompany <n> Ltd")
+Testperson	person  # p3/m3-3-generator-v1 (names_simple.py stem of "Testperson <n>")
+Testlisted	person  # p3/m3-3-generator-v1 (names_simple.py stem of "Testlisted <n>")
+Teststreet	place  # p3/m3-3-generator-v1 (names_simple.py stem of "Teststreet <n>")
+Sedgemere Green	place  # p3/m3-3-generator-v1 (namesource.py docstring)
+Sorrel Tarn Freight Ltd	company  # p3/m3-3b-generator-review
+SORREL TARN FREIGHT LIMITED	company  # p3/m3-3b-generator-review (also "Sorrel Tarn Freight LIMITED")
+Teasel Wold Freight Ltd	company  # p3/m3-3b-generator-review (also "TEASEL WOLD FREIGHT LTD", p3/m3-3c)
+Teasel Wold Freight B.V.	company  # p3/m3-3c-generator-notes (a Dutch form)
+Teasel Wold Freight S.a r.l.	company  # p3/m3-3c-generator-notes (a Luxembourg form)
+Teasel Wold Freight GmbH	company  # p3/m3-3c-generator-notes (a German form)
+
+# Detection tests (reconciliation N3 and the detect kit)
+Test Holding Ltd	company  # p3/m3-2-detection-core (N3; also on main in graph/tests/test_invariants.py)
+Test Holder Ltd	company  # p3/m3-2-detection-core (N3; main records only a name-availability search)
+Test Offshore Ltd	company  # p3/m3-2-detection-core (N3; also on main in ingest/tests/test_synth_join.py)
+Test Mule Transport Ltd	company  # p3/m3-2-detection-core (N3)
+Shellfish Mule Ltd	company  # p3/m3-2-detection-core (detect/tests/test_wording_lint.py)
+Fixture Bank	company  # p3/m3-2-detection-core (detect/tests/kit.py default)
+Fixture Authority	company  # p3/m3-2-detection-core (detect/tests/kit.py default)
+Fixture Bank plc	company  # p3/m3-5a-cash-pass-through (N3)
+Test Listed Ltd	company  # p3/m3-5e-sanctions-exposure (N3; also on main in ingest/tests/test_synth_join.py)
+Test Person	person  # p3/m3-5f-extended-typologies (N3; also on main in tests)
+Test Intermediary	company  # p3/m3-5f-extended-typologies (N3; also on main in ingest/tests/test_synth_join.py)
+
+# Entity resolution core (base of m2-10b, m2-10c, m2-11, m2-12, m2-13, m2-14, m3-4 and m4-1)
+Testa Example	person  # p2/m2-10a-resolver-core (also "TESTA EXAMPLE")
+Testa Exampel	person  # p2/m2-10a-resolver-core
+EXAMPLE, Testa Maria	person  # p2/m2-10a-resolver-core
+Tex Ample	person  # p2/m2-10a-resolver-core
+Testa Quillmarsh	person  # p2/m2-10a-resolver-core
+Mohammed Testa	person  # p2/m2-10a-resolver-core
+Example Holder Ltd	company  # p2/m2-10a-resolver-core
+Example Holder & Sons Ltd	company  # p2/m2-10a-resolver-core
+Example Holder Plc	company  # p2/m2-10a-resolver-core
+Example Holdr Ltd	company  # p2/m2-10a-resolver-core
+The Example Holder Limited	company  # p2/m2-10a-resolver-core
+Holder Example	company  # p2/m2-10a-resolver-core
+Other Holder Ltd	company  # p2/m2-10a-resolver-core
+Example Trading Ltd	company  # p2/m2-10a-resolver-core
+Example Group	company  # p2/m2-10a-resolver-core
+Example Group UK	company  # p2/m2-10a-resolver-core
+EXAMPLE GROUP UK LIMITED	company  # p2/m2-10a-resolver-core
+Теста Экзампл	person  # p2/m2-10c-decisions (Cyrillic spelling of Testa Example)
+
+# Graph loader and API
+Syn Ada 0101	person  # p2/m2-11-graph-loader
+S. Ada 0101	person  # p2/m2-11-graph-loader
+Syn Ada 0103	person  # p2/m2-11-graph-loader
+Syn Person 0901	person  # p2/m2-11-graph-loader
+Syn Co 0102 Ltd	company  # p2/m2-11-graph-loader
+Syn Company 0001 Ltd	company  # p2/m2-11-graph-loader
+Syn Company 0901 Ltd	company  # p2/m2-11-graph-loader
+Test Holder T0000001 Ltd	company  # p2/m2-11-graph-loader
+Test Holder T0000002 Ltd	company  # p2/m2-11-graph-loader
+Sorrel Sike Trading Limited	company  # p2/m2-12-api
+Sorrel Sike Traders Ltd	company  # p2/m2-12-api
+Synthetic Path Company	company  # p2/m2-12-api (graph/tests/test_ownership_unit.py)
+Ada Example	person  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+A. Example	person  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+Ada Exampel	person  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+Ada Example Ltd	company  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+Test Subsidiary Ltd	company  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+Test Unknown Ltd	company  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+Test Holder 1 Ltd	company  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+Test Holder 2 Ltd	company  # p2/m2-13-profile-commands (older copy of a name p2/m2-11 replaced)
+syn-co-0001 Holdings	company  # p2/m2-13-2-load-bench (cli/tests/test_bench.py caption)
+
+# Labelling guide examples (benchmark names, also in the er-bench fixture)
+Salah al-Din Berqanyun	person  # p2/m2-14-er-docs (as "BERQANYUN, Salah al-Din")
+Salah Eddine Berkanyun	person  # p2/m2-14-er-docs (as "BERKANYUN, Salah Eddine")
+Pyotr Berbrafen	person  # p2/m2-14-er-docs (as "BERBRAFEN, Pyotr")
+Piotr Berbrafen	person  # p2/m2-14-er-docs (as "BERBRAFEN, Piotr")
+Petro Berbrafen	person  # p2/m2-14-er-docs (as "Dr Petro Berbrafen")
+Ostap Traselrim	person  # p2/m2-14-er-docs
+Ostap Trazelrim	person  # p2/m2-14-er-docs (also "Trazelrim Ostap")
+Остап Тразелрим	person  # p2/m2-14-er-docs (Cyrillic spelling of the two lines above)
+Wafaa Husayn Tharvinzel	person  # p2/m2-14-er-docs (as "Ms Wafaa Husayn Tharvinzel")
+Wafaa Khaled Tharvinzel	person  # p2/m2-14-er-docs (as "THARVINZEL, Wafaa Khaled")
+Lisa Andrea Mioskemio	person  # p2/m2-14-er-docs (as "Mrs Lisa Andrea Mioskemio")
+Gavin Solvosktesh	person  # p2/m2-14-er-docs (as "SOLVOSKTESH, Gavin")
+Gavin Alexander Solvosktesh	person  # p2/m2-14-er-docs (as "SOLVOSKTESH, Gavin Alexander")
+Maksim Arsenyevich Brakesber	person  # p2/m2-14-er-docs (as "MAKSIM ARSENYEVICH BRAKESBER")
+Kamal Toryunrim	person  # p2/m2-14-er-docs
+Marram Leat Catering Ltd	company  # p2/m2-14-er-docs
+MARRAM LEAT CATEIRNG LTD	company  # p2/m2-14-er-docs (a typo variant in the guide)
+Amber Acre Catering Ltd	company  # p2/m2-14-er-docs
+Amber Howe Holdings Ltd	company  # p2/m2-14-er-docs
+
+# OpenSanctions fixture
+Synthetic Person Epsilon	person  # p2/m2-7a-opensanctions-fetch
+Synthetic Example Company Zeta Ltd	company  # p2/m2-7a-opensanctions-fetch
+Synthetic Example Company Eta Ltd	company  # p2/m2-7a-opensanctions-fetch
+Synthetic Example Vessel Theta	company  # p2/m2-7a-opensanctions-fetch (a vessel)
+Synthetic Person Iota	person  # p2/m2-7-opensanctions
+
+# Official sanctions list fixtures (listed persons: new spellings of surnames already on main)
+Zafir Nadim Qandelouni	person  # p2/m2-6a-uk-sanctions (as "Zafir Nadim QANDELOUNI")
+Zafir Kandeluni	person  # p2/m2-6a-uk-sanctions (as "Zafir KANDELUNI")
+Rakan Ulvarazi	person  # p2/m2-6a-uk-sanctions (as "Rakan ULVARAZI")
+Yazan Zubeyrono	person  # p2/m2-6a-uk-sanctions (as "Yazan ZUBEYRONO")
+Petra Anne Marie Marlowe	person  # p2/m2-6a-uk-sanctions (the PHASE-1.md 5.1 officer contracts/ replaced unchecked)
+Teasel Quay Trading Limited	company  # p2/m2-6a-uk-sanctions
+Sorrel Sorrel Sike Trading Ltd	company  # p2/m2-6a-uk-sanctions
+MARRAM TOFT	company  # p2/m2-6a-uk-sanctions (a ship name)
+Tarnbury	place  # p2/m2-6a-uk-sanctions (town of birth)
+Yazan Ulvarasi	person  # p2/m2-6b-ofac (as "Yazan ULVARASI")
+Yazan Ulvarazy	person  # p2/m2-6b-ofac (as "Yazan ULVARAZY")
+Yazan Zafer Raqan Ulvarazi	person  # p2/m2-6b-ofac
+Zafir Rakan Qandelouni	person  # p2/m2-6b-ofac (as "Zafir Rakan QANDELOUNI")
+Sorrel Shire	place  # p2/m2-6b-ofac
+Zafer Kandelouni	person  # p2/m2-6c-un
+Zafir Kandelouni	person  # p2/m2-6c-un
+Zafir Y. Qandelouni	person  # p2/m2-6c-un
+Ракан Зубейроно	person  # p2/m2-6c-un (Cyrillic spelling of Rakan Zubeirono, on main)
+Copper Acre Interiors Limited	company  # p2/m2-6c-un
+Copper Acre Trading	company  # p2/m2-6c-un
+Marram Province	place  # p2/m2-6c-un
+Zafir Yazan Qandelouni	person  # p2/m2-6d-eu
+Nadim Ulvarasi	person  # p2/m2-6d-eu
+Lichen Heath Logistics Limited	company  # p2/m2-6d-eu
+
+# Tools: the names in this branch's own tests are all on main already (checked under OD-12).

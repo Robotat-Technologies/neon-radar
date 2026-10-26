@@ -96,28 +96,100 @@ def test_bench_report_renders_the_newest_summaries_with_targets_and_footer(
 ) -> None:
     from neonradar_cli import summary
 
-    steps = {"ingest_build": {"status": "ok", "duration_s": 30.0},
-             "graph_load": {"status": "ok", "duration_s": 700.0}}  # fmt: skip
+    steps = {"ingest_build": {"status": "ok", "duration_s": 430.0},
+             "graph_load": {"status": "ok", "duration_s": 300.0}}  # fmt: skip
     records = {"nr_synthetic": {"records": 454, "by_schema": {"payment": 243}, "version": None}}
     load = {"run_id": "load-1", "status": "ok", "real_data": False, "steps": steps,
             "records": records, "invariants": {"i1": 0}, "hardware": {"cpu_cores": 4}}  # fmt: skip
     summary.emit("demo", "load", load)
-    endpoints = {"search": {"calls": 3, "p50_ms": 4.0, "p95_ms": 9.0, "max_ms": 12.5,
-                            "results": 3, "timeouts": 0, "errors": 0}}  # fmt: skip
+    endpoints = {
+        name: {
+            "calls": 3,
+            "p50_ms": 4.0,
+            "p95_ms": 1990.0,
+            "max_ms": 3810.0,
+            "results": 3,
+            "timeouts": 0,
+            "errors": 0,
+        }
+        for name in bench.ENDPOINTS
+    }
+    endpoints["search"] |= {"p95_ms": 9.0, "max_ms": 12.5}  # fmt: skip
     summary.emit("demo", "bench queries", {"picked": 3, "eligible": 9, "seed": 1,
                                             "endpoints": endpoints})  # fmt: skip
     out = tmp_path / "demo-bench.md"
     result = runner.invoke(app, ["bench", "report", "--profile", "demo", "--out", str(out)])
     assert result.exit_code == 0, result.output
     text = out.read_text(encoding="utf-8")
-    assert "| graph load | ok | 700.0 |" in text and "| nr_synthetic | - | payment | 243 |" in text
-    assert "whole load 12.2 min, graph load under 10 minutes: not met" in text
-    assert "slowest query 0.01 s, demo queries under 2 seconds: met" in text
+    assert "| graph load | ok | 300.0 |" in text and "| nr_synthetic | - | payment | 243 |" in text
+    assert ("Targets (G2-09): graph load 5.0 min, under 10 minutes: met; ownership and paths p95"
+            " 1.99 s, under 2 seconds: met. Information only: whole load 12.2 min; slowest call"
+            " 3.81 s.") in text  # fmt: skip
     assert "| search | 3 | 4.0 | 9.0 | 12.5 | 3 | 0 | 0 |" in text
-    assert bench_report.targets({"status": "failed", "steps": {}}, None).endswith("not met.")
+    assert "Possible matches are not confirmed and were not merged." in text
+    assert "minutes: not met." in bench_report.targets({"status": "failed", "steps": {}}, None)
+    slow = {"status": "ok", "steps": {"graph_load": {"status": "ok", "duration_s": 600.0}}}
+    assert "graph load 10.0 min, under 10 minutes: not met" in bench_report.targets(slow, None)
+    endpoints["network"]["timeouts"] = 1  # a timeout anywhere: the query target is not met
+    line = bench_report.targets(None, {"endpoints": endpoints})
+    assert "under 2 seconds: not met (1 calls timed out or failed)" in line
     assert text.rstrip().splitlines()[-1].startswith("Sources and licences: NeonRadar synthetic")
 
 
 def test_bench_report_without_summaries_fails(data_env: Any, tmp_path: Any) -> None:
     result = runner.invoke(app, ["bench", "report", "--profile", "demo", "--out", str(tmp_path)])
     assert result.exit_code == 1 and "no load or bench-queries summary" in result.output
+
+
+def test_bench_report_refuses_an_edited_summary_and_attributes_the_profile(
+    data_env: Any, tmp_path: Any
+) -> None:
+    from neonradar_cli import summary
+
+    out = tmp_path / "report.md"
+    summary.emit("uk-tiny", "bench queries", {"picked": 0, "eligible": 0, "endpoints": {}})
+    result = runner.invoke(app, ["bench", "report", "--profile", "uk-tiny", "--out", str(out)])
+    assert result.exit_code == 0, result.output  # no load summary: the profile's sources
+    assert "Companies House" in out.read_text(encoding="utf-8").splitlines()[-1]
+    (data_env.cache / "reports" / "demo").mkdir(parents=True)
+    edited = {"status": "ok", "steps": {}, "note": "Test Holder Ltd"}  # a string under no key
+    (data_env.cache / "reports" / "demo" / "load-20261102T000000.json").write_text(
+        json.dumps(edited), encoding="utf-8"
+    )
+    result = runner.invoke(app, ["bench", "report", "--profile", "demo", "--out", str(out)])
+    assert result.exit_code == 1 and "Test Holder" not in result.output
+
+
+def test_eligible_reads_once_with_its_own_timeout() -> None:
+    from neo4j import RoutingControl
+
+    seen: dict[str, Any] = {}
+
+    class Driver:
+        def execute_query(self, query: Any, parameters: Any, **options: Any) -> Any:
+            seen.update(timeout=query.timeout, routing=options["routing_"], **parameters)
+            return SimpleNamespace(records=[{"id": "syn-co-0001"}])
+
+    graph = SimpleNamespace(call=lambda work: work(Driver(), "neo4j"))
+    assert bench.eligible(graph) == ["syn-co-0001"]  # type: ignore[arg-type]
+    assert seen == {"timeout": bench.ELIGIBLE_TIMEOUT_S, "routing": RoutingControl.READ,
+                    "limit": bench.ELIGIBLE_LIMIT}  # fmt: skip
+
+
+def test_bench_queries_gates_each_enabled_dataset_before_connecting(
+    data_env: Any, fake_api: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from neonradar_ingest.data import gate
+
+    checked: list[str | None] = []
+
+    def check(project: Any, profile: Any, dataset: str | None = None) -> None:
+        checked.append(dataset)
+        if dataset == "gleif_lei":  # as if its access had been withdrawn after the load
+            raise gate.RealDataRefused("access.test", "refused for the test")
+
+    monkeypatch.setattr(gate, "check_real_data", check)
+    FakeGraph.created = 0
+    result = runner.invoke(app, ["bench", "queries", "--profile", "uk-tiny", "--real"])
+    assert (result.exit_code, FakeGraph.created, fake_api) == (3, 0, []), result.output
+    assert checked[0] is None and checked[-1] == "gleif_lei" and "gb_companies_house" in checked

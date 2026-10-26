@@ -9,8 +9,10 @@ from typing import Annotated, Any
 
 import typer
 
-LOAD_TARGET_S = 600  # the plan: a graph load under 10 minutes
-QUERY_TARGET_MS = 2000  # the plan: demo queries under 2 seconds
+LOAD_TARGET_S = 600  # G2-09: the graph load under 10 minutes
+QUERY_TARGET_MS = 2000  # G2-09: ownership and paths queries p95 under 2 seconds
+TARGET_ENDPOINTS = ("ownership_up", "ownership_down", "paths")
+POSSIBLE = "Possible matches are not confirmed and were not merged."
 
 
 def newest(folder: Path, command: str) -> dict[str, Any] | None:
@@ -41,23 +43,48 @@ def table(head: tuple[str, ...], rows: list[tuple[Any, ...]]) -> list[str]:
     return [*lines, *("| " + " | ".join(cell(v) for v in row) + " |" for row in rows), ""]
 
 
+def _met(met: bool) -> str:
+    return "met" if met else "not met"
+
+
 def targets(load: dict[str, Any] | None, queries: dict[str, Any] | None) -> str:
-    """The line comparing the run with the plan's targets."""
-    parts = []
+    """The line comparing the run with G2-09: the `graph load` step (an ok load) under 10
+    minutes, and the p95 of /ownership and /paths under 2 seconds with no timeout or error on
+    any endpoint. The whole load and the slowest call follow as information only."""
+    parts, extra = [], []
     if load is not None:
-        total = sum(step["duration_s"] for step in load.get("steps", {}).values())
-        met = "met" if total < LOAD_TARGET_S and load.get("status") == "ok" else "not met"
-        parts.append(f"whole load {total / 60:.1f} min, graph load under 10 minutes: {met}")
+        steps = load.get("steps", {})
+        step, whole = steps.get("graph_load", {}), sum(s["duration_s"] for s in steps.values())
+        took = step.get("duration_s")
+        ok = load.get("status") == step.get("status") == "ok"
+        met = ok and took is not None and took < LOAD_TARGET_S
+        shown = "missing" if took is None else f"{took / 60:.1f} min"
+        parts.append(f"graph load {shown}, under 10 minutes: {_met(met)}")
+        extra.append(f"whole load {whole / 60:.1f} min")
     if queries is not None:
-        slowest = [e["max_ms"] for e in queries.get("endpoints", {}).values() if e["max_ms"]]
-        worst = max(slowest, default=0.0)
-        met = "met" if worst < QUERY_TARGET_MS else "not met"
-        parts.append(f"slowest query {worst / 1000:.2f} s, demo queries under 2 seconds: {met}")
-    return "Targets (the plan): " + ("; ".join(parts) or "no summary to compare") + "."
+        endpoints = queries.get("endpoints", {})
+        p95 = [endpoints.get(name, {}).get("p95_ms") for name in TARGET_ENDPOINTS]
+        failed = sum((e.get("timeouts") or 0) + (e.get("errors") or 0) for e in endpoints.values())
+        met = not failed and all(ms is not None and ms < QUERY_TARGET_MS for ms in p95)
+        worst = max((ms for ms in p95 if ms is not None), default=None)
+        shown = "missing" if worst is None else f"{worst / 1000:.2f} s"
+        note = f" ({failed} calls timed out or failed)" if failed else ""
+        parts.append(f"ownership and paths p95 {shown}, under 2 seconds: {_met(met)}{note}")
+        slowest = [e["max_ms"] for e in endpoints.values() if e.get("max_ms") is not None]
+        if slowest:
+            extra.append(f"slowest call {max(slowest) / 1000:.2f} s")
+    line = "Targets (G2-09): " + ("; ".join(parts) or "no summary to compare") + "."
+    return line + (f" Information only: {'; '.join(extra)}." if extra else "")
 
 
-def render(profile: str, load: dict[str, Any] | None, queries: dict[str, Any] | None) -> str:
-    from neonradar_resolve.precision import _sources  # the 7.3 rule 8 footer
+def render(
+    profile: str,
+    load: dict[str, Any] | None,
+    queries: dict[str, Any] | None,
+    datasets: list[str],
+) -> str:
+    """The report; `datasets` name the 7.3 rule 8 footer when the load summary has no records."""
+    from neonradar_resolve.precision import sources_footer
 
     lines = [f"# Load benchmark: {profile}", "", targets(load, queries), ""]
     if load is not None:
@@ -76,6 +103,7 @@ def render(profile: str, load: dict[str, Any] | None, queries: dict[str, Any] | 
                            ("Invariants", "invariants"), ("Hardware", "hardware")):  # fmt: skip
             rows = list(sorted(flat(load.get(key, {})).items()))
             lines += [f"## {title}", "", *table(("Count", "Value"), rows)]
+            lines += [POSSIBLE, ""] if key == "resolution" else []
     if queries is not None:
         lines += ["## Queries", "", f"{queries.get('picked')} of {queries.get('eligible')}"
                   f" eligible entities, seed {queries.get('seed')}.", ""]  # fmt: skip
@@ -83,8 +111,8 @@ def render(profile: str, load: dict[str, Any] | None, queries: dict[str, Any] | 
         keys = ("calls", "p50_ms", "p95_ms", "max_ms", "results", "timeouts", "errors")
         endpoints = queries.get("endpoints", {})
         lines += table(head, [(name, *(e.get(k) for k in keys)) for name, e in endpoints.items()])
-    datasets = (load or {}).get("records", {})
-    lines.append(f"Sources and licences: {_sources(datasets) or 'no dataset loaded.'}")
+    footer = sources_footer(list((load or {}).get("records", {})) or datasets)
+    lines.append(f"Sources and licences: {footer or 'no dataset loaded.'}")
     return "\n".join(lines) + "\n"
 
 
@@ -95,7 +123,9 @@ def report_command(
     ] = None,
 ) -> None:
     """Render the newest load and bench-queries summaries of a profile (counts only)."""
+    from neonradar_cli import summary
     from neonradar_cli.data import profile_or_exit
+    from neonradar_cli.load import STRING_KEYS
     from neonradar_ingest.data import layout
     from neonradar_ingest.data.project import REPO_ROOT
 
@@ -105,8 +135,15 @@ def report_command(
     if load is None and queries is None:
         typer.echo(f"FAIL  no load or bench-queries summary for {chosen.profile}", err=True)
         raise typer.Exit(code=1)
+    try:  # checked again, so a summary edited by hand never reaches docs/
+        load = None if load is None else summary.clean(load, string_keys=STRING_KEYS)
+        queries = None if queries is None else summary.clean(queries)
+    except summary.SummaryRefused as refused:  # the message names the key, never the value
+        typer.echo(f"FAIL  {refused}", err=True)
+        raise typer.Exit(code=1) from None
+    enabled = [name for name, source in chosen.sources.items() if source.enabled]
     day = datetime.now(UTC).date().isoformat()
     path = out or REPO_ROOT / "docs" / "data" / "benchmarks" / f"{day}-{chosen.profile}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render(chosen.profile, load, queries), encoding="utf-8")
+    path.write_text(render(chosen.profile, load, queries, enabled), encoding="utf-8")
     typer.echo(f"wrote {path}")

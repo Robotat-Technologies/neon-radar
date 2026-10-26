@@ -18,12 +18,15 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 if TYPE_CHECKING:
+    from neo4j import Driver
+
     from neonradar_api.graph import GraphConnection
 
 app = typer.Typer(help="Benchmarks of a loaded profile (counts and timings only).")
 
 ENDPOINTS = ("ownership_up", "ownership_down", "paths", "network", "search")
 ELIGIBLE_LIMIT = 10_000_000
+ELIGIBLE_TIMEOUT_S = 120.0  # the one full scan; the API's routes keep their own limit
 
 
 def pick(ids: Sequence[str], n: int, seed: int) -> list[str]:
@@ -101,12 +104,21 @@ def measure(graph: GraphConnection, picks: Sequence[str]) -> dict[str, dict[str,
 
 
 def eligible(graph: GraphConnection) -> list[str]:
-    from neonradar_graph import cypher
-    from neonradar_graph.ownership import read
+    """The eligible ids: one full scan in a READ transaction with its own timeout, not the
+    API's per-query limit (a cold scan of a large profile can take longer)."""
+    from neo4j import Query, RoutingControl
 
-    text = cypher.query("bench_entities.cypher")
-    rows = graph.call(lambda driver, db: read(driver, db, text, {"limit": ELIGIBLE_LIMIT}))
-    return [str(row["id"]) for row in rows]
+    from neonradar_graph import cypher
+
+    query = Query(cypher.query("bench_entities.cypher"), timeout=ELIGIBLE_TIMEOUT_S)
+
+    def scan(driver: Driver, database: str) -> list[Any]:
+        found = driver.execute_query(
+            query, {"limit": ELIGIBLE_LIMIT}, database_=database, routing_=RoutingControl.READ
+        )
+        return list(found.records)
+
+    return [str(row["id"]) for row in graph.call(scan)]
 
 
 @app.command(name="queries")

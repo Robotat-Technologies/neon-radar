@@ -278,6 +278,11 @@ def _sources(datasets: Iterable[str]) -> str:
     return " ".join(parts)
 
 
+def sources_footer(datasets: Iterable[str]) -> str:
+    """The 7.3 rule 8 footer for `datasets` (public: `neonradar bench report` reuses it)."""
+    return _sources(datasets)
+
+
 def readme_sentence(outcome: Outcome, on: date, *, real_data: bool, profile: str) -> str:
     """7.3 rule 7, with the values filled in (a synthetic profile names itself, not the UK
     register)."""

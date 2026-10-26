@@ -188,7 +188,7 @@ def test_one_merged_entity_follows_the_merge_rules(
 
 def changed_run(run_dir: Path, folder: Path) -> tuple[Path, list[str]]:
     """A copy of `run_dir` under a new run id in which two more person records are merged
-    (by a human decision, as canonical.csv would record it)."""
+    (by a deterministic rule, as canonical.csv would record it)."""
     changed = folder / "er-20261023T130000-0e0f"
     shutil.copytree(run_dir, changed)
     summary = json.loads((changed / "run.json").read_text(encoding="utf-8"))
@@ -207,14 +207,15 @@ def changed_run(run_dir: Path, folder: Path) -> tuple[Path, list[str]]:
     anchor = min(pair)
     for row in rows:
         if row["record_id"] in pair:
-            human = row["record_id"] != anchor
+            linked = row["record_id"] != anchor
             row.update(
                 canonical_id=f"nr-{anchor}",
                 cluster_size="2",
-                method="human" if human else "anchor",
+                method="deterministic" if linked else "anchor",
+                rule="D1" if linked else "",
                 match_probability="1.0",
-                via=anchor if human else "",
-                path_methods="human" if human else "",
+                via=anchor if linked else "",
+                path_methods="deterministic" if linked else "",
             )
     with (changed / "canonical.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]), lineterminator="\n")
@@ -227,13 +228,15 @@ def test_a_changed_run_leaves_no_superseded_node(
     graph_db: Neo4jTarget, demo_resolution: Path, tmp_path: Path
 ) -> None:
     load_demo(graph_db, demo_resolution)
+    (first,) = query(graph_db, "MATCH (n) WHERE n:Entity OR n:SourceRecord RETURN count(n) AS n")
     changed, pair = changed_run(demo_resolution, tmp_path)
     report = load_demo(graph_db, changed)
     assert verify(graph_db.driver, graph_db.database) == NONE  # I13 among them
     assert query(graph_db, "MATCH (e:Entity) WHERE e.id IN $ids RETURN e.id", ids=pair) == []
     merged = "MATCH (e:Entity {id: $id}) RETURN e.cluster_size AS size, e.resolution AS how"
-    assert query(graph_db, merged, id=f"nr-{min(pair)}") == [{"size": 2, "how": "human"}]
-    assert report.superseded_removed > 0 and report.resolution_run == changed.name
+    assert query(graph_db, merged, id=f"nr-{min(pair)}") == [{"size": 2, "how": "deterministic"}]
+    # the L9 purge removes every entity and source record of the first load
+    assert report.superseded_removed == first["n"] and report.resolution_run == changed.name
 
 
 def test_a_load_without_a_resolution_run_gives_the_phase_1_counts(graph_db: Neo4jTarget) -> None:

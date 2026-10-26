@@ -150,7 +150,9 @@ def test_bench_report_refuses_an_edited_summary_and_attributes_the_profile(
     summary.emit("uk-tiny", "bench queries", {"picked": 0, "eligible": 0, "endpoints": {}})
     result = runner.invoke(app, ["bench", "report", "--profile", "uk-tiny", "--out", str(out)])
     assert result.exit_code == 0, result.output  # no load summary: the profile's sources
-    assert "Companies House" in out.read_text(encoding="utf-8").splitlines()[-1]
+    footer = out.read_text(encoding="utf-8").splitlines()[-1]
+    assert "Companies House" in footer  # and not the datasets project.yaml leaves out
+    assert "United Nations" not in footer and "Parliament" not in footer
     (data_env.cache / "reports" / "demo").mkdir(parents=True)
     edited = {"status": "ok", "steps": {}, "note": "Test Holder Ltd"}  # a string under no key
     (data_env.cache / "reports" / "demo" / "load-20261102T000000.json").write_text(

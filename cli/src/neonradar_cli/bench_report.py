@@ -124,7 +124,7 @@ def report_command(
 ) -> None:
     """Render the newest load and bench-queries summaries of a profile (counts only)."""
     from neonradar_cli import summary
-    from neonradar_cli.data import profile_or_exit
+    from neonradar_cli.data import profile_or_exit, project_or_exit
     from neonradar_cli.load import STRING_KEYS
     from neonradar_ingest.data import layout
     from neonradar_ingest.data.project import REPO_ROOT
@@ -141,7 +141,7 @@ def report_command(
     except summary.SummaryRefused as refused:  # the message names the key, never the value
         typer.echo(f"FAIL  {refused}", err=True)
         raise typer.Exit(code=1) from None
-    enabled = [name for name, source in chosen.sources.items() if source.enabled]
+    enabled = chosen.enabled_sources(project_or_exit())  # as `bench queries` gates them
     day = datetime.now(UTC).date().isoformat()
     path = out or REPO_ROOT / "docs" / "data" / "benchmarks" / f"{day}-{chosen.profile}.md"
     path.parent.mkdir(parents=True, exist_ok=True)

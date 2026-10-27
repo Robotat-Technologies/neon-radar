@@ -6,6 +6,7 @@ so no acceptance command ever touches real data (G9). With both open, a profile 
 records built here gets its overlay under its real-data folder, and the command prints counts
 only. Every folder lives in the `data_env` tmp tree."""
 
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -61,7 +62,7 @@ def test_a_listed_real_profile_gets_its_overlay_with_counts_only(
 ) -> None:
     data = yaml.safe_load((data_env.profiles / "uk-tiny.yaml").read_text(encoding="utf-8"))
     data |= {"profile": "uk-test", "resolution": {"enabled": False}}
-    data["overlay"] |= {"end": "2025-02-01", "illicit": 0, "lookalikes": 0}
+    data["overlay"] |= {"end": "2025-07-01", "illicit": 1, "lookalikes": 1}
     data["overlay"]["typologies"] = ["circular_flow"]
     (data_env.profiles / "uk-test.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
     folder = layout.records_dir("uk-test", "gb_companies_house")
@@ -85,3 +86,13 @@ def test_a_listed_real_profile_gets_its_overlay_with_counts_only(
     written = layout.overlay_dir("uk-test", overlay_id)
     assert written.is_relative_to(data_env.cache / "real" / "overlay" / "uk-test")
     assert (written / "overlay.json").is_file() and (written / "labels").is_dir()
+    ids = [  # deliverable 3: a real profile's labels name only synthetic overlay ids
+        row[column]
+        for name, column in (("transactions.csv", "tx_id"), ("participants.csv", "object_id"))
+        for row in csv.DictReader(
+            line
+            for line in (written / "labels" / name).read_text(encoding="utf-8").splitlines()
+            if not line.startswith("#")
+        )
+    ]
+    assert ids and all(value.startswith("syn-ov-") for value in ids)

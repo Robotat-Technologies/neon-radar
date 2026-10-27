@@ -298,7 +298,10 @@ def test_a_real_profile_runs_behind_the_gate_and_prints_counts_only(
         record = runs.RunRecord(
             kw["run_id"], kw["runs_dir"] / kw["run_id"], "x", "neo4j", "uk-tiny"
         )
-        record.summary = {"run_id": kw["run_id"], "alerts": 0, "withheld": {"activity_on_real": 2}}
+        memory = detect._memory_source(None, None)  # the runner's own summary shape (demo-mini)
+        record.summary = runner.run_detection(
+            memory, params, window, catalog, run_id=kw["run_id"], created_at=datetime.now(UTC)
+        ).summary
         return record
 
     monkeypatch.setattr(runs, "run", fake_run)
@@ -315,4 +318,10 @@ def test_a_real_profile_runs_behind_the_gate_and_prints_counts_only(
     assert result.exit_code == 0, result.output
     assert seen["runs_dir"] == data_env.cache / "real" / "runs" / "uk-tiny"
     printed = json.loads(result.output)
-    assert (printed["profile"], printed["withheld"]) == ("uk-tiny", {"activity_on_real": 2})
+    assert (printed["profile"], printed["alerts"]) == ("uk-tiny", 1)  # demo-mini's round trip
+    assert printed["window"] == {"start": "2025-01-01T00:00:00Z", "end": "2026-07-01T00:00:00Z"}
+    [report] = (data_env.cache / "reports" / "uk-tiny").glob("detect-run-*.json")
+    assert json.loads(report.read_text(encoding="utf-8")) == printed
+    monkeypatch.setattr(runner, "params_sha256", lambda params: "not short!")
+    result = invoke("run", "--profile", "uk-tiny", *window)  # a refused summary: the guard's line
+    assert result.exit_code == 1 and "SummaryRefused, step summary" in result.output

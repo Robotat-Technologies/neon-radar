@@ -107,6 +107,11 @@ def overlay_command(
 
     project, chosen = project_or_exit(), profile_or_exit(profile)
     with redact.guard(chosen, "synth overlay") as where:
+        if chosen.real_data:  # the gate step keeps no traceback on an unapproved machine
+            from neonradar_ingest.data import gate
+
+            where.step = "gate"
+            gate.check_real_overlay(project, chosen)  # make_overlay checks it again
         where.step = "overlay"
         try:
             written = make_overlay(chosen, seed, base, out, project=project, git_sha=_git_sha())
@@ -115,20 +120,21 @@ def overlay_command(
                 raise
             typer.echo(f"FAIL  {exc}", err=True)
             raise typer.Exit(code=exc.exit_code) from None
-    stats = written.stats
-    _report(
-        chosen.profile,
-        "synth overlay",
-        written,
-        {
-            "overlay_id": written.overlay_id,
-            "eligible_organisations": stats["eligible_organisations"],
-            "active_organisations": stats["active_organisations"],
-            "skipped_organisations": stats["skipped_organisations"],
-            "scenarios": stats["scenarios"],
-        },
-        real=chosen.real_data,
-    )
+        where.step = "summary"  # a real profile's summary is written inside the guard too
+        stats = written.stats
+        _report(
+            chosen.profile,
+            "synth overlay",
+            written,
+            {
+                "overlay_id": written.overlay_id,
+                "eligible_organisations": stats["eligible_organisations"],
+                "active_organisations": stats["active_organisations"],
+                "skipped_organisations": stats["skipped_organisations"],
+                "scenarios": stats["scenarios"],
+            },
+            real=chosen.real_data,
+        )
 
 
 @app.command(name="demo-mini")

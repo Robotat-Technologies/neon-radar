@@ -47,8 +47,10 @@
     with `--overlay latest`, after `gate.check_real_overlay` (the gate, then
     `access.real_overlay_profiles`, exit 3), and prints counts only. `graph verify` prints I1 to
     I17. Tests replace `overlay.load_overlay`.
-  - Real profiles in `synth overlay` and `detect run --profile` (M3.4): both run inside
-    `redact.guard` after the gate and print the counts-only summary; `detect run` writes under
+  - Real profiles in `synth overlay` and `detect run --profile` (M3.4): both run the gate
+    (step `gate`) and write the counts-only summary (step `summary`, `detect run` with the
+    window bounds and `params_sha256` as allowed strings) inside `redact.guard`; `detect run`
+    gates each enabled dataset as `graph load` does, and writes under
     `layout.runs_dir` for every profile; `verify-alert` refuses a real profile (it lists alert
     ids). Tests build look-alikes in the `data_env` tmp tree and fake `runs.run`.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,

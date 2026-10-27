@@ -30,6 +30,8 @@ if TYPE_CHECKING:
 app = typer.Typer(help="Detection runs.", no_args_is_help=True)
 
 QUERY_TIMEOUT_S = 600.0  # PHASE-3.md 7.1.2 rule 6
+# The runner summary's strings beyond summary.STRING_KEYS: the window bounds and the hash.
+SUMMARY_STRINGS = ("start", "end", "params_sha256")
 
 
 def _quiet_notifications() -> None:
@@ -240,9 +242,12 @@ def run_command(
             from neonradar_ingest.data import gate
 
             where = stack.enter_context(redact.guard(real_profile, "detect run", real=True))
-            where.step = "gate"
+            where.step = "gate"  # the profile, then each dataset it enables, as graph load
             gate.check_real_data(project, real_profile)
-            where.step = "detect"
+            for dataset in real_profile.enabled_sources(project):
+                where.dataset = dataset
+                gate.check_real_data(project, real_profile, dataset)
+            where.step, where.dataset = "detect", None
         overlay = _overlay_folder(profile) if profile else None
         load: Callable[[RunRecord], None] | None = None
         if engine == "memory":
@@ -272,11 +277,13 @@ def run_command(
             if real:
                 raise
             raise _fail(str(error)) from None
-    if real_profile is not None:
-        from neonradar_cli import summary
+        if real_profile is not None:  # counts only, still inside the guard (7.7 rule 6)
+            from neonradar_cli import summary
 
-        summary.emit(real_profile, "detect run", {"profile": record.profile, **record.summary})
-        return
+            where.step = "summary"
+            counts = {"profile": record.profile, **record.summary}
+            summary.emit(real_profile, "detect run", counts, string_keys=SUMMARY_STRINGS)
+            return
     _print(record)
 
 

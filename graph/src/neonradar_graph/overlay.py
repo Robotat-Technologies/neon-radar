@@ -234,10 +234,11 @@ def refuse_protected(folder: Path, instance: Instance) -> None:
     """Exit 3 before anything is read when the folder, or an entry of it, resolves into a
     protected data/cache folder: on the default instance real data, spike output and the holdout
     and held-out runs; on the real-data instance the last three (G9, G11). Only names are
-    compared (case-folded, as APFS and NTFS are case-insensitive); no file is opened."""
+    compared (case-folded, as APFS and NTFS are case-insensitive); no file is opened, and the
+    folder's entries are listed only once the folder itself has passed."""
     protected = PROTECTED if instance is Instance.DEFAULT else PROTECTED[1:]
-    paths = [folder, *(sorted(folder.iterdir()) if folder.is_dir() else [])]
-    for path in paths:
+
+    def check(path: Path) -> None:
         parts = [part.casefold() for part in path.resolve().parts]
         if any(
             parts[i : i + 2] == ["data", "cache"] and parts[i + 2] in protected
@@ -247,6 +248,10 @@ def refuse_protected(folder: Path, instance: Instance) -> None:
                 f"the overlay lies in a protected data/cache folder for the {instance} instance"
                 " (G9, G11); nothing was read"
             )
+
+    check(folder)
+    for path in sorted(folder.iterdir()) if folder.is_dir() else []:
+        check(path)
 
 
 def load_overlay(
@@ -275,6 +280,8 @@ def load_overlay(
         raise InstanceRefused(f"the database does not belong to the {instance} instance (L17)")
     refuse_protected(folder, instance)
     meta = read_meta(folder)
+    if meta["profile"] != profile:  # before any record of another profile's overlay is read
+        raise OverlayRefused(f"{OVERLAY_JSON} does not name the profile {profile} (L18)")
     loaded = read_input([folder])
     plan, refs = plan_overlay(loaded.records, meta, profile)
     if instance is Instance.DEFAULT:  # L17 on the records and manifests too

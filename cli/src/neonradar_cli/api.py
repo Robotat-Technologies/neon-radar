@@ -7,8 +7,11 @@ conditions 3 to 5 of the real-data gate (M2.2) before any connection, binds 127.
 `REAL_PORT` and connects through `Instance.REAL`. Agents never run it (G9, G10). A request line
 holds ids and names, so it has no access log and logs warnings only: errors name the route
 template and the class, and their tracebacks go to the redacted log under data/cache/real/logs.
+The driver's and the HTTP clients' loggers are held at WARNING: their debug lines print query
+parameters (ids and names).
 """
 
+import logging
 from functools import partial
 from typing import Annotated, Final
 
@@ -21,6 +24,8 @@ HOST: Final = "127.0.0.1"
 DEFAULT_PORT: Final = 8000
 REAL_PORT: Final = 8001
 REAL_COMMAND: Final = "api serve --real"
+# Their DEBUG and INFO lines can carry query parameters or URLs: never below WARNING on real data.
+QUIET_LOGGERS: Final = ("neo4j", "httpx", "httpcore")
 
 
 @app.command(name="serve")
@@ -70,6 +75,8 @@ def serve_command(
         where.step = "gate"
         gate.check_real_instance(project)
         where.step = "serve"
+        for name in QUIET_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
         report = partial(redact.report, command=REAL_COMMAND, step="request")
         served = create_app(GraphConnection(Instance.REAL.settings), report=report)
         typer.echo(

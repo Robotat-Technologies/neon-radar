@@ -21,7 +21,8 @@ from neonradar_contracts.api import (
     SearchResponse,
     Subgraph,
 )
-from neonradar_graph import shapes
+from neonradar_graph import cypher, shapes
+from neonradar_graph.ownership import pick_entity
 
 # Every type C3 shows (C3 1.1.0: the 16 built from records and POSSIBLY_SAME_AS).
 SHOWN_TYPES: Final[list[str]] = list(get_args(RelationshipType))
@@ -50,26 +51,8 @@ WITH coalesce(e, s) AS root
 WHERE root IS NOT NULL
 """
 # Entity detail also takes the id of a record merged into an entity (C3 1.1.0: any id in
-# `referents`), through its :SourceRecord and RESOLVED_TO.
-DETAIL_ROOT: Final = """
-OPTIONAL MATCH (e:Entity {id: $id})
-OPTIONAL MATCH (s:Sanction {id: $id})
-OPTIONAL MATCH (:SourceRecord {id: $id})-[:RESOLVED_TO]->(m:Entity)
-WITH coalesce(e, s, m) AS root
-WHERE root IS NOT NULL
-"""
-DETAIL: Final = (
-    DETAIL_ROOT
-    + """
-CALL (root) {
-  MATCH (root)-[r]-()
-  WHERE type(r) IN $types
-  WITH type(r) AS type, count(DISTINCT r) AS count
-  RETURN collect([type, count]) AS counts
-}
-RETURN {props: properties(root), labels: labels(root)} AS node, counts
-"""
-)
+# `referents`), through its :SourceRecord and RESOLVED_TO; one row per entity found.
+DETAIL: Final = cypher.query("entity_detail.cypher")
 # Breadth first: each hop expands only the nodes the previous hop found, keeps at most
 # $max_nodes new ones, and the result keeps the nearest $max_nodes nodes.
 _START: Final = ROOT + "WITH [root] AS seen, [root] AS frontier\n"
@@ -158,8 +141,11 @@ def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
     records = graph.read(DETAIL, {"id": entity_id, "types": SHOWN_TYPES})
     if not records:
         raise ProblemError(404, NOT_FOUND)
-    node = records[0]["node"]
-    counts: list[tuple[RelationshipType, int]] = records[0]["counts"]
+    # A record id merged into two entities breaks I7: refuse, as the C3 1.1.0 routes do.
+    by_id = {str(record["node"]["props"]["id"]): record for record in records}
+    record = by_id[pick_entity(entity_id, list(by_id))]
+    node = record["node"]
+    counts: list[tuple[RelationshipType, int]] = record["counts"]
     props = node["props"]
     flagged = alerts.queue(graph, entity_id=str(props["id"]), limit=MAX_ENTITY_ALERTS)
     return EntityDetail(

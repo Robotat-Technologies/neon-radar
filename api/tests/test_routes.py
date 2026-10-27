@@ -186,6 +186,9 @@ class TimedOutGraph(GraphConnection):
 def test_the_phase_2_routes_answer_503_problems_with_advice_on_timeouts(url: str) -> None:
     with TestClient(create_app(TimedOutGraph()), raise_server_exceptions=False) as test_client:
         problem = _problem(test_client.get(url), 503)
+    if url.split("?")[0].endswith("/resolution"):  # no max_hops or rel_types to advise on
+        assert problem.detail == "The query did not finish within 5 seconds."
+        return
     assert problem.detail == (
         "The query did not finish within 5 seconds. Try again with a smaller max_hops or fewer"
         " relationship types."

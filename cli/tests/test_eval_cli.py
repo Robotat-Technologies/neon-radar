@@ -6,8 +6,10 @@ CI seed's run with the baseline's own rows for the merged detectors, so they che
 command prints and returns; the CI `eval` job runs the seed itself."""
 
 import json
+from contextlib import nullcontext
 from datetime import UTC, date, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -15,7 +17,8 @@ from typer.testing import CliRunner
 
 from neonradar_cli import eval_commands, evaluate, tty
 from neonradar_cli.main import app
-from neonradar_detect import catalog, runner
+from neonradar_contracts.alert import Alert
+from neonradar_detect import catalog, runner, runs
 from neonradar_ingest.data import layout
 from neonradar_ingest.data.profiles import load_profile
 from neonradar_ingest.synth import overlay, world
@@ -158,8 +161,89 @@ def test_a_development_run_writes_its_folder(cache: Path, monkeypatch: pytest.Mo
     assert json.loads((folder / "seeds.json").read_text(encoding="utf-8"))["2"]["record_sha256"]
     assert (folder / "seed-2" / "labels" / "manifest.json").is_file()
     alerts = (folder / "seed-2" / "alerts.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(alerts) == report["typologies"]["circular_flow"]["alerts"]
+    assert len(alerts) == sum(row["alerts"] for row in report["typologies"].values())
+    for line in alerts:  # C4 alerts, with the evidence query's hash as `detect run` writes it
+        alert = Alert.model_validate_json(line)
+        assert alert.detector.query_sha256 == runs.EVIDENCE_SHA256
     assert "| `circular_flow` |" in result.output and (folder / "report.md").is_file()
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"NEO4J_URI": "bolt://127.0.0.1:7688"},
+        {"NEO4J_URI": "neo4j://localhost:7688/"},
+        {"NEO4J_DATABASE": "realdata"},
+        {"NEO4J_URI": "bolt://127.0.0.1:17699", "NR_NEO4J_REAL_URI": "bolt://127.0.0.1:17699"},
+    ],
+)
+def test_the_neo4j_engine_refuses_the_real_instance(
+    cache: Path, no_seed_runs: None, monkeypatch: pytest.MonkeyPatch, env: dict[str, str]
+) -> None:
+    """Refused from the settings alone (C2 L17): `_connected` fails the test if it is reached."""
+    monkeypatch.setenv("NEO4J_PASSWORD", "unused")
+    monkeypatch.delenv("NR_NEO4J_REAL_URI", raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(eval_commands, "load_settings", lambda name: SMALL)
+    monkeypatch.setattr(eval_commands, "_connected", lambda *a: pytest.fail("it connected"))
+    result = cli.invoke(app, ["eval", "run", "--split", "dev", "--seeds", "2", "--engine", "neo4j"])
+    assert result.exit_code == 3, result.output
+    assert "names the real-data instance" in result.output
+    assert not cache.exists()
+
+
+def test_the_default_instance_passes_the_real_instance_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("NR_NEO4J_REAL_URI", raising=False)
+    eval_commands.refuse_real_instance("bolt://localhost:7687", "neo4j")
+    eval_commands.refuse_real_instance("bolt://neo4j:7687", "neo4j")
+
+
+@pytest.mark.parametrize(
+    ("message", "code"),
+    [
+        ("a holdout seed runs only through `eval run --split test` (G11)", 2),
+        ("scenario syn-sc-x may not use syn-co-y", 1),
+    ],
+)
+def test_only_the_holdout_refusal_exits_2(
+    cache: Path, monkeypatch: pytest.MonkeyPatch, message: str, code: int
+) -> None:
+    def refuse(*args: Any, **kwargs: Any) -> None:
+        raise PermissionError(message)
+
+    monkeypatch.setattr(eval_commands, "load_settings", lambda name: SMALL)
+    monkeypatch.setattr(evaluate, "run_seed", refuse)
+    result = cli.invoke(app, ["eval", "run", "--split", "dev", "--seeds", "2"])
+    assert result.exit_code == code, result.output
+    assert message in result.output
+
+
+def test_the_holdout_run_prints_no_figures(cache: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Past the gate (patched: it refuses until M3.11), the holdout figures go to holdout_dir only.
+    `run_seed` is a stand-in, so no world is generated."""
+    stand_in = frozenset(range(1, 11))  # not holdout seeds: people choose those in M3.11 (G11)
+    monkeypatch.setattr(eval_commands, "_holdout_gate", lambda: stand_in)
+    monkeypatch.setattr(eval_commands, "load_settings", lambda name: SMALL)
+    monkeypatch.setattr(eval_commands, "_source_factory", lambda engine, timeout: nullcontext())
+
+    def run(seed: int, *args: Any, allow_holdout: bool, **kwargs: Any) -> SimpleNamespace:
+        assert allow_holdout and args[3] == "test"
+        (args[4] / f"seed-{seed}").mkdir()
+        counts = {"records": 5, "alerts": 7}
+        return SimpleNamespace(seed=seed, counts=counts, seconds={"detect": 0.1}, alerts=())
+
+    monkeypatch.setattr(evaluate, "run_seed", run)
+    monkeypatch.setattr(eval_commands, "_write_run", lambda *args: "| the holdout table |")
+    result = cli.invoke(app, ["eval", "run", "--split", "test"])
+    assert result.exit_code == 0, result.output
+    printed, _, last = result.output.rpartition("wrote ")
+    (folder,) = (cache / "holdout").iterdir()
+    assert last == f"{folder}\n"
+    assert "table" not in printed and "alerts" not in printed
+    assert "seed 1: 5 records (detect 0.1 s)" in printed
 
 
 @pytest.mark.integration

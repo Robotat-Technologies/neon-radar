@@ -38,8 +38,12 @@
     the human-only holdout run (G11): never run it; it has no short form or envvar, and it
     refuses (exit 2) without a terminal, in CI, without `eval/freeze.json` and, until M3.11
     replaces `freeze_differences`, always. Its tests patch `layout.CACHE_ROOT`, `FREEZE_FILE`
-    and `evaluate.run_seed`. `--engine neo4j` wipes `NEO4J_URI` after refusing non-synthetic
-    nodes (C2 L17).
+    and `evaluate.run_seed`. `--engine neo4j` wipes `NEO4J_URI`: it first refuses (exit 3) a
+    URI or database of the real-data instance by comparing strings, never by connecting, then
+    non-synthetic records and nodes (C2 L17; the guard query is graph's
+    `queries/non_synthetic_nodes.cypher`). `seed-<n>/alerts.jsonl` holds C4 alerts with the
+    evidence query's hash, as `detect run` writes them. The holdout run prints no figures; only
+    the development run prints its table.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

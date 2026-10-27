@@ -16,18 +16,22 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Annotated, Any
+from urllib.parse import urlsplit
 
 import typer
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from neonradar_cli import evaluate
 from neonradar_cli.graph import Timeout, _connected, _settings
+from neonradar_graph.client import ENV_FILE
 from neonradar_ingest.data.project import REPO_ROOT
 
 if TYPE_CHECKING:
@@ -43,12 +47,20 @@ FREEZE_FILE = REPO_ROOT / "eval" / "freeze.json"
 BASELINE_FILE = REPO_ROOT / "eval" / "baselines" / "ci.json"
 HOLDOUT_SEEDS = 10
 QUERY_TIMEOUT_S = 600.0  # PHASE-3.md 7.1.2 rule 6, as `detect run`
-# Non-synthetic nodes of the default instance (C2 L17): any `synthetic = false`, and any :Entity or
-# :Sanction without the :Synthetic label (I2).
-NON_SYNTHETIC = (
-    "MATCH (n) WHERE n.synthetic = false OR ((n:Entity OR n:Sanction) AND NOT n:Synthetic)"
-    " RETURN count(n) AS n"
-)
+NON_SYNTHETIC_QUERY = "non_synthetic_nodes.cypher"  # in neonradar_graph's queries/
+# The real-data instance (PHASE-2.md 1.1; `.env.example`): never wiped, never connected to here.
+REAL_PORT = 7688
+REAL_DATABASE = "realdata"
+HOLDOUT_REFUSAL = "(G11)"  # the end of `evaluate.run_seed`'s holdout PermissionError
+
+
+class RealInstance(BaseSettings):
+    """`NR_NEO4J_REAL_URI` (the environment, then `.env`), read only to compare it with
+    NEO4J_URI before `--engine neo4j` connects; nothing connects to it."""
+
+    model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
+
+    nr_neo4j_real_uri: str = f"bolt://127.0.0.1:{REAL_PORT}"
 
 
 class EvalError(Exception):
@@ -146,11 +158,14 @@ def neo4j_factory(driver: Driver, database: str) -> evaluate.SourceFactory:
     from neonradar_graph.migrate import migrate
     from neonradar_ingest.synth import writer
 
+    guard = resources.files("neonradar_graph.queries").joinpath(NON_SYNTHETIC_QUERY)
+    non_synthetic = guard.read_text(encoding="utf-8")
+
     def make(records: list[evaluate.Record]) -> Neo4jSource:
         if any(record.get("datasets") != ["nr_synthetic"] for record in records):
             raise EvalError("the seed has a non-synthetic record: nothing loaded (C2 L17)", 3)
         found, _, _ = driver.execute_query(
-            NON_SYNTHETIC, database_=database, routing_=RoutingControl.READ
+            non_synthetic, database_=database, routing_=RoutingControl.READ
         )
         if found[0]["n"]:
             raise EvalError(
@@ -178,6 +193,31 @@ def neo4j_factory(driver: Driver, database: str) -> evaluate.SourceFactory:
     return make
 
 
+def refuse_real_instance(uri: str, database: str) -> None:
+    """`--engine neo4j` wipes NEO4J_URI: refuse (exit 3) when NEO4J_URI or NEO4J_DATABASE names
+    the real-data instance (C2 L17, L18). Only the strings are compared, before any connection,
+    so a misconfigured URI never reaches that instance even when it is empty."""
+
+    def port(text: str) -> int | None:
+        try:
+            return urlsplit(text.strip()).port
+        except ValueError:  # a port that is not a number: nothing to compare
+            return None
+
+    real = RealInstance().nr_neo4j_real_uri.strip()
+    ports = {REAL_PORT, port(real)} - {None}
+    if (
+        database.strip().lower() == REAL_DATABASE
+        or port(uri) in ports
+        or (real and uri.strip().rstrip("/") == real.rstrip("/"))
+    ):
+        raise EvalError(
+            "NEO4J_URI or NEO4J_DATABASE names the real-data instance: eval run --engine neo4j"
+            " wipes the graph it loads into, so it refuses (C2 L17)",
+            3,
+        )
+
+
 @contextmanager
 def _source_factory(engine: str, timeout: float) -> Iterator[evaluate.SourceFactory]:
     if engine == "memory":
@@ -187,8 +227,26 @@ def _source_factory(engine: str, timeout: float) -> Iterator[evaluate.SourceFact
 
     logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
     settings = _settings()
+    refuse_real_instance(settings.uri, settings.database)
     with _connected(settings, timeout) as driver:
         yield neo4j_factory(driver, settings.database)
+
+
+def alert_lines(alerts: Sequence[dict[str, Any]]) -> str:
+    """`seed-<n>/alerts.jsonl`: each alert with `detector.query_sha256` set to the SHA-256 of the
+    evidence query, as `detect run` sets it (reconciliation A1; the field is outside the alert id),
+    and validated against C4 (PHASE-3.md 5.3); a failure names the fields, never a value."""
+    from neonradar_detect import runs
+
+    stamped = [
+        {**alert, "detector": {**alert["detector"], "query_sha256": runs.EVIDENCE_SHA256}}
+        for alert in alerts
+    ]
+    try:
+        runs.validate(stamped)
+    except runs.RunError as error:
+        raise EvalError(str(error), 1) from None
+    return "".join(json.dumps(alert, sort_keys=True) + "\n" for alert in stamped)
 
 
 def ci_counts(seeds: Seeds, settings: evaluate.EvalSettings) -> dict[str, Any]:
@@ -214,9 +272,12 @@ def _guarded(body: Callable[[], None]) -> None:
     except (EvalError, SynthError) as error:
         typer.echo(f"FAIL  {error}", err=True)
         raise typer.Exit(code=error.exit_code) from None
-    except PermissionError as error:  # run_seed's holdout refusal (G11)
+    except PermissionError as error:
+        # run_seed's holdout refusal (G11) exits 2 like the CLI's own; any other (the generator's
+        # G1 guard, a file the system refuses) is a failure, exit 1.
+        holdout = error.errno is None and str(error).endswith(HOLDOUT_REFUSAL)
         typer.echo(f"FAIL  {error}", err=True)
-        raise typer.Exit(code=2) from None
+        raise typer.Exit(code=2 if holdout else 1) from None
     except CatalogError as error:
         typer.echo(f"FAIL  {error}", err=True)
         raise typer.Exit(code=1) from None
@@ -386,24 +447,28 @@ def run_command(
         folder = out or (layout.holdout_dir if holdout else layout.eval_dir)(eval_id)
         if folder.exists() and any(folder.iterdir()):
             raise EvalError(f"{folder} is not empty", 2)
-        folder.mkdir(parents=True, exist_ok=True)
         names, runs = default_names(), []
         with _source_factory(source, timeout) as factory:
+            folder.mkdir(parents=True, exist_ok=True)  # after the engine's refusals
             for seed in chosen:
                 run = evaluate.run_seed(
                     seed, settings, names, cat, split, folder, factory,
                     allow_holdout=holdout, seeds_file=SEEDS_FILE,
                 )  # fmt: skip
-                lines = "".join(json.dumps(a, sort_keys=True) + "\n" for a in run.alerts)
-                (folder / f"seed-{seed}" / "alerts.jsonl").write_text(lines, encoding="utf-8")
+                alerts = alert_lines(run.alerts)
+                (folder / f"seed-{seed}" / "alerts.jsonl").write_text(alerts, encoding="utf-8")
+                # The holdout's figures stay in holdout_dir (M3.12 publishes them): no alert count
+                shown = "" if holdout else f", {run.counts['alerts']} alerts"
                 typer.echo(
-                    f"seed {seed}: {run.counts['records']:,} records, {run.counts['alerts']}"
-                    f" alerts ({', '.join(f'{k} {v} s' for k, v in run.seconds.items())})"
+                    f"seed {seed}: {run.counts['records']:,} records{shown}"
+                    f" ({', '.join(f'{k} {v} s' for k, v in run.seconds.items())})"
                 )
                 runs.append(run)
         title = "Detection evaluation: " + ("holdout figures" if holdout else "development figures")
         meta = {"title": title, "split": split, "engine": source, "profile": settings.profile}
-        typer.echo(_write_run(folder, runs, params, cat, meta))
+        table = _write_run(folder, runs, params, cat, meta)
+        if not holdout:  # only the development run prints its table (M3.6 deliverable 3)
+            typer.echo(table)
         typer.echo(f"wrote {folder}")
 
     _guarded(body)

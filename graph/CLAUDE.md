@@ -63,9 +63,10 @@
     counts are (L16). Run `graph verify` after a load.
   - Overlay loads (L18, `overlay.py`): every check runs before anything is written, in order:
     the real-data instance only for a profile in the `real_overlay_profiles` the caller passes,
-    and no folder in a protected `data/cache/` folder (exit 3, folder unread), the record and
-    bridge checks (exit 2, counts only: a base id may be real; a base-held account has one
-    holder, and its payments name that holder on its side), L17 on the default instance, then
+    and no folder in a protected `data/cache/` folder (exit 3, folder unread), `overlay.json`
+    naming the profile (exit 2, before any record is read), the record and bridge checks
+    (exit 2, counts only: a base id may be real; a base-held account has one holder, and its
+    payments name that holder on its side), L17 on the default instance, then
     `overlay_unresolved.cypher` and `overlay_holders.cypher` (exit 1: every base reference
     resolves, to an `:Organization` that may hold an account: no `:PublicBody`, topic,
     dissolution date or list or leak dataset), then L17 on the rows (`check_rows`). Then

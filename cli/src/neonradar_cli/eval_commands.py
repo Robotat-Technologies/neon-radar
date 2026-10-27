@@ -27,11 +27,9 @@ from typing import TYPE_CHECKING, Annotated, Any
 from urllib.parse import urlsplit
 
 import typer
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from neonradar_cli import evaluate
 from neonradar_cli.graph import Timeout, _connected, _settings
-from neonradar_graph.client import ENV_FILE
 from neonradar_ingest.data.project import REPO_ROOT
 
 if TYPE_CHECKING:
@@ -52,15 +50,6 @@ NON_SYNTHETIC_QUERY = "non_synthetic_nodes.cypher"  # in neonradar_graph's queri
 REAL_PORT = 7688
 REAL_DATABASE = "realdata"
 HOLDOUT_REFUSAL = "(G11)"  # the end of `evaluate.run_seed`'s holdout PermissionError
-
-
-class RealInstance(BaseSettings):
-    """`NR_NEO4J_REAL_URI` (the environment, then `.env`), read only to compare it with
-    NEO4J_URI before `--engine neo4j` connects; nothing connects to it."""
-
-    model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
-
-    nr_neo4j_real_uri: str = f"bolt://127.0.0.1:{REAL_PORT}"
 
 
 class EvalError(Exception):
@@ -204,7 +193,9 @@ def refuse_real_instance(uri: str, database: str) -> None:
         except ValueError:  # a port that is not a number: nothing to compare
             return None
 
-    real = RealInstance().nr_neo4j_real_uri.strip()
+    from neonradar_ingest.settings import IngestSettings
+
+    real = IngestSettings().nr_neo4j_real_uri.strip()  # the environment, then `.env`
     ports = {REAL_PORT, port(real)} - {None}
     if (
         database.strip().lower() == REAL_DATABASE

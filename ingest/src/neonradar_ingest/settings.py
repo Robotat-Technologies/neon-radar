@@ -17,6 +17,9 @@ class IngestSettings(BaseSettings):
 
     `NR_REAL_DATA_MACHINE`: `approved` on a machine the data steward listed in
     docs/data/real-data-machines.md (PHASE-2.md 1.1); the real-data gate reads it (M2.2).
+
+    `NR_NEO4J_REAL_URI`: the real-data instance's address (`.env.example`); `eval run --engine
+    neo4j` compares it with NEO4J_URI so that it never wipes that instance (M3.6).
     """
 
     model_config = SettingsConfigDict(
@@ -25,6 +28,7 @@ class IngestSettings(BaseSettings):
 
     ch_api_key: SecretStr | None = None
     nr_real_data_machine: str = ""
+    nr_neo4j_real_uri: str = "bolt://127.0.0.1:7688"
     nr_project_file: str = ""  # another project.yaml: tests and acceptance commands only (M2.2)
     compose_project_name: str = ""  # Docker Compose's own override; purge --graph checks it
 

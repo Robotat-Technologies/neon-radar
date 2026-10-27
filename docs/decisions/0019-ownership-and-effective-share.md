@@ -14,13 +14,13 @@ Contract C3 1.1.0 promises two read-only views of the graph that Phases 4 and 5 
 Registers such as the Companies House PSC register publish shares as bands, not figures. The loaders record a band as `share_pct_min` and `share_pct_max` on the `OWNS` relationship, with the open or closed bounds of the statutory band, for example `(25, 50]`: more than 25 and at most 50 percent (PHASE-2.md 5.1 and 3.3). An investigator who follows a chain wants to know what the bands along it allow, without the view claiming more than the registers say. Three things are easy to get wrong:
 
 - **Ownership and control are different links.** Holdings through a trust or a firm load as `CONTROLS` of type `trust-or-firm` (M2.3b), and OFAC relation types load as `CONTROLS`, never `OWNS` (M2.6b), because they give no share.
-- **A product of shares is not a sanctions test.** OFAC applies its 50 percent rule to entities owned 50 percent or more, directly or indirectly, in the aggregate, by blocked persons [ofac_50_percent_2014]: the status passes down a chain entity by entity, so multiplying the shares along the chain does not give OFAC's answer (PHASE-2.md 7.2 rule 6). PHASE-2.md 7.2 rule 6 also notes that a band on the PSC register may already describe an indirect holding, so multiplying it again can understate it.
+- **A product of shares is not a sanctions test.** OFAC applies its 50 percent rule to entities owned 50 percent or more, directly or indirectly, in the aggregate, by blocked persons [ofac_50_percent_2014]: the status passes down a chain entity by entity, so multiplying the shares along the chain does not give OFAC's answer (PHASE-2.md 7.2 rule 6). PHASE-2.md 7.2 rule 6 gives a further reason not to read a product of PSC bands as a holding.
 - **Open and closed bounds matter at the threshold.** A path whose maximum is "less than 37.5 percent" cannot reach 37.5 percent; one whose maximum is "at most 50 percent" can reach 50 (the M2.12 fixture table).
 
 ## Options considered
 
 1. **Traverse `OWNS` and `CONTROLS` together and give one share per path.** Simple to read, but a control link has no share, so the figure would be invented or silently partial.
-2. **Sum the shares of all paths between two entities.** Closer to an aggregate holding, but the paths share relationships, bands are ranges, and the aggregate tests of the sanctions regimes differ by jurisdiction; a sum in the API would look like the result of such a test.
+2. **Sum the shares of all paths between two entities.** Closer to an aggregate holding, but the paths share relationships, bands are ranges, and the aggregate tests of the sanctions regimes differ by jurisdiction [ofac_50_percent_2014] [ofsi_general_guidance_2026]; a sum in the API would look like the result of such a test.
 3. **Only `OWNS` in the ownership view; per path, the products of the band bounds as a range with open or closed bounds; no sums** (chosen).
 
 ## Decision

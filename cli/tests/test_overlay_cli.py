@@ -81,18 +81,10 @@ def test_a_listed_real_profile_gets_its_overlay_with_counts_only(
     assert (printed["eligible_organisations"], printed["active_organisations"]) == (2, 2)
     assert "T000000" not in result.output and "Test " not in result.output
     assert reads == [folder / "look-alikes.ftm.jsonl"]
-    overlay_id = layout.latest_overlay("uk-test")
-    assert overlay_id is not None
-    written = layout.overlay_dir("uk-test", overlay_id)
+    written = layout.overlay_dir("uk-test", str(layout.latest_overlay("uk-test")))
     assert written.is_relative_to(data_env.cache / "real" / "overlay" / "uk-test")
     assert (written / "overlay.json").is_file() and (written / "labels").is_dir()
-    ids = [  # deliverable 3: a real profile's labels name only synthetic overlay ids
-        row[column]
-        for name, column in (("transactions.csv", "tx_id"), ("participants.csv", "object_id"))
-        for row in csv.DictReader(
-            line
-            for line in (written / "labels" / name).read_text(encoding="utf-8").splitlines()
-            if not line.startswith("#")
-        )
-    ]
-    assert ids and all(value.startswith("syn-ov-") for value in ids)
+    for name, column in (("transactions.csv", "tx_id"), ("participants.csv", "object_id")):
+        lines = (written / "labels" / name).read_text(encoding="utf-8").splitlines()[2:]
+        ids = [row[column] for row in csv.DictReader(lines)]  # labels name syn-ov- ids only
+        assert ids and all(value.startswith("syn-ov-") for value in ids)

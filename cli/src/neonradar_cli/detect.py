@@ -30,8 +30,7 @@ if TYPE_CHECKING:
 app = typer.Typer(help="Detection runs.", no_args_is_help=True)
 
 QUERY_TIMEOUT_S = 600.0  # PHASE-3.md 7.1.2 rule 6
-# The runner summary's strings beyond summary.STRING_KEYS: the window bounds and the hash.
-SUMMARY_STRINGS = ("start", "end", "params_sha256")
+SUMMARY_STRINGS = ("start", "end", "params_sha256")  # the runner's, beyond summary.STRING_KEYS
 
 
 def _quiet_notifications() -> None:
@@ -238,16 +237,15 @@ def run_command(
     real = real_profile is not None
     with ExitStack() as stack:
         if real_profile is not None:  # the gate before anything of it is read (7.7 rule 1)
-            from neonradar_cli import redact
+            from neonradar_cli import redact, summary
             from neonradar_ingest.data import gate
 
             where = stack.enter_context(redact.guard(real_profile, "detect run", real=True))
-            where.step = "gate"  # the profile, then each dataset it enables, as graph load
+            where.step = "gate"
             gate.check_real_data(project, real_profile)
-            for dataset in real_profile.enabled_sources(project):
-                where.dataset = dataset
+            for dataset in real_profile.enabled_sources(project):  # each one, as graph load
                 gate.check_real_data(project, real_profile, dataset)
-            where.step, where.dataset = "detect", None
+            where.step = "detect"
         overlay = _overlay_folder(profile) if profile else None
         load: Callable[[RunRecord], None] | None = None
         if engine == "memory":
@@ -278,8 +276,6 @@ def run_command(
                 raise
             raise _fail(str(error)) from None
         if real_profile is not None:  # counts only, still inside the guard (7.7 rule 6)
-            from neonradar_cli import summary
-
             where.step = "summary"
             counts = {"profile": record.profile, **record.summary}
             summary.emit(real_profile, "detect run", counts, string_keys=SUMMARY_STRINGS)

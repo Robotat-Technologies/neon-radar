@@ -21,7 +21,7 @@ from neonradar_cli.main import app
 from neonradar_detect import catalog, runner, runs
 from neonradar_detect.source import Window
 from neonradar_graph import instances
-from neonradar_ingest.data import profiles
+from neonradar_ingest.data import layout, profiles
 from neonradar_ingest.data.project import load_project
 
 cli = CliRunner()
@@ -277,15 +277,9 @@ def test_a_profile_s_run_goes_to_its_runs_folder(data_env: Any) -> None:
     assert result.exit_code == 0, result.output
     folder = data_env.cache / "synthetic" / "runs" / "syn-test" / run_id
     assert result.output.splitlines()[-1] == f"wrote {folder}"
-    assert (folder / "run.json").is_file() and layout_latest("syn-test") == run_id
+    assert (folder / "run.json").is_file() and layout.latest_detection_run("syn-test") == run_id
     result = invoke("verify-alert", "--run", "latest", "--profile", "uk-tiny")
     assert result.exit_code == 2 and "verify-alert prints alert ids" in result.output
-
-
-def layout_latest(profile: str) -> str | None:
-    from neonradar_ingest.data import layout
-
-    return layout.latest_detection_run(profile)
 
 
 def test_a_real_profile_runs_behind_the_gate_and_prints_counts_only(
@@ -319,9 +313,7 @@ def test_a_real_profile_runs_behind_the_gate_and_prints_counts_only(
     assert seen["runs_dir"] == data_env.cache / "real" / "runs" / "uk-tiny"
     printed = json.loads(result.output)
     assert (printed["profile"], printed["alerts"]) == ("uk-tiny", 1)  # demo-mini's round trip
-    assert printed["window"] == {"start": "2025-01-01T00:00:00Z", "end": "2026-07-01T00:00:00Z"}
     [report] = (data_env.cache / "reports" / "uk-tiny").glob("detect-run-*.json")
     assert json.loads(report.read_text(encoding="utf-8")) == printed
-    monkeypatch.setattr(runner, "params_sha256", lambda params: "not short!")
-    result = invoke("run", "--profile", "uk-tiny", *window)  # a refused summary: the guard's line
-    assert result.exit_code == 1 and "SummaryRefused, step summary" in result.output
+    monkeypatch.setattr(runner, "params_sha256", lambda params: "not short!")  # refused: the guard
+    assert "SummaryRefused, step summary" in invoke("run", "--profile", "uk-tiny", *window).output

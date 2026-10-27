@@ -11,6 +11,9 @@ import typer
 from neonradar_ingest.synth import DEMO_SEED, ER_BENCH_SEED
 
 if TYPE_CHECKING:
+    from neonradar_cli.redact import Where
+    from neonradar_ingest.data.profiles import Profile
+    from neonradar_ingest.data.project import Project
     from neonradar_ingest.synth.commands import Written
 
 app = typer.Typer(help="Synthetic data generator.", no_args_is_help=True)
@@ -102,39 +105,46 @@ def overlay_command(
     passes the real-data gate and access.real_overlay_profiles first, and prints counts only."""
     from neonradar_cli import redact
     from neonradar_cli.data import profile_or_exit, project_or_exit
+
+    project, chosen = project_or_exit(), profile_or_exit(profile)
+    with redact.guard(chosen, "synth overlay") as where:  # the summary too (7.7 rule 6)
+        _overlay(where, project, chosen, seed, base, out)
+
+
+def _overlay(
+    where: Where, project: Project, chosen: Profile, seed: int | None, base: Path | None,
+    out: Path | None,
+) -> None:  # fmt: skip
+    from neonradar_ingest.data import gate
     from neonradar_ingest.data.profiles import ProfileError
     from neonradar_ingest.synth.commands import SynthError, make_overlay
 
-    project, chosen = project_or_exit(), profile_or_exit(profile)
-    with redact.guard(chosen, "synth overlay") as where:
-        if chosen.real_data:  # the gate step keeps no traceback on an unapproved machine
-            from neonradar_ingest.data import gate
-
-            where.step = "gate"
-            gate.check_real_overlay(project, chosen)  # make_overlay checks it again
-        where.step = "overlay"
-        try:
-            written = make_overlay(chosen, seed, base, out, project=project, git_sha=_git_sha())
-        except (SynthError, ProfileError) as exc:
-            if chosen.real_data:
-                raise
-            typer.echo(f"FAIL  {exc}", err=True)
-            raise typer.Exit(code=exc.exit_code) from None
-        where.step = "summary"  # a real profile's summary is written inside the guard too
-        stats = written.stats
-        _report(
-            chosen.profile,
-            "synth overlay",
-            written,
-            {
-                "overlay_id": written.overlay_id,
-                "eligible_organisations": stats["eligible_organisations"],
-                "active_organisations": stats["active_organisations"],
-                "skipped_organisations": stats["skipped_organisations"],
-                "scenarios": stats["scenarios"],
-            },
-            real=chosen.real_data,
-        )
+    where.step = "gate"  # no traceback kept on an unapproved machine; make_overlay checks again
+    if chosen.real_data:
+        gate.check_real_overlay(project, chosen)
+    where.step = "overlay"
+    try:
+        written = make_overlay(chosen, seed, base, out, project=project, git_sha=_git_sha())
+    except (SynthError, ProfileError) as exc:
+        if chosen.real_data:
+            raise
+        typer.echo(f"FAIL  {exc}", err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    where.step = "summary"
+    stats = written.stats
+    _report(
+        chosen.profile,
+        "synth overlay",
+        written,
+        {
+            "overlay_id": written.overlay_id,
+            "eligible_organisations": stats["eligible_organisations"],
+            "active_organisations": stats["active_organisations"],
+            "skipped_organisations": stats["skipped_organisations"],
+            "scenarios": stats["scenarios"],
+        },
+        real=chosen.real_data,
+    )
 
 
 @app.command(name="demo-mini")

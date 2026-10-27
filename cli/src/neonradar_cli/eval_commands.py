@@ -186,14 +186,13 @@ def refuse_real_instance(uri: str, database: str) -> None:
     """`--engine neo4j` wipes NEO4J_URI: refuse (exit 3) when NEO4J_URI or NEO4J_DATABASE names
     the real-data instance (C2 L17, L18). Only the strings are compared, before any connection,
     so a misconfigured URI never reaches that instance even when it is empty."""
+    from neonradar_ingest.settings import IngestSettings
 
     def port(text: str) -> int | None:
         try:
             return urlsplit(text.strip()).port
         except ValueError:  # a port that is not a number: nothing to compare
             return None
-
-    from neonradar_ingest.settings import IngestSettings
 
     real = IngestSettings().nr_neo4j_real_uri.strip()  # the environment, then `.env`
     ports = {REAL_PORT, port(real)} - {None}

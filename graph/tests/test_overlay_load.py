@@ -135,11 +135,13 @@ def test_a_holder_the_graph_lacks_or_that_is_no_organisation_stops_before_writin
 
 ELIGIBLE = """
 MATCH (c:Company) WHERE c.dissolution_date IS NULL AND size(coalesce(c.topics, [])) = 0
-RETURN c.id AS id ORDER BY id LIMIT 3"""
-# What 7.2.4 excludes besides a topic: a public body, a dissolved company, a list or leak record.
+RETURN c.id AS id ORDER BY id LIMIT 4"""
+# What 7.2.4 excludes besides a topic: a public body, a dissolved company, a status outside the
+# allowlist, a list or leak record.
 INELIGIBLE = (
     "SET c:PublicBody",
     "SET c.dissolution_date = date('2020-01-02')",
+    "SET c.status = ' Liquidation '",
     "SET c.datasets = c.datasets + $listed",
 )
 

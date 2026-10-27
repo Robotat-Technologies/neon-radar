@@ -69,7 +69,8 @@
     payments name that holder on its side), L17 on the default instance, then
     `overlay_unresolved.cypher` and `overlay_holders.cypher` (exit 1: every base reference
     resolves, to an `:Organization` that may hold an account: no `:PublicBody`, topic,
-    dissolution date or list or leak dataset), then L17 on the rows (`check_rows`). Then
+    dissolution date, status outside 7.2.4's allowlist (`LIVE`, the generator's) or list or
+    leak dataset), then L17 on the rows (`check_rows`). Then
     `overlay_purge.cypher` (the previous overlay and every detection result; never a base node)
     and Phase 2's queries; a holding takes the resolving query (L13). `execute_plan(...,
     overlay=True)` is the only way synthetic rows reach the real-data instance; the default

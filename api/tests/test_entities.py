@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from neo4j.time import DateTime
 
-from neonradar_api import entities
+from neonradar_api import alerts, entities
 from neonradar_api.main import create_app
 from neonradar_graph import shapes
 
@@ -198,3 +198,30 @@ def test_every_type_c3_shows_has_its_c2_properties_including_possible_matches() 
         "datasets": ["nr_synthetic"],
         "synthetic": True,
     }
+
+
+def detail_answers(roots: list[dict[str, Any]]) -> Any:
+    def answer(query: str, params: dict[str, Any]) -> list[Any]:
+        if query == entities.DETAIL:
+            return [{"node": root, "counts": [["DIRECTOR_OF", 1]]} for root in roots]
+        if query == alerts.QUEUE:
+            return []
+        raise AssertionError(query)
+
+    return answer
+
+
+def test_entity_detail_reads_its_query_file_and_takes_one_entity_once() -> None:
+    graph = ScriptedGraph(detail_answers([COMPANY, COMPANY]))
+    detail = entities.entity(graph, "syn-co-0001")
+    assert detail.entity.id == "syn-co-0001"
+    assert detail.relationship_counts == {"DIRECTOR_OF": 1}
+    assert "RESOLVED_TO" in entities.DETAIL and "WITH DISTINCT" in entities.DETAIL
+
+
+def test_a_record_id_merged_into_two_entities_is_refused() -> None:
+    other = {**COMPANY, "props": {**COMPANY["props"], "id": "syn-co-0002"}}
+    graph = ScriptedGraph(detail_answers([COMPANY, other]))
+    with pytest.raises(RuntimeError, match="graph verify"):
+        entities.entity(graph, "syn-rec-0001")
+    assert [query for query, _ in graph.calls] == [entities.DETAIL]

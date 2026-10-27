@@ -336,7 +336,10 @@ def test_load_profile_resolution_latest_takes_the_run_er_run_finished_last(
         }
     ]
     assert "resolution run er-20261023T120000-0a0b: 0 canonical entities" in result.output
-    assert "possible matches not written (a node outside this load): 0" in result.output
+    assert (
+        "possible matches (not confirmed) not written (a node outside this load): 0"
+        in result.output
+    )
     assert "nodes removed before the load (L9 purge): 0" in result.output
 
 
@@ -393,6 +396,55 @@ def test_a_synthetic_profile_never_reads_real_records_or_a_real_run(
     result = runner.invoke(app, command)
     assert (result.exit_code, calls) == (2, [])
     assert "--resolution names a folder of real data" in result.output
+
+
+def test_a_real_path_is_neither_listed_nor_its_manifest_read_before_the_gate(
+    monkeypatch: pytest.MonkeyPatch, data_env: Any
+) -> None:
+    from neonradar_ingest.data import layout
+
+    calls = use_loader(monkeypatch, load_report())
+    folder = layout.real_root() / "records" / "uk-tiny" / "gb_companies_house"
+    folder.mkdir(parents=True)  # under the test's cache root (data_env)
+    records_folder(folder, synthetic=False)
+
+    def never(*args: Any) -> Any:
+        raise AssertionError("a path under the real roots was read before the gate")
+
+    monkeypatch.setattr(loader, "collect_files", never)
+    monkeypatch.setattr(loader, "read_manifest", never)
+    result = runner.invoke(app, ["graph", "load", str(folder)])
+    assert (result.exit_code, calls) == (3, [])
+    assert "access.real_data_profiles is empty" in result.output
+    result = runner.invoke(app, ["graph", "load", str(folder), "--profile", "demo"])
+    assert (result.exit_code, calls) == (2, [])
+    assert "profile demo is synthetic, but 1 path(s) or manifest(s)" in result.output
+
+
+def test_a_real_load_takes_only_a_run_of_its_profile(
+    monkeypatch: pytest.MonkeyPatch, data_env: Any, tmp_path: Path
+) -> None:
+    from neonradar_ingest.data import layout
+
+    data_env.allow_real("uk-tiny")
+    monkeypatch.setenv("NEO4J_REAL_PASSWORD", "test-real-password")
+    calls = use_loader(monkeypatch, load_report())
+    by_hand = tmp_path / "by-hand"
+    by_hand.mkdir()
+    records = str(records_folder(tmp_path, synthetic=False))
+    for command in (
+        ["graph", "load", "--profile", "uk-tiny", "--resolution", str(by_hand)],
+        ["graph", "load", records, "--resolution", str(by_hand)],
+    ):
+        result = runner.invoke(app, command)
+        assert (result.exit_code, calls) == (2, []), result.output
+        assert "takes only a run that `er run` wrote for its profile" in result.output
+    run_dir = layout.resolution_dir("uk-tiny", "er-20261023T120000-0a0b")
+    run_dir.mkdir(parents=True)  # under the test's cache root (data_env)
+    command = ["graph", "load", "--profile", "uk-tiny", "--resolution", str(run_dir)]
+    result = runner.invoke(app, command)
+    assert result.exit_code == 0, result.output
+    assert (calls[0]["instance"], calls[0]["resolution"]) == (Instance.REAL, run_dir)
 
 
 def test_a_real_load_prints_counts_only(

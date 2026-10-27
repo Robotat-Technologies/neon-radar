@@ -50,6 +50,8 @@ CHECKS = (  # step 3: each query file counts the base references that fail it
     ("overlay_holders.cypher", "resolve to a node that may hold no account (G1, 7.2.4)"),
 )
 PROTECTED = ("real", "spikes", "holdout", "heldout")  # data/cache/ folders (G9, G11)
+# 7.2.4's status allowlist, as the generator's `synth/base.py` LIVE (OD-10, reconciliation L18a)
+LIVE = ("active", "open", "registered")
 
 
 class OverlayRefused(LoadError):
@@ -199,7 +201,7 @@ def _failing(driver: Driver, name: str, refs: list[str], database: str, size: in
     excluded = sorted(d.slug for d in load_registry().datasets if d.kind in ("list", "leak"))
     total = 0
     for chunk in batched(refs, size, strict=False):
-        params = {"refs": list(chunk), "excluded": excluded}
+        params = {"refs": list(chunk), "excluded": excluded, "live": list(LIVE)}
         rows, _, _ = driver.execute_query(
             query, params, database_=database, routing_=RoutingControl.READ
         )

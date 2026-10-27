@@ -9,9 +9,10 @@ from typing import Any
 
 import pytest
 
-from neonradar_graph import overlay
+from neonradar_graph import cypher, overlay
 from neonradar_graph.instances import Instance, InstanceRefused
 from neonradar_graph.loader import LoadReport
+from neonradar_ingest.synth import base
 
 from .conftest import record
 
@@ -173,3 +174,9 @@ def test_the_row_check_runs_before_the_previous_overlay_is_purged() -> None:
     plan.nodes[0].props["synthetic"] = False  # a row L17 refuses on either instance
     with pytest.raises(InstanceRefused, match="nothing was written"):
         overlay._execute(NO_DRIVER, plan, refs, LoadReport(True), "neo4j", 10)
+
+
+def test_the_holders_check_takes_the_generator_s_status_allowlist() -> None:
+    """overlay_holders.cypher refuses a status outside 7.2.4's allowlist (OD-10, L18a)."""
+    assert set(overlay.LIVE) == base.LIVE
+    assert "$live" in cypher.query("overlay_holders.cypher")

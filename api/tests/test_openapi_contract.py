@@ -71,7 +71,7 @@ def test_every_operation_is_under_the_v1_prefix_with_a_readable_id(
 ) -> None:
     ids = [op["operationId"] for path, ops in document["paths"].items() for op in ops.values()]
     assert all(path.startswith(f"{API_PREFIX}/") for path in document["paths"])
-    assert len(ids) == len(set(ids)) == 13
+    assert len(ids) == len(set(ids)) == 16  # 13, and three routes of C3 1.2.0
     assert all(op_id.isidentifier() and op_id.islower() for op_id in ids)
 
 

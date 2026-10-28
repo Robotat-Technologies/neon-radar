@@ -69,6 +69,9 @@ known-first-party = ["neonradar_*"]
 "api/tests/test_hardening.py" = ["I001"]
 "graph/tests/test_readonly.py" = ["I001"]
 "graph/tests/test_readonly_integration.py" = ["I001"]
+"api/src/neonradar_api/copilot_api.py" = ["I001"]
+"api/src/neonradar_api/runs_api.py" = ["I001"]
+"contracts/tests/test_api_1_2_0.py" = ["I001"]
 
 [tool.mypy]
 strict = true

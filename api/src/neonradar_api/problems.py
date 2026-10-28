@@ -81,13 +81,16 @@ def problem_response(
 
 def _validation_detail(error: RequestValidationError) -> str:
     """`<location>: <message>` per failed check. Never echoes input: an unknown body key is
-    reported at its parent, because the key itself is the caller's text."""
+    reported at its parent, because the key itself is the caller's text, and so are the keys
+    of a mapping (`CopilotRequest.slots`, C3 1.2.0): past the field, a location keeps list
+    positions only (G15)."""
     parts: list[str] = []
     for item in error.errors():
-        location = [str(part) for part in item.get("loc", ())]
+        loc = list(item.get("loc", ()))
         message = item.get("msg", "invalid value")
         if item.get("type") == "extra_forbidden":
-            location, message = location[:-1], "unknown keys are not permitted"
+            loc, message = loc[:-1], "unknown keys are not permitted"
+        location = [str(p) for i, p in enumerate(loc) if i < 2 or isinstance(p, int)]
         part = f"{'.'.join(location)}: {message}"
         if part not in parts:
             parts.append(part)

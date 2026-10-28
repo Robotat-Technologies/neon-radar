@@ -18,10 +18,12 @@ from typing import Any, Final
 
 from pydantic import ValidationError
 
+from neonradar_api.alert_names import display_name, shape_name
 from neonradar_api.graph import GraphConnection
 from neonradar_api.problems import ProblemError
 from neonradar_contracts.alert import ALERT_ID_PATTERN, Alert
 from neonradar_contracts.api import AlertDetail, AlertPage, AlertSummary
+from neonradar_detect.catalog import Typology
 from neonradar_graph import shapes
 
 logger = logging.getLogger(__name__)
@@ -97,8 +99,12 @@ def _subject_ids(payload: object, flagged: list[str]) -> list[str]:
     return list(dict.fromkeys(order))
 
 
-def _summary(row: Mapping[str, Any]) -> AlertSummary:
+def _summary(row: Mapping[str, Any], typologies: Mapping[str, Typology]) -> AlertSummary:
+    """One queue row; `display_name` is the shape name when the alert involves a real entity
+    (C3 1.2.0, PHASE-3.md R9), so a registry pattern never shows a typology's name."""
     alert = row["alert"]
+    slug = alert["typology"]
+    real = alert["involves_real_entities"]
     return AlertSummary(
         alert_id=alert["alert_id"],
         typology=alert["typology"],
@@ -107,19 +113,22 @@ def _summary(row: Mapping[str, Any]) -> AlertSummary:
         headline=alert["headline"],
         created_at=alert["created_at"],
         subject_ids=_subject_ids(alert["payload"], list(row["flagged"])),
-        involves_real_entities=alert["involves_real_entities"],
+        involves_real_entities=real,
         synthetic_activity=alert["synthetic_activity"],
+        shape_name=shape_name(typologies, slug),
+        # fail closed: only an explicit false shows the typology's name
+        display_name=display_name(typologies, slug, involves_real=real is not False),
     )
 
 
-def _summaries(rows: list[Any]) -> list[AlertSummary]:
+def _summaries(rows: list[Any], typologies: Mapping[str, Typology]) -> list[AlertSummary]:
     """The page's summaries; an alert that cannot be summarised (no readable payload and no
     FLAGS, for example) is left out with a warning instead of failing the whole page. Its
     detail answers the 500 problem that says to re-run detection."""
     summaries = []
     for row in rows:
         try:
-            summaries.append(_summary(row))
+            summaries.append(_summary(row, typologies))
         except ValueError, KeyError, TypeError:  # ValidationError is a ValueError
             logger.warning("alert %s left out of the queue: stored alert unreadable", row["alert"])
     return summaries
@@ -159,6 +168,7 @@ def decode_cursor(cursor: str, digest: str) -> dict[str, Any]:
 
 def queue(
     graph: GraphConnection,
+    typologies: Mapping[str, Typology],
     *,
     typology: str | None = None,
     priority: str | None = None,
@@ -172,7 +182,7 @@ def queue(
     digest = _digest(filters)
     after = decode_cursor(cursor, digest) if cursor is not None else None
     rows = graph.read(QUEUE, {**filters, "after": after, "limit": limit + 1})
-    items = _summaries(rows[:limit])
+    items = _summaries(rows[:limit], typologies)
     next_cursor = None
     if len(rows) > limit:
         last = rows[limit - 1]

@@ -3,13 +3,15 @@
 Every route is declared with its final response model, parameter limits and problem responses,
 so the OpenAPI snapshot (contracts/openapi/v1.json) does not change when a route is
 implemented. The Phase 1 routes are implemented (M1.9c), ownership, paths and resolution
-(C3 1.1.0, PHASE-2.md 5.3) in M2.12 (`neonradar_graph.ownership`, `resolution`), and the
-copilot answers 501 naming Phase 4. The API is read-only, binds to 127.0.0.1 (`neonradar api
-serve`) and makes no outbound calls: FastAPI's OpenTelemetry is switched off, and instead of
-its CDN-backed `/docs` and `/redoc` pages it serves an offline page at `/docs` (guardrail G3).
+(C3 1.1.0, PHASE-2.md 5.3) in M2.12 (`neonradar_graph.ownership`, `resolution`). The copilot and
+run routes of C3 1.2.0 (PHASE-4.md 5.3) live in `copilot_api` and `runs_api`, which answer 501
+naming M4.5 until their services are on `app.state`. The API is read-only, binds to 127.0.0.1
+(`neonradar api serve`) and makes no outbound calls: FastAPI's OpenTelemetry is switched off,
+and instead of its CDN-backed `/docs` and `/redoc` pages it serves an offline page at `/docs`
+(guardrail G3).
 """
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, Final
 
@@ -18,12 +20,21 @@ from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from fastapi.telemetry import TelemetryConfig
 
-from neonradar_api import alerts, docs_page, entities, problems, reference, resolution
+from neonradar_api import (
+    alerts,
+    copilot_api,
+    docs_page,
+    entities,
+    problems,
+    reference,
+    resolution,
+    runs_api,
+)
 from neonradar_api.files import RepoFiles, get_files
 from neonradar_api.graph import GraphConnection, get_graph
-from neonradar_api.hardening import harden
+from neonradar_api.hardening import harden, install_problem_openapi
 from neonradar_api.health import check_health
-from neonradar_api.problems import not_implemented, responses
+from neonradar_api.problems import responses
 from neonradar_contracts import versions
 from neonradar_contracts.alert import (
     ALERT_ID_LENGTH,
@@ -46,8 +57,6 @@ from neonradar_contracts.api import (
     QUERY_TIMEOUT_SECONDS,
     AlertDetail,
     AlertPage,
-    CopilotAnswer,
-    CopilotRequest,
     EntityDetail,
     HealthResponse,
     MetaResponse,
@@ -63,6 +72,8 @@ from neonradar_contracts.api import (
     TypologyDetail,
     TypologySummary,
 )
+from neonradar_detect import catalog
+from neonradar_detect.catalog import Typology
 from neonradar_graph import ownership
 
 # FastAPI 0.143 ships native OpenTelemetry and can add OTLP exporters from the environment
@@ -74,7 +85,6 @@ TELEMETRY_OFF: Final[TelemetryConfig] = {
     "operation_spans": False,
     "auto_configure": False,
 }
-PHASE_4: Final = "Phase 4"
 
 EntityIdPath = Annotated[str, Path(pattern=ENTITY_ID_PATTERN, description="A C2 node id.")]
 EntityIdQuery = Annotated[str, Query(pattern=ENTITY_ID_PATTERN)]
@@ -100,8 +110,16 @@ TIMEOUT_NOTE: Final = (
     "relationship types."
 )
 
+
+def get_typologies(request: Request) -> Mapping[str, Typology]:
+    """The typology catalog the app loaded when it was created (alert display names)."""
+    found: Mapping[str, Typology] = request.app.state.typologies
+    return found
+
+
 Graph = Annotated[GraphConnection, Depends(get_graph)]
 Files = Annotated[RepoFiles, Depends(get_files)]
+Typologies = Annotated[Mapping[str, Typology], Depends(get_typologies)]
 
 router = APIRouter(prefix=API_PREFIX)
 
@@ -130,9 +148,9 @@ def search(
 
 
 @router.get("/entities/{entity_id}", tags=["entities"], responses=responses(404, 422, 503))
-def get_entity(graph: Graph, entity_id: EntityIdPath) -> EntityDetail:
+def get_entity(graph: Graph, typologies: Typologies, entity_id: EntityIdPath) -> EntityDetail:
     """One `:Entity` or `:Sanction` node, by its id or any id in its `referents`."""
-    return entities.entity(graph, entity_id)
+    return entities.entity(graph, entity_id, typologies)
 
 
 @router.get("/entities/{entity_id}/network", tags=["entities"], responses=responses(404, 422, 503))
@@ -251,6 +269,7 @@ def get_resolution(graph: Graph, entity_id: EntityIdPath) -> ResolutionResponse:
 @router.get("/alerts", tags=["alerts"], responses=responses(422, 503))
 def list_alerts(
     graph: Graph,
+    typologies: Typologies,
     typology: Annotated[str | None, Query(pattern=SLUG_PATTERN)] = None,
     priority: Annotated[Priority | None, Query()] = None,
     entity_id: Annotated[str | None, Query(pattern=ENTITY_ID_PATTERN)] = None,
@@ -264,6 +283,7 @@ def list_alerts(
     """The alert queue: priority, then pattern strength, then alert id; opaque cursor."""
     return alerts.queue(
         graph,
+        typologies,
         typology=typology,
         priority=priority,
         entity_id=entity_id,
@@ -295,12 +315,6 @@ def list_typologies(files: Files) -> list[TypologySummary]:
 def get_typology(files: Files, slug: Annotated[str, Path(pattern=SLUG_PATTERN)]) -> TypologyDetail:
     """One typology with its explainer, citations, parameters and false positives."""
     return reference.typology(files, slug)
-
-
-@router.post("/copilot/ask", tags=["copilot"], responses=responses(422, 501, 503))
-def ask_copilot(request: Request, body: CopilotRequest) -> CopilotAnswer:
-    """Answer a question from a template, with its query and evidence subgraph."""
-    not_implemented(request, PHASE_4)
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -335,13 +349,17 @@ def create_app(
     *,
     dev: bool = False,
     report: Callable[[Exception], None] | None = None,
+    typologies: Mapping[str, Typology] | None = None,
 ) -> FastAPI:
     """The app; nothing connects to Neo4j or reads the repository files until a route needs
     them (`uvicorn --factory`). `harden` (PHASE-4.md M4.1) answers only this machine's host
     names, logs route templates only and contains unexpected errors; `dev` adds CORS for a UI
     served by the Vite dev server from another origin (`neonradar api serve --dev`). `report`
     marks the real-data app (PHASE-2.md M2.12): an unhandled error's traceback goes to it
-    (`problems.install`), and it never sends CORS headers, so `dev` is refused with it."""
+    (`problems.install`), and it never sends CORS headers, so `dev` is refused with it. The one
+    file read here is the typology catalog (`neonradar_detect.catalog.load()`, unless
+    `typologies` is given), loaded once for the alerts' shape and display names (C3 1.2.0); a
+    catalog that does not validate stops the app rather than misname an alert."""
     if dev and report is not None:
         raise ValueError("the real-data app sends no CORS headers: dev and report exclude")
     connection = graph if graph is not None else GraphConnection()
@@ -369,11 +387,16 @@ def create_app(
     )
     app.state.graph = connection
     app.state.files = files if files is not None else RepoFiles()
+    app.state.typologies = dict(typologies if typologies is not None else catalog.load())
     problems.install(app, report)  # before harden: `report`'s layer sits inside `Contain`
     app.include_router(router)
+    # C3 1.2.0: their handlers find their services on app.state (M4.5) or answer 501
+    app.include_router(copilot_api.router, prefix=API_PREFIX)
+    app.include_router(runs_api.router, prefix=API_PREFIX)
     app.add_api_route("/docs", _docs_page, methods=["GET"], include_in_schema=False)
     harden(app, dev=dev)  # after every route: trusted hosts, access log, CORS (dev), limits
     app.openapi = _with_problem_schema(app)  # type: ignore[method-assign]
+    install_problem_openapi(app)  # every 4xx and 5xx as application/problem+json (C3 1.2.0)
     return app
 
 

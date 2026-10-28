@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from neo4j import Driver
 from neo4j.exceptions import Neo4jError
 
+from neonradar_api import copilot_api, runs_api
 from neonradar_api.graph import GraphConnection, GraphUnavailable, get_graph
 from neonradar_api.main import create_app, router
 from neonradar_contracts.api import PATHS_DEFAULT_TYPES, Problem
@@ -19,9 +20,62 @@ from neonradar_contracts.api import PATHS_DEFAULT_TYPES, Problem
 P = "/api/v1"
 ENTITY = f"{P}/entities/syn-co-0001"
 ALERT_ID = "alr-f82a84574538090f0624"
-# Each route that still answers 501, a valid request for it, and who implements it.
+COPILOT_501 = "The copilot is not configured yet (PHASE-4.md M4.5)."
+RUNS_501 = "Detection runs are not configured yet (PHASE-4.md M4.5)."
+# Each route that still answers 501 (C3 1.2.0), a valid request for it, and its detail.
 PENDING: list[tuple[str, str, dict[str, Any], str]] = [
-    ("POST", f"{P}/copilot/ask", {"json": {"question": "who owns syn-co-0001?"}}, "Phase 4"),
+    ("POST", f"{P}/copilot/ask", {"json": {"question": "who owns syn-co-0001?"}}, COPILOT_501),
+    (
+        "POST",
+        f"{P}/copilot/ask",
+        {
+            "json": {
+                "question": "Who owns Calvane Holdings Ltd?",
+                "context_entity_ids": ["syn-co-0001"] * 5,
+                "template_id": "owners_of",
+                "slots": {"entity": "syn-co-0001", "min_share": "25"},
+            }
+        },
+        COPILOT_501,
+    ),
+    ("GET", f"{P}/copilot", {}, COPILOT_501),
+    ("GET", f"{P}/runs", {}, RUNS_501),
+    ("GET", f"{P}/runs/run-20261021T101500-7f3a", {}, RUNS_501),
+]
+# The four routes of C3 1.2.0 (PHASE-4.md 5.3): operation id, responses and the 200 model.
+PHASE_4_ROUTES: list[tuple[str, str, str, set[str], dict[str, Any]]] = [
+    (
+        "post",
+        "/copilot/ask",
+        "copilot_ask",
+        {"200", "422", "500", "501", "503"},
+        {"$ref": "#/components/schemas/CopilotAnswer"},
+    ),
+    (
+        "get",
+        "/copilot",
+        "copilot_info",
+        {"200", "422", "500", "501", "503"},
+        {"$ref": "#/components/schemas/CopilotInfo"},
+    ),
+    (
+        "get",
+        "/runs",
+        "runs_list",
+        {"200", "404", "422", "500", "501", "503"},
+        {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/RunSummary"},
+            "title": "Response Runs List",
+        },
+    ),
+    (
+        "get",
+        "/runs/{run_id}",
+        "run_detail",
+        {"200", "404", "422", "500", "501", "503"},
+        {"$ref": "#/components/schemas/RunDetail"},
+    ),
 ]
 # The routes M2.12 implements (they no longer answer 501): valid requests for each.
 PHASE_2_REQUESTS: list[str] = [
@@ -89,6 +143,24 @@ INVALID: list[tuple[str, str, dict[str, Any]]] = [
     ("POST", f"{P}/copilot/ask", {"json": {"question": "q", "sql": "x"}}),
     ("POST", f"{P}/copilot/ask", {"json": {"question": 5}}),
     ("POST", f"{P}/copilot/ask", {}),
+    # C3 1.2.0: the request's new bounds, checked before the service is looked up
+    ("POST", f"{P}/copilot/ask", {"json": {"question": "q", "cypher": "MATCH (n) RETURN n"}}),
+    ("POST", f"{P}/copilot/ask", {"json": {"question": "q", "context_entity_ids": ["a"] * 6}}),
+    (
+        "POST",
+        f"{P}/copilot/ask",
+        {"json": {"question": "q", "context_entity_ids": ["syn-co-0001"] * 6}},
+    ),
+    ("POST", f"{P}/copilot/ask", {"json": {"question": "q", "context_entity_ids": [""]}}),
+    ("POST", f"{P}/copilot/ask", {"json": {"question": "q", "template_id": "Owners Of"}}),
+    ("POST", f"{P}/copilot/ask", {"json": {"question": "q", "slots": {"entity": "x" * 201}}}),
+    (
+        "POST",
+        f"{P}/copilot/ask",
+        {"json": {"question": "q", "slots": {f"s{i}x": "v" for i in range(9)}}},
+    ),
+    ("GET", f"{P}/runs/-run", {}),
+    ("GET", f"{P}/runs/{'r' * 101}", {}),
 ]
 
 
@@ -140,6 +212,13 @@ def test_every_route_of_5_3_is_declared() -> None:
         if isinstance(route, APIRoute)
         for method in route.methods or ()
     }
+    routes |= {
+        (method, f"{P}{route.path}")
+        for module in (copilot_api, runs_api)  # C3 1.2.0, included under /api/v1
+        for route in module.router.routes
+        if isinstance(route, APIRoute)
+        for method in route.methods or ()
+    }
     assert routes == {
         ("GET", f"{P}/health"),
         ("GET", f"{P}/meta"),
@@ -154,17 +233,42 @@ def test_every_route_of_5_3_is_declared() -> None:
         ("GET", f"{P}/typologies"),
         ("GET", f"{P}/typologies/{{slug}}"),
         ("POST", f"{P}/copilot/ask"),
+        ("GET", f"{P}/copilot"),
+        ("GET", f"{P}/runs"),
+        ("GET", f"{P}/runs/{{run_id}}"),
     }
 
 
-@pytest.mark.parametrize(("method", "url", "options", "arrives_in"), PENDING)
+@pytest.mark.parametrize(("method", "url", "options", "detail"), PENDING)
 def test_pending_routes_answer_501_naming_their_milestone(
-    client: TestClient, method: str, url: str, options: dict[str, Any], arrives_in: str
+    client: TestClient, method: str, url: str, options: dict[str, Any], detail: str
 ) -> None:
+    """Until M4.5 puts the services on `app.state`, a valid request is a 501 naming M4.5."""
     problem = _problem(client.request(method, url, **options), 501)
     assert problem.title == "Not Implemented"
-    assert problem.detail.endswith(f"it arrives in {arrives_in}.")
+    assert problem.detail == detail
     assert problem.instance == url.split("?")[0]
+
+
+@pytest.mark.parametrize(("method", "path", "operation_id", "declared", "schema"), PHASE_4_ROUTES)
+def test_the_phase_4_routes_declare_every_response_they_return(
+    client: TestClient,
+    method: str,
+    path: str,
+    operation_id: str,
+    declared: set[str],
+    schema: dict[str, Any],
+) -> None:
+    document = client.get(f"{P}/openapi.json").json()
+    operation = document["paths"][f"{P}{path}"][method]
+    assert operation["operationId"] == operation_id
+    assert set(operation["responses"]) == declared
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"] == schema
+    for status in declared - {"200"}:
+        content = operation["responses"][status]["content"]
+        assert content == {
+            "application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}
+        }
 
 
 class TimedOutDriver:
@@ -331,6 +435,15 @@ def test_an_unknown_body_key_is_reported_without_echoing_it(client: TestClient) 
     problem = _problem(client.post(f"{P}/copilot/ask", json=body), 422)
     assert problem.detail == "body: unknown keys are not permitted"
     assert "sentinel" not in problem.detail and "another" not in problem.detail
+
+
+def test_a_slot_name_is_reported_without_echoing_it(client: TestClient) -> None:
+    """A key of `slots` is the caller's text: the 422 names the field only (G15)."""
+    for slots in ({"Calvane Holdings": "syn-co-0001"}, {"zorblatt": "x" * 201}):
+        response = client.post(f"{P}/copilot/ask", json={"question": "q", "slots": slots})
+        problem = _problem(response, 422)
+        assert problem.detail.startswith("body.slots: ")
+        assert "Calvane" not in response.text and "zorblatt" not in response.text
 
 
 def test_a_long_question_gets_a_422_that_does_not_repeat_it(client: TestClient) -> None:

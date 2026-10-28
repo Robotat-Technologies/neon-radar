@@ -7,6 +7,7 @@ per depth, built in code from the same text, never from input.
 """
 
 import re
+from collections.abc import Mapping
 from typing import Final, LiteralString, get_args
 
 from neonradar_api import alerts, resolution
@@ -21,6 +22,7 @@ from neonradar_contracts.api import (
     SearchResponse,
     Subgraph,
 )
+from neonradar_detect.catalog import Typology
 from neonradar_graph import cypher, shapes
 from neonradar_graph.ownership import pick_entity
 
@@ -137,7 +139,9 @@ def search(
     return SearchResponse(query=text, items=hits[:limit], total_estimate=total)
 
 
-def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
+def entity(
+    graph: GraphConnection, entity_id: str, typologies: Mapping[str, Typology]
+) -> EntityDetail:
     records = graph.read(DETAIL, {"id": entity_id, "types": SHOWN_TYPES})
     if not records:
         raise ProblemError(404, NOT_FOUND)
@@ -147,7 +151,7 @@ def entity(graph: GraphConnection, entity_id: str) -> EntityDetail:
     node = record["node"]
     counts: list[tuple[RelationshipType, int]] = record["counts"]
     props = node["props"]
-    flagged = alerts.queue(graph, entity_id=str(props["id"]), limit=MAX_ENTITY_ALERTS)
+    flagged = alerts.queue(graph, typologies, entity_id=str(props["id"]), limit=MAX_ENTITY_ALERTS)
     return EntityDetail(
         entity=shapes.summary(node),
         names=[str(name) for name in props.get("names") or []],

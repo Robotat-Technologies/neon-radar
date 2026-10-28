@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/copilot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Copilot Info
+         * @description The copilot's mode, its standing notice and badge, and its question templates.
+         */
+        get: operations["copilot_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/copilot/ask": {
         parameters: {
             query?: never;
@@ -54,10 +74,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Ask Copilot
-         * @description Answer a question from a template, with its query and evidence subgraph.
+         * Copilot Ask
+         * @description Answer one question from the template catalog, with its evidence, or refuse.
          */
-        post: operations["ask_copilot"];
+        post: operations["copilot_ask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -204,6 +224,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Runs List
+         * @description The detection runs in the graph, newest first (at most 50).
+         */
+        get: operations["runs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Detail
+         * @description One detection run with its counts: findings, alerts and withheld findings by typology.
+         */
+        get: operations["run_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/search": {
         parameters: {
             query?: never;
@@ -342,6 +402,8 @@ export interface components {
             alert_id: string;
             /** Created At */
             created_at: string;
+            /** Display Name */
+            display_name: string;
             /** Headline */
             headline: string;
             /** Involves Real Entities */
@@ -353,6 +415,8 @@ export interface components {
              * @enum {string}
              */
             priority: "high" | "medium" | "low";
+            /** Shape Name */
+            shape_name: string | null;
             /** Subject Ids */
             subject_ids: string[];
             /** Synthetic Activity */
@@ -378,29 +442,134 @@ export interface components {
         };
         /**
          * CopilotAnswer
-         * @description An answer always carries its query and evidence subgraph; a refusal carries a reason.
+         * @description Every outcome of a question. Only an answer carries queries and evidence: a refusal, an
+         *     unsupported question and a clarifying question carry none, because the search for a name
+         *     that did not ground would repeat the person's words (PHASE-4.md 5.3).
          */
         CopilotAnswer: {
             /** Answer Text */
             answer_text: string | null;
+            /**
+             * Choices
+             * @default []
+             */
+            choices: components["schemas"]["CopilotChoice"][];
             /** Cypher */
             cypher: string | null;
+            /**
+             * Facts
+             * @default []
+             */
+            facts: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Interpretation */
+            interpretation: string | null;
+            model: components["schemas"]["CopilotModel"] | null;
+            /**
+             * Notices
+             * @default []
+             */
+            notices: string[];
             /** Parameters */
             parameters: {
                 [key: string]: components["schemas"]["JsonValue"];
             } | null;
+            /**
+             * Queries
+             * @default []
+             */
+            queries: components["schemas"]["CopilotQuery"][];
+            /** Refusal Code */
+            refusal_code: ("judgement" | "scoring" | "decision" | "write_request" | "query_text" | "instructions" | "personal_details" | "real_person" | "real_payments" | "wording_check") | null;
             /** Refusal Reason */
             refusal_reason: string | null;
+            /** Router */
+            router: ("pattern" | "model" | "direct") | null;
+            /**
+             * Slots
+             * @default {}
+             */
+            slots: {
+                [key: string]: string;
+            };
             /**
              * Status
              * @enum {string}
              */
-            status: "answered" | "refused" | "unsupported";
+            status: "answered" | "refused" | "unsupported" | "needs_clarification";
             subgraph: components["schemas"]["Subgraph"] | null;
+            /**
+             * Suggestions
+             * @default []
+             */
+            suggestions: string[];
             /** Template Id */
             template_id: string | null;
+            /** Template Version */
+            template_version: string | null;
         };
-        /** CopilotRequest */
+        /**
+         * CopilotChoice
+         * @description One entity or alert a question could mean; send `value` back in `slots[slot]`.
+         */
+        CopilotChoice: {
+            /** Detail */
+            detail: string | null;
+            /** Label */
+            label: string;
+            /** Slot */
+            slot: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * CopilotInfo
+         * @description What `GET /copilot` returns: the mode, the standing notice
+         *     (`contracts/wording/copilot-notice-v1.txt`), the badge and the template catalog.
+         */
+        CopilotInfo: {
+            /** Badge */
+            badge: string;
+            /** Catalog Version */
+            catalog_version: string;
+            model: components["schemas"]["CopilotModel"] | null;
+            /** Notice */
+            notice: string;
+            /**
+             * Router
+             * @enum {string}
+             */
+            router: "pattern" | "pattern+model";
+            /** Templates */
+            templates: components["schemas"]["CopilotTemplate"][];
+        };
+        /** CopilotModel */
+        CopilotModel: {
+            /** Digest */
+            digest: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * CopilotQuery
+         * @description One query an answer ran: the query file's name, its exact text and its parameters.
+         */
+        CopilotQuery: {
+            /** Cypher */
+            cypher: string;
+            /** Name */
+            name: string;
+            /** Parameters */
+            parameters: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+        };
+        /**
+         * CopilotRequest
+         * @description A question; `template_id` and `slots` name a template and its grounded values directly
+         *     (the menu, the answer to a clarifying question, the confirmation of a reading).
+         */
         CopilotRequest: {
             /**
              * Context Entity Ids
@@ -409,6 +578,59 @@ export interface components {
             context_entity_ids: string[];
             /** Question */
             question: string;
+            /**
+             * Slots
+             * @default {}
+             */
+            slots: {
+                [key: string]: string;
+            };
+            /** Template Id */
+            template_id?: string | null;
+        };
+        /** CopilotSlot */
+        CopilotSlot: {
+            /** Description */
+            description: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "entity" | "alert" | "percent" | "period" | "direction";
+            /**
+             * Labels
+             * @default []
+             */
+            labels: string[];
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+            /**
+             * Values
+             * @default []
+             */
+            values: string[];
+        };
+        /** CopilotTemplate */
+        CopilotTemplate: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "records" | "connections" | "patterns" | "payments" | "meta";
+            /** Description */
+            description: string;
+            /** Examples */
+            examples: string[];
+            /** Id */
+            id: string;
+            /** Slots */
+            slots: components["schemas"]["CopilotSlot"][];
+            /** Title */
+            title: string;
+            /** Version */
+            version: string;
         };
         /**
          * DataFlags
@@ -456,6 +678,13 @@ export interface components {
             name: string;
             /** Query Sha256 */
             query_sha256: string;
+            /** Version */
+            version: string;
+        };
+        /** DetectorVersion */
+        DetectorVersion: {
+            /** Name */
+            name: string;
             /** Version */
             version: string;
         };
@@ -847,6 +1076,52 @@ export interface components {
             /** Run Id */
             run_id: string | null;
         };
+        /** RunDetail */
+        RunDetail: {
+            /** Alerts */
+            alerts: number;
+            run: components["schemas"]["RunSummary"];
+            /** Typologies */
+            typologies: {
+                [key: string]: components["schemas"]["TypologyRunCounts"];
+            };
+            /** Withheld */
+            withheld: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * RunSummary
+         * @description A `:DetectionRun` node (C2 1.2.0): `detectors` parsed from its JSON list; the times are
+         *     UTC ISO strings whether the node stores strings or temporal values.
+         */
+        RunSummary: {
+            /** Alert Count */
+            alert_count: number;
+            /** Detectors */
+            detectors: components["schemas"]["DetectorVersion"][];
+            /** Finished At */
+            finished_at: string | null;
+            /** Params Sha256 */
+            params_sha256: string | null;
+            /** Profile */
+            profile: string | null;
+            /** Run Id */
+            run_id: string;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "failed";
+            /** Typologies */
+            typologies: string[];
+            /** Window End */
+            window_end: string | null;
+            /** Window Start */
+            window_start: string | null;
+        };
         /**
          * SearchHit
          * @description `score` orders the hits of one response only; it is never a risk measure.
@@ -923,6 +1198,8 @@ export interface components {
             parameters: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
+            /** Shape Name */
+            shape_name: string | null;
             /** Slug */
             slug: string;
             /**
@@ -950,12 +1227,34 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /**
+         * TypologyRunCounts
+         * @description One typology's counts in a run summary (PHASE-3.md 7.5.3): counts only, on every profile.
+         */
+        TypologyRunCounts: {
+            /** Alerts */
+            alerts: number;
+            /** Duplicates */
+            duplicates: number;
+            /** Findings */
+            findings: number;
+            /** Stats */
+            stats: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Withheld */
+            withheld: {
+                [key: string]: number;
+            };
+        };
         /** TypologySummary */
         TypologySummary: {
             /** Detector Available */
             detector_available: boolean;
             /** Name */
             name: string;
+            /** Shape Name */
+            shape_name: string | null;
             /** Slug */
             slug: string;
             /**
@@ -1084,7 +1383,63 @@ export interface operations {
             };
         };
     };
-    ask_copilot: {
+    copilot_info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopilotInfo"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    copilot_ask: {
         parameters: {
             query?: never;
             header?: never;
@@ -1108,6 +1463,15 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1431,6 +1795,138 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    runs_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSummary"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -5,7 +5,7 @@
 - Owner: copilot squad (nr-copilot); the UI squad is its consumer.
 - Depends on: C3 API models (`neonradar_contracts.api`), C2 graph schema (reads Neo4j through
   `neonradar_graph.client`), C4 alerts (`:Alert` payload), the typology catalog
-  (`neonradar_detect.catalog.load_catalog`).
+  (`neonradar_detect.catalog.load_catalog`, and `catalog.load()` for alert names since C3 1.2.0).
 - Commands: `uv run pytest api/tests`; `uv run pytest -m integration api/tests` (demo-mini and
   one detection run on Testcontainers); `uv run neonradar api serve [--port 8000] [--dev]`, then
   `http://127.0.0.1:8000/docs` (offline page); `make contracts` after any route or model
@@ -21,13 +21,22 @@
   entity detail, network), `resolution` (the resolution route and entity provenance, M2.12;
   texts only from `neonradar_graph.wording`), `alerts` (queue with its cursor, detail),
   `reference` (meta, typologies), `docs_page` (the `/docs` page), `settings` (`ApiSettings`:
-  `NR_REPO_ROOT`; environment only, read when the app starts).
+  `NR_REPO_ROOT`; environment only, read when the app starts). C3 1.2.0 (M4.2, verbatim):
+  `copilot_api` (`POST /copilot/ask`, `GET /copilot`, `CopilotService`, `read_errors`),
+  `runs_api` (`GET /runs`, `GET /runs/{run_id}`, `RunsService`, `queries/run*.cypher`) and
+  `alert_names` (`shape_name`, `display_name`).
 - Traps:
   - The running app's OpenAPI must equal `contracts/openapi/v1.json` (contract test). Routes
     are declared with their final responses, so implementing one must not change the snapshot.
   - Errors are problems (`application/problem+json`); declare them with
     `problems.responses(...)`, never with `model=` (that adds `application/json`).
-  - Response models have no defaults; nullable fields are `T | None` and always set.
+  - Every response field is always set; nullable fields are `T | None`. The fields C3 1.2.0
+    adds have defaults, and the document still lists them as required.
+  - The 1.2.0 routes look their service up on `app.state` (`copilot`, `runs`) after FastAPI
+    has validated the request: a 422 first, then a 501 naming M4.5 until M4.5 sets them.
+  - `create_app` loads the typology catalog once (`app.state.typologies`) for the alerts'
+    `shape_name` and `display_name`; a real alert never shows a typology's name. Tests may pass
+    `typologies=`.
   - FastAPI 0.143 has native OpenTelemetry: keep `telemetry=TELEMETRY_OFF` (guardrail G3);
     never install an OpenTelemetry SDK or exporter.
   - Never re-enable FastAPI's `/docs` or `/redoc`: they load assets from a CDN and
@@ -41,7 +50,8 @@
   - A 422's detail keeps pydantic's `msg`, and a few error types quote the input
     (`union_tag_invalid`, a `value_error` from a validator that formats its value): request
     models use no discriminated union and no such validator, or `problems._validation_detail`
-    maps `msg` from a fixed table keyed by the error's `type` (G15).
+    maps `msg` from a fixed table keyed by the error's `type` (G15). A mapping's keys
+    (`slots`) are the caller's text too: past the field, a 422 location keeps list positions only.
   - Logs name route templates (`hardening.route_template`), never `request.url.path` or an
     exception's message. An exception no handler takes is `Contain`'s fixed 500 problem; do
     not add an `Exception` handler. CORS only with `create_app(dev=True)` (`api serve --dev`).

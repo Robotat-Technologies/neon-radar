@@ -213,7 +213,7 @@ def detail_answers(roots: list[dict[str, Any]]) -> Any:
 
 def test_entity_detail_reads_its_query_file_and_takes_one_entity_once() -> None:
     graph = ScriptedGraph(detail_answers([COMPANY, COMPANY]))
-    detail = entities.entity(graph, "syn-co-0001")
+    detail = entities.entity(graph, "syn-co-0001", {})
     assert detail.entity.id == "syn-co-0001"
     assert detail.relationship_counts == {"DIRECTOR_OF": 1}
     assert "RESOLVED_TO" in entities.DETAIL and "WITH DISTINCT" in entities.DETAIL
@@ -223,5 +223,5 @@ def test_a_record_id_merged_into_two_entities_is_refused() -> None:
     other = {**COMPANY, "props": {**COMPANY["props"], "id": "syn-co-0002"}}
     graph = ScriptedGraph(detail_answers([COMPANY, other]))
     with pytest.raises(RuntimeError, match="graph verify"):
-        entities.entity(graph, "syn-rec-0001")
+        entities.entity(graph, "syn-rec-0001", {})
     assert [query for query, _ in graph.calls] == [entities.DETAIL]

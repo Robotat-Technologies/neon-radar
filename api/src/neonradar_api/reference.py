@@ -101,6 +101,7 @@ def _summary(typology: TypologyFile) -> TypologySummary:
         status=typology.status,
         summary=typology.summary.strip(),
         detector_available=typology.detector is not None,
+        shape_name=typology.shape_name.strip() if typology.shape_name else None,
     )
 
 

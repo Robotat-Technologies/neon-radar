@@ -57,6 +57,9 @@ def test_typologies_come_from_the_catalog_sorted_by_slug(client: TestClient) -> 
     for item in items:
         assert item.detector_available == (catalog[item.slug].detector is not None)
         assert item.status == catalog[item.slug].status
+        # C3 1.2.0: the typology file's neutral shape name, null when it has none
+        assert item.shape_name == catalog[item.slug].shape_name
+    assert next(item for item in items if item.slug == "circular_flow").shape_name
 
 
 def test_a_typology_has_its_explainer_and_citations_in_file_order(client: TestClient) -> None:
@@ -73,6 +76,7 @@ def test_a_typology_has_its_explainer_and_citations_in_file_order(client: TestCl
     # circular_flow 0.2.0 (PHASE-3.md 7.3.4) widened the bound from Phase 1's 90 days
     assert detail.parameters["max_window_days"] == {"default": 14, "min": 1, "max": 140}
     assert detail.false_positives == typology.false_positives
+    assert detail.shape_name == typology.shape_name
 
 
 def test_an_unknown_typology_is_a_404_problem(client: TestClient) -> None:

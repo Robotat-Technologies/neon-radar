@@ -170,3 +170,32 @@ def test_a_payload_stored_under_another_alert_id_is_stale() -> None:
         found = problem(client.get(f"{P}/alerts/alr-00000000000000000009"), 500)
     assert found.detail == alerts.STALE
     assert "wipe and reload the data" in found.detail
+
+
+def test_summaries_carry_the_shape_name_and_the_name_the_queue_shows() -> None:
+    """C3 1.2.0 (PHASE-4.md 5.3; PHASE-3.md R9): an alert that involves a real entity is shown
+    under its typology's neutral shape name, an alert on synthetic data under the typology's
+    name; an unknown typology never lends a real alert a name."""
+    real = row("alr-00000000000000000004", "low", 0.1, 2)
+    real["alert"] = {**real["alert"], "involves_real_entities": True}
+    odd = row("alr-00000000000000000005", "low", 0.1, 2)
+    odd["alert"] = {**odd["alert"], "typology": "no_such_typology", "involves_real_entities": True}
+    graph = ScriptedGraph(lambda query, params: [ROWS[0], real, odd])
+    app = create_app(graph)
+    circular = app.state.typologies["circular_flow"]
+    assert circular.shape_name and circular.name != circular.shape_name
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        page = AlertPage.model_validate_json(client.get(f"{P}/alerts").text)
+    names = [(item.shape_name, item.display_name) for item in page.items]
+    assert names == [
+        (circular.shape_name, circular.name),
+        (circular.shape_name, circular.shape_name),
+        (None, "a structural pattern"),
+    ]
+
+
+def test_the_catalog_can_be_given_to_the_app() -> None:
+    graph = ScriptedGraph(lambda query, params: ROWS[:1])
+    with TestClient(create_app(graph, typologies={}), base_url="http://127.0.0.1") as client:
+        page = AlertPage.model_validate_json(client.get(f"{P}/alerts").text)
+    assert (page.items[0].shape_name, page.items[0].display_name) == (None, "circular_flow")

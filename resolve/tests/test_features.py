@@ -258,21 +258,52 @@ def test_name_symbols_and_the_postcode_from_address_text(tmp_path: Path) -> None
     assert rows["gbch-off-sym"]["postcode"] == "LS1 2AB"
 
 
-def test_name_only_records_hold_names_and_at_most_a_country(tmp_path: Path) -> None:
-    """OD-27: a record with names and a country (or a jurisdiction) is name-only; a birth year,
-    a postcode, an identifier or an incorporation year is evidence. A legal entity has a row
-    in both tables and is name-only only when both rows are."""
+def test_name_only_records_hold_names_and_at_most_one_country(tmp_path: Path) -> None:
+    """OD-27: a record with names and one country (or a jurisdiction) is name-only; a birth
+    year, a postcode, an identifier, a linked organisation, an incorporation year, a
+    registration number, an LEI or a second country is evidence. A legal entity has a row in
+    both tables and is name-only only when both rows are, with one country between them."""
     items = [
         syn("syn-p-1", "Person", "leak", name="Testa Example", country="GB"),
         syn("syn-p-2", "Person", "leak", name="Testa Example", birthDate="1971"),
         syn("syn-p-3", "Person", "list", name="Testa Example", passportNumber="X1"),
         syn("syn-p-4", "Person", "registry", name="Testa Example", address="1 Test Way QQ1 1QQ"),
+        syn("syn-p-5", "Person", "registry", name="Testa Example"),
+        syn("syn-d-1", "Directorship", "registry", director="syn-p-5", organization="syn-o-1"),
+        syn("syn-p-6", "Person", "leak", name="Testa Example", nationality=["GB", "FR"]),
+        syn("syn-p-7", "Person", "leak", name="Testa Example", nationality="GB", country="GB"),
         syn("syn-o-1", "Company", "list", name="Test Holder Ltd", jurisdiction="GB"),
         syn("syn-o-2", "Company", "list", name="Test Holder Ltd", incorporationDate="2001"),
+        syn("syn-o-3", "Company", "list", name="Test Holder Ltd", registrationNumber="SY000001"),
+        syn("syn-o-4", "Organization", "list", name="Test Holder Ltd", leiCode=VALID_LEI),
         syn("syn-l-1", "LegalEntity", "leak", name="Test Holder Ltd", country="GB"),
         syn("syn-l-2", "LegalEntity", "leak", name="Test Holder Ltd", incorporationDate="2001"),
-    ]
+        syn("syn-l-3", "LegalEntity", "leak", name="Test Holder Ltd", country="GB",
+            jurisdiction="FR"),
+    ]  # fmt: skip
     _, rows, orgs, person, org = _tables(tmp_path, items)
     assert rows["syn-p-4"]["postcode"] == "QQ1 1QQ"
+    assert rows["syn-p-5"]["linked_orgs"] == ["syn-o-1"]
+    assert orgs["syn-o-3"]["registration_numbers"] and orgs["syn-o-4"]["registration_numbers"]
+    assert orgs["syn-o-4"]["registration_numbers"] == [f"lei:{VALID_LEI}"]
     assert orgs["syn-o-1"]["legal_forms"] and orgs["syn-o-1"]["jurisdiction"] == "gb"
-    assert features.name_only(person, org) == {"syn-p-1", "syn-o-1", "syn-l-1"}
+    assert features.name_only(person, org) == {"syn-p-1", "syn-p-7", "syn-o-1", "syn-l-1"}
+
+
+def test_every_feature_column_is_a_name_a_country_or_evidence() -> None:
+    """OD-27: a column added to a feature schema counts as evidence until it is listed as a
+    name or a country, so a new column can never move true pairs out of the gate unseen."""
+    for schema, names, country, evidence in zip(
+        (PERSON_SCHEMA, ORG_SCHEMA),
+        features.NAME_COLUMNS,
+        features.COUNTRY_COLUMNS,
+        features.EVIDENCE_COLUMNS,
+        strict=True,
+    ):
+        assert set(names) | {country} <= set(schema.names)
+        assert sorted([*names, country, *evidence]) == sorted(schema.names)
+    assert features.EVIDENCE_COLUMNS == (
+        ("birth_full", "birth_ym", "birth_years", "birth_year_min", "birth_ym_min", "postcode",
+         "linked_orgs", "identifiers"),
+        ("registration_numbers", "incorporation_year", "postcode"),
+    )  # fmt: skip

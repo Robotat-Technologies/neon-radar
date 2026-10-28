@@ -12,12 +12,13 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Iterable, Mapping
-from functools import lru_cache
+from functools import lru_cache, reduce
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import pyarrow as pa
+import pyarrow.compute as pc
 
 from neonradar_keys.addresses import address_key, address_key_from_parts
 from neonradar_keys.companies_house import ch_same_as_key as _ch_same_as_key
@@ -331,25 +332,62 @@ def feature_tables(corpus: Corpus, by_id: Mapping[str, Member]) -> tuple[pa.Tabl
     )
 
 
-# OD-27: the columns that hold evidence beyond a record's names and countries (7.1.5)
-EVIDENCE_COLUMNS = (
-    ("birth_years", "postcode", "linked_orgs", "identifiers"),  # person table
-    ("registration_numbers", "incorporation_year", "postcode"),  # organisation table
+# OD-27: the columns of the person and organisation tables (7.1.5) that hold a record's id, its
+# names and the values derived from them (keys, tokens, legal forms), and its countries. Every
+# other column is evidence, so a column added to a schema counts as evidence until it is listed
+# here (fail closed: fewer name-only records, more pairs in the gate).
+NAME_COLUMNS = (
+    ("unique_id", "synthetic", "name_key", "name_key_rare", "forename", "surname", "initial",
+     "name_tokens", "name_symbols", "skeletons"),
+    ("unique_id", "synthetic", "name_key", "name_key_rare", "name_prefix", "aliases",
+     "ch_same_as", "name_tokens", "legal_forms"),
+)  # fmt: skip
+COUNTRY_COLUMNS = ("countries", "jurisdiction")
+EVIDENCE_COLUMNS = tuple(
+    tuple(c for c in schema.names if c not in names and c != country)
+    for schema, names, country in zip(
+        (PERSON_SCHEMA, ORG_SCHEMA), NAME_COLUMNS, COUNTRY_COLUMNS, strict=True
+    )
 )
 
 
+def _rows_without_evidence(
+    table: pa.Table, columns: Iterable[str], country: str
+) -> dict[str, frozenset[str]]:
+    """The rows whose evidence columns are all NULL: each id with the countries the row holds."""
+    mask = reduce(pc.and_, (pc.is_null(table[c]) for c in columns))
+    out = {}
+    for row in table.filter(mask).select(["unique_id", country]).to_pylist():
+        value = row[country]
+        values = value if isinstance(value, list) else [value] if value else []
+        out[str(row["unique_id"])] = frozenset(values)
+    return out
+
+
 def name_only(person: pa.Table, org: pa.Table) -> frozenset[str]:
-    """Ids of name-only records (OD-27): records whose every feature row holds names and at
-    most a country. A person row has no birth date, postcode, linked organisation or identifier;
-    an organisation row has no registration number, incorporation year or postcode. Names,
-    aliases, the name-derived columns (keys, tokens, legal forms) and countries or the
-    jurisdiction do not count. A record in both tables (a legal entity) needs both rows empty."""
-    evidence: dict[str, bool] = {}
-    for table, columns in zip((person, org), EVIDENCE_COLUMNS, strict=True):
-        for row in table.select(["unique_id", *columns]).to_pylist():
-            rid = str(row.pop("unique_id"))
-            evidence[rid] = evidence.get(rid, False) or any(v is not None for v in row.values())
-    return frozenset(rid for rid, found in evidence.items() if not found)
+    """Ids of name-only records (OD-27): records whose feature rows hold names and at most one
+    country. A person row has no birth date, postcode, linked organisation or identifier; an
+    organisation row has no registration number, incorporation year or postcode. Names,
+    aliases and the name-derived columns (keys, tokens, legal forms) do not count; the person
+    countries (nationality, citizenship, country) and the organisation jurisdiction count as
+    countries, and two or more different ones make a record count as evidence. A record in both
+    tables (a legal entity) needs both rows without evidence and one country at most between them.
+    Only the rows without evidence are read into Python."""
+    tables = (person, org)
+    rows = [
+        _rows_without_evidence(table, columns, country)
+        for table, columns, country in zip(tables, EVIDENCE_COLUMNS, COUNTRY_COLUMNS, strict=True)
+    ]
+    found = set()
+    for own, other_table, other in ((rows[0], org, rows[1]), (rows[1], person, rows[0])):
+        ids = pa.array(sorted(own), pa.string())
+        in_other = pc.is_in(ids, value_set=other_table["unique_id"]).to_pylist()
+        for rid, both in zip(ids.to_pylist(), in_other, strict=True):
+            if both and rid not in other:
+                continue  # a legal entity whose other row holds evidence
+            if len(own[rid] | other.get(rid, frozenset())) <= 1:
+                found.add(rid)
+    return frozenset(found)
 
 
 def write_features(

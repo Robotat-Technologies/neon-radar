@@ -311,7 +311,8 @@ def run(
             if flagged:  # addresses carry no flags (7.1.1); D6 merges them without P1
                 raise RunError(f"{flagged} Address records carry flag topics (7.1.1)")
             person, org = features.feature_tables(corpus, members)
-            name_only = features.name_only(person, org)
+            # OD-27: only `er bench` and `er calibrate` (synthetic) read it; empty fails closed
+            name_only = frozenset() if config.real_data else features.name_only(person, org)
             features.write_features(features_path, person, org, config.temp_directory)
         with _step(timings, "rules"):
             links = rules.deterministic(corpus, members)

@@ -65,6 +65,12 @@ class ClassScore:
         return self.name_only_recalled / self.name_only_pairs if self.name_only_pairs else None
 
     @property
+    def every_blocked_recall(self) -> float | None:
+        """Every policy-blocked true pair, as 7.1.7 counted them before OD-27 (reported only)."""
+        pairs = self.policy_blocked_pairs + self.name_only_pairs
+        return (self.policy_blocked_recalled + self.name_only_recalled) / pairs if pairs else None
+
+    @property
     def precision(self) -> float | None:
         return self.true_merged_pairs / self.merged_pairs if self.merged_pairs else None
 
@@ -106,6 +112,12 @@ class Score:
     @property
     def name_only_recall(self) -> float | None:
         return self.name_only_recalled / self.name_only_pairs if self.name_only_pairs else None
+
+    @property
+    def every_blocked_recall(self) -> float | None:
+        """Every policy-blocked true pair, as 7.1.7 counted them before OD-27 (reported only)."""
+        pairs = self.policy_blocked_pairs + self.name_only_pairs
+        return (self.policy_blocked_recalled + self.name_only_recalled) / pairs if pairs else None
 
 
 def read_truth(path: Path) -> dict[str, Truth]:
@@ -278,7 +290,8 @@ def lines(score: Score) -> list[str]:
 
 def gate_failures(score: Score) -> list[str]:
     """The G2-05 gates that fail: precision, recall, policy-blocked recall (OD-27: the pairs
-    with no name-only record), hard negatives."""
+    with no name-only record), hard negatives. The policy-blocked gate fails, rather than
+    passing on nothing, when every policy-blocked true pair has a name-only record."""
     out = []
     for name, s in score.classes.items():
         if s.precision is not None and s.precision < MIN_PRECISION:
@@ -288,6 +301,11 @@ def gate_failures(score: Score) -> list[str]:
     blocked = score.policy_blocked_recall
     if blocked is not None and blocked < MIN_POLICY_BLOCKED_RECALL:
         out.append(f"policy-blocked recall {blocked:.4f} is below {MIN_POLICY_BLOCKED_RECALL}")
+    if blocked is None and score.name_only_pairs:  # OD-27 must not empty the gate unseen
+        out.append(
+            f"policy-blocked recall counts no pair: all {score.name_only_pairs} policy-blocked"
+            " true pairs have a name-only record"
+        )
     if score.hard_negatives_merged:
         out.append(f"{score.hard_negatives_merged} hard negatives merged")
     return out

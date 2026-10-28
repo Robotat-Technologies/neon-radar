@@ -215,6 +215,7 @@ def test_the_guard_and_the_clustering_get_one_list_of_links(
     result = run.run([folder], tmp_path / "run", run.RunConfig(resolver, sha, real_data=False))
     assert seen["guard"] is seen["resolve"] and len(seen["guard"]) == 1
     assert {r["canonical_id"] for r in result.result.canonical} == {"nr-syn-p-1"}
+    assert result.name_only == {"syn-p-1", "syn-p-2"}  # OD-27, on a synthetic run only
     assert not (tmp_path / "run" / "duckdb-tmp").exists()
 
 
@@ -340,6 +341,14 @@ def test_the_policy_blocked_gate_counts_pairs_with_no_name_only_record() -> None
     assert bench.as_counts(score)["name_only_recall"] == 0.0
     every = bench.measure(truth, members, canonical, candidates)
     assert bench.gate_failures(every) == ["policy-blocked recall 0.3333 is below 0.8"]
+    assert score.every_blocked_recall == every.policy_blocked_recall  # the measure before OD-27
+    assert score.classes["person"].every_blocked_recall == every.policy_blocked_recall
+    weak = bench.measure(truth, members, canonical, candidates, frozenset(members))
+    assert (weak.policy_blocked_pairs, weak.name_only_pairs) == (0, 3)
+    assert bench.gate_failures(weak) == [  # an empty gate fails, it never passes on nothing
+        "policy-blocked recall counts no pair: all 3 policy-blocked true pairs have a name-only"
+        " record"
+    ]
 
 
 def test_a_class_whose_model_cannot_be_trained_scores_nothing(tmp_path: Path) -> None:
@@ -476,9 +485,9 @@ def test_calibration_sweep_and_document() -> None:
     assert recall[0.95] == 1.0 and recall[0.98] == 0.0
     assert calibrate.propose(points)["merge_threshold.org"] == 0.5
     text = calibrate.document(points, calibrate.propose(points), resolver, "small", 7, {})
-    assert "| 0.95 | n/a | n/a | 1.0000 | 1.0000 | 0 | 0, 0 | n/a, n/a, n/a | n/a, n/a, n/a |" in (
-        text
-    )
+    row = "| 0.95 | n/a | n/a | 1.0000 | 1.0000 | 0 | 0, 0 | n/a, n/a, n/a | n/a, n/a, n/a |"
+    assert f"{row} n/a, n/a, n/a |" in text
+    assert "every policy-blocked pair, as before OD-27" in text
     assert "OD-27" in text
     assert "| `candidate_threshold` | none passes | 0.8 |" in text
 

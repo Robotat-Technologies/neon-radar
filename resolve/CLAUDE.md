@@ -30,5 +30,7 @@
   - Never read the entity from a record id: benchmark truth lives in labels/er_truth.csv.
   - Policy-blocked gate (OD-27): pass `RunResult.name_only` to `bench.measure` and
     `calibrate.sweep`; without it every policy-blocked pair counts in the gate (fail closed).
+    It is empty on real-data runs. A new feature column counts as evidence until it is added
+    to `features.NAME_COLUMNS` (a test pins `EVIDENCE_COLUMNS`); an empty gate fails.
   - Humans label (G10): never write, pre-fill or infer labels or decisions.
   - Rules in .claude/rules/er.md and .claude/rules/real-data.md.

@@ -11,7 +11,8 @@ candidate threshold, so a candidate threshold above a merge threshold in effect 
 er.yaml: the tech lead and the graph mentor set the values there and in ADR-0014. The
 thresholds come from the synthetic benchmark only (G10). Under OD-27 the policy-blocked recall
 of the table and of the rule counts only true pairs with no name-only record, as the gate does;
-the pairs with a name-only record have their own column, which neither gates nor proposes.
+the pairs with a name-only record have their own column, which neither gates nor proposes, and
+the last column counts every policy-blocked pair, as 7.1.7 did before OD-27 (reported only).
 """
 
 from __future__ import annotations
@@ -116,8 +117,9 @@ def table(points: Sequence[Point]) -> list[str]:
         "| t | person precision | person recall | org precision | org recall"
         " | hard negatives merged | person-organisation pairs merged (merge, candidate)"
         " | policy-blocked recall (person, org, all)"
-        " | with a name-only record, does not gate (person, org, all) |",
-        "|---|---|---|---|---|---|---|---|---|",
+        " | with a name-only record, does not gate (person, org, all)"
+        " | every policy-blocked pair, as before OD-27 (person, org, all) |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for p in points:
         person, org = p.merge.classes["person"], p.merge.classes["org"]
@@ -131,7 +133,10 @@ def table(points: Sequence[Point]) -> list[str]:
             f" {_rate(blocked.policy_blocked_recall)}"
             f" | {_rate(blocked.classes['person'].name_only_recall)},"
             f" {_rate(blocked.classes['org'].name_only_recall)},"
-            f" {_rate(blocked.name_only_recall)} |"
+            f" {_rate(blocked.name_only_recall)}"
+            f" | {_rate(blocked.classes['person'].every_blocked_recall)},"
+            f" {_rate(blocked.classes['org'].every_blocked_recall)},"
+            f" {_rate(blocked.every_blocked_recall)} |"
         )
     return lines
 
@@ -169,11 +174,14 @@ def document(
         " every pair below the candidate threshold, so a candidate threshold above a merge"
         " threshold in effect raises it). Under operator decision OD-27 the policy-blocked"
         " recall counts only true pairs with no name-only record, as the `er bench` gate does:"
-        " a name-only record holds names and at most a country, with no birth date, postcode,"
-        " linked organisation or identifier (a person) and no registration number,"
-        " incorporation year or postcode (an organisation). The policy-blocked true pairs with"
-        " a name-only record are reported in the last column; that figure neither gates nor"
-        " proposes a value. Person-organisation pairs merged are pairs of records"
+        " a name-only record holds names and at most one country (a person's nationality,"
+        " citizenship or country, or an organisation's jurisdiction), with no birth date,"
+        " postcode, linked organisation or identifier (a person) and no registration number,"
+        " incorporation year or postcode (an organisation); a legal entity, which has both"
+        " rows, needs both. The policy-blocked true pairs with a name-only record are reported"
+        " in the next column; that figure neither gates nor proposes a value. The last column"
+        " counts every policy-blocked true pair, as the measure of 7.1.7 did before OD-27; it"
+        " is reported only. Person-organisation pairs merged are pairs of records"
         " whose truth classes differ, in one cluster, with `merge_threshold = t` and with"
         " `candidate_threshold = t`; precision and recall leave them out, so a row with any of"
         " them never passes the rule below. Every resolvable record has a truth row and every"

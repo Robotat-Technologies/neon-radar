@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from neonradar_contracts.graph import SUPPORT_NODES, SUPPORT_RELATIONSHIPS
 from neonradar_graph.loader import ORPHAN, LoadRefused, load_records, plan_load
 from neonradar_graph.mapping import (
     to_node_rows,
@@ -258,6 +259,25 @@ def test_possible_matches_copy_nothing_but_the_union_of_datasets(
     assert match.props["match_probability"] is None and match.props["rule"] == "D3"
     assert match.props["reasons"] == ["identifier_name_mismatch"]
     assert (match.props["datasets"], match.props["synthetic"]) == (["nr_synthetic"], True)
+
+
+def test_support_rows_set_exactly_the_properties_c2_lists(resolution: ResolutionMap) -> None:
+    """C2 1.1.0: each :SourceRecord, RESOLVED_TO and POSSIBLY_SAME_AS row sets exactly the
+    properties `neonradar_contracts.graph` lists for it, so a drift from C2 fails here."""
+    nodes = {row.id: row for row in to_node_rows(records(), resolution).rows}
+    expected = {
+        "SourceRecord": SUPPORT_NODES["SourceRecord"],
+        "RESOLVED_TO": SUPPORT_RELATIONSHIPS["RESOLVED_TO"],
+        "POSSIBLY_SAME_AS": SUPPORT_RELATIONSHIPS["POSSIBLY_SAME_AS"],
+    }
+    found = {
+        "SourceRecord": to_source_record_rows(records(), resolution).rows,
+        "RESOLVED_TO": to_resolved_to_rows(resolution),
+        "POSSIBLY_SAME_AS": to_possibly_same_as_rows(resolution, nodes).rows,
+    }
+    for kind, rows in found.items():
+        assert rows, kind
+        assert {frozenset(row.props) for row in rows} == {frozenset(expected[kind])}, kind
 
 
 def test_a_candidate_between_addresses_stops_the_load(tmp_path: Path) -> None:

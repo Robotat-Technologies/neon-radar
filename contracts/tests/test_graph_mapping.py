@@ -116,9 +116,9 @@ def check_sources(schema_name: str, properties: dict[str, str]) -> None:
 
 def test_version() -> None:
     assert graph.SCHEMA_VERSION == versions.GRAPH_SCHEMA == "1.2.0"
-    # 1.2.0 changes C2 only (PHASE-3.md 5); the others keep Phase 2's versions.
-    assert versions.CONTRACTS == "1.2.0"
-    assert (versions.RECORD, versions.API, versions.ALERT) == ("1.1.0", "1.1.0", "1.0.0")
+    # 1.2.0 changed C2 only (PHASE-3.md 5); 1.3.0 changes C3 only (PHASE-4.md 5).
+    assert versions.CONTRACTS == "1.3.0"
+    assert (versions.RECORD, versions.API, versions.ALERT) == ("1.1.0", "1.2.0", "1.0.0")
     changelog = (REPO / "contracts/CHANGELOG.md").read_text(encoding="utf-8")
     assert "## 1.2.0" in changelog and "### C2: Graph schema 1.2.0" in changelog
     assert C2_DOC.read_text(encoding="utf-8").startswith("# C2: Graph schema v1.2.0\n")

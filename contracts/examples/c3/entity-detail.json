@@ -60,7 +60,9 @@
         "syn-co-0003"
       ],
       "involves_real_entities": false,
-      "synthetic_activity": true
+      "synthetic_activity": true,
+      "shape_name": "funds returning to where they started",
+      "display_name": "Round-tripping or circular flows"
     }
   ]
 }

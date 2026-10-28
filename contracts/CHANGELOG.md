@@ -2,6 +2,46 @@
 
 The four NeonRadar contracts and their versions (`neonradar_contracts.versions`). The tech lead tags `contracts-v<version>` when the contracts freeze (`docs/build/PHASE-1.md` 5.0); after that, every change needs an approved contract-change issue and an entry here.
 
+## 1.3.0 (unreleased)
+
+Phase 4 (`docs/build/PHASE-4.md` 5). Only C3 changes, to 1.2.0; C1 stays 1.1.0, C2 1.2.0 and C4 1.0.0. The tech lead tags `contracts-v1.3.0` on top of `contracts-v1.2.0` once M4.2 has merged (5.0 step 6).
+
+### C3: API 1.2.0
+
+The copilot's answers, detection runs and shape names, `docs/build/PHASE-4.md` 5.3, M4.2; the contract-change issue (5.0) is opened once GitHub is reachable again. Details in [C3-api.md](C3-api.md#changes-in-120). Minor under PHASE-1.md 5.0: every 1.1.0 response field keeps its name, type and meaning, and every new response field has a default or is filled by the API. The exceptions are named below.
+
+- **`CopilotRequest`** gains `template_id` (`^[a-z][a-z0-9_]{1,63}$`) and `slots` (at most 8, names `^[a-z][a-z0-9_]{1,31}$`, values 1 to 200 characters): the menu, the answer to a clarifying question and the confirmation of a reading. `context_entity_ids` is capped at 5 (20 in 1.1.0); it keeps 1.1.0's C1 node id pattern, and unknown fields stay refused, as in 1.1.0.
+- **`CopilotAnswer`** gains the status `needs_clarification` and the fields `template_version`, `interpretation`, `router`, `model`, `slots`, `facts`, `queries`, `refusal_code` (10 codes), `choices`, `notices` and `suggestions`, all with defaults, so 1.1.0 answers keep their shape. Its rules change: an answer needs `answer_text` and no `refusal_reason`, and may rest on no query or subgraph (the catalog's meta templates); only an answer carries `queries`, `cypher`, `parameters` and `subgraph`; a refusal needs a `refusal_reason` (the same fixed text as `answer_text`) and only a refusal carries a `refusal_code`; an unsupported question and a clarifying question need no `refusal_reason`.
+- **New models:** `CopilotQuery`, `CopilotChoice`, `CopilotSlot`, `CopilotTemplate`, `CopilotModel`, `CopilotInfo`, `DetectorVersion`, `RunSummary`, `TypologyRunCounts` and `RunDetail`.
+- **New routes:** `GET /api/v1/copilot` (`copilot_info`, `CopilotInfo`), `GET /api/v1/runs` (`runs_list`, `list[RunSummary]`, newest first, at most 50) and `GET /api/v1/runs/{run_id}` (`run_detail`, `RunDetail`; `run_id` matching `^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$`). The copilot routes declare 422, 500, 501 and 503, the run routes 404, 422, 500, 501 and 503. Until M4.5 configures the services, a valid request to any of the four copilot and run routes gets a 501 problem that names M4.5; an invalid body or run id is a 422.
+- **Shape names (PHASE-3.md R9):** `AlertSummary` gains `shape_name` (the typology's neutral shape name, null when it has none) and `display_name` (required: the shape name when the alert involves a real entity, the typology's name otherwise); `TypologySummary` gains `shape_name`, and so does `TypologyDetail`, which has its fields. `AlertDetail` does not change.
+- **Problem details:** every 4xx and 5xx response in the OpenAPI document is `application/problem+json` with the `Problem` schema (`hardening.install_problem_openapi`); FastAPI's `HTTPValidationError` and `ValidationError` do not appear. `info.version` is 1.2.0.
+- **The standing notice:** `contracts/wording/copilot-notice-v1.txt` (PHASE-4.md 7.6.1), served as `CopilotInfo.notice`.
+- **Response defaults in the document:** the new response fields have defaults in the models, but the server always sends them, so the OpenAPI document lists them as required (`json_schema_serialization_defaults_required`) and the UI's generated types say `field: T`, as for every other response field.
+- **Pin:** `pydantic>=2.14,<2.15` in `contracts/pyproject.toml`, because a pydantic minor release can change the snapshot (PHASE-4.md 3.1).
+- `versions.API` is `1.2.0` and `versions.CONTRACTS` `1.3.0`, so `GET /api/v1/meta` reports `contracts_version` 1.3.0; `RECORD`, `GRAPH_SCHEMA` and `ALERT` are unchanged.
+
+**Not additive for every client**, both on `POST /api/v1/copilot/ask`, which no 1.1.0 server answered (it was Phase 1's 501 stub): the route gets the explicit operation id `copilot_ask` (it was `ask_copilot`), so a client generated from operation ids, and the `operations` type of the UI's `schema.d.ts`, see that call renamed; and a request with more than 5 context ids, a slot outside its bounds, a template id outside its pattern or an unknown field is a 422. The `CopilotAnswer` rules above also change, on the same route.
+
+**Behaviour of M4.1 (API hardening) that 1.2.0 writes down** (`docs/build/phase-4-reconciliation.md` 7.1). H1 to H3 change routes that 1.1.0 servers answer, so they are major under PHASE-1.md 5.0; they are named here as exceptions for the tech lead to sign off (option (a) of the reconciliation; option (b) would be C3 2.0.0 under `/api/v2`). Migration notes:
+
+- **H1, CORS for development only:** `neonradar api serve --dev` allows `http://localhost:5173` and `http://127.0.0.1:5173`; the default app sends no CORS header and answers a preflight (`OPTIONS`) from any origin with a 405 problem. A UI on another origin runs the API with `--dev`.
+- **H2, a fixed host list:** the API answers the `Host` values `127.0.0.1`, `localhost`, `[::1]` and `api` only (`hardening.ALLOWED_HOSTS`); `NR_ALLOWED_HOSTS` is gone. A deployment that set it puts a proxy in front that passes one of these names.
+- **H3, `instance` of an unexpected 500:** the route template (`/api/v1/entities/{entity_id}`, `unmatched` or `redacted`), not the request path, so no value from the request reaches it; it is not a URI to dereference. Every other problem keeps the request path.
+- **H4 (patch):** an unexpected 500's detail is "The API could not answer this request. Please report it to the maintainers."; the log names the exception's class and the route template only.
+- **H5 (minor):** a body over 64 KiB is a 413: Starlette's `text/plain` "Content Too Large" when `Content-Length` says so, a 413 problem when a streamed body passes the limit. The OpenAPI document leaves 413 out, because one of the two bodies is not a problem.
+- **H6 (minor):** `neonradar api serve` gains `--dev` and `--host` (only where `NR_API_IN_IMAGE=1`, the API image); `--real` refuses both; the default bind stays `127.0.0.1`.
+
+**Consumers in this change:** the API (`copilot_api`, `runs_api`, `alert_names`, the run query files, `create_app` without the 501 stub, the alert and typology summaries filled from the typology catalog), the OpenAPI snapshot and the UI's `schema.d.ts`, the C3 examples (`entity-detail.json` gains the two alert fields, `problem-501.json` the copilot route's new detail), the API and contract tests, and the UI's mocked meta (contracts 1.3.0). A 422 detail no longer names a key of `slots` (the caller's text): past the field, only list positions are kept.
+
+#### Decided in M4.2 (orchestrator decisions under OD-10, for the tech lead at the review)
+
+- **A1, context ids:** `context_entity_ids` keeps 1.1.0's C1 node id pattern and is capped at 5, the stricter reading of 5.3's "5 items of 1 to 200 characters" (every C1 id is 4 to 117 characters); the issue text says so.
+- **A2, the answer rules:** 1.1.0's rules refused every answer the copilot writes (a refusal carries its text in `answer_text`; a help answer rests on no query); they are replaced by the 1.2.0 rules above, which keep queries, parameters and evidence off every outcome that is not an answer.
+- **A3, evidence nodes:** `GraphNode` and `GraphEdge` keep their 1.0.0 rules (labels from the C2 mapping; `topics`, `referents` and `synthetic` left out of property maps); M4.3a adapts the copilot's evidence to them, so an answer keeps less of a person, never more.
+- **Strict models:** every 1.2.0 model is closed and strict like the rest of C3 (the code book's reference listing declares plain models), and the JSON values (`facts`, `CopilotQuery.parameters`, `TypologyRunCounts.stats`) are finite, like `CopilotAnswer.parameters` in 1.1.0. `AlertSummary` and `TypologySummary` keep their 1.1.0 field types and add the listing's fields.
+- **`TypologySummary.shape_name`** comes from the same typology file as the summary's other fields; the alert summaries read `neonradar_detect.catalog.load()`, loaded once when the app is created.
+
 ## 1.2.0 (unreleased)
 
 Phase 3 (`docs/build/PHASE-3.md` 5). Only C2 changes, and only additively: every graph valid under 1.1.0 stays valid. C1 stays 1.1.0, C3 1.1.0 and C4 1.0.0. The tech lead tags `contracts-v1.2.0` on top of `contracts-v1.1.0` once M3.1 has merged (5.0 step 6).

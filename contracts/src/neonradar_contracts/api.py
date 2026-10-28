@@ -1,12 +1,14 @@
-"""C3 API v1.1.0: every request and response model of the NeonRadar API (PHASE-1.md 5.3, with
-the additions of PHASE-2.md 5.3: the resolution endpoint and open or closed effective shares).
+"""C3 API v1.2.0: every request and response model of the NeonRadar API (PHASE-1.md 5.3, with
+the additions of PHASE-2.md 5.3: the resolution endpoint and open or closed effective shares;
+and of PHASE-4.md 5.3: the copilot's request and answer, detection runs and shape names).
 
 The FastAPI app (`neonradar_api.main.create_app`) declares its routes with these models; its
 OpenAPI document is committed at contracts/openapi/v1.json, and the UI generates its TypeScript
 types from that file. Field rules, sources in the graph (C2) and the values that stay null in v1
-are in contracts/C3-api.md. Every object is closed and strict, like C4. Response fields have no
-defaults: a field that may be empty is `T | None` and always present, so generated types say
-`field: T | null`.
+are in contracts/C3-api.md. Every object is closed and strict, like C4. A field that may be
+empty is `T | None` and always present, so generated types say `field: T | null`. The response
+fields that 1.2.0 adds have defaults, so 1.1.0 answers stay valid; the server always sends
+them, and the OpenAPI document marks them required (`json_schema_serialization_defaults_required`).
 """
 
 from typing import Annotated, Final, Literal, Self
@@ -35,7 +37,11 @@ from neonradar_contracts.graph import (
 )
 
 API_PREFIX: Final = "/api/v1"
-MAX_CONTEXT_ENTITIES: Final = 20
+# C3 1.2.0 (PHASE-4.md 5.3): at most 5 context ids (20 in 1.1.0), still C1 node ids.
+MAX_CONTEXT_ENTITIES: Final = 5
+MAX_COPILOT_SLOTS: Final = 8
+TEMPLATE_ID_PATTERN: Final = r"^[a-z][a-z0-9_]{1,63}$"
+SLOT_NAME_PATTERN: Final = r"^[a-z][a-z0-9_]{1,31}$"
 MAX_ENTITY_ALERTS: Final = 50
 MAX_CURSOR_LENGTH: Final = 512
 # PHASE-2.md 5.3: ownership and paths limits, the query timeout and the possible-match cap.
@@ -124,7 +130,15 @@ EDGE_PROPERTIES_LEFT_OUT: Final = frozenset({"id", "topics"})
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
+    # A response field with a default (C3 1.2.0) is still always sent, so the OpenAPI document
+    # (serialization mode) lists it as required; request models are unaffected.
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        frozen=True,
+        allow_inf_nan=False,
+        json_schema_serialization_defaults_required=True,
+    )
 
 
 class _WithSchema(_Model):
@@ -303,6 +317,11 @@ class AlertSummary(_Model):
     ]
     involves_real_entities: bool
     synthetic_activity: bool
+    # 1.2.0 (PHASE-4.md 5.3; PHASE-3.md R9): the typology's neutral shape name, null when the
+    # typology has none; `display_name` is the name the queue shows: the shape name when the
+    # alert involves a real entity, the typology's name otherwise (`neonradar_api.alert_names`).
+    shape_name: str | None = None
+    display_name: str
 
     @model_validator(mode="after")
     def _distinct_subjects(self) -> Self:
@@ -567,6 +586,8 @@ class TypologySummary(_Model):
     status: TypologyStatus
     summary: Text
     detector_available: bool
+    # 1.2.0: the typology file's neutral shape name (PHASE-3.md R9), null when it has none.
+    shape_name: str | None = None
 
 
 class TypologyDetail(TypologySummary):
@@ -644,38 +665,172 @@ class HealthResponse(_Model):
         return self
 
 
-# Copilot (Phase 4) ------------------------------------------------------------------------
+# Detection runs (1.2.0) -------------------------------------------------------------------
+
+
+class DetectorVersion(_Model):
+    name: str
+    version: str
+
+
+class RunSummary(_Model):
+    """A `:DetectionRun` node (C2 1.2.0): `detectors` parsed from its JSON list; the times are
+    UTC ISO strings whether the node stores strings or temporal values."""
+
+    run_id: str
+    status: Literal["ok", "failed"]
+    started_at: str | None
+    finished_at: str | None
+    profile: str | None
+    window_start: str | None
+    window_end: str | None
+    typologies: list[str]
+    detectors: list[DetectorVersion]
+    alert_count: int
+    params_sha256: str | None
+
+
+class TypologyRunCounts(_Model):
+    """One typology's counts in a run summary (PHASE-3.md 7.5.3): counts only, on every profile."""
+
+    findings: int
+    alerts: int
+    duplicates: int
+    withheld: dict[str, int]
+    stats: dict[str, FiniteJsonValue]
+
+
+class RunDetail(_Model):
+    run: RunSummary
+    typologies: dict[str, TypologyRunCounts]
+    alerts: int
+    withheld: dict[str, int]
+
+
+# Copilot (Phase 4; 1.2.0) -----------------------------------------------------------------
+
+TemplateId = Annotated[str, Field(pattern=TEMPLATE_ID_PATTERN)]
+SlotName = Annotated[str, Field(pattern=SLOT_NAME_PATTERN)]
+ShortText = Annotated[str, Field(min_length=1, max_length=200)]
+# Why the copilot refused (PHASE-4.md 7.4.1 and 7.4.2).
+RefusalCode = Literal[
+    "judgement",
+    "scoring",
+    "decision",
+    "write_request",
+    "query_text",
+    "instructions",
+    "personal_details",
+    "real_person",
+    "real_payments",
+    "wording_check",
+]
 
 
 class CopilotRequest(_Model):
+    """A question; `template_id` and `slots` name a template and its grounded values directly
+    (the menu, the answer to a clarifying question, the confirmation of a reading)."""
+
     question: Annotated[str, Field(min_length=1, max_length=500)]
     context_entity_ids: Annotated[list[EntityId], Field(max_length=MAX_CONTEXT_ENTITIES)] = []
+    template_id: TemplateId | None = None
+    slots: Annotated[dict[SlotName, ShortText], Field(max_length=MAX_COPILOT_SLOTS)] = {}
+
+
+class CopilotModel(_Model):
+    name: str
+    digest: str
+
+
+class CopilotQuery(_Model):
+    """One query an answer ran: the query file's name, its exact text and its parameters."""
+
+    name: str
+    cypher: str
+    parameters: dict[str, FiniteJsonValue]
+
+
+class CopilotChoice(_Model):
+    """One entity or alert a question could mean; send `value` back in `slots[slot]`."""
+
+    slot: str
+    value: str
+    label: str
+    detail: str | None = None
 
 
 class CopilotAnswer(_Model):
-    """An answer always carries its query and evidence subgraph; a refusal carries a reason."""
+    """Every outcome of a question. Only an answer carries queries and evidence: a refusal, an
+    unsupported question and a clarifying question carry none, because the search for a name
+    that did not ground would repeat the person's words (PHASE-4.md 5.3)."""
 
-    status: Literal["answered", "refused", "unsupported"]
+    status: Literal["answered", "refused", "unsupported", "needs_clarification"]
     answer_text: str | None
     template_id: str | None
     cypher: str | None
     parameters: dict[str, FiniteJsonValue] | None
     subgraph: Subgraph | None
     refusal_reason: str | None
+    template_version: str | None = None
+    interpretation: str | None = None
+    router: Literal["pattern", "model", "direct"] | None = None
+    model: CopilotModel | None = None
+    slots: dict[str, str] = {}
+    facts: list[dict[str, FiniteJsonValue]] = []
+    queries: list[CopilotQuery] = []
+    refusal_code: RefusalCode | None = None
+    choices: list[CopilotChoice] = []
+    notices: list[str] = []
+    suggestions: list[str] = []
 
     @model_validator(mode="after")
     def _complete(self) -> Self:
         if self.status == "answered":
-            needed = ("answer_text", "cypher", "parameters", "subgraph")
-            missing = [name for name in needed if getattr(self, name) is None]
-            if missing or self.refusal_reason is not None:
-                raise ValueError(
-                    "an answered question needs answer_text, cypher, parameters and subgraph, "
-                    "and no refusal_reason"
-                )
-        elif not self.refusal_reason or self.answer_text is not None:
-            raise ValueError(f"a {self.status} question needs a refusal_reason and no answer_text")
+            if self.answer_text is None or self.refusal_reason is not None:
+                raise ValueError("an answered question needs answer_text and no refusal_reason")
+        elif self.queries or any(
+            getattr(self, name) is not None for name in ("cypher", "parameters", "subgraph")
+        ):
+            raise ValueError(
+                "only an answered question carries queries, cypher, parameters or a subgraph"
+            )
+        if self.status == "refused":
+            if not self.refusal_reason:
+                raise ValueError("a refused question needs a refusal_reason")
+        elif self.refusal_code is not None:
+            raise ValueError("only a refused question carries a refusal_code")
         return self
+
+
+class CopilotSlot(_Model):
+    name: str
+    kind: Literal["entity", "alert", "percent", "period", "direction"]
+    required: bool
+    description: str
+    labels: list[str] = []
+    values: list[str] = []
+
+
+class CopilotTemplate(_Model):
+    id: str
+    version: str
+    title: str
+    category: Literal["records", "connections", "patterns", "payments", "meta"]
+    description: str
+    examples: list[str]
+    slots: list[CopilotSlot]
+
+
+class CopilotInfo(_Model):
+    """What `GET /copilot` returns: the mode, the standing notice
+    (`contracts/wording/copilot-notice-v1.txt`), the badge and the template catalog."""
+
+    catalog_version: str
+    router: Literal["pattern", "pattern+model"]
+    model: CopilotModel | None
+    badge: str
+    notice: str
+    templates: list[CopilotTemplate]
 
 
 # Errors -----------------------------------------------------------------------------------

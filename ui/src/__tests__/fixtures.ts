@@ -69,7 +69,7 @@ export function registry(counts: Partial<Record<string, number | null>> = {}): D
 export function meta(datasets: DatasetInfo[]): MetaResponse {
   return {
     app_version: '0.1.0',
-    contracts_version: '1.2.0',
+    contracts_version: '1.3.0',
     schema_version: '1.2.0',
     datasets,
     disclaimers,

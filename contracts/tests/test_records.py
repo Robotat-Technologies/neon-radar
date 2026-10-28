@@ -754,7 +754,7 @@ def test_manifest_accepts_both_record_contract_versions(record_contract: str) ->
 
 def test_record_contract_is_1_1_0() -> None:
     assert versions.RECORD == "1.1.0"
-    assert versions.CONTRACTS == "1.2.0"  # C2 1.2.0 (PHASE-3.md 5); C1 stays 1.1.0
+    assert versions.CONTRACTS == "1.3.0"  # C3 1.2.0 (PHASE-4.md 5); C1 stays 1.1.0
 
 
 @pytest.mark.parametrize(

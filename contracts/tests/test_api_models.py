@@ -9,7 +9,7 @@ from typing import Any, get_args
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from neonradar_contracts import api, graph
+from neonradar_contracts import api, graph, versions
 from neonradar_contracts.alert import EDGE_ID_PATTERN, Alert
 
 pytestmark = pytest.mark.contract
@@ -165,19 +165,42 @@ ANSWERED = {
     },
     "refusal_reason": None,
 }
-REFUSED = {**ANSWERED, "status": "refused", "answer_text": None, "refusal_reason": "Out of scope."}
+REFUSED = {
+    **ANSWERED,
+    "status": "refused",
+    "answer_text": "Out of scope.",
+    "cypher": None,
+    "parameters": None,
+    "subgraph": None,
+    "refusal_reason": "Out of scope.",
+    "refusal_code": "judgement",
+}
+QUERY = {"name": "copilot/nodes", "cypher": "MATCH (n) RETURN n", "parameters": {}}
 
 
 def test_copilot_answers_carry_evidence_and_refusals_a_reason() -> None:
+    """The 1.2.0 rules (PHASE-4.md 5.3): only an answer carries queries and evidence, and only a
+    refusal a refusal_code; an answer may rest on no query (the catalog's meta templates)."""
     api.CopilotAnswer.model_validate(ANSWERED)
+    api.CopilotAnswer.model_validate({**ANSWERED, "queries": [QUERY]})
+    api.CopilotAnswer.model_validate({**ANSWERED, "cypher": None, "parameters": None})
+    api.CopilotAnswer.model_validate({**ANSWERED, "subgraph": None})
     api.CopilotAnswer.model_validate(REFUSED)
-    api.CopilotAnswer.model_validate({**REFUSED, "status": "unsupported"})
+    unsupported = {**REFUSED, "status": "unsupported", "refusal_code": None}
+    api.CopilotAnswer.model_validate({**unsupported, "refusal_reason": None})
+    api.CopilotAnswer.model_validate({**unsupported, "status": "needs_clarification"})
     for broken in (
-        {**ANSWERED, "subgraph": None},
-        {**ANSWERED, "cypher": None},
+        {**ANSWERED, "answer_text": None},
         {**ANSWERED, "refusal_reason": "no"},
+        {**ANSWERED, "refusal_code": "judgement"},
         {**REFUSED, "refusal_reason": None},
-        {**REFUSED, "answer_text": "text"},
+        {**REFUSED, "cypher": "MATCH (n) RETURN n"},
+        {**REFUSED, "parameters": {"name": "x"}},
+        {**REFUSED, "subgraph": ANSWERED["subgraph"]},
+        {**REFUSED, "queries": [QUERY]},
+        {**unsupported, "refusal_code": "judgement"},
+        {**unsupported, "status": "needs_clarification", "queries": [QUERY]},
+        {**ANSWERED, "facts": [{"share": float("nan")}]},
     ):
         with pytest.raises(ValidationError):
             api.CopilotAnswer.model_validate(broken)
@@ -185,12 +208,16 @@ def test_copilot_answers_carry_evidence_and_refusals_a_reason() -> None:
 
 def test_copilot_request_limits() -> None:
     assert api.CopilotRequest(question="who owns syn-co-0001?").context_entity_ids == []
+    five = api.CopilotRequest(question="q", context_entity_ids=["syn-co-0001"] * 5)
+    assert len(five.context_entity_ids) == api.MAX_CONTEXT_ENTITIES == 5
     for bad in (
         {"question": ""},
         {"question": "x" * 501},
-        {"question": "q", "context_entity_ids": ["syn-co-0001"] * 21},
+        {"question": "q", "context_entity_ids": ["syn-co-0001"] * 6},
         {"question": "q", "context_entity_ids": ["not an id"]},
         {"question": "q", "extra": 1},
+        {"question": "q", "template_id": "x"},
+        {"question": "q", "slots": {"entity": ""}},
     ):
         with pytest.raises(ValidationError):
             api.CopilotRequest.model_validate(bad)
@@ -207,15 +234,50 @@ def _models() -> list[type[BaseModel]]:
     ]
 
 
-def test_response_fields_have_no_defaults() -> None:
-    """Nullable fields are present as null, so generated TypeScript says `T | null`."""
+# The fields that have defaults: the request's optional fields, and the response fields that
+# 1.2.0 adds (so that 1.1.0 answers stay valid; PHASE-4.md 5.0).
+DEFAULTS = {
+    "CopilotRequest": {"context_entity_ids", "template_id", "slots"},
+    "AlertSummary": {"shape_name"},
+    "TypologySummary": {"shape_name"},
+    "TypologyDetail": {"shape_name"},
+    "CopilotChoice": {"detail"},
+    "CopilotSlot": {"labels", "values"},
+    "CopilotAnswer": {
+        "template_version",
+        "interpretation",
+        "router",
+        "model",
+        "slots",
+        "facts",
+        "queries",
+        "refusal_code",
+        "choices",
+        "notices",
+        "suggestions",
+    },
+}
+
+
+def test_only_the_1_2_0_additions_and_the_request_have_defaults() -> None:
     with_defaults = {
         f"{model.__name__}.{name}"
         for model in _models()
         for name, field in model.model_fields.items()
         if not field.is_required()
     }
-    assert with_defaults == {"CopilotRequest.context_entity_ids"}
+    assert with_defaults == {f"{m}.{name}" for m, names in DEFAULTS.items() for name in names}
+
+
+def test_every_response_field_is_required_in_the_document() -> None:
+    """The server always sends every response field, defaults included, so generated
+    TypeScript types say `field: T` or `field: T | null`, never `field?: T`."""
+    for model in _models():
+        if model is api.CopilotRequest:
+            continue
+        schema = model.model_json_schema(mode="serialization")
+        names = {field.alias or name for name, field in model.model_fields.items()}
+        assert set(schema.get("required", [])) == names, model.__name__
 
 
 def test_every_model_is_closed_and_strict() -> None:
@@ -481,3 +543,16 @@ def test_path_lists_have_the_5_3_caps_in_the_schema() -> None:
     paths = {"from_id": "syn-acct-0007", "to_id": "syn-acct-0015", "subgraph": subgraph}
     with pytest.raises(ValidationError, match="at most 5"):
         api.PathsResponse.model_validate({**paths, "paths": [_cycle_path()] * 6})
+
+
+# C3 1.2.0 (PHASE-4.md 5) -----------------------------------------------------------------
+
+
+def test_version_1_2_0() -> None:
+    """C3 is 1.2.0 and the contracts 1.3.0; C1, C2 and C4 keep Phase 3's versions (5.5)."""
+    assert (versions.API, versions.CONTRACTS) == ("1.2.0", "1.3.0")
+    assert (versions.RECORD, versions.GRAPH_SCHEMA, versions.ALERT) == ("1.1.0", "1.2.0", "1.0.0")
+    changelog = (EXAMPLES.parent / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## 1.3.0" in changelog and "### C3: API 1.2.0" in changelog
+    c3 = (EXAMPLES.parent / "C3-api.md").read_text(encoding="utf-8")
+    assert c3.startswith("# C3: API v1.2.0\n")

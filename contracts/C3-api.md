@@ -1,20 +1,21 @@
-# C3: API v1.1.0
+# C3: API v1.2.0
 
 The HTTP interface through which the UI and, from Phase 4, the copilot read the NeonRadar graph. One FastAPI service serves it; it reads the graph (C2) and the alerts (C4) from Neo4j, and the dataset registry, disclaimers, typology catalog and bibliography from files in the repository.
 
-- Status: version 1.1.0 (1.0.0 plus the additive changes of `docs/build/PHASE-2.md` 5.3, listed in [Changes in 1.1.0](#changes-in-110); contract-change issue #51), **not frozen yet**. The tech lead freezes the four contracts at Gate 1 with the tag `contracts-v1.0.0` (`docs/build/PHASE-1.md` sections 5.0 and 8). After that, changes need an approved contract-change issue.
-- Code: `neonradar_contracts.api` (every model), `neonradar_api.main.create_app` (the app and its routes), `neonradar_api.problems` (problem details), `neonradar_api.graph` (the read-only connection), `neonradar_api.health`, and since M1.9c `neonradar_api.entities` (search, entity, network), `neonradar_api.alerts` (queue and detail), `neonradar_api.reference` (meta, typologies), `neonradar_api.shapes` (C2 to C3 shapes), `neonradar_api.files` (the repository files under `NR_REPO_ROOT`), `neonradar_api.settings` (`NR_REPO_ROOT`, `NR_ALLOWED_HOSTS`) and `neonradar_api.docs_page` (`GET /docs`).
+- Status: version 1.2.0: 1.0.0 plus the additive changes of `docs/build/PHASE-2.md` 5.3, listed in [Changes in 1.1.0](#changes-in-110) (contract-change issue #51), and the copilot, run and shape-name changes of `docs/build/PHASE-4.md` 5.3, listed in [Changes in 1.2.0](#changes-in-120) (M4.2; its contract-change issue is opened once GitHub is reachable again). The tech lead froze the four contracts with the tag `contracts-v1.0.0` and tagged `contracts-v1.1.0` and `contracts-v1.2.0` after the Phase 2 and Phase 3 changes; C3 1.2.0 is part of contracts 1.3.0, tagged `contracts-v1.3.0` once M4.2 has merged (`docs/build/PHASE-1.md` 5.0, `docs/build/PHASE-4.md` 5.0). Every change needs an approved contract-change issue.
+- Code: `neonradar_contracts.api` (every model), `neonradar_api.main.create_app` (the app and its routes), `neonradar_api.problems` (problem details), `neonradar_api.graph` (the read-only connection), `neonradar_api.health`, and since M1.9c `neonradar_api.entities` (search, entity, network), `neonradar_api.alerts` (queue and detail), `neonradar_api.reference` (meta, typologies), `neonradar_api.shapes` (C2 to C3 shapes), `neonradar_api.files` (the repository files under `NR_REPO_ROOT`), `neonradar_api.settings` (`NR_REPO_ROOT`), `neonradar_api.docs_page` (`GET /docs`), from M4.1 `neonradar_api.hardening` (trusted hosts, CORS in development, the body limit, the contained 500, the problem media types), and from 1.2.0 `neonradar_api.copilot_api` (the copilot routes), `neonradar_api.runs_api` (the run routes, with `api/src/neonradar_api/queries/runs_list.cypher` and `run_detail.cypher`) and `neonradar_api.alert_names` (shape and display names).
 - OpenAPI: `contracts/openapi/v1.json`, the running app's document, written by `neonradar contracts export` (`make contracts`). `neonradar contracts check` (part of `make contracts-check`) and `api/tests/test_openapi_contract.py` fail when the app and the file differ.
-- Command: `uv run neonradar api serve [--port 8000]` (always `127.0.0.1`).
+- Command: `uv run neonradar api serve [--port 8000] [--dev]` (bound to `127.0.0.1`; `--host` only inside the API image, where `NR_API_IN_IMAGE=1`).
 - Examples: `contracts/examples/c3/` (synthetic: `subgraph.json`, `entity-detail.json`, `problem-501.json`, and from 1.1.0 `resolution.json`).
 - Source: `docs/build/PHASE-1.md` section 5.3, with the changes and clarifications listed in [CHANGELOG.md](CHANGELOG.md) and the decision record `docs/decisions/0008-api-gateway.md`.
 
 ## Basics
 
 - FastAPI, OpenAPI 3.1, base path `/api/v1`, JSON with snake_case fields. The OpenAPI document is served at `/api/v1/openapi.json`.
-- Bound to `127.0.0.1` only (`neonradar api serve` has no host option). Inside the Compose container (M1.9e) it listens on all interfaces and Compose publishes it on `127.0.0.1`.
-- CORS allows exactly `http://localhost:5173` (the Vite dev server), for `GET` and `POST` with a `content-type` header, without credentials.
-- Host check: the API answers only the `Host` values in `NR_ALLOWED_HOSTS` (a JSON list; default `localhost`, `127.0.0.1` and the Compose service name `api`; the port is ignored). Any other host gets `400` with a `text/plain` body from Starlette's `TrustedHostMiddleware`, before CORS or a route runs, so a page whose domain is rebound to 127.0.0.1 (DNS rebinding) cannot read the API. Like the CORS rejection, it is not a problem.
+- Bound to `127.0.0.1` only (`neonradar api serve` accepts `--host` only inside the API image, `NR_API_IN_IMAGE=1`, and never with `--real`). Inside the Compose container (M1.9e) it listens on all interfaces and Compose publishes it on `127.0.0.1`.
+- CORS only in development (1.2.0, H1): `neonradar api serve --dev` allows `http://localhost:5173` and `http://127.0.0.1:5173` (the Vite dev server), for `GET` and `POST` with a `content-type` header, without credentials. The default app sends no CORS header and answers a preflight (`OPTIONS`) from any origin with a `405` problem.
+- Host check (1.2.0, H2): the API answers only the `Host` values `127.0.0.1`, `localhost`, `[::1]` and the Compose service name `api` (`hardening.ALLOWED_HOSTS`, a fixed list with no environment setting; the port is ignored).
+- Body limit: a request body over 64 KiB is a `413` (1.2.0, H5; see [Errors](#errors)). Any other host gets `400` with a `text/plain` body from Starlette's `TrustedHostMiddleware`, before CORS or a route runs, so a page whose domain is rebound to 127.0.0.1 (DNS rebinding) cannot read the API. Like the CORS rejection, it is not a problem.
 - Read-only. Every query runs as a parameterised READ transaction (`routing_=RoutingControl.READ`); Neo4j refuses writes inside READ transactions.
 - Nothing phones home (guardrail G3). FastAPI 0.143's native OpenTelemetry is switched off, including its auto-configuration from `FASTAPI_OTEL_AUTO_CONFIGURE` and `OTEL_EXPORTER_OTLP_*`, and no OpenTelemetry SDK or exporter is installed. FastAPI's `/docs` and `/redoc` pages are not served, because they load Swagger UI and ReDoc from a CDN and a favicon from fastapi.tiangolo.com. Instead, `GET /docs` (outside `/api/v1`, and not in the OpenAPI document or its snapshot) serves an offline page (M1.9c): one HTML document with its own style and script, allowed by their SHA-256 in a Content-Security-Policy that lets it reach only this server.
 - Files: the typology routes read `detect/typologies/`, `docs/typologies/` and `docs/sources/bibliography.yaml` under `NR_REPO_ROOT` (an environment variable; default: the nearest directory above the working directory whose `pyproject.toml` has a `[tool.uv.workspace]` table; M1.9e's image sets `/app`). When it names no such checkout, they answer a `500` problem that says to set it. `GET /meta` reads the dataset registry and the disclaimers from the contracts package (`load_registry()`, `load_disclaimer()`), so it never depends on `NR_REPO_ROOT`.
@@ -37,9 +38,14 @@ Every route is declared with its final response model, parameter limits and erro
 | `GET /api/v1/alerts/{alert_id}` | `AlertDetail` | M1.9c | 404, 422, 503 |
 | `GET /api/v1/typologies` | `list[TypologySummary]` | M1.9c | none |
 | `GET /api/v1/typologies/{slug}` | `TypologyDetail` | M1.9c | 404, 422 |
-| `POST /api/v1/copilot/ask` | `CopilotAnswer` | Phase 4 (501 until then) | 422, 501, 503 |
+| `POST /api/v1/copilot/ask` | `CopilotAnswer` | M4.5 (501 until then) | 422, 500, 501, 503 |
+| `GET /api/v1/copilot` (1.2.0) | `CopilotInfo` | M4.5 (501 until then) | 422, 500, 501, 503 |
+| `GET /api/v1/runs` (1.2.0) | `list[RunSummary]` | M4.5 (501 until then) | 404, 422, 500, 501, 503 |
+| `GET /api/v1/runs/{run_id}` (1.2.0) | `RunDetail` | M4.5 (501 until then) | 404, 422, 500, 501, 503 |
 
-OperationIds are the Python function names (`get_health`, `search`, `get_entity`, `get_network`, `get_ownership`, `find_paths`, `get_resolution`, `list_alerts`, `get_alert`, `list_typologies`, `get_typology`, `ask_copilot`, `get_meta`).
+OperationIds are the Python function names (`get_health`, `search`, `get_entity`, `get_network`, `get_ownership`, `find_paths`, `get_resolution`, `list_alerts`, `get_alert`, `list_typologies`, `get_typology`, `get_meta`), except the four 1.2.0 routes, whose ids are explicit so that renaming a handler never changes the contract: `copilot_ask`, `copilot_info`, `runs_list` and `run_detail`.
+
+The four 1.2.0 routes (`neonradar_api.copilot_api`, `neonradar_api.runs_api`) look their service up after FastAPI has validated the request, so an invalid body or run id is a `422` whether or not the service is configured; until M4.5 puts the services on the app, a valid request gets a `501` problem that names M4.5. Every outcome of a question is a `200`: an answer, a refusal, an unsupported question and a clarifying question alike. The error statuses are for requests the copilot could not take: `503` when the copilot is busy (at most two questions at once) or the database is unreachable or too slow, `500` when a query fails its read-only check or the database refuses a query. No error detail contains the question or anything from it, and a database error is logged by its code only (guardrail G15).
 
 ### Parameters and limits
 
@@ -66,7 +72,8 @@ OperationIds are the Python function names (`get_health`, `search`, `get_entity`
 | alerts | `cursor` | optional, 1 to 512 characters, opaque |
 | alert | `alert_id` (path) | `alr-` plus 20 hex characters (24 characters) |
 | typology | `slug` (path) | lowercase snake case |
-| copilot | body `CopilotRequest` | `question` 1 to 500 characters; `context_entity_ids` at most 20 node ids, default `[]`; no other key |
+| copilot | body `CopilotRequest` | `question` 1 to 500 characters; `context_entity_ids` at most 5 node ids (C1 id form), default `[]`; `template_id` optional, `^[a-z][a-z0-9_]{1,63}$`; `slots` at most 8, names `^[a-z][a-z0-9_]{1,31}$`, values 1 to 200 characters, default `{}`; no other key (1.2.0) |
+| runs | `run_id` (path) | `^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$` (1.2.0) |
 
 A request that breaks a rule gets a `422` problem.
 
@@ -161,13 +168,13 @@ The model checks the conditional rules (one member per record, one anchor, the i
 
 | Model | Fields | Source and rule |
 |---|---|---|
-| `AlertSummary` | `alert_id`, `typology`, `priority`, `pattern_strength`, `headline`, `created_at`, `subject_ids`, `involves_real_entities`, `synthetic_activity` | The `:Alert` scalar properties (C2), with `subject_ids` from the alert's subjects (the `FLAGS` targets), in the order of the C4 `subjects`, each once (`uniqueItems`). Types as in C4 |
+| `AlertSummary` | `alert_id`, `typology`, `priority`, `pattern_strength`, `headline`, `created_at`, `subject_ids`, `involves_real_entities`, `synthetic_activity`, and from 1.2.0 `shape_name`, `display_name` | The `:Alert` scalar properties (C2), with `subject_ids` from the alert's subjects (the `FLAGS` targets), in the order of the C4 `subjects`, each once (`uniqueItems`). Types as in C4. `shape_name` is the typology file's neutral shape name (PHASE-3.md R9), null when it has none; `display_name` is the name the queue shows: the shape name when `involves_real_entities` is true ("a structural pattern" when the typology has none), the typology's `name` otherwise (`neonradar_api.alert_names`, from the typology catalog loaded when the app is created) |
 | `AlertPage` | `items`, `next_cursor` | See pagination below |
 | `AlertDetail` | `alert`, `evidence` | `alert` is the complete C4 `Alert`, parsed and validated from the `payload` property. `evidence` is a `Subgraph` holding every node of `alert.evidence.node_ids` and `alert.subjects`, every relationship of `alert.evidence.edge_ids`, and the `HOLDS_ACCOUNT` relationships between those nodes, so a holder that is a subject but not an evidence node is still connected. `evidence` is never truncated (`truncated` false; its `limits` are at least its sizes). The model checks both, and that every evidence id and subject is present |
 
 A stored payload that no longer validates as C4 (for example an alert written under a newer C4 version, or edited by hand), or whose evidence is no longer in the graph, is answered with a `500` problem whose detail says what is wrong and to wipe and reload the data, then re-run detection (`neonradar detect run`; a new run does not remove the alerts of earlier runs); the API never serves an alert it cannot validate.
 
-The API adds no wording to an alert: the UI shows the standing disclaimer from `MetaResponse.disclaimers` (the alert names `standing-v1`), and words the alert from `involves_real_entities` and `synthetic_activity` as C4 describes.
+`AlertDetail` holds no summary and does not change in 1.2.0: a client names such an alert as `alert_names.display_name` does, from the typology's `name` and `shape_name` in `GET /typologies`. Apart from `display_name`, the API adds no wording to an alert: the UI shows the standing disclaimer from `MetaResponse.disclaimers` (the alert names `standing-v1`), and words the alert from `involves_real_entities` and `synthetic_activity` as C4 describes.
 
 **Order and pagination** (`GET /alerts`). Alerts are ordered by priority (`high`, `medium`, `low`), then `pattern_strength` descending, then `alert_id` ascending, which is a total, stable order. Pass `next_cursor` back unchanged, with the same filters, to get the next page; it is null on the last page. The cursor is opaque and belongs to its filters: a malformed cursor or one from other filters gets a `422` problem. Filters combine with AND; a filter that matches nothing gives an empty page, not `404`.
 
@@ -176,7 +183,7 @@ The API adds no wording to an alert: the UI shows the standing disclaimer from `
 | Model | Fields | Source and rule |
 |---|---|---|
 | `Citation` | `key`, `title`, `publisher`, `year`, `url` | An entry of `docs/sources/bibliography.yaml`; `year` is null for living documents (the bibliography's `year: null`). Keys the bibliography lacks are left out (`scripts/check_citations.py` prevents them) |
-| `TypologySummary` | `slug`, `name`, `tier`, `status`, `summary`, `detector_available` | `detect/typologies/<slug>.yaml` (`load_catalog()`); `tier` and `status` take the catalog's values (`neonradar_detect.catalog` imports them from this contract); `detector_available` is true when the file names a detector. The list is sorted by slug |
+| `TypologySummary` | `slug`, `name`, `tier`, `status`, `summary`, `detector_available`, and from 1.2.0 `shape_name` | `detect/typologies/<slug>.yaml` (`load_catalog()`); `tier` and `status` take the catalog's values (`neonradar_detect.catalog` imports them from this contract); `detector_available` is true when the file names a detector; `shape_name` is the file's neutral shape name, null when it has none. The list is sorted by slug |
 | `TypologyDetail` | the summary fields plus `definition_markdown`, `graph_pattern`, `citations`, `parameters`, `false_positives` | `definition_markdown` is the explainer in `docs/typologies/`, null when it does not exist; `citations` follow the file's order; `parameters` are the catalog parameters as JSON |
 
 ### Meta and health
@@ -194,18 +201,54 @@ The API adds no wording to an alert: the UI shows the standing disclaimer from `
 
 `GET /health` answers 200 for both statuses, so a caller (the Compose health check in M1.9e) reads `status` from the body.
 
-### Copilot (Phase 4)
+### Copilot (1.2.0)
+
+The behaviour is in `docs/build/PHASE-4.md` 7.1 to 7.4 and 7.8; the copilot itself is `neonradar_copilot` (M4.3).
 
 | Model | Fields | Rule |
 |---|---|---|
-| `CopilotRequest` | `question`, `context_entity_ids` | `question` 1 to 500 characters; at most 20 node ids, default `[]` |
-| `CopilotAnswer` | `status`, `answer_text`, `template_id`, `cypher`, `parameters`, `subgraph`, `refusal_reason` | `answered` needs `answer_text`, `cypher`, `parameters` and `subgraph` (the evidence) and no `refusal_reason`; `refused` and `unsupported` need a `refusal_reason` and no `answer_text`. `template_id` names the template used (null when none) |
+| `CopilotRequest` | `question`, `context_entity_ids`, `template_id`, `slots` | `question` 1 to 500 characters; at most 5 node ids, default `[]`; `template_id` and `slots` (default null and `{}`) name a template and its values directly: the menu, the answer to a clarifying question, the confirmation of a reading the model proposed. Unknown fields are refused |
+| `CopilotAnswer` | `status`, `answer_text`, `template_id`, `cypher`, `parameters`, `subgraph`, `refusal_reason`, and from 1.2.0 `template_version`, `interpretation`, `router`, `model`, `slots`, `facts`, `queries`, `refusal_code`, `choices`, `notices`, `suggestions` | `status` is `answered`, `refused`, `unsupported` or `needs_clarification`; every outcome is a `200`. See the field meanings below |
+| `CopilotQuery` | `name`, `cypher`, `parameters` | One query an answer ran: the query file's name, its exact text and its parameters |
+| `CopilotChoice` | `slot`, `value`, `label`, `detail` | An entity or alert the question could mean; the client sends `value` back in `slots[slot]` with `template_id` |
+| `CopilotModel` | `name`, `digest` | The local model behind the optional model router, pinned by digest |
+| `CopilotSlot` | `name`, `kind`, `required`, `description`, `labels`, `values` | `kind` is `entity`, `alert`, `percent`, `period` or `direction` |
+| `CopilotTemplate` | `id`, `version`, `title`, `category`, `description`, `examples`, `slots` | One question template; `category` is `records`, `connections`, `patterns`, `payments` or `meta` |
+| `CopilotInfo` | `catalog_version`, `router`, `model`, `badge`, `notice`, `templates` | What the UI shows before the first question: `notice` is the text of `contracts/wording/copilot-notice-v1.txt`, `badge` the short line beside the question box ("Automated question tool. AI model: off.", or "Automated question tool. AI model: on, local (<model>)." with the model router), `router` the mode (`pattern` or `pattern+model`), `templates` the catalog for a menu. `catalog_version` is the first 12 hexadecimal characters of the SHA-256 of every template's `id@version` line, in id order |
 
-The model checks the conditional rules; the JSON Schema shows the fields only.
+**The answer's fields.**
+
+- `interpretation` is how the copilot read the question, as the template's sentence with the slots filled by the entities' captions. It is present whenever a template was chosen, except when the reading would repeat words that did not ground (a name the graph does not hold, a value the copilot could not read).
+- `router` says what chose the template: `pattern`, `model` (then `model` names the model and its digest) or `direct` (the request named the template). A reading that the model proposed is never answered at once: the answer is `needs_clarification`, with the reading, the template and the grounded slots, and the person confirms it by sending them back with `template_id` and `slots`.
+- `slots` holds the grounded values: entity ids, an alert id, a percentage, a period (`2026-03`), a direction. With `needs_clarification` it holds every value already grounded apart from the one the copilot asks about.
+- `facts` are the answer's rows, each with the ids of the records it rests on (`entity_id`, `edge_id`, `alert_id`, `node_ids`, `edge_ids`); their keys depend on the template (`docs/copilot/templates.md`, M4.8). A fact about an alert carries its shape name, and its typology slug only when the alert involves no real entity.
+- `queries` lists every query an answer ran, in order, with its exact text and parameters; `cypher` and `parameters` (the 1.0.0 fields) repeat the template's main query, and are null when the answer rests on no query.
+- `subgraph` is the evidence (at most 500 nodes and 1,000 relationships, `truncated` when a limit cut something). A node that may be a person keeps only `names`, `datasets`, `first_seen` and `last_seen` among its properties, within the `GraphNode` rules above.
+- `choices` (with `needs_clarification`) are the entities or alerts the question could mean; the copilot never offers one that the real-data policy would refuse for that template.
+- `notices` are standing sentences that apply to this answer (synthetic data, records from public sources, alerts NeonRadar computed, what pattern strength means, ICIJ's caution, synthetic payments, links between organisations only, a name matched through another name).
+- `suggestions` are questions the copilot can answer, offered with a refusal or an unsupported question.
+- `refusal_code` and `refusal_reason` explain a refusal; `refusal_reason` is the same fixed text as `answer_text`. The codes: `judgement` (guilt or wrongdoing), `scoring` (risk, ranking or prediction), `decision` (whether a legal rule applies, or what anyone should do), `write_request`, `query_text`, `instructions`, `personal_details`, `real_person`, `real_payments` and `wording_check` (an answer the run-time wording lint stopped).
+
+**The model's rules** (the JSON Schema shows the fields only):
+
+- `answered` needs `answer_text` and no `refusal_reason`; it may rest on no query and no subgraph (the catalog's meta templates, such as help).
+- Only `answered` carries `queries`, `cypher`, `parameters` and `subgraph`: a refusal, an unsupported question and a clarifying question rest on none, because the search for a name that did not ground would repeat the person's words.
+- `refused` needs a `refusal_reason`; only `refused` carries a `refusal_code`.
+
+### Detection runs (1.2.0)
+
+| Model | Fields | Source and rule |
+|---|---|---|
+| `DetectorVersion` | `name`, `version` | One entry of the run's `detectors` JSON list |
+| `RunSummary` | `run_id`, `status`, `started_at`, `finished_at`, `profile`, `window_start`, `window_end`, `typologies`, `detectors`, `alert_count`, `params_sha256` | The `:DetectionRun` node (C2 1.2.0). `status` is `ok` or `failed`; the times are UTC ISO strings whether the node stores strings or temporal values; the C2 properties that may be absent are null |
+| `TypologyRunCounts` | `findings`, `alerts`, `duplicates`, `withheld`, `stats` | One typology's counts in the run summary (PHASE-3.md 7.5.3) |
+| `RunDetail` | `run`, `typologies`, `alerts`, `withheld` | The run and its `summary` property parsed: counts only, on every profile, so the run routes are the same on the real-data instance |
+
+`GET /runs` lists at most 50 runs, newest first (by `started_at`, then `run_id`). Both run routes read through `neonradar_graph.readonly.run_read` with the committed query files `api/src/neonradar_api/queries/runs_list.cypher` and `run_detail.cypher`.
 
 ## Errors
 
-Every error is an RFC 9457 problem (`application/problem+json`), the `Problem` model:
+Every error is an RFC 9457 problem (`application/problem+json`), the `Problem` model, and from 1.2.0 the OpenAPI document declares every 4xx and 5xx response that way (`hardening.install_problem_openapi`; FastAPI's `HTTPValidationError` and `ValidationError` do not appear):
 
 | Field | Value |
 |---|---|
@@ -213,20 +256,21 @@ Every error is an RFC 9457 problem (`application/problem+json`), the `Problem` m
 | `title` | The HTTP reason phrase (`Not Found`, `Unprocessable Content`, ...) |
 | `status` | The HTTP status code |
 | `detail` | A sentence for people. For `422`, the failed checks as `<location>: <message>` joined with `; ` (for example `query.q: String should have at least 2 characters`), without echoing the input: an unknown body key is reported at its parent as `body: unknown keys are not permitted`, without the key itself. For `405`, a sentence pointing to the `Allow` header. For `501`, the method, the route and the milestone or phase that implements it |
-| `instance` | The request path, without the query string |
+| `instance` | The request path, without the query string; for an unexpected `500`, the route template (`/api/v1/entities/{entity_id}`, or `unmatched`), so that no value from the request reaches it (1.2.0, H3): it is not a URI to dereference |
 
 | Status | When |
 |---|---|
 | 404 | An unknown route, or an id that matches nothing |
 | 405 | A method the route does not have (with an `Allow` header) |
-| 422 | A parameter, path or body that breaks a rule above, or a bad cursor |
-| 500 | An unexpected error, a stored alert that no longer validates as C4 or whose evidence is no longer in the graph (wipe and reload, then re-run detection), or typology files that cannot be found (set `NR_REPO_ROOT`); `detail` is generic or names the fix, and the API log has the details |
+| 413 | A body over 64 KiB (1.2.0, H5): Starlette's `text/plain` "Content Too Large" when `Content-Length` says so, a `413` problem when a streamed body passes the limit. The OpenAPI document leaves 413 out, because one of its two bodies is not a problem |
+| 422 | A parameter, path or body that breaks a rule above, or a bad cursor. A key of `slots` is the caller's text, so the detail names the field only (`body.slots: ...`) |
+| 500 | An unexpected error (detail "The API could not answer this request. Please report it to the maintainers."; the log names the exception's class and the route template only), a stored alert that no longer validates as C4 or whose evidence is no longer in the graph (wipe and reload, then re-run detection), typology files that cannot be found (set `NR_REPO_ROOT`), or a copilot or run query that failed its read-only check or that the database refused; `detail` is generic or names the fix |
 | 501 | A route not implemented yet |
-| 503 | Neo4j is not configured (no `NEO4J_PASSWORD`, or a `NEO4J_URI` the driver cannot use), not reachable, refuses the credentials, or has no database named `NEO4J_DATABASE`; `detail` never shows the driver's message |
+| 503 | Neo4j is not configured (no `NEO4J_PASSWORD`, or a `NEO4J_URI` the driver cannot use), not reachable, refuses the credentials, or has no database named `NEO4J_DATABASE`; a query that ran out of time or memory; the copilot is busy (1.2.0); `detail` never shows the driver's message |
 
 There is no `errors` extension member in v1; adding typed problem `type` URIs or extension members later is a minor change.
 
-A CORS preflight (`OPTIONS`) from an origin other than `http://localhost:5173` is rejected by Starlette's CORS middleware with `400` and a `text/plain` body, not a problem; browsers do not expose that response to the page, which sees a failed request.
+A CORS preflight (`OPTIONS`) is a `405` problem on the default app (1.2.0, H1). Under `neonradar api serve --dev`, a preflight from an origin other than the two development origins is rejected by Starlette's CORS middleware with `400` and a `text/plain` body, not a problem; browsers do not expose that response to the page, which sees a failed request.
 
 ## Null in v1
 
@@ -256,9 +300,22 @@ Additive (a minor version, PHASE-1.md 5.0): everything valid under 1.0.0 stays v
 - **Real data notice, version 2**: `GET /meta` serves `contracts/wording/real-data-v2.txt` as `Disclaimers.real_data`; `real-data-v1.txt` stays unchanged.
 - **Wording lint**: `contracts/wording/forbidden-terms.txt` gains, under `# Phase 2 additions (PHASE-2.md 7.2)`, one pattern per unqualified "Never write" phrase of PHASE-2.md 7.2; `scripts/check_wording.py` also scans `graph/src/**/wording.py`.
 
+## Changes in 1.2.0
+
+From `docs/build/PHASE-4.md` 5.3 (M4.2), with the decisions recorded in [CHANGELOG.md](CHANGELOG.md#c3-api-120). Minor under PHASE-1.md 5.0: every 1.1.0 response field keeps its name, type and meaning, and every new response field has a default or is filled by the API.
+
+- **Copilot models:** `CopilotRequest` gains `template_id` and `slots` and caps `context_entity_ids` at 5; `CopilotAnswer` gains the status `needs_clarification` and eleven fields with defaults, and new rules ([Copilot](#copilot-120)); new models `CopilotQuery`, `CopilotChoice`, `CopilotSlot`, `CopilotTemplate`, `CopilotModel` and `CopilotInfo`.
+- **Detection runs:** `DetectorVersion`, `RunSummary`, `TypologyRunCounts`, `RunDetail` ([Detection runs](#detection-runs-120)).
+- **New routes:** `GET /copilot`, `GET /runs`, `GET /runs/{run_id}`, each 501 until M4.5.
+- **Shape names:** `AlertSummary.shape_name` and `display_name`, `TypologySummary.shape_name` (and `TypologyDetail`'s).
+- **Problem details in the document:** every 4xx and 5xx response is `application/problem+json` with `Problem`; FastAPI's validation schemas leave the document.
+- **The standing notice:** `contracts/wording/copilot-notice-v1.txt`, served as `CopilotInfo.notice`.
+- **Not additive for every client**, both on `POST /copilot/ask`, which no 1.1.0 server answered: the operation id is `copilot_ask` (it was `ask_copilot`), and a request with more than 5 context ids, an out-of-bounds slot or template id, or an unknown field is a 422; the answer's rules change as listed above.
+- **API hardening of M4.1, written down here** (H1 to H6 in the changelog; H1 to H3 are major-class exceptions for the tech lead to sign off): CORS only with `--dev`; a fixed host list without `NR_ALLOWED_HOSTS`; an unexpected 500's `instance` is the route template; its fixed detail; the 64 KiB body limit (413); `api serve --dev` and `--host` (image only).
+
 ## Versioning and changes
 
-- C3 is `neonradar_contracts.versions.API` (`"1.1.0"`), which is also the OpenAPI `info.version`. The base path `/api/v1` and the snapshot `openapi/v1.json` cover every 1.x release.
+- C3 is `neonradar_contracts.versions.API` (`"1.2.0"`), which is also the OpenAPI `info.version`. The base path `/api/v1` and the snapshot `openapi/v1.json` cover every 1.x release.
 - The rules of PHASE-1.md 5.0 apply: a patch changes wording or examples; a minor change adds an optional field, a parameter with a default, an endpoint, an enum value in a response, a dictionary key or a problem response (clients ignore what they do not know); a major change renames, removes or changes the meaning of anything, and gets `/api/v2` with `openapi/v2.json`.
 - `AlertDetail` embeds the C4 `Alert`, so a C4 change regenerates `openapi/v1.json` too and is a C3 change of the same kind.
 - `additionalProperties: false` and the enums describe what this version's server emits; clients must not reject unknown fields, dictionary keys or enum values, so that minor releases do not break them.
@@ -273,7 +330,7 @@ Additive (a minor version, PHASE-1.md 5.0): everything valid under 1.0.0 stays v
 
 ## TypeScript types for the UI
 
-The UI never writes API types by hand (`.claude/rules/frontend.md`). M1.9d adds the script `gen:api` (`openapi-typescript ../contracts/openapi/v1.json -o src/api/schema.d.ts`); run `npm run --prefix ui gen:api` after every snapshot change and commit the result; M1.9d's acceptance checks that the committed file is exactly what the script writes. Nullable fields come out as `T | null` and every response field is required, because response models have no defaults.
+The UI never writes API types by hand (`.claude/rules/frontend.md`). M1.9d adds the script `gen:api` (`openapi-typescript ../contracts/openapi/v1.json -o src/api/schema.d.ts`); run `npm run --prefix ui gen:api` after every snapshot change and commit the result; M1.9d's acceptance checks that the committed file is exactly what the script writes. Nullable fields come out as `T | null` and every response field is required: response models had no defaults until 1.2.0, and the response fields that 1.2.0 adds with defaults are always sent, so the document lists them as required (`json_schema_serialization_defaults_required`).
 
 ## Example
 

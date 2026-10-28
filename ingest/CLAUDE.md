@@ -21,9 +21,10 @@
     downloads through `data.download.fetch`, retention and purge. A production loader
     registers a `SourceSpec`, a `Builder` and its profile-block model, and joins
     `data.sources.PLUGINS`. `ingest build` runs the gate for every dataset and every builder
-    step it will run (the officers step meets `access.companies_house_key` there, not in the
-    loader), `data fetch` for every dataset. A synthetic profile may enable only
-    `nr_synthetic`; records of every other dataset always go under `data/cache/real/`. Its
+    step it will run (`Builder.plan`; the officers step meets `access.companies_house_key`
+    there, and again in the loader), `data fetch` for every dataset. A synthetic profile may
+    enable only `nr_synthetic`; records of every other dataset always go under
+    `data/cache/real/`. Its
     tests use the `data_env` fixture (root conftest.py): cache, profiles, project file
     (`NR_PROJECT_FILE`) and `.env` at tmp paths, and real httpx transports refused.
   - Source code goes in `sources/<source>/` (client, mapping to C1). Tests use
@@ -36,6 +37,13 @@
   - OpenSanctions use follows `access.opensanctions` in `docs/build/project.yaml` through the
     gate in `sources/opensanctions/access.py`: `none` sends no request, and only `licensed`
     writes, to `data/cache/spikes/` only. Its tests use synthetic bodies, never real rows.
+  - ICIJ loader (`sources/icij/full.py`, `slice.py`, `links.yaml`; M2.5): reads the zip's CSV
+    members by header name, never extracting; selection passes keep node ids only; `note`
+    and unmapped columns never reach records; `officer_of` links classify through
+    `links.yaml` (unknown values are counted, so extend the table); a relationship type it
+    does not map is skipped and counted (fail closed), and one with same, similar, duplicate
+    or possibly in it is a hint, written to `*-hints.csv`, never a record. Names are tested
+    as FtM cleans them. Tests build the zip in memory from invented rows.
   - Synthetic ids start with `syn-`; synthetic accounts are `NRSYN` plus 10 digits.
   - Companies House (`sources/companies_house/`): the key is `CH_API_KEY` (basic auth
     username, empty password); 600 requests per 5 minutes, limiter at 2 per second. Map ids
@@ -62,3 +70,9 @@
     bare LegalEntity and PublicBody records and ICIJ records get nothing; scenarios, labels,
     topics and every other schema stay off input entities (`touches_input` must report all
     zeros). New ids use `syn-<kind>-j<seed>-`; account numbers a per-seed block.
+  - Generator v1 (`synth/` beside v0, PHASE-3.md 7.2, ADR-0023): `world.py` and
+    `overlay.py` and the scenario modules are verbatim from the code book (`make spec-check
+    M=M3.3`; change them only through `scripts/spec_extract.py update` or a recorded
+    deviation). `namesource.py` adapts the Phase 1 name modules; extra company words live
+    there, never in `words.py`. `synth world` and `synth overlay` (`synth/commands.py`)
+    validate every record with C1 before writing and refuse holdout seeds (G11).

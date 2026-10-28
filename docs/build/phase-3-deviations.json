@@ -1,1 +1,37 @@
-{}
+{
+  "detect/src/neonradar_detect/alerts.py": {
+    "milestone": "M3.2",
+    "reason": "Reconciliation A2 (recommended answer, taken under OD-10): evidence.window is always written, null when the finding has no window, because C4 1.0.0 requires the key; alert ids and texts do not change",
+    "sha256": "f3d3e8d914cb5e107b7c0cc00792a51b10cc6c07730fe2f92eef48e5954b7f25"
+  },
+  "detect/src/neonradar_detect/wording.py": {
+    "milestone": "M3.2",
+    "reason": "Reconciliation R1 (recommended answer, taken under OD-10): Phase 1's render_headline and format_metric (with MetricValue) are kept as they were, appended with their imports, so contracts/C4-alert.md's Code line and Phase 1's tests stay true; no Phase 3 code calls them, and the Phase 3 functions are unchanged",
+    "sha256": "d0e8ce6189b25c9518ff0aeb00cd78ed86c2e3907135c8b1bb1458d456f0ce0e"
+  },
+  "ingest/src/neonradar_ingest/synth/background.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S6: the module docstring says background activity can form benign cycle shapes and near-threshold cash, and that R-REAL is the only control on real profiles (docstring only)",
+    "sha256": "fa62db58c1aedcd0695793ce42a68282a49c6c844b9e2a0d3c9baeda11f421ba"
+  },
+  "ingest/src/neonradar_ingest/synth/base.py": {
+    "milestone": "M3.3",
+    "reason": "G1 eligibility tightened by orchestrator decision (#74 data-guardian review): a record with any topic gets no account, and a registry member must be its registry's own company record (gbch-co-, gleif-lei-) of schema Company or Organization; synthetic worlds are unchanged (their companies carry no topics); M3.3 review S3, S5, N1, N2: GLEIF records ineligible until C1 carries EntityCategory (category_unknown), a merged entity with a member missing from the base is ineligible (member_not_in_base), statuses are an allowlist checked on every member (not_active), docstring corrected and the unused flag_topics removed; #78 review: a registry record without a status is not eligible when the caller asks (overlay.generate does; the default stays off only for the verbatim merged-entity test), and a record the resolution run omits is not eligible (not_in_resolution); delta check of #78: a synthetic-kind record without a syn- id is not eligible (synthetic_id_prefix)",
+    "sha256": "e158311db75911d26692e08282346890051fbe7d7da0a74a8ce6d86d09777651"
+  },
+  "ingest/src/neonradar_ingest/synth/ctx.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S1: ScenarioCtx keeps the payments and relationships a scenario makes in a set of their own (links); label_payment and label accept only created, links or a branch ledger (_check_label), so they refuse anything the scenario did not make (relationships included), and every endpoint check is the code book's _check (created or a branch ledger only), so a link is never an endpoint; created is filled as the code book fills it, so no structural draw moves (the first version added them to created, which moved cash_commingling's incorporation and opening dates, a stream keyed on len(created); found by the independent review); M3.3 review S8 and N3: every scenario person draws an invented surname, and name collisions ignore legal forms (Phase 1 companies.name_key); #78 review: the NameSource.invented_person docstring names every scenario person; #78 review notes: the collision key also strips the namesource legal forms (B.V., S.a r.l., GmbH), and the organisation-name error carries no name",
+    "sha256": "1e5790a38f41585d88e61f10a2413239718b92419d9ed84a8d49a8e0fddc0c86"
+  },
+  "ingest/src/neonradar_ingest/synth/overlay.py": {
+    "milestone": "M3.3",
+    "reason": "M3.3 review S2: check_bridge takes the eligible organisation ids and requires every base holder of an account holding to be one, and refuses a payment whose payerAccount or beneficiaryAccount is a base id; #78 review: overlay.generate leaves out a registry without a company-record rule (fail closed for any caller) and asks BaseView for registry statuses",
+    "sha256": "f2236dca92892e0cba4bff8d449ca62fd099b238c7d29fad660602229995cee6"
+  },
+  "ingest/src/neonradar_ingest/synth/world.py": {
+    "milestone": "M3.3",
+    "reason": "PEP personas of the world draw invented_person, not person, so they carry invented surnames as PHASE-3.md 2.9 and 7.2.3 require; names only (the names stream), no structural draw moves; M3.3 review S7: parent and listed companies take SY8 plus five digits from a counter (_W.sy8) instead of SH and SL numbers",
+    "sha256": "f9e978692357cc22bdff6c22117fcdff5f51e4203a976ca55dc7a7f61c9801fd"
+  }
+}

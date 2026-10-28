@@ -116,3 +116,12 @@ Daniel Morgan
 Jason Collins
 Pamela Reed
 Gary Stevens
+# OD-12 (2026-10-21): a live UK company; no synthetic company may carry this name.
+Cedar Gate Holdings
+# M3.3 review: real surnames that the invented syllables of namesource.py can spell.
+Takata
+Takaki
+Moroka
+Takita
+Kakita
+Morota

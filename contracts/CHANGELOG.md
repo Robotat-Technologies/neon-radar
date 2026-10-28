@@ -2,6 +2,25 @@
 
 The four NeonRadar contracts and their versions (`neonradar_contracts.versions`). The tech lead tags `contracts-v<version>` when the contracts freeze (`docs/build/PHASE-1.md` 5.0); after that, every change needs an approved contract-change issue and an entry here.
 
+## 1.2.0 (unreleased)
+
+Phase 3 (`docs/build/PHASE-3.md` 5). Only C2 changes, and only additively: every graph valid under 1.1.0 stays valid. C1 stays 1.1.0, C3 1.1.0 and C4 1.0.0. The tech lead tags `contracts-v1.2.0` on top of `contracts-v1.1.0` once M3.1 has merged (5.0 step 6).
+
+### C2: Graph schema 1.2.0
+
+Additive (minor) change for overlays, the bridge invariants and detection runs, `docs/build/PHASE-3.md` 5.2, M3.1, contract-change issue #70. Details in [C2-graph-schema.md](C2-graph-schema.md#changes-in-120).
+
+- **`:Sanction.provisions`** (LIST<STRING>): every value of FtM `Sanction.provisions`, as published; an empty list when the record has none (`NodeMapping.empty_lists`, a new optional field). `neonradar_graph.mapping` sets it. `:Sanction` nodes loaded under 1.1.0 get `provisions` only when they are loaded again, so a query that may meet a graph loaded under 1.1.0 reads it with `coalesce(s.provisions, [])` (likewise the two `:Alert` lists written under 1.1.0).
+- **`:DetectionRun`** gains `profile`, `params_sha256`, `summary` (the counts-only run summary as JSON), `window_start` and `window_end`. `profile`, `params_sha256`, `window_start` and `window_end` may be absent (`NULLABLE_PROPERTIES["DetectionRun"]`): a run without a profile, a failed run, a graph with no window to read (for example registry-only, without `PAID`), and runs written under 1.1.0. `detectors` stays a JSON list of name and version: the hashes of each detector's query files go to the run folder's `run.json` only (orchestrator decision on reconciliation A1).
+- **I15 and support nodes:** `:Alert` and `:DetectionRun` have no `synthetic` property, so `FLAGS` and `PRODUCED` never count; `:SourceRecord` carries `synthetic` (1.1.0), and `RESOLVED_TO` never crosses because I9 keeps a record's `synthetic` equal to its entity's. An overlay load never runs L9's removal; its own purge (L18 step 4) takes its place.
+- **`:Alert`** gains `evidence_node_ids` and `evidence_edge_ids` (LIST<STRING>): the C4 `evidence.node_ids` and `evidence.edge_ids`, so invariant I17 reads them without parsing `payload`.
+- **Loader rule L18** (overlay loads: `syn-ov-` records of `nr_synthetic` onto a loaded base, in the base's instance, including `neo4j-real` for the profiles in `access.real_overlay_profiles`, after the bridge check; the previous overlay and all detection results are removed first) and **L19** (a detection load replaces the previous detection results). PHASE-3.md M3.4 builds L18 and M3.2 builds L19.
+- **Invariants I15 to I17** in `graph/src/neonradar_graph/queries/verify_overlay.cypher` (verbatim from the PHASE-3.md code book): I15, the only synthetic to non-synthetic relationship is `HOLDS_ACCOUNT` from a non-synthetic `:Organization` to a synthetic `:Account`; I16, no `PAID` between two accounts held by non-synthetic entities; I17, no `:Alert` names a non-synthetic person as a subject or in its evidence, and none that involves a non-synthetic entity has a `PAID` in its evidence. `neonradar graph verify` runs them from M3.4.
+- **Constants as data:** `OVERLAY_ID_PREFIX` (`syn-ov-`), `OVERLAY_DATASET` (`nr_synthetic`) and `BRIDGE_RELATIONSHIP` (`Organization`, `HOLDS_ACCOUNT`, `Account`), so the overlay loader, the generator checks and the verifier read one source.
+- **No migration:** no constraint or index changes (still 23 constraints and 9 own indexes after 0001 and 0002).
+- `versions.GRAPH_SCHEMA` and `versions.CONTRACTS` are `1.2.0`, so `GET /api/v1/meta` reports `contracts_version` and `schema_version` 1.2.0; `RECORD`, `API` and `ALERT` are unchanged.
+- **Consumers in this change:** the mapping writes `provisions` on every `:Sanction` node (an empty list when absent); the API's property allow-list for `:Sanction` nodes is built from this mapping, so `provisions` appears there when the graph holds it (additive C3 output; the OpenAPI snapshot is unchanged). `contracts/tests/test_wording.py` (test-only, as the issue allows) also lints every template under a typology file's `wording.variants` and each typology's `shape_name`, so it accepts the Phase 3 typology files (`docs/build/phase-3-reconciliation.md` K1). The API's `GET /meta` test and the UI's mocked meta read 1.2.0.
+
 ## 1.1.0 (unreleased)
 
 Phase 2 (`docs/build/PHASE-2.md` 5). Every change is additive: everything valid under 1.0.0 stays valid. The tech lead tags `contracts-v1.1.0` when M2.1a to M2.1c have merged (5.0).

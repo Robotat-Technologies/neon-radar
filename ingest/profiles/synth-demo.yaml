@@ -1,0 +1,37 @@
+# ingest/profiles/synth-demo.yaml (PHASE-3.md 7.11)
+profile: synth-demo
+description: >-
+  The synthetic demo: a small synthetic register (300 companies, 450 people) with 18 months of
+  background payments and three planted scenarios and three look-alikes for each of the 14
+  typologies, about 5,500 nodes and 156,000 relationships. Small enough for an 8 GB laptop or a
+  Codespace. Nothing in it exists.
+real_data: false
+sources:
+  nr_synthetic:
+    enabled: true
+    fixtures: []
+    world:
+      name: demo
+      seed: 20261103
+      companies: 300
+      people: 450
+      today: 2026-07-01
+      agent_every: 150
+      professional_every: 100
+      districts: 15
+resolution:
+  enabled: false
+overlay:
+  enabled: true
+  seed: null
+  start: 2025-01-01
+  end: 2026-07-01
+  illicit: 3
+  lookalikes: 3
+  typologies: all
+  background: {}
+detection:
+  enabled: true
+  window: overlay
+  overrides:
+    mass_registration_address: { top_share: 0.0 }

@@ -1,14 +1,123 @@
-"""`neonradar synth ...`: the synthetic data generator (PHASE-1.md M1.8e, PHASE-2.md M2.9)."""
+"""`neonradar synth ...`: the synthetic data generator (PHASE-1.md M1.8e, PHASE-2.md M2.9;
+generator v1, PHASE-3.md M3.3)."""
 
 import json
+import subprocess
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from neonradar_ingest.synth import DEMO_SEED, ER_BENCH_SEED
 
+if TYPE_CHECKING:
+    from neonradar_ingest.synth.commands import Written
+
 app = typer.Typer(help="Synthetic data generator.", no_args_is_help=True)
+
+SeedOption = Annotated[
+    int | None,
+    typer.Option(min=0, help="Seed of the world and the overlay (default: the profile's)."),
+]
+OutOption = Annotated[
+    Path | None,
+    typer.Option(file_okay=False, help="Write into this folder (default: data/cache/synthetic/)."),
+]
+
+
+def _git_sha() -> str:
+    """The checkout's commit for the manifests, or "unknown" outside a git checkout."""
+    from neonradar_ingest.data.project import REPO_ROOT
+
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "HEAD"],  # noqa: S607
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except OSError, subprocess.TimeoutExpired:
+        return "unknown"
+    sha = done.stdout.strip()
+    return sha if done.returncode == 0 and len(sha) == 40 else "unknown"
+
+
+def _report(profile: str, command: str, written: Written, extra: dict[str, object]) -> None:
+    from neonradar_cli import summary
+
+    typer.echo(f"wrote {written.records_file}")
+    summary.emit(
+        profile,
+        command,
+        {
+            "profile": profile,
+            "seed": written.seed,
+            "records": sum(written.by_schema.values()),
+            "records_by_schema": {k.lower(): n for k, n in written.by_schema.items()},
+            "sha256": written.sha256,
+            **extra,
+        },
+        string_keys=("sha256", "overlay_id"),
+    )
+
+
+@app.command(name="world")
+def world_command(
+    profile: Annotated[str, typer.Option("--profile", help="A synthetic profile with a world.")],
+    seed: SeedOption = None,
+    out: OutOption = None,
+) -> None:
+    """Generate a synthetic profile's register (the world): C1 records and their manifest."""
+    from neonradar_cli.data import profile_or_exit
+    from neonradar_ingest.synth.commands import SynthError, make_world
+
+    chosen = profile_or_exit(profile)
+    try:
+        written = make_world(chosen, seed, out, git_sha=_git_sha())
+    except SynthError as exc:
+        typer.echo(f"FAIL  {exc}", err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    _report(chosen.profile, "synth world", written, {})
+
+
+@app.command(name="overlay")
+def overlay_command(
+    profile: Annotated[str, typer.Option("--profile", help="A synthetic profile with an overlay.")],
+    seed: SeedOption = None,
+    base: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True, file_okay=False, help="Base record folder (default: the profile's)."
+        ),
+    ] = None,
+    out: OutOption = None,
+) -> None:
+    """Generate an overlay: accounts and background for the base's organisations, scenarios and
+    look-alikes among new synthetic entities, label files v2 and overlay.json."""
+    from neonradar_cli.data import profile_or_exit, project_or_exit
+    from neonradar_ingest.data.profiles import ProfileError
+    from neonradar_ingest.synth.commands import SynthError, make_overlay
+
+    project, chosen = project_or_exit(), profile_or_exit(profile)
+    try:
+        written = make_overlay(chosen, seed, base, out, project=project, git_sha=_git_sha())
+    except (SynthError, ProfileError) as exc:
+        typer.echo(f"FAIL  {exc}", err=True)
+        raise typer.Exit(code=exc.exit_code) from None
+    stats = written.stats
+    _report(
+        chosen.profile,
+        "synth overlay",
+        written,
+        {
+            "overlay_id": written.overlay_id,
+            "eligible_organisations": stats["eligible_organisations"],
+            "active_organisations": stats["active_organisations"],
+            "scenarios": stats["scenarios"],
+        },
+    )
 
 
 @app.command(name="demo-mini")

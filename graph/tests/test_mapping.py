@@ -129,6 +129,29 @@ def test_person_address_account_position_and_sanction_nodes() -> None:
     assert sanction.flags == ("Synthetic",)  # :Synthetic on :Sanction too (I2)
     assert sanction.props["caption"] == "Synthetic programme"
     assert sanction.props["listing_date"] == "2025-02-01"
+    assert sanction.props["provisions"] == []  # C2 1.2.0: empty when the record has none
+
+
+def test_sanction_provisions_keep_every_value_as_published() -> None:
+    """C2 1.2.0: `Sanction.provisions` is a list of every value, in the record's order."""
+    records = [
+        record(
+            "syn-sanction-1",
+            "Sanction",
+            entity="syn-co-1",
+            provisions=["Travel ban", "Asset freeze"],
+        ),
+        record("syn-sanction-2", "Sanction", entity="syn-co-1"),
+    ]
+    rows = {row.id: row for row in to_node_rows(records).rows}
+    assert rows["syn-sanction-1"].props["provisions"] == ["Travel ban", "Asset freeze"]
+    assert rows["syn-sanction-2"].props["provisions"] == []
+    assert rows["syn-sanction-1"].as_param()["props"]["provisions"] == [
+        "Travel ban",
+        "Asset freeze",
+    ]
+    company = to_node_rows([record("syn-co-1", "Company", name="Example Holdings Ltd")]).rows[0]
+    assert "provisions" not in company.props  # only :Sanction carries it
 
 
 def test_the_three_ownership_cases_and_share_bands() -> None:

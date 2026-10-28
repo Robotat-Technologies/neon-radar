@@ -40,7 +40,7 @@ def build_dataset(
     try:
         result = builder.build(profile, context)
         if not any(temporary.iterdir()):
-            return result
+            return _finished(builder, profile, context, result)
         issues = validate(sorted(temporary.glob("*.ftm.jsonl")))
         if issues:
             raise BuildError(
@@ -59,8 +59,17 @@ def build_dataset(
                 old.rename(final)  # the previous records stay in place
             raise
         shutil.rmtree(old, ignore_errors=True)
-        return result
+        return _finished(builder, profile, context, result)
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
         if not any(final.parent.iterdir()):
             final.parent.rmdir()
+
+
+def _finished(
+    builder: Builder, profile: Profile, context: BuildContext, result: BuildResult
+) -> BuildResult:
+    """Run the builder's cleanup: only here, after a successful build and swap."""
+    if builder.cleanup is not None:
+        builder.cleanup(profile, context, result)
+    return result

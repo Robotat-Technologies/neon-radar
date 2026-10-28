@@ -1,19 +1,34 @@
 """Shared helpers for the detect tests: the circular-flow fixture with its known right answer,
-case F (built here, never committed: fixtures stay synthetic), and the query row the detector
-receives for a cycle, built from the C1 records the way the C2 loader maps them.
+case F (built here, never committed: fixtures stay synthetic), and the Phase 3 test modes
+(PHASE-3.md 7.1.5, M3.2 deliverable 7).
 
 The integration tests use the shared Neo4j fixtures (`neo4j`, one per test session, and
 `graph_db`, migrated and wiped) of graph/tests/support/nr_test_neo4j.py, which the root
-conftest.py registers once for every suite; tests import `Neo4jTarget` from that module."""
+conftest.py registers once for every suite; tests import `Neo4jTarget` from that module.
+
+Detector tests turn records into a `Source` with `kit.source_of`. `NR_DETECT_SOURCE=neo4j`
+switches every one of them to the shared Neo4j: `neo4j_mode.factory` wipes it, loads the records
+with the project's loader in strict mode and returns a `Neo4jSource` (no second container,
+reconciliation T1)."""
 
 import copy
 import json
+import os
+import sys
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from neonradar_contracts.datasets import load_registry
+import pytest
+
 from neonradar_detect.catalog import TypologyFile, load_typology
+from neonradar_detect.source import Source
+
+# helpers (kit.py, neo4j_mode.py) sit next to the tests; pytest runs with --import-mode=importlib
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import kit
 
 TESTS = Path(__file__).resolve().parent
 REPO_ROOT = TESTS.parents[1]
@@ -63,64 +78,27 @@ def case_f_records() -> list[dict[str, Any]]:
     return [*records, copy.deepcopy(REAL_HOLDER)]
 
 
-def _synthetic(record: dict[str, Any]) -> bool:
-    dataset = load_registry().get(record["datasets"][0])
-    return dataset is not None and dataset.synthetic
-
-
-def _caption(record: dict[str, Any]) -> str:
-    props = record["properties"]
-    return str((props.get("name") or props.get("accountNumber"))[0])
-
-
-def _node(record: dict[str, Any]) -> dict[str, Any]:
-    node = {
-        "id": record["id"],
-        "caption": _caption(record),
-        "synthetic": _synthetic(record),
-        "datasets": list(record["datasets"]),
-    }
-    if record["schema"] == "BankAccount":
-        node["account_number"] = record["properties"]["accountNumber"][0]
-    return node
-
-
 def paid_ts(record: dict[str, Any]) -> datetime:
     """`PAID.ts` as the loader writes it: the C1 Payment date in UTC."""
     return datetime.fromisoformat(record["properties"]["date"][0]).replace(tzinfo=UTC)
 
 
-def query_row(records: list[dict[str, Any]], edge_ids: list[str]) -> dict[str, Any]:
-    """The row queries/circular_flow.cypher returns for the cycle `edge_ids` (in hop order)."""
-    by_id = {record["id"]: record for record in records}
-    hops = []
-    for edge_id in edge_ids:
-        payment = by_id[edge_id]
-        props = payment["properties"]
-        hops.append(
-            {
-                "id": edge_id,
-                "amount": float(props["amount"][0]),
-                "currency": props["currency"][0],
-                "ts": paid_ts(payment),
-                "synthetic": _synthetic(payment),
-                "datasets": list(payment["datasets"]),
-                "source": props["payerAccount"][0],
-                "target": props["beneficiaryAccount"][0],
-            }
-        )
-    accounts = [hop["source"] for hop in hops]
-    holders = [
-        {
-            "account": record["properties"]["asset"][0],
-            **_node(by_id[record["properties"]["owner"][0]]),
-        }
-        for record in records
-        if record["schema"] == "Ownership" and record["properties"]["asset"][0] in accounts
-    ]
-    return {
-        "origin": accounts[0],
-        "accounts": [_node(by_id[account]) for account in accounts],
-        "hops": hops,
-        "holders": holders,
-    }
+@pytest.fixture(scope="session")
+def neo4j_source_factory(neo4j: Any) -> Iterator[Callable[[list[dict[str, Any]]], Source]]:
+    """Records to a Neo4jSource on the shared test database (PHASE-3.md 7.1.5)."""
+    import neo4j_mode
+
+    yield neo4j_mode.factory(neo4j)
+
+
+if os.environ.get("NR_DETECT_SOURCE") == "neo4j":
+
+    @pytest.fixture(scope="session", autouse=True)
+    def _detector_tests_on_neo4j(
+        neo4j_source_factory: Callable[[list[dict[str, Any]]], Source],
+    ) -> Iterator[None]:
+        """NR_DETECT_SOURCE=neo4j: every detector test runs on Neo4j (7.1.5)."""
+        before = kit.SOURCE_FACTORY
+        kit.SOURCE_FACTORY = neo4j_source_factory
+        yield
+        kit.SOURCE_FACTORY = before

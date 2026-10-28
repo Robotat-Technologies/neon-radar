@@ -9,13 +9,21 @@
 
 A profile names the data one NeonRadar installation loads: which sources, which slice of each, and whether the result is real or synthetic. Every loader plugs into the data manager instead of choosing its own folders or checks, so one place decides what a profile loads, whether it may run on this machine, where its files go, how long they stay and how they are deleted.
 
-## The three profiles
+## The profiles
 
 | Profile | Data | What it loads |
 |---|---|---|
 | `demo` | synthetic | The Phase 1 demo-mini fixture (`data/fixtures/demo-mini`); from M2.9 also the entity resolution benchmark. Runs anywhere, including CI |
 | `uk-tiny` | real | A small slice for developers: the companies of one large group quoted on the London Stock Exchange, found from two seed company numbers through Companies House PSC records (at most 400 companies), their officers (at most 1,500 requests) and PSCs, their GLEIF records and the sanctions lists. No ICIJ data. A test input for the loaders that implies nothing about these companies |
 | `uk-sample` | real | A neutral slice of the UK register: companies registered in eight city-centre postcode districts across the UK (`EC2A`, `M1`, `B3`, `LS1`, `EH3`, `CF10`, `BS1`, `NE1`), at most 5,000 sampled evenly per district and 50,000 in all, with their ownership chains (corporate PSCs up to four levels up), officers (at most 20,000 requests), GLEIF records, the ICIJ records tied to the same districts (`district-linked`, at most 50,000 nodes) and the sanctions lists. The districts were chosen for spread, not for anything about the companies in them |
+
+Phase 3 adds three synthetic profiles, each a world (a synthetic register the generator makes from a seed) with an overlay of accounts, background payments, planted scenarios and look-alikes (PHASE-3.md 7.11, ADR-0023). Nothing in them exists, and none of their files is committed.
+
+| Profile | World | Overlay | Purpose |
+|---|---|---|---|
+| `synth-eval` | 600 companies, 900 people, seed 1 (`eval/seeds.yaml` from M3.6) | 18 months; 10 scenarios and 10 look-alikes per typology | the evaluation and the CI gate |
+| `synth-demo` | 300 companies, 450 people, seed 20261103 | 18 months; 3 and 3 per typology | `make demo`, Codespaces, 8 GB laptops |
+| `synth-scale` | 142,000 companies, 213,000 people, seed 20261105 | 18 months; background for 3 percent of the companies; 2 and 2 per typology | the scale benchmark (M3.9) |
 
 A note for the data steward's review of `uk-sample`: a city-centre district such as `EC2A` may hold many companies whose registered office is a service address (a formation agent or an accountant) rather than their place of business, so its sample may lean towards such companies; that says nothing about any of them, and another neutral district can replace it in review.
 
@@ -61,13 +69,17 @@ uv run neonradar ingest build --profile demo       # validates the demo fixture;
 uv run neonradar data status                       # versions, sizes, ages, retention; summary in reports/all-profiles/
 uv run neonradar data purge --expired --yes        # what is past access.real_data_days
 uv run neonradar data purge --all-real --graph --yes   # every real file and the real Neo4j volumes
+uv run neonradar synth world --profile synth-demo      # the world: data/cache/synthetic/worlds/demo/<seed>/
+uv run neonradar synth overlay --profile synth-demo    # the overlay: data/cache/synthetic/overlay/synth-demo/<overlay_id>/
 ```
+
+`synth world` and `synth overlay` take `--seed N` (default: the profile's) and `--out DIR` (write there and nothing else); `synth overlay` also takes `--base DIR` (default: the profile's world for the seed, which must exist). Both validate every record against C1 before writing, refuse a holdout seed, and print a counts-only summary. `synth overlay` refuses a real profile until M3.4.
 
 `data purge` takes one of `--expired`, `--dataset <slug>`, `--profile <name>`, `--labels`, `--decisions`, `--logs` or `--all-real`, optionally with `--graph`, or `--graph` alone, and always `--yes`.
 
 ## Adding or changing a profile
 
-Open a pull request that adds or edits `ingest/profiles/<name>.yaml`; the data steward reviews it (`.github/CODEOWNERS`). The file has `profile` (its own name), `description`, `real_data`, `sources` (one entry per dataset slug, each with `enabled` and the block its loader defines) and `resolution` (`enabled`, `config`). Unknown keys fail. Choose a slice for spread or for a documented test purpose, never because its companies look unusual, and never put a company or person name next to a seed. A real profile runs only after the operator adds it to `access.real_data_profiles`.
+Open a pull request that adds or edits `ingest/profiles/<name>.yaml`; the data steward reviews it (`.github/CODEOWNERS`). The file has `profile` (its own name), `description`, `real_data`, `sources` (one entry per dataset slug, each with `enabled` and the block its loader defines) and `resolution` (`enabled`, and `config` when enabled). A synthetic profile may add `world` to its `nr_synthetic` block (the fields of `WorldConfig`, with `name` and `seed`), and any profile the top-level `overlay` and `detection` blocks (PHASE-3.md 7.11). Unknown keys fail. Choose a slice for spread or for a documented test purpose, never because its companies look unusual, and never put a company or person name next to a seed. A real profile runs only after the operator adds it to `access.real_data_profiles`.
 
 ## Adding a source
 

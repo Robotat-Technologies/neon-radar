@@ -1,14 +1,18 @@
-"""Integration: the circular-flow detector and the detection runner on Neo4j (PHASE-1.md M1.9b).
+"""Integration: circular_flow 0.2.0 and the detection run on Neo4j (PHASE-1.md M1.9b; PHASE-3.md
+M3.2 deliverable 6).
 
-The handcrafted fixture is loaded with the C2 loader and must give exactly the cycles in
-expected.json; alerts validate against C4, keep their ids across runs and reproduce from their
-evidence query; case F (a real holder, built in conftest.py) gives a structural_pattern alert;
-and on demo-mini the labelled round_trip scenario's payments appear together in one alert.
+The handcrafted fixture is loaded with the C2 loader. Cases A to E keep their expectations: A and
+B are found, C, D and E are not, also with the two-payment minimum for a return to the same
+account (so D and E stay out for their own rule). 0.2.0 adds the same-holder variant, and in the
+fixture accounts cfa2 and cfa4 are both held by syn-co-cf02, so cfa2 -> cfa3 is also reported as
+`same_holder`. Alerts keep their ids across runs and reproduce from their evidence query; on
+demo-mini the labelled round_trip scenario's payments appear together in one alert. Case F (a
+real holder) cannot be loaded beside synthetic accounts under C2 L17, so it moved to the memory
+run (test_circular_flow_fixture.py and test_alert_builder.py's R-REAL test).
 """
 
 import csv
 import io
-import os
 from pathlib import Path
 from typing import Any
 
@@ -17,25 +21,18 @@ from neo4j import RoutingControl
 from nr_test_neo4j import Neo4jTarget
 
 from neonradar_contracts.alert import Alert
-from neonradar_detect import runner
+from neonradar_detect import runs
 from neonradar_detect.detectors import circular_flow
-from neonradar_graph.loader import load_files, load_records, node_query
-from neonradar_graph.mapping import to_node_rows
+from neonradar_detect.neo4jsource import Neo4jSource
+from neonradar_graph.loader import load_files, load_records
 
-from .conftest import (
-    CASE_A_ORIGIN,
-    CIRCULAR_FLOW,
-    EXPECTED,
-    REAL_HOLDER,
-    REPO_ROOT,
-    case_f_records,
-    fixture_records,
-)
+from .conftest import EXPECTED, REPO_ROOT, fixture_records
 
 pytestmark = pytest.mark.integration
 
 DEMO_MINI = REPO_ROOT / "data" / "fixtures" / "demo-mini"
 CASE_A = EXPECTED["cases"]["A"]["edge_ids"]
+SAME_HOLDER = ["syn-payment-cfa2", "syn-payment-cfa3"]
 
 
 def load(db: Neo4jTarget, records: list[dict[str, Any]]) -> Neo4jTarget:
@@ -51,8 +48,30 @@ def read(db: Neo4jTarget, cypher: str, **params: Any) -> list[dict[str, Any]]:
     return [record.data() for record in records]
 
 
-def detect_run(db: Neo4jTarget, runs_dir: Path, **kwargs: Any) -> runner.RunReport:
-    return runner.run(db.driver, db.database, typology="circular_flow", runs_dir=runs_dir, **kwargs)
+def source(db: Neo4jTarget) -> Neo4jSource:
+    return Neo4jSource(db.driver, db.database, timeout_s=60.0)
+
+
+def cycles(db: Neo4jTarget, **params: Any) -> list[list[str]]:
+    """Each finding's payments in hop order, sorted."""
+    src = source(db)
+    found = src.paid_time_range()
+    assert found is not None
+    out = circular_flow.run(src, circular_flow.Params(**params), runs.day_window(*found))
+    return sorted([edge for (edge,) in f.steps] for f in out.findings)
+
+
+def detect_run(
+    db: Neo4jTarget, runs_dir: Path, *, keep_previous: bool = True, run_id: str | None = None
+) -> runs.RunRecord:
+    return runs.detect_on_graph(
+        db.driver,
+        db.database,
+        typologies=["circular_flow"],
+        run_id=run_id,
+        runs_dir=runs_dir,
+        keep_previous=keep_previous,
+    )
 
 
 @pytest.fixture
@@ -61,9 +80,9 @@ def cases(graph_db: Neo4jTarget) -> Neo4jTarget:
 
 
 def test_the_detector_finds_exactly_the_expected_cycles(cases: Neo4jTarget) -> None:
-    findings = circular_flow.detect(cases.driver, cases.database, CIRCULAR_FLOW)
-    found = sorted([edge.id for edge in finding.edges] for finding in findings)
-    assert found == sorted(EXPECTED["found"])
+    assert cycles(cases, same_holder=False) == sorted(EXPECTED["found"])
+    assert cycles(cases, same_holder=False, min_hops_same_account=2) == sorted(EXPECTED["found"])
+    assert cycles(cases) == sorted([*EXPECTED["found"], SAME_HOLDER])
 
 
 def shapes() -> tuple[list[dict[str, Any]], list[list[str]]]:
@@ -141,10 +160,12 @@ def shapes() -> tuple[list[dict[str, Any]], list[list[str]]]:
 def test_only_simple_cycles_in_one_currency_with_strictly_later_payments(
     graph_db: Neo4jTarget,
 ) -> None:
+    """With the two-payment minimum for a return to the same account (0.2.0 needs three by
+    default, which would find none of these)."""
     records, expected = shapes()
     db = load(graph_db, records)
-    findings = circular_flow.detect(db.driver, db.database, CIRCULAR_FLOW)
-    assert sorted([edge.id for edge in finding.edges] for finding in findings) == sorted(expected)
+    assert cycles(db) == []
+    assert cycles(db, min_hops_same_account=2) == sorted(expected)
     # Without the simple-cycle rule these 4-hop walks would pass every other rule.
     walks = read(
         db,
@@ -161,11 +182,12 @@ def test_only_simple_cycles_in_one_currency_with_strictly_later_payments(
 def test_run_alerts_validate_keep_their_ids_and_load_idempotently(
     cases: Neo4jTarget, tmp_path: Path
 ) -> None:
+    """Phase 1's merge semantics, under --keep-previous (L19 without it: test_detection_store)."""
     first = detect_run(cases, tmp_path)
     second = detect_run(cases, tmp_path)
     assert first.run_id != second.run_id
     assert [a.alert_id for a in first.alerts] == [a.alert_id for a in second.alerts]
-    assert {a.wording_class for a in second.alerts} == {"synthetic_scenario"}  # cases A and B
+    assert {a.wording_class for a in second.alerts} == {"synthetic_scenario"}
     lines = (second.directory / "alerts.jsonl").read_text(encoding="utf-8").splitlines()
     assert [Alert.model_validate_json(line) for line in lines] == second.alerts
     stored = read(
@@ -181,20 +203,19 @@ def test_run_alerts_validate_keep_their_ids_and_load_idempotently(
         assert row["run_id"] == second.run_id
         assert Alert.model_validate_json(row["payload"]) == alert
         assert sorted(row["flags"]) == sorted([s.entity_id, s.role] for s in alert.subjects)
-    runs = read(
+    found = read(
         cases,
         "MATCH (r:DetectionRun) RETURN r.run_id AS run_id, r.status AS status,"
         " r.alert_count AS alerts, COUNT { (r)-[:PRODUCED]->(:Alert) } AS produced ORDER BY run_id",
     )
-    assert [(r["status"], r["alerts"], r["produced"]) for r in runs] == [("ok", 2, 2)] * 2
+    assert [(r["status"], r["alerts"], r["produced"]) for r in found] == [("ok", 3, 3)] * 2
 
 
 def test_an_alert_reproduces_from_its_evidence_query(cases: Neo4jTarget, tmp_path: Path) -> None:
     report = detect_run(cases, tmp_path)
-    for alert in report.alerts:
-        query = alert.evidence.query
-        rows = read(cases, query.cypher, **query.parameters)
-        assert alert.evidence.edge_ids in [[hop["id"] for hop in row["hops"]] for row in rows]
+    ids = [alert.alert_id for alert in report.alerts]
+    checks = list(runs.verify(cases.driver, cases.database, ids))
+    assert [c.alert_id for c in checks] == sorted(ids) and all(c.ok for c in checks)
 
 
 def test_a_rerun_keeps_one_flags_per_current_subject(cases: Neo4jTarget, tmp_path: Path) -> None:
@@ -218,68 +239,23 @@ def test_a_rerun_keeps_one_flags_per_current_subject(cases: Neo4jTarget, tmp_pat
 def test_a_run_id_used_again_keeps_only_what_it_finds(cases: Neo4jTarget, tmp_path: Path) -> None:
     run_id = "run-20261021T101500-0abc"
     first = detect_run(cases, tmp_path, run_id=run_id)
-    assert len(first.alerts) == 2
+    assert len(first.alerts) == 3
     cases.driver.execute_query(
         "MATCH ()-[p:PAID {id: $id}]->() DELETE p",
         {"id": EXPECTED["cases"]["B"]["edge_ids"][0]},
         database_=cases.database,
     )
     again = detect_run(cases, tmp_path, run_id=run_id)
-    assert [a.evidence.edge_ids for a in again.alerts] == [CASE_A]
+    assert sorted(a.evidence.edge_ids for a in again.alerts) == sorted(
+        [CASE_A, sorted(SAME_HOLDER)]
+    )
     stored = read(
         cases,
         "MATCH (a:Alert) RETURN a.alert_id AS id,"
-        " COUNT { (:DetectionRun {run_id: $run_id})-[:PRODUCED]->(a) } AS produced",
+        " COUNT { (:DetectionRun {run_id: $run_id})-[:PRODUCED]->(a) } AS produced ORDER BY id",
         run_id=run_id,
     )
-    assert stored == [{"id": again.alerts[0].alert_id, "produced": 1}]
-
-
-def load_case_f(db: Neo4jTarget) -> Neo4jTarget:
-    """Case F's graph. The loader refuses a load that mixes synthetic and real records (C2 L17,
-    M2.11), so the synthetic fixture is loaded and the test then writes the real-looking holder
-    itself and moves the origin account's holding to it, as case_f_records() describes. The
-    look-alike reaches only a Testcontainers database, never an instance named by
-    NR_TEST_NEO4J_URI (graph/CLAUDE.md)."""
-    if os.environ.get("NR_TEST_NEO4J_URI"):
-        pytest.skip("case F writes a non-synthetic look-alike: Testcontainers databases only")
-    load(db, fixture_records())
-    (holder,) = to_node_rows([REAL_HOLDER]).rows
-    db.driver.execute_query(node_query("Company"), rows=[holder.as_param()], database_=db.database)
-    db.driver.execute_query(
-        "MATCH (holder:Entity {id: $holder})"
-        " MATCH ()-[old:HOLDS_ACCOUNT]->(account:Entity {id: $account})"
-        " WITH holder, account, old, properties(old) AS kept DELETE old"
-        " CREATE (holder)-[moved:HOLDS_ACCOUNT]->(account) SET moved = kept",
-        holder=REAL_HOLDER["id"],
-        account=CASE_A_ORIGIN,
-        database_=db.database,
-    )
-    holdings = [r for r in case_f_records() if r["properties"].get("owner") == [REAL_HOLDER["id"]]]
-    assert len(holdings) == 1  # case_f_records() moves exactly this holding
-    return db
-
-
-def test_case_f_real_holder_gives_a_structural_pattern(
-    graph_db: Neo4jTarget, tmp_path: Path
-) -> None:
-    db = load_case_f(graph_db)
-    report = detect_run(db, tmp_path)
-    [alert] = [a for a in report.alerts if a.evidence.edge_ids == CASE_A]
-    assert alert.wording_class == "structural_pattern"
-    assert alert.data_flags.involves_real_entities is True
-    assert alert.data_flags.synthetic_activity is True
-    assert alert.headline == CIRCULAR_FLOW.wording.headline_structural.format(  # type: ignore[union-attr]
-        cycle_length=4, duration_days=6
-    )
-    assert (REAL_HOLDER["id"], "origin_holder") in [(s.entity_id, s.role) for s in alert.subjects]
-    assert alert.subjects[0].entity_id == CASE_A_ORIGIN
-    i6 = read(
-        db,
-        "MATCH (a:Alert {wording_class: 'synthetic_scenario'})-[:FLAGS]->(n)"
-        " WHERE NOT coalesce(n.synthetic = true, false) RETURN n.id AS id",
-    )
-    assert i6 == []
+    assert stored == [{"id": a, "produced": 1} for a in sorted(x.alert_id for x in again.alerts)]
 
 
 def labelled(name: str) -> list[dict[str, str]]:
@@ -299,7 +275,7 @@ def test_the_round_trip_scenario_of_demo_mini_is_one_alert(
         if row["typology"] == "circular_flow" and row["variant"] == "round_trip"
     }
     assert scenarios, "demo-mini labels no round_trip scenario"
-    alerts = detect_run(graph_db, tmp_path).alerts
+    alerts = detect_run(graph_db, tmp_path, keep_previous=False).alerts
     for scenario in sorted(scenarios):
         payments = {
             row["tx_id"] for row in labelled("transactions.csv") if row["scenario_id"] == scenario

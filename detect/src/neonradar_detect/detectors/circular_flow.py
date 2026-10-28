@@ -1,250 +1,159 @@
-"""Circular flow detector: payments that return to the account they left (PHASE-1.md M1.9b).
+"""circular_flow 0.2.0: funds that return to the originating account, or to another account of
+the same holder (PHASE-1.md 7.2 entry 4; PHASE-3.md 7.3.4).
 
-Typology `circular_flow` (detect/typologies/circular_flow.yaml, docs/typologies/circular-flow.md).
-The query (queries/circular_flow.cypher) finds directed cycles of `PAID` relationships that
-start and end at the same `:Account`, with `min_hops` to `max_hops` payments, each payment
-strictly later than the one before it (so a cycle is found once, from the account where it
-starts), no account visited twice on the way, the first payment to the last within
-`max_window_days`, and a return ratio (last amount over first amount, in one currency) of at
-least `min_return_ratio`. The variant that returns to another account of the same holder is
-Phase 3 work.
+Starts are payments of at least `min_amount`. From each start the expansion follows later
+payments in the same currency, each between `min_return_ratio` and `1 + max_hop_gain` times the
+first amount, within `max_window_days` of the first payment, through accounts not visited yet. A
+cycle closes at the first account that is the origin (variant `same_account`) or, with
+`same_holder`, another account of one of the origin's holders (variant `same_holder`), and is a
+finding when it has `min_hops` to `max_hops` payments and returns at least `min_return_ratio` of
+the first amount. A cycle back to the very account it left needs `min_hops_same_account` payments:
+a payment straight back is the shape of a refund, a loan repaid or a cash pool sweep, and on the
+development worlds a two-payment minimum added 130 alerts and no true one (50 on look-alikes, 50
+on other typologies' scenarios, 30 on background activity; PHASE-3.md 7.6.5). A return to another
+account of the same holder still counts from two payments. Time order makes each
+cycle start at its earliest payment, so it is found once.
 
-Pattern strength orders the review queue; it is a heuristic, not a risk score:
-
-    pattern_strength = 0.5 x return_ratio
-                     + 0.3 x (1 - duration_hours / (max_window_days x 24))
-                     + 0.2 x min(1, (cycle_length - 1) / 4)
-
-clipped to [0, 1] and rounded to two decimals, computed from the reported metrics. Up to a
-return ratio of 1, a cycle that returns more of the sent amount, closes faster and passes
-through more accounts scores higher. The ratio has a lower bound only (`min_return_ratio`), so
-a cycle that returns more than was sent also scores high although its amounts are not
-near-equal: an open question for the typology researcher (docs/typologies/circular-flow.md).
-
-Metrics: `duration_hours` is rounded to one decimal and `duration_days` is that rounded
-`duration_hours` divided by 24, rounded up (C4); `return_ratio` is rounded to four decimals.
-Findings are sorted in Python by origin account id and edge ids, whatever order the query
-returns.
+pattern_strength = 0.5 * return ratio + 0.3 * (1 - duration / window)
++ 0.2 * min(1, (hops - 1) / 4), clipped to [0, 1]: a heuristic for ordering the queue (PHASE-1.md
+M1.9b), not a risk score.
 """
 
-import logging
+from __future__ import annotations
+
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
-from functools import cache
-from pathlib import Path
-from typing import Any
+from datetime import timedelta
 
-from neo4j import Driver, RoutingControl
+from neonradar_detect.expand import FrontierItem, Path, expand
+from neonradar_detect.model import Finding, Subject, clip01
+from neonradar_detect.rows import Hop
+from neonradar_detect.source import DetectorOutput, Source, Window
 
-from neonradar_detect.alerts import EdgeFact, Finding, Step, entity_fact
-from neonradar_detect.catalog import TypologyFile
-from neonradar_detect.wording import MetricValue, cycle_summary, payment_step
-
-logger = logging.getLogger(__name__)
-
-NAME = __name__
-VERSION = "0.1.0"
-QUERY_FILE = Path(__file__).resolve().parents[1] / "queries" / "circular_flow.cypher"
-QUANTIFIER = "->{{{min_hops}},{{max_hops}}}("  # placeholders as PHASE-2.md M2.0 (cypher-lint)
-HOP_LIMIT = 8  # PHASE-1.md 5.2: every traversal at most 8 hops
-MAX_RESULTS = 1000
-LABEL_MAX = 64  # account labels in explanation texts, so a step stays within 280 characters
+SLUG = "circular_flow"
+VERSION = "0.2.0"
+QUERIES = ("paid_hop.cypher", "paid_starts.cypher")
+RETURN_POINT = {
+    "same_account": "the originating account",
+    "same_holder": "another account of the same holder",
+}
 
 
 @dataclass(frozen=True, slots=True)
-class Parameters:
-    """The typology parameters of one run, checked against the catalog's ranges."""
-
-    min_hops: int
-    max_hops: int
-    max_window_days: int | float
-    min_return_ratio: int | float
-
-
-def resolve_parameters(
-    typology: TypologyFile, overrides: Mapping[str, int | float] | None = None
-) -> Parameters:
-    """The catalog defaults, with `overrides` checked against the catalog's `min` and `max`."""
-    overrides = dict(overrides or {})
-    unknown = sorted(
-        set(overrides) - {"min_hops", "max_hops", "max_window_days", "min_return_ratio"}
-    )
-    if unknown:
-        raise ValueError(f"unknown circular_flow parameters: {unknown}")
-    values: dict[str, int | float] = {}
-    for name, spec in sorted(typology.parameters.items()):
-        value = overrides.get(name, spec.default)
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, int | float)
-            or not math.isfinite(value)
-        ):
-            raise ValueError(f"parameter {name} must be a finite number, not {value!r}")
-        if (spec.min is not None and value < spec.min) or (
-            spec.max is not None and value > spec.max
-        ):
-            raise ValueError(f"parameter {name}={value} is outside [{spec.min}, {spec.max}]")
-        values[name] = value
-    hops = (values["min_hops"], values["max_hops"])
-    if not all(isinstance(value, int) for value in hops):
-        raise ValueError(f"min_hops and max_hops must be integers, not {hops}")
-    return Parameters(
-        min_hops=int(hops[0]),
-        max_hops=int(hops[1]),
-        max_window_days=values["max_window_days"],
-        min_return_ratio=values["min_return_ratio"],
-    )
+class Params:
+    min_hops: int = 2
+    min_hops_same_account: int = 3
+    max_hops: int = 6
+    max_window_days: int = 14
+    min_return_ratio: float = 0.8
+    min_amount: float = 1000.0
+    max_hop_gain: float = 0.05
+    same_holder: bool = True
+    max_starts: int = 1_000_000
+    max_branching: int = 20
+    max_frontier: int = 50_000
 
 
-def query(min_hops: int, max_hops: int) -> str:
-    """The detection query for one hop range, from the fixed template. Quantifier bounds
-    cannot be query parameters, so they are written in, but only as integers with
-    2 <= min_hops <= max_hops <= 8, never as text from outside. (Checked before the cache,
-    where 2.0 and True would hit the entries of 2 and 1.)"""
-    if not (type(min_hops) is int and type(max_hops) is int):
-        raise TypeError("hop bounds must be integers")
-    if not 2 <= min_hops <= max_hops <= HOP_LIMIT:
-        raise ValueError(f"hop bounds must satisfy 2 <= {min_hops} <= {max_hops} <= {HOP_LIMIT}")
-    return _render(min_hops, max_hops)
+def _closes(path: Path, p: Params) -> str | None:
+    """The variant if the last hop returns to the origin's side, else None."""
+    origin = path.first.source
+    target = path.last.target
+    if target == origin:
+        return "same_account"
+    if p.same_holder and set(path.last.target_holders) & set(path.first.source_holders):
+        return "same_holder"
+    return None
 
 
-@cache
-def _render(min_hops: int, max_hops: int) -> str:
-    template = QUERY_FILE.read_text(encoding="utf-8")
-    if template.count(QUANTIFIER) != 1:
-        raise RuntimeError(f"{QUERY_FILE.name} must contain {QUANTIFIER} exactly once")
-    return template.replace(QUANTIFIER, f"->{{{min_hops},{max_hops}}}(")
+def run(source: Source, p: Params, window: Window) -> DetectorOutput:
+    if (
+        not 2 <= p.min_hops <= p.max_hops <= 8
+        or not p.min_hops <= p.min_hops_same_account <= p.max_hops
+    ):
+        raise ValueError("need 2 <= min_hops <= min_hops_same_account <= max_hops <= 8")
+    span = timedelta(days=p.max_window_days)
+    starts = source.paid_starts(p.min_amount, window.start, window.end, p.max_starts)
 
-
-def pattern_strength(
-    return_ratio: float, duration_hours: float, max_window_days: float, cycle_length: int
-) -> float:
-    """The queue-ordering heuristic in the module docstring; never a risk score."""
-    window_hours = max_window_days * 24
-    value = (
-        0.5 * return_ratio
-        + 0.3 * (1 - duration_hours / window_hours)
-        + 0.2 * min(1.0, (cycle_length - 1) / 4)
-    )
-    return round(min(1.0, max(0.0, value)), 2)
-
-
-def detect(
-    driver: Driver,
-    database: str,
-    typology: TypologyFile,
-    *,
-    overrides: Mapping[str, int | float] | None = None,
-    limit: int = MAX_RESULTS,
-) -> list[Finding]:
-    """Every circular flow in the graph, ordered by origin account id and edge ids."""
-    params = resolve_parameters(typology, overrides)
-    cypher = query(params.min_hops, params.max_hops)
-    run_parameters: dict[str, Any] = {
-        "origin": None,
-        "max_window_days": params.max_window_days,
-        "min_return_ratio": params.min_return_ratio,
-        "limit": limit,
-    }
-    records, _, _ = driver.execute_query(
-        cypher, run_parameters, database_=database, routing_=RoutingControl.READ
-    )
-    if len(records) >= limit:
-        logger.warning("circular_flow stopped at the result limit of %d cycles", limit)
-    rows = sorted(
-        (record.data() for record in records),
-        key=lambda row: (str(row["origin"]), [str(hop["id"]) for hop in row["hops"]]),
-    )
-    return [finding(row, cypher, run_parameters, params) for row in rows]
-
-
-def _label(account: Mapping[str, Any]) -> str:
-    """How an explanation names an account: its number, else its caption, else its id."""
-    text = str(account.get("account_number") or account.get("caption") or account["id"])
-    return text if len(text) <= LABEL_MAX else text[: LABEL_MAX - 1] + "…"
-
-
-def _moment(value: Any) -> datetime:
-    """A `PAID.ts` value (a neo4j DateTime in UTC) as an aware Python datetime."""
-    moment = value.to_native() if hasattr(value, "to_native") else value
-    if not isinstance(moment, datetime) or moment.tzinfo is None:
-        raise ValueError(f"PAID.ts must be a zoned DATETIME (invariant I3), not {value!r}")
-    return moment
-
-
-def finding(
-    row: Mapping[str, Any], cypher: str, run_parameters: Mapping[str, Any], params: Parameters
-) -> Finding:
-    """One result row of the query as a `Finding` with metrics, steps and summary."""
-    accounts = [dict(account) for account in row["accounts"]]
-    hops = [dict(hop) for hop in row["hops"]]
-    origin_id = str(row["origin"])
-    labels = {str(account["id"]): _label(account) for account in accounts}
-    first, last = hops[0], hops[-1]
-    start, end = _moment(first["ts"]), _moment(last["ts"])
-    seconds = (end - start).total_seconds()
-    sent, returned = float(first["amount"]), float(last["amount"])
-    hours = round(seconds / 3600, 1)
-    metrics: dict[str, MetricValue] = {
-        "cycle_length": len(hops),
-        "sent_amount": sent,
-        "returned_amount": returned,
-        "currency": str(first["currency"]),
-        "duration_hours": hours,
-        "duration_days": math.ceil(hours / 24),  # C4: hours divided by 24, rounded up
-        "return_ratio": round(returned / sent, 4),
-    }
-    strength = pattern_strength(
-        float(metrics["return_ratio"]),
-        hours,
-        params.max_window_days,
-        len(hops),
-    )
-    steps = tuple(
-        Step(
-            payment_step(
-                labels[str(hop["source"])],
-                str(hop["currency"]),
-                float(hop["amount"]),
-                labels[str(hop["target"])],
-                _moment(hop["ts"]),
-            ),
-            (str(hop["id"]),),
+    def extend(path: Path, key: int) -> FrontierItem | None:
+        if len(path.hops) >= p.max_hops or _closes(path, p) is not None:
+            return None
+        first = path.first
+        return FrontierItem(
+            key=key,
+            account=path.last.target,
+            after=path.last.ts,
+            until=first.ts + span,
+            min_amount=p.min_return_ratio * first.amount,
+            max_amount=(1 + p.max_hop_gain) * first.amount,
+            currency=first.currency,
+            visited=tuple(sorted(set(path.accounts[1:]))),
         )
-        for hop in hops
+
+    def keep(path: Path, hop: Hop) -> bool:
+        return True
+
+    def accept(path: Path) -> bool:
+        variant = _closes(path, p)
+        if variant is None or len(path.hops) < p.min_hops:
+            return False
+        return variant != "same_account" or len(path.hops) >= p.min_hops_same_account
+
+    cycles, stats = expand(
+        starts,
+        source.paid_hop,
+        extend=extend,
+        keep=keep,
+        accept=accept,
+        max_hops=p.max_hops,
+        max_branching=p.max_branching,
+        max_frontier=p.max_frontier,
     )
-    summary = cycle_summary(
-        labels[origin_id], str(first["currency"]), sent, returned, len(accounts) - 1, seconds / 3600
+    findings = [f for f in (_finding(c, p) for c in cycles) if f is not None]
+    return DetectorOutput(
+        findings,
+        {"starts": len(starts), "partial_paths": stats.partial_paths, "truncated": stats.truncated},
     )
-    nodes = tuple(entity_fact(account) for account in accounts)
-    holders = [dict(holder) for holder in row["holders"]]
-    origin = next(node for node in nodes if node.id == origin_id)
-    origin_holders = sorted(
-        {entity_fact(holder) for holder in holders if holder["account"] == origin_id},
-        key=lambda holder: holder.id,
+
+
+def _finding(cycle: Path, p: Params) -> Finding | None:
+    variant = _closes(cycle, p)
+    first, last = cycle.first, cycle.last
+    ratio = last.amount / first.amount
+    if variant is None or ratio < p.min_return_ratio:
+        return None
+    hours = (last.ts - first.ts).total_seconds() / 3600
+    window_hours = p.max_window_days * 24
+    if hours > window_hours:
+        return None
+    hops = len(cycle.hops)
+    strength = clip01(
+        0.5 * min(1.0, ratio) + 0.3 * (1 - hours / window_hours) + 0.2 * min(1.0, (hops - 1) / 4)
     )
+    origin = first.source
+    subjects = [Subject(origin, "origin")]
+    subjects += [Subject(h, "origin_holder") for h in sorted(first.source_holders)]
+    if variant == "same_holder":
+        subjects.append(Subject(last.target, "return_account"))
+    metrics = {
+        "cycle_length": hops,
+        "sent_amount": round(first.amount, 2),
+        "returned_amount": round(last.amount, 2),
+        "currency": first.currency,
+        "duration_hours": round(hours, 1),
+        "duration_days": max(1, math.ceil(hours / 24)),
+        "return_ratio": round(ratio, 4),
+        "return_point": RETURN_POINT[variant],
+    }
     return Finding(
-        nodes=nodes,
-        edges=tuple(
-            EdgeFact(
-                id=str(hop["id"]),
-                source=str(hop["source"]),
-                target=str(hop["target"]),
-                synthetic=hop.get("synthetic") is True,
-                datasets=tuple(str(slug) for slug in hop.get("datasets") or ()),
-            )
-            for hop in hops
-        ),
-        subjects=(("origin", origin), *(("origin_holder", holder) for holder in origin_holders)),
-        holders=tuple(sorted({entity_fact(holder) for holder in holders}, key=lambda h: h.id)),
+        typology=SLUG,
+        variant=variant,
+        anchor=origin,
+        node_ids=tuple(sorted(set(cycle.accounts))),
+        edge_ids=tuple(sorted(h.edge_id for h in cycle.hops)),
+        subjects=tuple(subjects),
         metrics=metrics,
         pattern_strength=strength,
-        cypher=cypher,
-        parameters={**run_parameters, "origin": origin_id},
-        window=(start, end),
-        summary=summary,
-        steps=steps,
-        masked=tuple(labels.values()),
+        steps=tuple((h.edge_id,) for h in cycle.hops),
+        window=(first.ts, last.ts),
+        activity=True,
     )

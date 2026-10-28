@@ -37,8 +37,8 @@ function dataset(slug: string, synthetic: boolean, recordCount: number, title: s
 function meta(realRecords = 0) {
   return {
     app_version: '0.1.0',
-    contracts_version: '1.1.0',
-    schema_version: '1.1.0',
+    contracts_version: '1.2.0',
+    schema_version: '1.2.0',
     datasets: [
       dataset('gb_companies_house', false, realRecords, 'UK Companies House public register'),
       dataset('nr_synthetic', true, 41, 'NeonRadar synthetic data'),

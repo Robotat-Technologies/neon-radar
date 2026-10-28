@@ -307,6 +307,8 @@ def _node_row(record: Record, schema: Schema, mapping: NodeMapping, synthetic: b
         if isinstance(record.get(key), str):
             props[key] = record[key]
     props |= _mapped({"sourceUrl": "source_url", **mapping.properties}, record)
+    for name in mapping.empty_lists:  # C2 1.2.0: `Sanction.provisions` is [] when absent
+        props.setdefault(name, [])
     props |= _resolution_props(names, mapping, 1, "identity")
     if "Address" in mapping.labels and (found := _address_key(record)):
         props["address_key"] = found

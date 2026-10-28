@@ -1,0 +1,13 @@
+About the copilot
+
+This is an automated tool, not a person. When the AI model is switched on, a language model running on this computer helps read your question.
+
+What it does. It matches your question to one of a fixed set of question types, runs a read-only search of the data loaded in NeonRadar, and fills a fixed answer text with the records it finds. The language model never sees the data and never writes the answer.
+
+What it does not do. It does not judge whether anyone has done anything wrong, it does not predict crime, and it does not decide anything about anyone. A link or a pattern in the data is not evidence of wrongdoing, and there are lawful reasons for most company structures.
+
+Check before you rely on an answer. Each answer shows how the tool read your question; if that is not what you meant, rephrase it or choose another question. Each fact links to its record and its source. Sources can be wrong or out of date, and different people and companies can share a name, so a match by name is not a confirmed identity.
+
+Payments. All payment data in NeonRadar is synthetic. When real registry data is loaded, the tool shows no payments and no payment-based answer for a real company or person, or for their accounts.
+
+Your questions. Ask in English; names can be in any script. Questions and answers stay on this computer. NeonRadar keeps no copy of your words or of the names you ask about. If the usage log is switched on, it records the question type and rough counts, not your words. Your organisation may keep its own record of what is consulted.

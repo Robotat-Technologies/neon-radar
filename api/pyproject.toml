@@ -5,7 +5,7 @@ description = "NeonRadar API: the FastAPI app that serves contract C3."
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"
 dependencies = [
-    "fastapi>=0.143,<0.144",
+    "fastapi>=0.143,<0.163",
     "uvicorn>=0.54,<0.55",
     "neonradar-contracts",
     "neonradar-detect",

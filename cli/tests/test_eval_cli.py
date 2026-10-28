@@ -267,5 +267,6 @@ def test_the_neo4j_factory_refuses_real_nodes_and_matches_memory(
     cat = catalog.load()
     mem = evaluate.run_seed(3, SMALL, default_names(), cat, "dev", tmp_path / "m")
     neo = evaluate.run_seed(3, SMALL, default_names(), cat, "dev", tmp_path / "n", factory)
+    assert mem.alert_ids  # seed 3 gives one alert, so the comparison is never of two empty runs
     assert neo.alert_ids == mem.alert_ids
     assert evaluate.baseline(neo) == evaluate.baseline(mem)

@@ -28,5 +28,7 @@
   - Only `scoring.UNTRAINABLE` (exact classes, no DuckDB error in the chain) means a model
     cannot be trained; synthetic profiles skip the class, real profiles fail (OD-10).
   - Never read the entity from a record id: benchmark truth lives in labels/er_truth.csv.
+  - Policy-blocked gate (OD-27): pass `RunResult.name_only` to `bench.measure` and
+    `calibrate.sweep`; without it every policy-blocked pair counts in the gate (fail closed).
   - Humans label (G10): never write, pre-fill or infer labels or decisions.
   - Rules in .claude/rules/er.md and .claude/rules/real-data.md.

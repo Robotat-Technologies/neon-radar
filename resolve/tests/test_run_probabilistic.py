@@ -308,6 +308,40 @@ def test_gates_and_proposal() -> None:
     }
 
 
+def test_the_policy_blocked_gate_counts_pairs_with_no_name_only_record() -> None:
+    """OD-27: one person's listed, registry and leak-style records, each in its own cluster,
+    with a possible match joining the first two. Only that pair gates; the two pairs with the
+    name-only leak record are reported beside the gate. The 0.80 bar is unchanged, and a caller
+    that names no name-only record counts every pair in the gate."""
+
+    def person(rid: str, kind: str, topics: frozenset[str] = frozenset()) -> cluster.Member:
+        return cluster.Member(
+            rid, "nr_synthetic", kind, 10, "Person", "person", True, flag_topics=topics
+        )
+
+    members = {
+        "syn-a": person("syn-a", "list", frozenset({"sanction"})),
+        "syn-b": person("syn-b", "registry"),
+        "syn-c": person("syn-c", "leak"),
+    }
+    truth = {rid: bench.Truth("syn-e", "person", "list", None) for rid in members}
+    canonical = [{"record_id": rid, "canonical_id": rid} for rid in members]
+    candidates = [{"a": "syn-a", "b": "syn-b"}]
+    score = bench.measure(truth, members, canonical, candidates, frozenset({"syn-c"}))
+    assert (score.policy_blocked_pairs, score.policy_blocked_recalled) == (1, 1)
+    assert (score.name_only_pairs, score.name_only_recalled) == (2, 0)
+    assert score.classes["person"].name_only_recall == 0.0
+    assert bench.gate_failures(score) == []
+    assert bench.MIN_POLICY_BLOCKED_RECALL == 0.80
+    text = "\n".join(bench.lines(score))
+    assert "recalled as possible matches: 1.0000 (1 of 1;" in text
+    assert "with a name-only record, recalled as possible matches" in text
+    assert "(reported, does not gate): 0.0000 (0 of 2)" in text
+    assert bench.as_counts(score)["name_only_recall"] == 0.0
+    every = bench.measure(truth, members, canonical, candidates)
+    assert bench.gate_failures(every) == ["policy-blocked recall 0.3333 is below 0.8"]
+
+
 def test_a_class_whose_model_cannot_be_trained_scores_nothing(tmp_path: Path) -> None:
     """Two records give Splink no pair for its EM sessions: no model, no pair, a count."""
     folder = tmp_path / "records"
@@ -442,7 +476,10 @@ def test_calibration_sweep_and_document() -> None:
     assert recall[0.95] == 1.0 and recall[0.98] == 0.0
     assert calibrate.propose(points)["merge_threshold.org"] == 0.5
     text = calibrate.document(points, calibrate.propose(points), resolver, "small", 7, {})
-    assert "| 0.95 | n/a | n/a | 1.0000 | 1.0000 | 0 | 0, 0 | n/a, n/a, n/a |" in text
+    assert "| 0.95 | n/a | n/a | 1.0000 | 1.0000 | 0 | 0, 0 | n/a, n/a, n/a | n/a, n/a, n/a |" in (
+        text
+    )
+    assert "OD-27" in text
     assert "| `candidate_threshold` | none passes | 0.8 |" in text
 
 

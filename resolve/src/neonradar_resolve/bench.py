@@ -9,6 +9,12 @@ match when its records ended up in one cluster (only a deterministic rule with t
 a decision can put them there) or a line of `candidates.jsonl` joins their clusters. A hard
 negative merged is an entity with a record in one cluster with a record of its `twin_of` entity.
 Address records are not counted. `gate_failures` holds the G2-05 gates of `er bench` (M2.10b).
+
+OD-27 (the operator's decision): the policy-blocked recall that gates, and that the calibration
+rule reads, counts only policy-blocked true pairs with no name-only record
+(`features.name_only`). The pairs with a name-only record are counted apart and reported beside
+it; that figure never gates. The 0.80 bar is unchanged. A caller that passes no name-only
+records counts every policy-blocked pair in the gate.
 """
 
 from __future__ import annotations
@@ -16,7 +22,7 @@ from __future__ import annotations
 import csv
 import itertools
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,7 +32,7 @@ CLASSES = ("person", "org")
 # G2-05 (M2.10b deliverable 7): `er bench` fails below these at the thresholds in er.yaml
 MIN_PRECISION = 0.97
 MIN_RECALL = 0.80
-MIN_POLICY_BLOCKED_RECALL = 0.80
+MIN_POLICY_BLOCKED_RECALL = 0.80  # unchanged by OD-27, which only sets what it counts
 
 
 @dataclass(frozen=True)
@@ -43,14 +49,20 @@ class ClassScore:
     true_merged_pairs: int
     mergeable_true_pairs: int
     mergeable_recalled: int
-    policy_blocked_pairs: int = 0
+    policy_blocked_pairs: int = 0  # OD-27: with no name-only record (the gate)
     policy_blocked_recalled: int = 0
+    name_only_pairs: int = 0  # OD-27: policy-blocked, with a name-only record (never gates)
+    name_only_recalled: int = 0
 
     @property
     def policy_blocked_recall(self) -> float | None:
         if not self.policy_blocked_pairs:
             return None
         return self.policy_blocked_recalled / self.policy_blocked_pairs
+
+    @property
+    def name_only_recall(self) -> float | None:
+        return self.name_only_recalled / self.name_only_pairs if self.name_only_pairs else None
 
     @property
     def precision(self) -> float | None:
@@ -77,6 +89,8 @@ class Score:
     hard_negatives_merged: int
     unlabelled_records: int  # resolvable records without a truth row
     missing_records: int  # truth rows whose record is not in the run
+    name_only_pairs: int = 0  # OD-27: reported beside the gate, never in it
+    name_only_recalled: int = 0
 
     @property
     def left_out(self) -> int:
@@ -88,6 +102,10 @@ class Score:
         if not self.policy_blocked_pairs:
             return None
         return self.policy_blocked_recalled / self.policy_blocked_pairs
+
+    @property
+    def name_only_recall(self) -> float | None:
+        return self.name_only_recalled / self.name_only_pairs if self.name_only_pairs else None
 
 
 def read_truth(path: Path) -> dict[str, Truth]:
@@ -113,7 +131,9 @@ def measure(
     members: Mapping[str, Member],
     canonical: Iterable[Mapping[str, object]],
     candidates: Iterable[Mapping[str, object]],
+    name_only: Collection[str] = frozenset(),
 ) -> Score:
+    """The measures; `name_only` holds the ids of name-only records (OD-27)."""
     cluster_of = {str(r["record_id"]): str(r["canonical_id"]) for r in canonical}
     joined = {frozenset((str(c["a"]), str(c["b"]))) for c in candidates}
     labelled = [rid for rid in sorted(cluster_of) if rid in truth]
@@ -140,6 +160,8 @@ def measure(
     recalled: dict[str, int] = dict.fromkeys(CLASSES, 0)
     blocked: dict[str, int] = dict.fromkeys(CLASSES, 0)
     blocked_recalled: dict[str, int] = dict.fromkeys(CLASSES, 0)
+    weak: dict[str, int] = dict.fromkeys(CLASSES, 0)  # OD-27: with a name-only record
+    weak_recalled: dict[str, int] = dict.fromkeys(CLASSES, 0)
     by_entity: dict[str, list[str]] = defaultdict(list)
     for rid in labelled:
         by_entity[truth[rid].entity].append(rid)
@@ -148,10 +170,13 @@ def measure(
             together = cluster_of[a] == cluster_of[b]
             name = truth[a].entity_class
             if _blocked(members[a], members[b]):
-                blocked[name] += 1
-                blocked_recalled[name] += (
-                    together or frozenset((cluster_of[a], cluster_of[b])) in joined
-                )
+                found = together or frozenset((cluster_of[a], cluster_of[b])) in joined
+                if a in name_only or b in name_only:  # OD-27: reported, never gates
+                    weak[name] += 1
+                    weak_recalled[name] += found
+                else:
+                    blocked[name] += 1
+                    blocked_recalled[name] += found
             else:
                 mergeable[truth[a].entity_class] += 1
                 recalled[truth[a].entity_class] += together
@@ -167,13 +192,23 @@ def measure(
     )
     scores = {
         c: ClassScore(
-            merged[c], true_merged[c], mergeable[c], recalled[c], blocked[c], blocked_recalled[c]
+            merged[c],
+            true_merged[c],
+            mergeable[c],
+            recalled[c],
+            blocked[c],
+            blocked_recalled[c],
+            weak[c],
+            weak_recalled[c],
         )
         for c in CLASSES
     }
     missing = sum(1 for rid in truth if rid not in cluster_of)
     total, total_recalled = sum(blocked.values()), sum(blocked_recalled.values())
-    return Score(scores, cross, total, total_recalled, hard, unlabelled, missing)
+    return Score(
+        scores, cross, total, total_recalled, hard, unlabelled, missing,
+        sum(weak.values()), sum(weak_recalled.values()),
+    )  # fmt: skip
 
 
 def as_counts(score: Score) -> dict[str, object]:
@@ -193,12 +228,16 @@ def as_counts(score: Score) -> dict[str, object]:
             "mergeable_true_pairs": s.mergeable_true_pairs,
             "mergeable_recalled": s.mergeable_recalled,
             "policy_blocked_recall": rate(s.policy_blocked_recall),
+            "name_only_recall": rate(s.name_only_recall),
         }
     out.update(
         cross_class_pairs_merged=score.cross_class_pairs_merged,
         policy_blocked_pairs=score.policy_blocked_pairs,
         policy_blocked_recalled=score.policy_blocked_recalled,
         policy_blocked_recall=rate(score.policy_blocked_recall),
+        name_only_pairs=score.name_only_pairs,
+        name_only_recalled=score.name_only_recalled,
+        name_only_recall=rate(score.name_only_recall),
         hard_negatives_merged=score.hard_negatives_merged,
         unlabelled_records=score.unlabelled_records,
         missing_records=score.missing_records,
@@ -220,7 +259,13 @@ def lines(score: Score) -> list[str]:
     out.append(
         f"policy-blocked true pairs recalled as possible matches:"
         f" {rate(score.policy_blocked_recall)}"
-        f" ({score.policy_blocked_recalled} of {score.policy_blocked_pairs})"
+        f" ({score.policy_blocked_recalled} of {score.policy_blocked_pairs};"
+        f" pairs with a name-only record are counted on the next line, OD-27)"
+    )
+    out.append(
+        f"policy-blocked true pairs with a name-only record, recalled as possible matches"
+        f" (reported, does not gate): {rate(score.name_only_recall)}"
+        f" ({score.name_only_recalled} of {score.name_only_pairs})"
     )
     out.append(f"hard negatives merged: {score.hard_negatives_merged}")
     out.append(
@@ -232,7 +277,8 @@ def lines(score: Score) -> list[str]:
 
 
 def gate_failures(score: Score) -> list[str]:
-    """The G2-05 gates that fail: precision, recall, policy-blocked recall, hard negatives."""
+    """The G2-05 gates that fail: precision, recall, policy-blocked recall (OD-27: the pairs
+    with no name-only record), hard negatives."""
     out = []
     for name, s in score.classes.items():
         if s.precision is not None and s.precision < MIN_PRECISION:

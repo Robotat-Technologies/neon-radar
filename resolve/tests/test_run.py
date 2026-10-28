@@ -191,6 +191,9 @@ def test_er_show_config_and_bench(data_env: Any) -> None:
     assert result.exit_code == (1 if "FAIL  gate: " in output else 0), output
     assert ("gates passed (G2-05)" in output) is (result.exit_code == 0)
     assert "hard negatives merged: " in output
+    assert "with a name-only record, recalled as possible matches (reported, does not gate)" in (
+        output
+    )  # OD-27
     assert "left out: 0 records without truth, 0 truth records not in the run, 0 " in output
     assert output.splitlines()[0].startswith("person  precision ")
     assert list(layout.reports_dir("er-bench-small").glob("er-bench-*.json"))

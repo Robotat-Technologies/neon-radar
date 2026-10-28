@@ -331,6 +331,27 @@ def feature_tables(corpus: Corpus, by_id: Mapping[str, Member]) -> tuple[pa.Tabl
     )
 
 
+# OD-27: the columns that hold evidence beyond a record's names and countries (7.1.5)
+EVIDENCE_COLUMNS = (
+    ("birth_years", "postcode", "linked_orgs", "identifiers"),  # person table
+    ("registration_numbers", "incorporation_year", "postcode"),  # organisation table
+)
+
+
+def name_only(person: pa.Table, org: pa.Table) -> frozenset[str]:
+    """Ids of name-only records (OD-27): records whose every feature row holds names and at
+    most a country. A person row has no birth date, postcode, linked organisation or identifier;
+    an organisation row has no registration number, incorporation year or postcode. Names,
+    aliases, the name-derived columns (keys, tokens, legal forms) and countries or the
+    jurisdiction do not count. A record in both tables (a legal entity) needs both rows empty."""
+    evidence: dict[str, bool] = {}
+    for table, columns in zip((person, org), EVIDENCE_COLUMNS, strict=True):
+        for row in table.select(["unique_id", *columns]).to_pylist():
+            rid = str(row.pop("unique_id"))
+            evidence[rid] = evidence.get(rid, False) or any(v is not None for v in row.values())
+    return frozenset(rid for rid, found in evidence.items() if not found)
+
+
 def write_features(
     path: Path, person: pa.Table, org: pa.Table, temp_directory: Path | None = None
 ) -> None:

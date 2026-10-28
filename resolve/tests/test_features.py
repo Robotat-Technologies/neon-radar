@@ -256,3 +256,23 @@ def test_name_symbols_and_the_postcode_from_address_text(tmp_path: Path) -> None
     _, rows, _, _, _ = _tables(tmp_path, items)
     assert "Q5837762" in rows["gbch-off-sym"]["name_symbols"]  # the Mohammed name group
     assert rows["gbch-off-sym"]["postcode"] == "LS1 2AB"
+
+
+def test_name_only_records_hold_names_and_at_most_a_country(tmp_path: Path) -> None:
+    """OD-27: a record with names and a country (or a jurisdiction) is name-only; a birth year,
+    a postcode, an identifier or an incorporation year is evidence. A legal entity has a row
+    in both tables and is name-only only when both rows are."""
+    items = [
+        syn("syn-p-1", "Person", "leak", name="Testa Example", country="GB"),
+        syn("syn-p-2", "Person", "leak", name="Testa Example", birthDate="1971"),
+        syn("syn-p-3", "Person", "list", name="Testa Example", passportNumber="X1"),
+        syn("syn-p-4", "Person", "registry", name="Testa Example", address="1 Test Way QQ1 1QQ"),
+        syn("syn-o-1", "Company", "list", name="Test Holder Ltd", jurisdiction="GB"),
+        syn("syn-o-2", "Company", "list", name="Test Holder Ltd", incorporationDate="2001"),
+        syn("syn-l-1", "LegalEntity", "leak", name="Test Holder Ltd", country="GB"),
+        syn("syn-l-2", "LegalEntity", "leak", name="Test Holder Ltd", incorporationDate="2001"),
+    ]
+    _, rows, orgs, person, org = _tables(tmp_path, items)
+    assert rows["syn-p-4"]["postcode"] == "QQ1 1QQ"
+    assert orgs["syn-o-1"]["legal_forms"] and orgs["syn-o-1"]["jurisdiction"] == "gb"
+    assert features.name_only(person, org) == {"syn-p-1", "syn-o-1", "syn-l-1"}

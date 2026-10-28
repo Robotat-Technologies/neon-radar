@@ -239,6 +239,7 @@ def bench_command(size: SizeOption = "small", seed: SeedOption = None) -> None:
         result.members,
         result.result.canonical,
         result.result.candidates,
+        result.name_only,  # OD-27: reported beside the policy-blocked gate, not in it
     )
     for line in bench.lines(score):
         typer.echo(line)
@@ -370,6 +371,7 @@ def calibrate_command(
         scoring.read_pairs(result.run_dir / "pairs.parquet"),
         result.hints,
         resolver,
+        result.name_only,  # OD-27
     )
     first = points[0].merge  # the same at every t: they do not depend on the clustering
     if first.unlabelled_records or first.missing_records:

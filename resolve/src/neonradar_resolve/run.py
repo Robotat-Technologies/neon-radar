@@ -88,6 +88,8 @@ class RunResult:
     # What `er calibrate` clusters again: the deterministic links and the source hints
     deterministic: list[cluster.Link] = field(default_factory=list)
     hints: list[tuple[str, str, str]] = field(default_factory=list)
+    # OD-27: record ids of name-only records (`features.name_only`), for `er bench` and calibrate
+    name_only: frozenset[str] = frozenset()
 
 
 def _cell(value: object) -> str:
@@ -309,6 +311,7 @@ def run(
             if flagged:  # addresses carry no flags (7.1.1); D6 merges them without P1
                 raise RunError(f"{flagged} Address records carry flag topics (7.1.1)")
             person, org = features.feature_tables(corpus, members)
+            name_only = features.name_only(person, org)
             features.write_features(features_path, person, org, config.temp_directory)
         with _step(timings, "rules"):
             links = rules.deterministic(corpus, members)
@@ -368,4 +371,5 @@ def run(
         found.summary() if found is not None else None,
         links,
         sorted(set(corpus.hints)),
+        name_only,
     )

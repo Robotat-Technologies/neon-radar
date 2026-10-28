@@ -9,12 +9,14 @@ candidate threshold, so a candidate threshold above a merge threshold in effect 
 `propose` applies the rule of 7.1.7; a point that leaves pairs or records out of the measures
 (person-organisation pairs merged, records without truth) never passes. Nothing here edits
 er.yaml: the tech lead and the graph mentor set the values there and in ADR-0014. The
-thresholds come from the synthetic benchmark only (G10).
+thresholds come from the synthetic benchmark only (G10). Under OD-27 the policy-blocked recall
+of the table and of the rule counts only true pairs with no name-only record, as the gate does;
+the pairs with a name-only record have their own column, which neither gates nor proposes.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -39,13 +41,14 @@ def _score(
     deterministic: Sequence[cluster.Link],
     probabilistic: Sequence[cluster.Link],
     hints: Sequence[tuple[str, str, str]],
+    name_only: Collection[str],
     config: cluster.Config,
 ) -> bench.Score:
     no_decisions = rules.Decisions([], [], 0)  # the benchmark has no decisions file
     result, _ = run.resolve(
         members, list(deterministic), list(probabilistic), no_decisions, hints, config
     )
-    return bench.measure(truth, members, result.canonical, result.candidates)
+    return bench.measure(truth, members, result.canonical, result.candidates, name_only)
 
 
 def sweep(
@@ -55,8 +58,10 @@ def sweep(
     probabilistic: Sequence[cluster.Link],
     hints: Sequence[tuple[str, str, str]],
     resolver: ResolverConfig,
+    name_only: Collection[str] = frozenset(),
 ) -> list[Point]:
-    """The benchmark measures at each sweep value (no decisions: the benchmark has none)."""
+    """The benchmark measures at each sweep value (no decisions: the benchmark has none).
+    `name_only`: the ids of name-only records (OD-27, `features.name_only`)."""
     base = resolver.cluster_config()
     points = []
     for t in SWEEP:
@@ -69,8 +74,8 @@ def sweep(
         points.append(
             Point(
                 t,
-                _score(truth, members, deterministic, probabilistic, hints, merge),
-                _score(truth, members, deterministic, probabilistic, hints, candidate),
+                _score(truth, members, deterministic, probabilistic, hints, name_only, merge),
+                _score(truth, members, deterministic, probabilistic, hints, name_only, candidate),
             )
         )
     return points
@@ -110,8 +115,9 @@ def table(points: Sequence[Point]) -> list[str]:
     lines = [
         "| t | person precision | person recall | org precision | org recall"
         " | hard negatives merged | person-organisation pairs merged (merge, candidate)"
-        " | policy-blocked recall (person, org, all) |",
-        "|---|---|---|---|---|---|---|---|",
+        " | policy-blocked recall (person, org, all)"
+        " | with a name-only record, does not gate (person, org, all) |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for p in points:
         person, org = p.merge.classes["person"], p.merge.classes["org"]
@@ -122,7 +128,10 @@ def table(points: Sequence[Point]) -> list[str]:
             f" | {p.merge.cross_class_pairs_merged}, {blocked.cross_class_pairs_merged}"
             f" | {_rate(blocked.classes['person'].policy_blocked_recall)},"
             f" {_rate(blocked.classes['org'].policy_blocked_recall)},"
-            f" {_rate(blocked.policy_blocked_recall)} |"
+            f" {_rate(blocked.policy_blocked_recall)}"
+            f" | {_rate(blocked.classes['person'].name_only_recall)},"
+            f" {_rate(blocked.classes['org'].name_only_recall)},"
+            f" {_rate(blocked.name_only_recall)} |"
         )
     return lines
 
@@ -158,7 +167,13 @@ def document(
         " true pairs (P1, P2) as possible matches with `candidate_threshold = t` and the merge"
         " thresholds of `er.yaml`, each raised to `t` when it is lower (the clustering drops"
         " every pair below the candidate threshold, so a candidate threshold above a merge"
-        " threshold in effect raises it). Person-organisation pairs merged are pairs of records"
+        " threshold in effect raises it). Under operator decision OD-27 the policy-blocked"
+        " recall counts only true pairs with no name-only record, as the `er bench` gate does:"
+        " a name-only record holds names and at most a country, with no birth date, postcode,"
+        " linked organisation or identifier (a person) and no registration number,"
+        " incorporation year or postcode (an organisation). The policy-blocked true pairs with"
+        " a name-only record are reported in the last column; that figure neither gates nor"
+        " proposes a value. Person-organisation pairs merged are pairs of records"
         " whose truth classes differ, in one cluster, with `merge_threshold = t` and with"
         " `candidate_threshold = t`; precision and recall leave them out, so a row with any of"
         " them never passes the rule below. Every resolvable record has a truth row and every"
@@ -178,7 +193,8 @@ def document(
         "",
         "The rule of PHASE-2.md 7.1.7: for each class the lowest merge threshold whose precision"
         f" is at least {PROPOSE_PRECISION}, and the highest candidate threshold whose"
-        f" policy-blocked recall is at least {PROPOSE_BLOCKED_RECALL}, among the rows with no"
+        " policy-blocked recall (OD-27: the pairs with no name-only record) is at least"
+        f" {PROPOSE_BLOCKED_RECALL}, among the rows with no"
         " person-organisation pair merged. A proposed candidate threshold above a merge"
         " threshold means raising that merge threshold to it as well.",
         "",

@@ -338,6 +338,23 @@ entries:
     extra_urls: []
     verified: 2026-10-16
     note: "Reproduces Directive (EU) 2015/849, Article 3(6), the 25 percent indication of direct ownership. eba.europa.eu answers automated clients with a bot challenge (HTTP 403 from its gateway); not re-opened by the build; re-open in a browser."
+  # UK registered office rules (cited by the mass_registration_address typology, PHASE-3.md 7.8)
+  - key: ca_registered_office_s86_2006
+    title: Companies Act 2006, section 86 (registered office at an appropriate address)
+    publisher: legislation.gov.uk
+    year: 2006
+    url: https://www.legislation.gov.uk/ukpga/2006/46/section/86
+    extra_urls: []
+    verified: 2026-10-18
+    note: "A company must keep its registered office at an appropriate address at all times: one where a document delivered by hand or by post would be expected to come to the attention of a person acting for the company, and where delivery can be acknowledged. Substituted by the Economic Crime and Corporate Transparency Act 2023, section 28; in force in full from 4 March 2024 (S.I. 2024/269). Read for docs/research/2026-10-18-detection/typology-detection-definitions.md section 9 (source T40) on 2026-10-18; not re-opened by the build."
+  - key: ch_default_address_rules_2024
+    title: "Registrar's Rules Volume 6: Nomination of Default Address"
+    publisher: Companies House
+    year: 2024
+    url: https://assets.publishing.service.gov.uk/media/6925c5422945773cf12dd069/Registrar_s_Rules___Volume_6-_Nomination_of_Default_Address.pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "Made 28 February 2024, in force 4 March 2024. Nominates the three Companies House default addresses: PO Box 4385, Cardiff, CF14 8LH (England and Wales); PO Box 24238, Edinburgh, EH7 9HR (Scotland); PO Box 2381, Belfast, BT1 9DY (Northern Ireland). Read for docs/research/2026-10-18-detection/typology-detection-definitions.md section 9 (source T43) on 2026-10-18; not re-opened by the build."
   # Disclaimers of public data tools
   - key: icij_faq
     title: "Offshore Leaks Database: frequently asked questions"

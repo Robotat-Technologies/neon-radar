@@ -9,7 +9,7 @@
   (`spike companies-house`, M1.8a; `spike gleif`, M1.8b; `spike icij`, M1.8c;
   `spike opensanctions`, M1.8d; `spike synthetic-join`, M1.8e), `synth demo-mini` and
   `synth check-names` (M1.8e), `onboarding check|reset` (Assignment 1), `detect run|list`
-  (M1.9b) and `gate check --phase 1` (`make gate-1`, M1.12).
+  (M1.9b), `gate check --phase 1` (`make gate-1`, M1.12) and `eval check|run` (M3.6).
 - Owner: docs squad (nr-docs).
 - Depends on: every contract, through the packages it calls.
 - Commands: `uv run pytest cli/tests`, `uv run neonradar --help`, `uv run neonradar doctor`.
@@ -32,6 +32,18 @@
     4 cap) and `counts_only` when their message is safe to print on a real profile. Human-only
     commands call `tty.require_terminal` inside the guard. `purge --graph` is
     `real_graph.wipe()`; tests replace `real_graph._run` and never call Docker.
+  - `eval` (`eval_commands.py`, around the verbatim `evaluate.py`): settings from the profile
+    `eval/seeds.yaml` names; `check` runs the CI seed in memory against `eval/baselines/ci.json`
+    (exit 1 on a difference); `run --split dev` takes development seeds only. `--split test` is
+    the human-only holdout run (G11): never run it; it has no short form or envvar, and it
+    refuses (exit 2) without a terminal, in CI, without `eval/freeze.json` and, until M3.11
+    replaces `freeze_differences`, always. Its tests patch `layout.CACHE_ROOT`, `FREEZE_FILE`
+    and `evaluate.run_seed`. `--engine neo4j` wipes `NEO4J_URI`: it first refuses (exit 3) a
+    URI or database of the real-data instance by comparing strings, never by connecting, then
+    non-synthetic records and nodes (C2 L17; the guard query is graph's
+    `queries/non_synthetic_nodes.cypher`). `seed-<n>/alerts.jsonl` holds C4 alerts with the
+    evidence query's hash, as `detect run` writes them. The holdout run prints no figures; only
+    the development run prints its table.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

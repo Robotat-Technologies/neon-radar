@@ -1,0 +1,12 @@
+# eval/seeds.yaml: the seeds of the detection evaluation (PHASE-3.md 7.6.1)
+version: 1
+profile: synth-eval
+dev:
+  seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]   # development: tuning and development figures, anyone may run them
+ci:
+  seed: 1                                  # the CI gate, with eval/baselines/ci.json
+test:
+  seeds: []                                # the holdout: ten seeds drawn by the tech lead after the freeze (M3.11)
+  drawn_by: null
+  drawn_at: null
+  freeze: eval/freeze.json

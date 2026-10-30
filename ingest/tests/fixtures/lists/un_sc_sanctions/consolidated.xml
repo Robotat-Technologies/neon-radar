@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture for the UN Security Council Consolidated List loader (PHASE-2.md M2.6c),
+     in the structure of sanctions-peps.md 3.3. Every name, date, number and reference is
+     invented: the ZZ regime does not exist, DATAIDs are in the unissued 99xxxx range, company
+     numbers are 99 or SY numbers, passports SYNP. Nothing is copied from a real list. -->
+<CONSOLIDATED_LIST xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://www.un.org/sc/resources/sc-sanctions.xsd" dateGenerated="2026-10-20T08:30:00.123Z">
+  <INDIVIDUALS>
+    <INDIVIDUAL>
+      <DATAID>990001</DATAID>
+      <VERSIONNUM>2</VERSIONNUM>
+      <FIRST_NAME>Zafir</FIRST_NAME>
+      <SECOND_NAME>Yazan</SECOND_NAME>
+      <THIRD_NAME>Qandelouni</THIRD_NAME>
+      <FOURTH_NAME>na</FOURTH_NAME>
+      <UN_LIST_TYPE>Synthetic ZZ regime</UN_LIST_TYPE>
+      <REFERENCE_NUMBER>ZZi.001</REFERENCE_NUMBER>
+      <LISTED_ON>2021-03-15</LISTED_ON>
+      <GENDER>Male</GENDER>
+      <NAME_ORIGINAL_SCRIPT>ظافر قنديلوني</NAME_ORIGINAL_SCRIPT>
+      <COMMENTS1>Synthetic comments for a test. UK Company Number SY000101.</COMMENTS1>
+      <HAS_INTERPOL_LINK>true</HAS_INTERPOL_LINK>
+      <INTERPOL_LINK>https://www.example.invalid/synthetic-notice</INTERPOL_LINK>
+      <TITLE>
+        <VALUE>Synthetic title</VALUE>
+      </TITLE>
+      <DESIGNATION>
+        <VALUE>Synthetic position one</VALUE>
+        <VALUE>Synthetic position two</VALUE>
+      </DESIGNATION>
+      <NATIONALITY>
+        <VALUE>Cyprus</VALUE>
+        <VALUE>Possibly Cyprus</VALUE>
+      </NATIONALITY>
+      <LIST_TYPE>
+        <VALUE>UN List</VALUE>
+      </LIST_TYPE>
+      <LAST_DAY_UPDATED>
+        <VALUE>2023-05-02</VALUE>
+        <VALUE>2024-11-20</VALUE>
+        <VALUE>2022-01-01</VALUE>
+      </LAST_DAY_UPDATED>
+      <INDIVIDUAL_ALIAS>
+        <QUALITY>Good</QUALITY>
+        <ALIAS_NAME>Zafer Qandelouni; Zafir Kandelouni</ALIAS_NAME>
+      </INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_ALIAS>
+        <QUALITY>Low</QUALITY>
+        <ALIAS_NAME>Zafir Y. Qandelouni</ALIAS_NAME>
+      </INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_ALIAS>
+        <QUALITY/>
+        <ALIAS_NAME>Qandelouni</ALIAS_NAME>
+      </INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_ALIAS>
+        <QUALITY></QUALITY>
+        <ALIAS_NAME>Zafer Kandelouni</ALIAS_NAME>
+      </INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_ALIAS>
+        <QUALITY>Good</QUALITY>
+        <ALIAS_NAME>na</ALIAS_NAME>
+      </INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_ADDRESS>
+        <STREET>4 Sedge Row</STREET>
+        <CITY>Limassol</CITY>
+        <STATE_PROVINCE>na</STATE_PROVINCE>
+        <ZIP_CODE>QQ4 4QQ</ZIP_CODE>
+        <COUNTRY>Cyprus</COUNTRY>
+        <NOTE>Synthetic address note</NOTE>
+      </INDIVIDUAL_ADDRESS>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>EXACT</TYPE_OF_DATE>
+        <DATE>1971-06-04</DATE>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>EXACT</TYPE_OF_DATE>
+        <DATE>1972-02-09-05:00</DATE>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>APPROXIMATELY</TYPE_OF_DATE>
+        <YEAR>1970</YEAR>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>BETWEEN</TYPE_OF_DATE>
+        <FROM_YEAR>1975</FROM_YEAR>
+        <TO_YEAR>1977</TO_YEAR>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>EXACT</TYPE_OF_DATE>
+        <DATE>na</DATE>
+        <NOTE>Synthetic date note</NOTE>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_PLACE_OF_BIRTH>
+        <CITY>Tarnbury</CITY>
+        <STATE_PROVINCE>Marram Province</STATE_PROVINCE>
+        <COUNTRY>Cyprus</COUNTRY>
+      </INDIVIDUAL_PLACE_OF_BIRTH>
+      <INDIVIDUAL_DOCUMENT>
+        <TYPE_OF_DOCUMENT>Passport</TYPE_OF_DOCUMENT>
+        <NUMBER>SYNP 000101</NUMBER>
+        <ISSUING_COUNTRY>Cyprus</ISSUING_COUNTRY>
+        <NOTE>Synthetic document note</NOTE>
+      </INDIVIDUAL_DOCUMENT>
+      <INDIVIDUAL_DOCUMENT>
+        <TYPE_OF_DOCUMENT>Numéro de passeport</TYPE_OF_DOCUMENT>
+        <NUMBER>SYNP000102</NUMBER>
+      </INDIVIDUAL_DOCUMENT>
+      <INDIVIDUAL_DOCUMENT>
+        <TYPE_OF_DOCUMENT>National Identification Number</TYPE_OF_DOCUMENT>
+        <NUMBER>SYNN000101</NUMBER>
+      </INDIVIDUAL_DOCUMENT>
+      <INDIVIDUAL_DOCUMENT>
+        <TYPE_OF_DOCUMENT>Driving Licence</TYPE_OF_DOCUMENT>
+        <NUMBER>SYND000101</NUMBER>
+      </INDIVIDUAL_DOCUMENT>
+      <SORT_KEY/>
+      <SORT_KEY_LAST_MOD/>
+    </INDIVIDUAL>
+    <INDIVIDUAL>
+      <DATAID>990002</DATAID>
+      <VERSIONNUM>1</VERSIONNUM>
+      <FIRST_NAME>Rakan</FIRST_NAME>
+      <SECOND_NAME>Zubeirono</SECOND_NAME>
+      <THIRD_NAME>na</THIRD_NAME>
+      <FOURTH_NAME/>
+      <UN_LIST_TYPE>Synthetic ZZ regime</UN_LIST_TYPE>
+      <REFERENCE_NUMBER>zzi.002.</REFERENCE_NUMBER>
+      <LISTED_ON>2022-07-01-04:00</LISTED_ON>
+      <GENDER>na</GENDER>
+      <NAME_ORIGINAL_SCRIPT>Ракан Зубейроно</NAME_ORIGINAL_SCRIPT>
+      <COMMENTS1>na</COMMENTS1>
+      <NATIONALITY>
+        <VALUE>na</VALUE>
+      </NATIONALITY>
+      <LIST_TYPE>
+        <VALUE>UN List</VALUE>
+      </LIST_TYPE>
+      <LAST_DAY_UPDATED>
+        <VALUE/>
+      </LAST_DAY_UPDATED>
+      <INDIVIDUAL_ALIAS>
+        <QUALITY>Good</QUALITY>
+        <ALIAS_NAME>Raqan Zubeirono</ALIAS_NAME>
+      </INDIVIDUAL_ALIAS>
+      <INDIVIDUAL_ADDRESS>
+        <STREET>na</STREET>
+        <CITY>Nicosia</CITY>
+        <COUNTRY>Cyprus</COUNTRY>
+      </INDIVIDUAL_ADDRESS>
+      <INDIVIDUAL_ADDRESS>
+        <COUNTRY>na</COUNTRY>
+      </INDIVIDUAL_ADDRESS>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>BETWEEN</TYPE_OF_DATE>
+        <FROM_YEAR>1940</FROM_YEAR>
+        <TO_YEAR>1980</TO_YEAR>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_DATE_OF_BIRTH>
+        <TYPE_OF_DATE>EXACT</TYPE_OF_DATE>
+        <DATE>early 1960s</DATE>
+      </INDIVIDUAL_DATE_OF_BIRTH>
+      <INDIVIDUAL_PLACE_OF_BIRTH>
+        <CITY>na</CITY>
+        <COUNTRY>Atlantis</COUNTRY>
+      </INDIVIDUAL_PLACE_OF_BIRTH>
+      <INDIVIDUAL_DOCUMENT>
+        <TYPE_OF_DOCUMENT>Número de pasaporte</TYPE_OF_DOCUMENT>
+        <NUMBER>SYNP000201</NUMBER>
+      </INDIVIDUAL_DOCUMENT>
+      <INDIVIDUAL_DOCUMENT>
+        <TYPE_OF_DOCUMENT>Numéro d'identification nationale</TYPE_OF_DOCUMENT>
+        <NUMBER>SYNN000201</NUMBER>
+      </INDIVIDUAL_DOCUMENT>
+      <SORT_KEY/>
+      <SORT_KEY_LAST_MOD/>
+    </INDIVIDUAL>
+  </INDIVIDUALS>
+  <ENTITIES>
+    <ENTITY>
+      <DATAID>990003</DATAID>
+      <VERSIONNUM>1</VERSIONNUM>
+      <FIRST_NAME>Copper Acre Interiors Ltd</FIRST_NAME>
+      <UN_LIST_TYPE>Synthetic ZZ regime</UN_LIST_TYPE>
+      <REFERENCE_NUMBER>ZZe.001</REFERENCE_NUMBER>
+      <LISTED_ON>2020-01-10</LISTED_ON>
+      <NAME_ORIGINAL_SCRIPT>na</NAME_ORIGINAL_SCRIPT>
+      <COMMENTS1>Synthetic reasons for a test. Registered in England and Wales under number 99000301.</COMMENTS1>
+      <LIST_TYPE>
+        <VALUE>UN List</VALUE>
+      </LIST_TYPE>
+      <LAST_DAY_UPDATED>
+        <VALUE>2025-08-30</VALUE>
+      </LAST_DAY_UPDATED>
+      <ENTITY_ALIAS>
+        <QUALITY>Good</QUALITY>
+        <ALIAS_NAME>Copper Acre Interiors Limited</ALIAS_NAME>
+      </ENTITY_ALIAS>
+      <ENTITY_ALIAS>
+        <QUALITY>Low</QUALITY>
+        <ALIAS_NAME>CAI</ALIAS_NAME>
+      </ENTITY_ALIAS>
+      <ENTITY_ALIAS>
+        <QUALITY>a.k.a.</QUALITY>
+        <ALIAS_NAME>Copper Acre Trading</ALIAS_NAME>
+      </ENTITY_ALIAS>
+      <ENTITY_ADDRESS>
+        <STREET>7 Plover Yard</STREET>
+        <CITY>London</CITY>
+        <ZIP_CODE>QQ7 7QQ</ZIP_CODE>
+        <COUNTRY>United Kingdom of Great Britain and Northern Ireland</COUNTRY>
+        <NOTE>Synthetic address note</NOTE>
+      </ENTITY_ADDRESS>
+      <SORT_KEY/>
+      <SORT_KEY_LAST_MOD/>
+    </ENTITY>
+  </ENTITIES>
+</CONSOLIDATED_LIST>

@@ -28,7 +28,12 @@ PEOPLE: tuple[tuple[Origin, int], ...] = (
     (("ar", 3),) * 3 + (("ar", 2),) * 3 + (("ru", 2),) * 4
     + (("en", 1),) * 9 + (("ar", 1),) * 6 + (("ru", 1),) * 5
 )  # fmt: skip
-BANDS = {"25-50": (25.0, 50.0), "50-75": (50.0, 75.0), "75-100": (75.0, 100.0)}
+# The statutory bands (25, 50], (50, 75) and [75, 100]: an open bound carries its exclusive
+# flag; an included bound has none (PHASE-2.md 5.1, M2.9 deliverable 10).
+BANDS = {
+    "25-50": (25.0, 50.0, True, False), "50-75": (50.0, 75.0, True, True),
+    "75-100": (75.0, 100.0, False, False),
+}  # fmt: skip
 
 
 def sid(kind: str, number: int, width: int = 4, ns: str = "") -> str:
@@ -62,8 +67,14 @@ class Registry:
             return
         nature = f"ownership-of-shares-{band.replace('-', '-to-')}-percent"
         props |= {"percentage": [band], "role": [nature]}
-        low, high = BANDS[band]
-        nr = {"natures_of_control": [nature], "share_pct_min": low, "share_pct_max": high}
+        low, high, low_open, high_open = BANDS[band]
+        nr: dict[str, Any] = {
+            "natures_of_control": [nature], "share_pct_min": low, "share_pct_max": high,
+        }  # fmt: skip
+        if low_open:
+            nr["share_pct_min_exclusive"] = True
+        if high_open:
+            nr["share_pct_max_exclusive"] = True
         self.records.append(
             Rec(sid("ownership", self.ownerships, ns=self.ns), "Ownership", "registry", props, nr)
         )

@@ -50,3 +50,17 @@ def test_check_names_fails_on_a_collision_or_a_denylisted_name(tmp_path: Path) -
     assert "DENYLIST syn-co-0002" in result.output
     assert "COLLISION syn-co-0001" in result.output
     assert "OCHRE" not in result.output  # the other file's names are never printed
+
+
+def test_er_bench_writes_records_manifest_and_truth(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["synth", "er-bench", "--seed", "5", "--out", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "records, seed 5" in result.output and "  Sanction: " in result.output
+    assert len(list(tmp_path.glob("*.ftm.jsonl"))) == len(list(tmp_path.glob("*.manifest.json")))
+    lines = (tmp_path / "labels" / "er_truth.csv").read_text(encoding="utf-8").splitlines()
+    assert lines[:2] == ["# synthetic: true", "record_id,entity_id,class,style,twin_of"]
+
+
+def test_er_bench_refuses_an_unknown_size(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["synth", "er-bench", "--size", "huge", "--out", str(tmp_path)])
+    assert result.exit_code == 2 and not list(tmp_path.iterdir())

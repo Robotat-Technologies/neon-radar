@@ -18,7 +18,10 @@ def test_the_committed_profiles_load_and_say_what_they_are(data_env: Any) -> Non
     ]  # fmt: skip
     demo, tiny, sample = (load_profile(name) for name in ("demo", "uk-tiny", "uk-sample"))
     assert (demo.real_data, tiny.real_data, sample.real_data) == (False, True, True)
-    assert demo.options("nr_synthetic").fixtures == ["data/fixtures/demo-mini"]
+    assert demo.options("nr_synthetic").fixtures == [
+        "data/fixtures/demo-mini",
+        "data/fixtures/er-bench",
+    ]
     assert tiny.options("gb_companies_house").companies.max_companies == 400
     assert sample.sources["icij_offshore_leaks"].options["mode"] == "district-linked"
     assert sample.resolution.config == "resolve/config/er.yaml"
@@ -143,7 +146,10 @@ def test_a_registered_model_checks_the_source_block(
 
 def test_record_dirs(data_env: Any) -> None:
     project = load_project()
-    assert load_profile("demo").record_dirs(project) == [REPO_ROOT / "data/fixtures/demo-mini"]
+    assert load_profile("demo").record_dirs(project) == [
+        REPO_ROOT / "data/fixtures/demo-mini",
+        REPO_ROOT / "data/fixtures/er-bench",
+    ]
     tiny = load_profile("uk-tiny")
     dirs = tiny.record_dirs(project)
     assert dirs[0] == layout.records_dir(tiny, "gb_companies_house")

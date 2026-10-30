@@ -204,7 +204,7 @@ def test_ingest_build_demo_validates_the_fixture_and_writes_a_summary(data_env: 
     assert result.exit_code == 0, result.output
     report = reports(data_env, "demo")[0]
     built = report["datasets"]["nr_synthetic"]
-    assert (built["status"], built["fixture_folders"], built["files"]) == ("ok", 1, 1)
+    assert (built["status"], built["fixture_folders"], built["files"]) == ("ok", 2, 2)  # M2.9
     assert report["run_id"].startswith("build-")
     assert json.loads(result.output) == report
 

@@ -5,11 +5,11 @@
   "files": [
     {
       "path": "nr_synthetic-20261023-demo-mini.ftm.jsonl",
-      "sha256": "a542328d958ff4f4779a6454afd91fdc3656474bdfb84a812b537d7834d3f314",
+      "sha256": "020e2214c88a84429703a9b373f3f2e5785569191502bc486b64f932a6f0f265",
       "records": 454
     }
   ],
-  "created_at": "2026-10-22T00:05:20Z",
+  "created_at": "2026-10-22T00:50:09Z",
   "producer": {
     "name": "neonradar_ingest.synth",
     "version": "0.1.0",

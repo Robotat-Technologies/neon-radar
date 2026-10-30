@@ -58,7 +58,8 @@
     ends. `test_synth_determinism.py` regenerates `data/fixtures/demo-mini/` and compares
     bytes; after any change that alters the output, run `make fixtures`, check every new
     company and Latin-script person name against the Companies House search (OD-12), and
-    record a matching name's slot in `synth/demo.py` `REDRAW`, never the real name.
+    record a matching name's slot in `synth/demo.py` `REDRAW` (the ER benchmark:
+    `synth/erbench.py` `REDRAW`, names listed by `scripts/check_names_ch.py`), never the real name.
   - Planted scenarios run only among synthetic entities (G1); ground truth goes only to
     `labels/*.csv`, never into records (R9). Person names come from Faker plus curated lists
     in `synth/words.py` (never Faker `ar_SA` surnames, never mimesis), filtered by

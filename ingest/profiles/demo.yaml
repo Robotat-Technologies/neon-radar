@@ -1,11 +1,11 @@
 # ingest/profiles/demo.yaml
 profile: demo
-description: Synthetic data only. The Phase 1 demo-mini fixture (and, from M2.9, the entity resolution benchmark).
+description: Synthetic data only. The Phase 1 demo-mini fixture and the entity resolution benchmark (M2.9).
 real_data: false
 sources:
   nr_synthetic:
     enabled: true
-    fixtures: [data/fixtures/demo-mini]   # M2.9 adds data/fixtures/er-bench
+    fixtures: [data/fixtures/demo-mini, data/fixtures/er-bench]
 resolution:
   enabled: true
   config: resolve/config/er.yaml

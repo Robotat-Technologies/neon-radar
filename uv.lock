@@ -740,6 +740,11 @@ dependencies = [
     { name = "pydantic-settings" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "neonradar-resolve" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "followthemoney", specifier = ">=4.11,<5" },
@@ -748,6 +753,9 @@ requires-dist = [
     { name = "neonradar-keys", editable = "keys" },
     { name = "pydantic-settings", specifier = ">=2.16,<3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "neonradar-resolve", editable = "resolve" }]
 
 [[package]]
 name = "neonradar-ingest"
@@ -803,20 +811,26 @@ version = "0.1.0"
 source = { editable = "resolve" }
 dependencies = [
     { name = "duckdb" },
+    { name = "followthemoney" },
     { name = "neonradar-contracts" },
     { name = "neonradar-graph" },
     { name = "neonradar-keys" },
     { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "splink" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = "==1.5.*" },
+    { name = "followthemoney", specifier = ">=4.11,<5" },
     { name = "neonradar-contracts", editable = "contracts" },
     { name = "neonradar-graph", editable = "graph" },
     { name = "neonradar-keys", editable = "keys" },
     { name = "pyarrow", specifier = ">=26,<27" },
+    { name = "pydantic", specifier = ">=2.14,<3" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "splink", specifier = "==5.0.*" },
 ]
 

@@ -1,6 +1,8 @@
 """Integration: the C2 graph invariants I1 to I5 hold after loading demo-mini (PHASE-1.md 5.2,
 M1.9a), and I6 after a detection run on it (M1.9b). Each query returns at most 10 violating
-ids."""
+ids. Since M2.11, I1 to I14 (`neonradar graph verify`) hold on the resolved load of the demo
+profile's records (`demo_resolution`), so no `make load` is needed, and each catches its
+violation."""
 
 from collections import Counter
 from pathlib import Path
@@ -12,8 +14,9 @@ from neonradar_contracts.records import iter_records
 from neonradar_graph.client import REPO_ROOT
 from neonradar_graph.loader import collect_files, load_files
 from neonradar_graph.mapping import to_node_rows, to_relationship_rows
+from neonradar_graph.verify import verify
 
-from .conftest import Neo4jTarget
+from .conftest import DEMO_DIRS, Neo4jTarget
 from .test_verify_overlay import OVERLAY, OVERLAY_INVARIANTS
 
 pytestmark = pytest.mark.integration
@@ -25,8 +28,11 @@ INVARIANTS = {
         WHERE n.id IS NULL OR n.schema IS NULL OR n.caption IS NULL OR n.datasets IS NULL
            OR n.synthetic IS NULL
         RETURN elementId(n) AS bad LIMIT 10""",
+    # The nodes the C2 flag table puts :Synthetic on, and every node that carries it; a
+    # :SourceRecord (C2 1.1.0) has `synthetic` but no flag label.
     "I2": """
-        MATCH (n) WHERE n:Synthetic <> coalesce(n.synthetic = true, false)
+        MATCH (n) WHERE (n:Entity OR n:Sanction OR n:Synthetic)
+          AND n:Synthetic <> coalesce(n.synthetic = true, false)
         RETURN elementId(n) AS bad LIMIT 10""",
     "I3": """
         MATCH (a)-[r:PAID]->(b)
@@ -115,6 +121,49 @@ def test_invariant_i6_holds_after_a_detection_run(demo_mini: Neo4jTarget, tmp_pa
         database_=demo_mini.database,
     )
     assert len(query(demo_mini, I6)) == 1
+
+
+# Each Phase 2 invariant must have something to check on the resolved demo load.
+RESOLVED_SUBJECTS = """
+RETURN COUNT { (:SourceRecord) } AS I7, COUNT { (e:Entity) WHERE e.cluster_size >= 2 } AS I8,
+       COUNT { (:SourceRecord)-[:RESOLVED_TO]->() } AS I9,
+       COUNT { ()-[:POSSIBLY_SAME_AS]->() } AS I10,
+       COUNT { (e:Entity) WHERE e.cluster_size >= 2 AND size(e.topics) > 0 } AS I11,
+       COUNT { ()-[:OWNS]->() } AS I12
+"""
+# One violation of each Phase 2 invariant (I7 to I14), written straight into the graph.
+BREAK = {
+    "I7": "CREATE (:SourceRecord {id: 'syn-p-0990', synthetic: true})",
+    "I8": "CREATE (:Entity {id: 'syn-p-0991', referents: ['syn-p-0992'], synthetic: true})",
+    "I9": "MATCH (e:Entity) WHERE e.cluster_size >= 2 WITH e ORDER BY e.id LIMIT 1"
+    " CREATE (:SourceRecord {id: 'syn-p-0994', synthetic: false})-[:RESOLVED_TO]->(e)",
+    "I10": "MATCH (e:LegalEntity) WITH e ORDER BY e.id LIMIT 1 CREATE (e)-[:POSSIBLY_SAME_AS]->(e)",
+    "I11": "CREATE (:Entity:PEP {id: 'syn-p-0993', topics: [], referents: ['syn-p-0993']})",
+    "I12": "MATCH (e:LegalEntity) WITH e ORDER BY e.id LIMIT 1 CREATE (e)-[:OWNS]->(e)",
+    "I13": "MATCH (s:SourceRecord) WITH s ORDER BY s.id LIMIT 1"
+    " CREATE (:Entity {id: s.id, referents: [s.id], synthetic: true})",
+    "I14": "MATCH (c:Company) WITH c ORDER BY c.id LIMIT 2 WITH collect(c) AS cs"
+    " WITH cs[0] AS a, cs[1] AS b"
+    " CREATE (a)-[:CONTROLS {share_pct_min: 75.0, share_pct_max: 50.0}]->(b)",
+}
+
+
+def test_every_invariant_holds_on_the_resolved_demo_load_and_catches_its_violation(
+    graph_db: Neo4jTarget, demo_resolution: Path
+) -> None:
+    report = load_files(
+        graph_db.driver, DEMO_DIRS, database=graph_db.database, resolution=demo_resolution
+    )
+    assert (report.dangling, report.rejected, report.skipped) == ([], [], [])
+    found = verify(graph_db.driver, graph_db.database)
+    assert found == {f"I{n}": 0 for n in range(1, 15)}
+    for name, phase_1 in INVARIANTS.items():  # Phase 1's queries agree
+        assert query(graph_db, phase_1) == [], name
+    (subjects,) = query(graph_db, RESOLVED_SUBJECTS)
+    assert all(count > 0 for count in subjects.values()), subjects
+    for name, statement in BREAK.items():
+        graph_db.driver.execute_query(statement, database_=graph_db.database)
+        assert verify(graph_db.driver, graph_db.database)[name] >= 1, name
 
 
 # C2 1.2.0 (PHASE-3.md 5.2, 5.4): invariants I15 to I17, the three statements of

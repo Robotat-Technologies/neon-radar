@@ -96,23 +96,42 @@ SURNAME_SYLLABLES = 3
 CLOSED = frozenset(i for i, row in enumerate(SYLLABLES) if row[0][-1] not in "aeiou")
 
 
+# Locales whose surnames the filter must cover: the generator's three, the romanized ones and
+# the large name sets (Faker 40.43); `DROPPED` counts the locales without a person provider.
+REQUIRED_LOCALES = frozenset(
+    {"en_GB", "en_US", "ar_SA", "ru_RU", "ja_JP", "zh_CN", "ko_KR", "de_DE", "fr_FR", "es_ES"}
+)
+DROPPED: list[str] = []
+
+
 @cache
 def all_faker_surnames() -> frozenset[str]:
-    """The last names of every Faker locale installed, romanized ones included, folded."""
+    """The last names of every Faker locale installed, romanized ones included, folded. A
+    locale without a person provider is counted (`DROPPED`); a locale of `REQUIRED_LOCALES`
+    that gives no surname is an error, so a Faker change cannot silently narrow the filter."""
     from faker.config import AVAILABLE_LOCALES
 
     found: set[str] = set()
+    counts: dict[str, int] = {}
+    DROPPED.clear()
     for locale in AVAILABLE_LOCALES:
         try:
             provider = importlib.import_module(f"faker.providers.person.{locale}").Provider
         except ImportError, AttributeError:
+            DROPPED.append(locale)
             continue
+        surnames: set[str] = set()
         for attribute in dir(provider):
             value = getattr(provider, attribute, None)
             if attribute.startswith(("last_name", "last_romanized_name")) and isinstance(
                 value, tuple | list | dict
             ):
-                found.update(fold(str(name)) for name in value)
+                surnames.update(fold(str(name)) for name in value)
+        counts[locale] = len(surnames)
+        found |= surnames
+    missing = sorted(locale for locale in REQUIRED_LOCALES if not counts.get(locale))
+    if missing:
+        raise RuntimeError(f"Faker gives no surnames for {', '.join(missing)}")
     return frozenset(found)
 
 

@@ -7,9 +7,14 @@ Every id and name here is a test look-alike built at run time (PHASE-2.md 2.9).
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
-from neonradar_ingest.synth.base import BaseView
+import pytest
+
+from neonradar_contracts.datasets import load_registry
+from neonradar_ingest.synth import commands
+from neonradar_ingest.synth.base import REGISTRY_ID_PREFIXES, BaseView
 
 KINDS = {
     "gb_companies_house": "registry",
@@ -40,16 +45,22 @@ def test_only_registry_company_records_without_topics_hold_accounts() -> None:
         record("icij-T0000311", "icij_offshore_leaks"),
         record("gbch-co-T0000312", "gb_companies_house", "PublicBody"),
         record("uksl-gT0000313", "gb_fcdo_sanctions"),
+        record("gbch-co-T0000314", "gb_companies_house", status=["Liquidation"]),
+        record("gbch-co-T0000315", "gb_companies_house", status=["Active"]),
+        record("gbch-co-T0000316", "gb_companies_house", dissolutionDate=["2024-01-01"]),
     ]
     view = BaseView.from_records(records, KINDS)
     assert [org.id for org in view.eligible] == [
-        "gbch-co-T0000301", "gleif-lei-T0000302", "syn-w-co-000303",
+        "gbch-co-T0000301", "gbch-co-T0000315", "syn-w-co-000303",
     ]  # fmt: skip
     assert view.skipped == {
+        "category_unknown": 1,  # GLEIF: no EntityCategory on C1 records yet (S3)
+        "dissolved": 1,
         "flagged": 3,
-        "not_a_registry_company": 2,
-        "not_an_organisation": 3,
         "list_or_leak_record": 2,
+        "not_a_registry_company": 2,
+        "not_active": 1,  # statuses are an allowlist (N2)
+        "not_an_organisation": 3,
     }
 
 
@@ -60,6 +71,7 @@ def test_a_merged_entity_with_a_psc_record_gets_no_account(tmp_path: Path) -> No
         record("gbch-psc-T0000402", "gb_companies_house"),
         record("gbch-co-T0000403", "gb_companies_house"),
         record("gleif-lei-T0000404", "gleif_lei", topics=["fin"]),
+        record("gbch-co-T0000405", "gb_companies_house"),
     ]
     canonical = tmp_path / "canonical.csv"
     canonical.write_text(
@@ -68,9 +80,89 @@ def test_a_merged_entity_with_a_psc_record_gets_no_account(tmp_path: Path) -> No
         "gbch-co-T0000401,nr-gbch-co-T0000401,org,2,anchor,,1.0,,,\n"
         "gbch-psc-T0000402,nr-gbch-co-T0000401,org,2,deterministic,,1.0,,,\n"
         "gbch-co-T0000403,nr-gbch-co-T0000403,org,2,anchor,,1.0,,,\n"
-        "gleif-lei-T0000404,nr-gbch-co-T0000403,org,2,deterministic,,1.0,,,\n",
+        "gleif-lei-T0000404,nr-gbch-co-T0000403,org,2,deterministic,,1.0,,,\n"
+        "gbch-co-T0000405,nr-gbch-co-T0000405,org,2,anchor,,1.0,,,\n"
+        "gbch-co-T0000406,nr-gbch-co-T0000405,org,2,deterministic,,1.0,,,\n",
         encoding="utf-8",
     )
     view = BaseView.from_records(records, KINDS, canonical)
     assert view.eligible == []
-    assert view.skipped == {"not_a_registry_company": 1, "flagged": 1}
+    assert view.skipped == {
+        "not_a_registry_company": 1, "flagged": 1, "member_not_in_base": 1,
+    }  # fmt: skip
+
+
+def test_every_registry_dataset_has_a_company_record_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """S4: each `kind: registry` slug has a prefix rule; an unknown registry fails closed."""
+    registry = load_registry()
+    registries = {d.slug for d in registry.datasets if d.kind == "registry"}
+    assert registries and registries <= set(REGISTRY_ID_PREFIXES)
+    kinds = commands.dataset_kinds()
+    assert {slug for slug, kind in kinds.items() if kind == "registry"} == registries
+    new = registry.datasets[0].model_copy(update={"slug": "zz_new_register", "kind": "registry"})
+    monkeypatch.setattr(
+        commands, "load_registry", lambda: SimpleNamespace(datasets=[*registry.datasets, new])
+    )
+    assert "zz_new_register" not in commands.dataset_kinds()
+
+
+def test_registry_records_need_a_status_and_a_resolved_base_lists_every_record(
+    tmp_path: Path,
+) -> None:
+    """#78 review: a registry record with no status is not eligible when the caller asks (as
+    overlay.generate does), a synthetic one is; a record the resolution run omits is not."""
+    records = [
+        record("gbch-co-T0000501", "gb_companies_house"),
+        record("gbch-co-T0000502", "gb_companies_house", status=["Active"]),
+        record("syn-w-co-000503", "nr_synthetic"),
+    ]
+    view = BaseView.from_records(records, KINDS, registry_status_required=True)
+    assert [org.id for org in view.eligible] == ["gbch-co-T0000502", "syn-w-co-000503"]
+    assert view.skipped == {"status_unknown": 1}
+    canonical = tmp_path / "canonical.csv"
+    canonical.write_text(
+        "record_id,canonical_id,class,cluster_size,method,rule,match_probability,via,"
+        "path_methods,features\n"
+        "gbch-co-T0000502,nr-gbch-co-T0000502,org,1,anchor,,1.0,,,\n",
+        encoding="utf-8",
+    )
+    view = BaseView.from_records(records[1:], KINDS, canonical, registry_status_required=True)
+    assert [org.id for org in view.eligible] == ["gbch-co-T0000502"]
+    assert view.skipped == {"not_in_resolution": 1}
+
+
+def test_overlay_generate_refuses_an_unknown_registry_itself() -> None:
+    """#78 review: the fail-closed rule holds in overlay.generate, for any caller."""
+    from names_simple import SimpleNames
+
+    from neonradar_ingest.synth import overlay
+
+    base = [record("zz-co-T0000601", "zz_new_register", status=["Active"])]
+    config = overlay.OverlayConfig(3, illicit=0, lookalikes=0, typologies=())
+    ov = overlay.generate(base, {"zz_new_register": "registry"}, config, SimpleNames())
+    assert (ov.stats["eligible"], ov.stats["skipped"]) == (0, {"unknown_dataset_kind": 1})
+
+
+def test_overlay_generate_asks_registry_records_for_a_status() -> None:
+    """Delta check of #78: overlay.generate sets registry_status_required."""
+    from names_simple import SimpleNames
+
+    from neonradar_ingest.synth import overlay
+
+    base = [record("gbch-co-T0000602", "gb_companies_house")]
+    config = overlay.OverlayConfig(3, illicit=0, lookalikes=0, typologies=())
+    ov = overlay.generate(base, {"gb_companies_house": "registry"}, config, SimpleNames())
+    assert ov.stats["skipped"] == {"status_unknown": 1}
+
+
+def test_a_synthetic_record_needs_a_syn_id() -> None:
+    view = BaseView.from_records([record("gbch-co-T0000701", "nr_synthetic")], KINDS)
+    assert view.eligible == [] and view.skipped == {"synthetic_id_prefix": 1}
+
+
+def test_validation_failures_name_rules_and_counts_only() -> None:
+    from neonradar_contracts.records import RecordIssue
+
+    issue = RecordIssue("R4", "syn-ov-own-1", "owner points to 'gbch-co-T0000801', which is not")
+    message = str(commands._failed([issue, issue]))
+    assert "R4: 2" in message and "T0000801" not in message and "syn-ov-own-1" not in message

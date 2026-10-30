@@ -9,7 +9,7 @@ import pytest
 from names_simple import SimpleNames
 
 from neonradar_ingest.synth import overlay, world
-from neonradar_ingest.synth.ctx import RELATIONSHIP_SCHEMAS, Ctx, ScenarioCtx
+from neonradar_ingest.synth.ctx import RELATIONSHIP_SCHEMAS, Ctx, ScenarioCtx, name_key
 from neonradar_ingest.synth.dates import Period
 
 BASE_ORG = "gbch-co-T0000501"
@@ -17,7 +17,6 @@ PERIOD = Period(datetime(2025, 1, 1, tzinfo=UTC), datetime(2026, 7, 1, tzinfo=UT
 
 
 def background() -> tuple[Ctx, str, str]:
-    """A base organisation with an account and one background payment to a counterparty."""
     ctx = Ctx(5, PERIOD, SimpleNames(), base_ids={BASE_ORG})
     account = ctx.account("bg|base", BASE_ORG, opened=date(2020, 1, 1))
     other = ctx.account("bg|cp", ctx.organization("cp", "Test Holder Ltd"), opened=date(2020, 1, 1))
@@ -88,6 +87,14 @@ def test_the_bridge_needs_an_eligible_holder_and_never_a_base_account() -> None:
     named = {**pay, "properties": {**pay["properties"], "beneficiaryAccount": [BASE_ORG]}}
     with pytest.raises(ValueError, match="base record as an account"):
         overlay.check_bridge([named], {BASE_ORG}, ctx.base_accounts, {BASE_ORG})
+
+
+def test_names_that_differ_only_by_legal_form_collide() -> None:
+    """N3: "X Ltd" and "X LIMITED" are one name; a new name never repeats a base name."""
+    assert name_key("Sorrel Tarn Freight Ltd") == name_key("SORREL TARN FREIGHT LIMITED")
+    ctx = Ctx(5, PERIOD, SimpleNames(), base_names={"Sorrel Tarn Freight LIMITED"})
+    draws = iter(["Sorrel Tarn Freight Ltd", "Teasel Wold Freight Ltd"])
+    assert ctx._unique(lambda: next(draws)) == "Teasel Wold Freight Ltd"
 
 
 def test_owned_payments_and_relationships_move_no_scenario_draw(

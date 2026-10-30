@@ -12,9 +12,11 @@ a loan. Employees pay rent, shop by card and draw cash. Times follow London work
 holidays, stored in UTC.
 
 Payments only ever join a base organisation and a synthetic counterparty, or two synthetic
-counterparties: never two base entities (I16). The background of a base organisation is a plain
-profile with nothing typology-shaped in it (no cash just under a threshold, no pass-through, no
-cycles, no quiet gap followed by a burst), as `synthetic-transactions.md` 2.8 recommends.
+counterparties: never two base entities (I16). The background of a base organisation plants no
+typology on purpose (`synthetic-transactions.md` 2.8), but ordinary activity can still form
+benign shapes a detector reads as a pattern: a refund or a loan repayment closes a cycle, and a
+cash business may bank takings just under a threshold. On a real profile R-REAL (G12) is the only
+control that keeps such findings off real organisations (M3.3 review).
 """
 
 from __future__ import annotations

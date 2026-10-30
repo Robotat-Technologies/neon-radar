@@ -1,0 +1,252 @@
+{
+  "additional_columns_to_retain": [],
+  "blocking_rules_to_generate_predictions": [
+    {
+      "blocking_rule": "(l.\"name_key\" = r.\"name_key\") AND (l.\"synthetic\" = r.\"synthetic\")",
+      "sql_dialect": "duckdb"
+    },
+    {
+      "blocking_rule": "(l.\"ch_same_as\" = r.\"ch_same_as\") AND (l.\"synthetic\" = r.\"synthetic\")",
+      "sql_dialect": "duckdb"
+    },
+    {
+      "arrays_to_explode": [
+        "registration_numbers"
+      ],
+      "blocking_rule": "(l.\"registration_numbers\" = r.\"registration_numbers\") AND (l.\"synthetic\" = r.\"synthetic\")",
+      "sql_dialect": "duckdb"
+    },
+    {
+      "arrays_to_explode": [
+        "aliases"
+      ],
+      "blocking_rule": "(l.\"aliases\" = r.\"aliases\") AND (l.\"synthetic\" = r.\"synthetic\")",
+      "sql_dialect": "duckdb"
+    },
+    {
+      "blocking_rule": "(l.\"postcode\" = r.\"postcode\") AND (l.\"name_prefix\" = r.\"name_prefix\") AND (l.\"synthetic\" = r.\"synthetic\")",
+      "sql_dialect": "duckdb"
+    }
+  ],
+  "comparison_vector_value_column_prefix": "gamma_",
+  "comparisons": [
+    {
+      "comparison_description": "CustomComparison",
+      "comparison_levels": [
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "is_null_level": true,
+          "label_for_charts": "name_key is NULL",
+          "sql_condition": "\"name_key_l\" IS NULL OR \"name_key_r\" IS NULL"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "name key equal",
+          "sql_condition": "\"name_key_l\" = \"name_key_r\"",
+          "tf_adjustment_column": "name_key",
+          "tf_adjustment_weight": 1.0
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "a name or alias shared",
+          "sql_condition": "array_length(list_intersect(\"aliases_l\", \"aliases_r\")) >= 1"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "same name under the Companies House rules",
+          "sql_condition": "\"ch_same_as_l\" = \"ch_same_as_r\""
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "name key very similar",
+          "sql_condition": "jaro_winkler_similarity(\"name_key_l\", \"name_key_r\") >= 0.95"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "name key similar",
+          "sql_condition": "jaro_winkler_similarity(\"name_key_l\", \"name_key_r\") >= 0.88"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "two words shared",
+          "sql_condition": "array_length(list_intersect(\"name_tokens_l\", \"name_tokens_r\")) >= 2"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "All other comparisons",
+          "sql_condition": "ELSE"
+        }
+      ],
+      "output_column_name": "org_name"
+    },
+    {
+      "comparison_description": "ExactMatch",
+      "comparison_levels": [
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "is_null_level": true,
+          "label_for_charts": "jurisdiction is NULL",
+          "sql_condition": "\"jurisdiction_l\" IS NULL OR \"jurisdiction_r\" IS NULL"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Exact match on jurisdiction",
+          "sql_condition": "\"jurisdiction_l\" = \"jurisdiction_r\""
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "All other comparisons",
+          "sql_condition": "ELSE"
+        }
+      ],
+      "output_column_name": "jurisdiction"
+    },
+    {
+      "comparison_description": "ArrayIntersectAtSizes",
+      "comparison_levels": [
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "is_null_level": true,
+          "label_for_charts": "registration_numbers is NULL",
+          "sql_condition": "\"registration_numbers_l\" IS NULL OR \"registration_numbers_r\" IS NULL"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Array intersection size >= 1",
+          "sql_condition": "array_length(list_intersect(\"registration_numbers_l\", \"registration_numbers_r\")) >= 1"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "All other comparisons",
+          "sql_condition": "ELSE"
+        }
+      ],
+      "output_column_name": "registration_numbers"
+    },
+    {
+      "comparison_description": "CustomComparison",
+      "comparison_levels": [
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "is_null_level": true,
+          "label_for_charts": "incorporation_year is NULL",
+          "sql_condition": "\"incorporation_year_l\" IS NULL OR \"incorporation_year_r\" IS NULL"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "same year",
+          "sql_condition": "\"incorporation_year_l\" = \"incorporation_year_r\""
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "one year apart",
+          "sql_condition": "abs(incorporation_year_l - incorporation_year_r) <= 1"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "All other comparisons",
+          "sql_condition": "ELSE"
+        }
+      ],
+      "output_column_name": "incorporation"
+    },
+    {
+      "comparison_description": "PostcodeComparison",
+      "comparison_levels": [
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "is_null_level": true,
+          "label_for_charts": "postcode is NULL",
+          "sql_condition": "\"postcode_l\" IS NULL OR \"postcode_r\" IS NULL"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Exact match on full postcode",
+          "sql_condition": "\"postcode_l\" = \"postcode_r\""
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Exact match on sector",
+          "sql_condition": "NULLIF(regexp_extract(\"postcode_l\", '^[A-Za-z]{1,2}[0-9][A-Za-z0-9]? [0-9]', 0), '') = NULLIF(regexp_extract(\"postcode_r\", '^[A-Za-z]{1,2}[0-9][A-Za-z0-9]? [0-9]', 0), '')"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Exact match on district",
+          "sql_condition": "NULLIF(regexp_extract(\"postcode_l\", '^[A-Za-z]{1,2}[0-9][A-Za-z0-9]?', 0), '') = NULLIF(regexp_extract(\"postcode_r\", '^[A-Za-z]{1,2}[0-9][A-Za-z0-9]?', 0), '')"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Exact match on area",
+          "sql_condition": "NULLIF(regexp_extract(\"postcode_l\", '^[A-Za-z]{1,2}', 0), '') = NULLIF(regexp_extract(\"postcode_r\", '^[A-Za-z]{1,2}', 0), '')"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "All other comparisons",
+          "sql_condition": "ELSE"
+        }
+      ],
+      "output_column_name": "postcode"
+    },
+    {
+      "comparison_description": "ArrayIntersectAtSizes",
+      "comparison_levels": [
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "is_null_level": true,
+          "label_for_charts": "legal_forms is NULL",
+          "sql_condition": "\"legal_forms_l\" IS NULL OR \"legal_forms_r\" IS NULL"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "Array intersection size >= 1",
+          "sql_condition": "array_length(list_intersect(\"legal_forms_l\", \"legal_forms_r\")) >= 1"
+        },
+        {
+          "fix_m_probability": false,
+          "fix_u_probability": false,
+          "label_for_charts": "All other comparisons",
+          "sql_condition": "ELSE"
+        }
+      ],
+      "output_column_name": "legal_forms"
+    }
+  ],
+  "em_convergence": 0.0001,
+  "link_type": "dedupe_only",
+  "linker_uid": "neonradar_org",
+  "match_weight_column_prefix": "mw_",
+  "max_iterations": 25,
+  "probability_two_random_records_match": 0.0001,
+  "retain_intermediate_calculation_columns": false,
+  "retain_matching_columns": true,
+  "source_dataset_column_name": "source_dataset",
+  "sql_dialect": "duckdb",
+  "term_frequency_adjustment_column_prefix": "tf_",
+  "unique_id_column_name": "unique_id"
+}

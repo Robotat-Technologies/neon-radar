@@ -44,6 +44,11 @@ jobs:
         run: uv run --no-project --with pyyaml python scripts/generate_codeowners.py --check
       - name: Typology index up to date
         run: uv run neonradar docs typology-index --check
+      # G2-05 (PHASE-2.md M2.10b): precision, recall, policy-blocked recall and hard negatives at
+      # the thresholds in resolve/config/er.yaml, on the committed benchmark with one DuckDB thread.
+      - name: Entity resolution benchmark gates
+        timeout-minutes: 3
+        run: time uv run neonradar er bench --size small
 
   integration:
     runs-on: ubuntu-24.04

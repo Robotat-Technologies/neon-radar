@@ -14,8 +14,27 @@ from neonradar_resolve import cluster
 from neonradar_resolve.rules import handle
 
 
+class DuckDBSettings(BaseModel):
+    """DuckDB settings for the Splink models; they go on the connection (`models.connect`)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    threads: int = Field(ge=1)
+    memory_limit: str = Field(pattern=r"^[0-9]+(\.[0-9]+)? ?([KMGT]i?B)$")
+
+
+class TrainingSettings(BaseModel):
+    """Splink training sizes (7.1.5); the random-sampling seed is the top-level `seed`."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    u_max_pairs: float = Field(gt=0)
+    em_max_pairs: float = Field(gt=0)
+    prior_recall: float = Field(gt=0, le=1)
+
+
 class ResolverConfig(BaseModel):
-    """`er.yaml`; unknown keys fail. M2.10b adds `duckdb`, `training` and `max_comparisons`."""
+    """`er.yaml`; unknown keys fail."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -24,6 +43,15 @@ class ResolverConfig(BaseModel):
     cluster_cap: int = Field(ge=2)
     name_check_jaro_winkler: float = Field(gt=0, le=1)
     seed: int
+    duckdb: DuckDBSettings
+    training: TrainingSettings
+    max_comparisons: int = Field(ge=1)
+
+    def with_threads(self, threads: int) -> ResolverConfig:
+        """The same settings with another DuckDB thread count (tests and the benchmark use 1)."""
+        return self.model_copy(
+            update={"duckdb": self.duckdb.model_copy(update={"threads": threads})}
+        )
 
     def cluster_config(self, senior_reviewers: Iterable[str] = ()) -> cluster.Config:
         """The clustering settings, with `people.er_senior_reviewers` (placeholders dropped)."""

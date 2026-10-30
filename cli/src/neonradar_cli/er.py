@@ -1,11 +1,15 @@
-"""`neonradar er ...`: entity resolution runs, settings and the benchmark (PHASE-2.md M2.10a).
+"""`neonradar er ...`: entity resolution runs, settings and the benchmark (PHASE-2.md M2.10a,
+M2.10b).
 
 `er run` resolves a profile's record folders into `resolution_dir(profile, run_id)`, with the
 profile's decisions file (`decisions_file(profile)`) and the settings file the profile names,
 and writes the run id into `LATEST` last. On a real profile it runs the real-data gate first
-and works inside the redaction guard; every summary holds counts only (M2.2).
+and works inside the redaction guard; every summary holds counts only (M2.2). `er blocking`
+counts the comparisons of the Splink blocking rules; `er bench` checks the G2-05 gates and
+`er calibrate` writes the threshold table, both on the synthetic benchmark with one DuckDB thread.
 """
 
+import contextlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -14,7 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 if TYPE_CHECKING:  # imported inside the commands, so `neonradar --help` stays fast
-    from neonradar_resolve.run import RunConfig
+    from neonradar_resolve.run import RunConfig, RunResult
 
 app = typer.Typer(help="Entity resolution: runs, settings and the benchmark.", no_args_is_help=True)
 
@@ -22,6 +26,8 @@ DEFAULT_CONFIG = Path("resolve/config/er.yaml")
 BENCH_FIXTURE = Path("data/fixtures/er-bench")
 BENCH_SIZES = ("small", "large")
 TRUTH = Path("labels/er_truth.csv")
+CALIBRATION = Path("docs/data/er/benchmark.md")
+LIBRARIES = ("splink", "duckdb", "pyarrow")  # string keys of the summaries' `versions`
 
 
 def _lower_keys(value: Any) -> Any:
@@ -39,6 +45,7 @@ def _run_config(
     keep: bool,
     seniors: list[str],
     reviewers: frozenset[str] | None = None,
+    real_data: bool,
 ) -> RunConfig:
     from neonradar_resolve.config import load_config
     from neonradar_resolve.run import RunConfig
@@ -56,6 +63,7 @@ def _run_config(
         profile=profile,
         temp_directory=temp,
         keep_features=keep,
+        real_data=real_data,
     )
 
 
@@ -122,6 +130,7 @@ def run_command(
                 keep=keep_features,
                 seniors=project.people.er_senior_reviewers,
                 reviewers=_reviewers(project) if chosen.real_data else None,
+                real_data=chosen.real_data,
             )
             result = run.run(
                 chosen.record_dirs(project),
@@ -140,11 +149,12 @@ def run_command(
             "thresholds": _thresholds(config),
             "seed": config.resolver.seed,
             "decisions_used": decisions is not None,
-            "probabilistic": False,
+            "probabilistic": not no_probabilistic,
+            "splink": result.probabilistic,
             "counts": _lower_keys(result.counts),
             "timings": result.timings,
         }
-        summary.emit(chosen, "er run", report)
+        summary.emit(chosen, "er run", report, string_keys=LIBRARIES)
 
 
 @app.command(name="show-config")
@@ -182,18 +192,16 @@ def _bench_records(size: str, seed: int) -> Path:
     return folder
 
 
-@app.command(name="bench")
-def bench_command(
-    size: Annotated[str, typer.Option("--size", help="small (the committed fixture) or large.")] = (
-        "small"
-    ),
-    seed: Annotated[int | None, typer.Option("--seed", min=0, help="Benchmark seed.")] = None,
-) -> None:
-    """Resolve the synthetic benchmark and print precision, recall and policy measures."""
-    from neonradar_cli import summary
+def _resolve_bench(
+    size: str, seed: int | None, command: str, candidate_threshold: float | None = None
+) -> tuple[Path, RunResult]:
+    """Resolve the benchmark with the Splink models on one DuckDB thread (7.1.5)."""
+    from dataclasses import replace
+
+    from neonradar_cli import redact
     from neonradar_ingest.data import layout, retention
     from neonradar_ingest.data.project import REPO_ROOT
-    from neonradar_resolve import bench, run
+    from neonradar_resolve import run
 
     if size not in BENCH_SIZES:
         raise typer.BadParameter(
@@ -201,30 +209,197 @@ def bench_command(
         )
     pseudo = f"er-bench-{size}"
     run_id = layout.new_run_id("er")
-    with retention.spill_dir(pseudo, run_id) as temp:
+    with redact.guard(None, command), retention.spill_dir(pseudo, run_id) as temp:
         config = _run_config(
-            REPO_ROOT / DEFAULT_CONFIG, profile=pseudo, temp=temp, keep=False, seniors=[]
-        )
-        folder = _bench_records(size, seed if seed is not None else config.resolver.seed)
-        result = run.run(
-            [folder], layout.resolution_dir(pseudo, run_id), config, probabilistic=False
-        )
+            REPO_ROOT / DEFAULT_CONFIG, profile=pseudo, temp=temp, keep=False, seniors=[],
+            real_data=False,  # the synthetic benchmark
+        )  # fmt: skip
+        resolver = config.resolver.with_threads(1)
+        if candidate_threshold is not None:  # er calibrate scores down to 0.50 (this run only)
+            resolver = resolver.model_copy(update={"candidate_threshold": candidate_threshold})
+        config = replace(config, resolver=resolver)
+        folder = _bench_records(size, seed if seed is not None else resolver.seed)
+        result = run.run([folder], layout.resolution_dir(pseudo, run_id), config)
+    return folder, result
+
+
+SizeOption = Annotated[str, typer.Option("--size", help="small (the committed fixture) or large.")]
+SeedOption = Annotated[int | None, typer.Option("--seed", min=0, help="Benchmark seed.")]
+
+
+@app.command(name="bench")
+def bench_command(size: SizeOption = "small", seed: SeedOption = None) -> None:
+    """Resolve the synthetic benchmark, print the measures and check the G2-05 gates."""
+    from neonradar_cli import summary
+    from neonradar_resolve import bench
+
+    folder, result = _resolve_bench(size, seed, "er bench")
     score = bench.measure(
         bench.read_truth(folder / TRUTH),
         result.members,
         result.result.canonical,
         result.result.candidates,
+        result.name_only,  # OD-27: reported beside the policy-blocked gate, not in it
     )
-    measures = bench.as_counts(score)
     for line in bench.lines(score):
         typer.echo(line)
+    failures = bench.gate_failures(score)
+    for failure in failures:
+        typer.echo(f"FAIL  gate: {failure}")
+    if not failures:
+        typer.echo("gates passed (G2-05) at the thresholds in er.yaml")
     report = {
-        "profile": pseudo,
-        "run_id": run_id,
-        "probabilistic": False,
-        "measures": measures,
+        "profile": f"er-bench-{size}",
+        "run_id": result.run_id,
+        "probabilistic": True,
+        "measures": bench.as_counts(score),
+        "gates_failed": len(failures),
+        "splink": result.probabilistic,
         "counts": _lower_keys(result.counts),
+        "timings": result.timings,
     }
-    summary.emit(pseudo, "er bench", report, echo=False)
-    if score.hard_negatives_merged or score.left_out:
+    summary.emit(f"er-bench-{size}", "er bench", report, string_keys=LIBRARIES, echo=False)
+    if failures or score.left_out:
         raise typer.Exit(code=1)
+
+
+@app.command(name="blocking")
+def blocking_command(
+    profile: Annotated[str, typer.Option("--profile", help="A profile in ingest/profiles/.")],
+) -> None:
+    """Comparisons per Splink blocking rule and the sizes of the five largest blocks.
+
+    On a real profile it prints sizes only, never a block key (they are names and postcodes).
+    For a rule over a list (linked organisations, name symbols, registration numbers, aliases)
+    the comparison count is per shared element, but a block is a group of identical lists.
+    """
+    from neonradar_cli import redact, summary
+    from neonradar_cli.data import profile_or_exit, project_or_exit
+    from neonradar_ingest.data import gate, layout, retention
+    from neonradar_ingest.data.project import REPO_ROOT
+    from neonradar_resolve import features, models, records, scoring
+
+    project, chosen = project_or_exit(), profile_or_exit(profile)
+    if not chosen.resolution.enabled:
+        typer.echo(f"FAIL  profile {chosen.profile} has resolution.enabled: false", err=True)
+        raise typer.Exit(code=2)
+    report: dict[str, Any] = {"profile": chosen.profile, "comparisons_by_rule": {}}
+    report["largest_blocks"] = {}
+    with redact.guard(chosen, "er blocking") as where:
+        where.step = "gate"
+        gate.check_real_data(project, chosen)
+        for dataset in chosen.enabled_sources(project):
+            where.dataset = dataset
+            gate.check_real_data(project, chosen, dataset)
+        where.step, where.dataset = "blocking", None
+        run_id = layout.new_run_id("er")
+        with retention.spill_dir(chosen, run_id) as temp:
+            config = _run_config(
+                REPO_ROOT / chosen.resolution.config, profile=chosen.profile, temp=temp,
+                keep=False, seniors=[], real_data=chosen.real_data,
+            )  # fmt: skip
+            corpus = records.read(chosen.record_dirs(project))
+            members = features.members(corpus)
+            tables = dict(zip(scoring.KINDS, features.feature_tables(corpus, members), strict=True))
+            duck = config.resolver.duckdb
+            con = models.connect(duck.threads, duck.memory_limit, str(temp / "splink"))
+            # A handler on the `splink` logger: nothing Splink logs reaches stderr directly
+            with scoring.splink_warnings(), contextlib.closing(con):
+                for kind, table in tables.items():
+                    counts = scoring.count_comparisons(con, kind, table) if len(table) > 1 else []
+                    blocks = scoring.largest_blocks(con, kind, table) if counts else []
+                    report["comparisons_by_rule"][kind] = {
+                        f"rule_{n}": c for n, c in enumerate(counts, 1)
+                    }
+                    report["largest_blocks"][kind] = {
+                        f"rule_{n}": [int(b["count_l"]) for b in found]
+                        for n, found in enumerate(blocks, 1)
+                    }
+                    _echo_blocks(kind, counts, blocks, keys=not chosen.real_data)
+        summary.emit(chosen, "er blocking", _flatten_blocks(report), echo=False)
+
+
+def _echo_blocks(
+    kind: str, counts: list[int], blocks: list[list[dict[str, Any]]], *, keys: bool
+) -> None:
+    """One line per rule; the block keys only when `keys` (synthetic profiles: they help tune
+    the rules; on a real profile they are names and postcodes)."""
+    from neonradar_resolve import scoring
+
+    lists = scoring.explodes(kind)  # type: ignore[arg-type]
+    for n, (count, found) in enumerate(zip(counts, blocks, strict=True), 1):
+        sizes = ", ".join(str(int(b["count_l"])) for b in found)
+        whole = " (records with the same whole list)" if lists[n - 1] else ""
+        typer.echo(f"{kind} rule {n}: {count} comparisons;"
+                   f" largest blocks (records){whole}: {sizes or 'none'}")  # fmt: skip
+        for b in found if keys else []:
+            values = [str(v) for k, v in sorted(b.items()) if k.startswith("key_")]
+            typer.echo(f"    {int(b['count_l'])}: {' | '.join(values)}")
+
+
+def _flatten_blocks(report: dict[str, Any]) -> dict[str, Any]:
+    """Summaries hold numbers in dicts, not lists: block sizes become block_1 to block_5."""
+    blocks = {
+        kind: {rule: {f"block_{i}": v for i, v in enumerate(sizes, 1)} for rule, sizes in r.items()}
+        for kind, r in report["largest_blocks"].items()
+    }
+    return {**report, "largest_blocks": blocks}
+
+
+@app.command(name="calibrate")
+def calibrate_command(
+    size: SizeOption = "large",
+    seed: SeedOption = None,
+    output: Annotated[
+        Path, typer.Option("--output", help="Where to write the calibration table.")
+    ] = CALIBRATION,
+) -> None:
+    """Score the benchmark once down to 0.50, re-cluster at each threshold of the sweep and
+    write the table and the proposed thresholds (7.1.7). Never edits er.yaml. Exits 1, writing
+    nothing, when a record has no truth row or a truth row no record (as `er bench` does)."""
+    from neonradar_cli import summary
+    from neonradar_ingest.data.project import REPO_ROOT
+    from neonradar_resolve import bench, calibrate, scoring
+    from neonradar_resolve.config import load_config
+
+    folder, result = _resolve_bench(size, seed, "er calibrate", min(calibrate.SWEEP))
+    resolver, sha = load_config(REPO_ROOT / DEFAULT_CONFIG)
+    points = calibrate.sweep(
+        bench.read_truth(folder / TRUTH),
+        result.members,
+        result.deterministic,
+        scoring.read_pairs(result.run_dir / "pairs.parquet"),
+        result.hints,
+        resolver,
+        result.name_only,  # OD-27
+    )
+    first = points[0].merge  # the same at every t: they do not depend on the clustering
+    if first.unlabelled_records or first.missing_records:
+        typer.echo(
+            f"FAIL  left out: {first.unlabelled_records} records without truth,"
+            f" {first.missing_records} truth records not in the run; nothing written",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    proposal = calibrate.propose(points)
+    used = seed if seed is not None else resolver.seed
+    text = calibrate.document(points, proposal, resolver, size, used, result.probabilistic or {})
+    target = output if output.is_absolute() else REPO_ROOT / output
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    for line in calibrate.table(points):
+        typer.echo(line)
+    for name, value in proposal.items():
+        typer.echo(f"proposed {name}: {'none passes' if value is None else value}")
+    typer.echo(
+        f"wrote {output} (er.yaml is not changed: the tech lead and the graph mentor set it)"
+    )
+    report = {
+        "profile": f"er-bench-{size}",
+        "run_id": result.run_id,
+        "config_sha256": sha,
+        "proposal": proposal,
+        "splink": result.probabilistic,
+        "timings": result.timings,
+    }
+    summary.emit(f"er-bench-{size}", "er calibrate", report, string_keys=LIBRARIES, echo=False)

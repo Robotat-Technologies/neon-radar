@@ -97,7 +97,8 @@ test('the alerts page lists a synthetic scenario', async ({ page }) => {
 })
 
 test('an alert page shows its explanation steps and the evidence graph', async ({ page }) => {
-  await page.goto('/alerts')
+  // The round trip, which has a step per transfer; other typologies can rank above it.
+  await page.goto('/alerts?typology=circular_flow')
   const link = page
     .getByTestId('alert-list')
     .getByRole('link', { name: SYNTHETIC_SCENARIO })

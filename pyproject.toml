@@ -61,6 +61,8 @@ known-first-party = ["neonradar_*"]
 "detect/src/neonradar_detect/alerts.py" = ["I001"]
 "detect/tests/test_alert_builder.py" = ["I001"]
 "detect/tests/test_detector_circular_flow.py" = ["I001"]
+"detect/tests/test_detector_cash_commingling.py" = ["I001"]
+"detect/tests/test_detector_extended_registry.py" = ["I001"]
 "detect/tests/test_graphrows.py" = ["I001"]
 # Arabic and Cyrillic test strings and rules on purpose (PHASE-2.md M2.8).
 "keys/**" = ["RUF001", "RUF002", "RUF003"]

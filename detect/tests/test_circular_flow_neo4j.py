@@ -8,6 +8,7 @@ and on demo-mini the labelled round_trip scenario's payments appear together in 
 
 import csv
 import io
+import os
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,8 @@ from nr_test_neo4j import Neo4jTarget
 from neonradar_contracts.alert import Alert
 from neonradar_detect import runner
 from neonradar_detect.detectors import circular_flow
-from neonradar_graph.loader import load_files, load_records
+from neonradar_graph.loader import load_files, load_records, node_query
+from neonradar_graph.mapping import to_node_rows
 
 from .conftest import (
     CASE_A_ORIGIN,
@@ -233,10 +235,35 @@ def test_a_run_id_used_again_keeps_only_what_it_finds(cases: Neo4jTarget, tmp_pa
     assert stored == [{"id": again.alerts[0].alert_id, "produced": 1}]
 
 
+def load_case_f(db: Neo4jTarget) -> Neo4jTarget:
+    """Case F's graph. The loader refuses a load that mixes synthetic and real records (C2 L17,
+    M2.11), so the synthetic fixture is loaded and the test then writes the real-looking holder
+    itself and moves the origin account's holding to it, as case_f_records() describes. The
+    look-alike reaches only a Testcontainers database, never an instance named by
+    NR_TEST_NEO4J_URI (graph/CLAUDE.md)."""
+    if os.environ.get("NR_TEST_NEO4J_URI"):
+        pytest.skip("case F writes a non-synthetic look-alike: Testcontainers databases only")
+    load(db, fixture_records())
+    (holder,) = to_node_rows([REAL_HOLDER]).rows
+    db.driver.execute_query(node_query("Company"), rows=[holder.as_param()], database_=db.database)
+    db.driver.execute_query(
+        "MATCH (holder:Entity {id: $holder})"
+        " MATCH ()-[old:HOLDS_ACCOUNT]->(account:Entity {id: $account})"
+        " WITH holder, account, old, properties(old) AS kept DELETE old"
+        " CREATE (holder)-[moved:HOLDS_ACCOUNT]->(account) SET moved = kept",
+        holder=REAL_HOLDER["id"],
+        account=CASE_A_ORIGIN,
+        database_=db.database,
+    )
+    holdings = [r for r in case_f_records() if r["properties"].get("owner") == [REAL_HOLDER["id"]]]
+    assert len(holdings) == 1  # case_f_records() moves exactly this holding
+    return db
+
+
 def test_case_f_real_holder_gives_a_structural_pattern(
     graph_db: Neo4jTarget, tmp_path: Path
 ) -> None:
-    db = load(graph_db, case_f_records())
+    db = load_case_f(graph_db)
     report = detect_run(db, tmp_path)
     [alert] = [a for a in report.alerts if a.evidence.edge_ids == CASE_A]
     assert alert.wording_class == "structural_pattern"

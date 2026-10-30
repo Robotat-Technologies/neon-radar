@@ -17,6 +17,9 @@ class IngestSettings(BaseSettings):
 
     `NR_REAL_DATA_MACHINE`: `approved` on a machine the data steward listed in
     docs/data/real-data-machines.md (PHASE-2.md 1.1); the real-data gate reads it (M2.2).
+
+    `NR_EU_FSF_TOKEN`: the EU Financial Sanctions Files download token; empty or absent means
+    the Commission's public token (PHASE-2.md M2.6d).
     """
 
     model_config = SettingsConfigDict(
@@ -25,6 +28,7 @@ class IngestSettings(BaseSettings):
 
     ch_api_key: SecretStr | None = None
     nr_real_data_machine: str = ""
+    nr_eu_fsf_token: SecretStr | None = None
     nr_project_file: str = ""  # another project.yaml: tests and acceptance commands only (M2.2)
     compose_project_name: str = ""  # Docker Compose's own override; purge --graph checks it
 

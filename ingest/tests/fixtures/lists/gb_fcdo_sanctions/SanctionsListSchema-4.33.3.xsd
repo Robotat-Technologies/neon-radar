@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+ ====================================================================================================================    
+Copyright © 2022-2025. All rights reserved.
+This XML Schema Definition (XSD) is made publicly available for use in systems and integrations that interact with authorised services.
+
+You may copy, use, and distribute this schema for the purpose of developing, testing, or implementing compatible systems, provided that:
+     - No modifications are made to the schema structure or namespace identifiers.
+     - This notice is retained in all copies or derivative works.
+      - The schema is not misrepresented as originating from any other source.
+    It is not used for commercial resale or as part of a paid service without prior consent.       
+
+    All intellectual property rights remain with the copyright holder.
+
+    This schema is provided "as is" without warranty of any kind, either expressed or implied, including but not limited to fitness for purpose.
+    In no event shall the copyright holder be liable for any claim, damages, or other liability arising from its use.  
+ == =============== 
+ == Version History
+ == ===============
+ == 2022-01-14: Original Version
+ == 2022-01-24: Editorial Changes
+ == 2022-01-28: Added TechnicalAssistanceRelatedToAircraft to SanctionsImposedIndicators
+ == 2023-06-28: Added TrustServicesSanctions to SanctionsImposed Indicators 
+ == 2023-07-18: Added DirectorDisqualification to SanctionsImposed Indicators 
+ == 2025-11-07: Changed DirectorDisqualification to DirectorDisqualificationSanction
+ ====================================================================================================================
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<xs:simpleType name="BOOLEAN">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:restriction base="xs:boolean"/>
+	</xs:simpleType>
+	<xs:simpleType name="DATE">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:restriction base="xs:string"/>
+	</xs:simpleType>
+	<xs:simpleType name="DECIMAL">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:restriction base="xs:decimal"/>
+	</xs:simpleType>
+	<xs:simpleType name="INTEGER">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:restriction base="xs:integer"/>
+	</xs:simpleType>
+	<xs:simpleType name="INTEGERANDNULL">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="0"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="STRING">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:restriction base="xs:string"/>
+	</xs:simpleType>
+	<xs:element name="Designations">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="DateGenerated" type="DATE"/>
+				<xs:element name="Designation" type="designation" maxOccurs="unbounded"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+	<xs:complexType name="address">
+		<xs:sequence>
+			<xs:element name="AddressLine1" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressLine2" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressLine3" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressLine4" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressLine5" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressLine6" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressPostalCode" type="STRING" minOccurs="0"/>
+			<xs:element name="AddressCountry" type="STRING" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="addresses">
+		<xs:sequence>
+			<xs:element name="Address" type="address" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="birthDetails">
+		<xs:sequence>
+			<xs:element name="Location" type="location" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="businessRegistrationNumbers">
+		<xs:sequence>
+			<xs:element name="BusinessRegistrationNumber" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="currentBelievedFlagOfShips">
+		<xs:sequence>
+			<xs:element name="CurrentBelievedFlagOfShip" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="currentOwnerOperators">
+		<xs:sequence>
+			<xs:element name="CurrentOwnerOperator" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="cryptoWalletAddresses">
+		<xs:sequence>
+			<xs:element name="CryptoWalletAddress" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="designation">
+		<xs:sequence>
+			<xs:element name="LastUpdated" type="DATE" minOccurs="0"/>
+			<xs:element name="DateDesignated" type="DATE" minOccurs="0"/>
+			<xs:element name="UniqueID" type="STRING" minOccurs="0"/>
+			<xs:element name="OFSIGroupID" type="INTEGERANDNULL" nillable="true" minOccurs="0"/>
+			<xs:element name="UNReferenceNumber" type="STRING" minOccurs="0"/>
+			<xs:element name="Names" type="names" minOccurs="0"/>
+			<xs:element name="NonLatinNames" type="nonLatinNames" minOccurs="0"/>
+			<xs:element name="Titles" type="titles" minOccurs="0"/>
+			<xs:element name="RegimeName" type="STRING"/>
+			<xs:element name="IndividualEntityShip" type="STRING"/>
+			<xs:element name="DesignationSource" type="STRING"/>
+			<xs:element name="SanctionsImposed" type="STRING" minOccurs="0"/>
+			<xs:element name="SanctionsImposedIndicators" type="sanctionsImposedIndicators"/>
+			<xs:element name="OtherInformation" type="STRING" minOccurs="0"/>
+			<xs:element name="UKStatementofReasons" type="STRING" default="10" minOccurs="0"/>
+			<xs:element name="Addresses" type="addresses" minOccurs="0"/>
+			<xs:element name="PhoneNumbers" type="phoneNumbers" minOccurs="0"/>
+			<xs:element name="Websites" type="websites" minOccurs="0"/>
+			<xs:element name="CryptoWalletAddresses" type="cryptoWalletAddresses" minOccurs="0"/>
+			<xs:element name="EmailAddresses" type="emailAddresses" minOccurs="0"/>
+			<xs:choice>
+				<xs:element name="IndividualDetails" type="individuals" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="EntityDetails" type="entities" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ShipDetails" type="ships" minOccurs="0" maxOccurs="unbounded"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="dobs">
+		<xs:sequence>
+			<xs:element name="DOB" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="emailAddresses">
+		<xs:sequence>
+			<xs:element name="EmailAddress" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="entity">
+		<xs:sequence>
+			<xs:element name="TypeOfEntities" type="typeOfEntities" minOccurs="0"/>
+			<xs:element name="Subsidiaries" type="subsidiaries" minOccurs="0"/>
+			<xs:element name="ParentCompanies" type="parentCompanies" minOccurs="0"/>
+			<xs:element name="BusinessRegistrationNumbers" type="businessRegistrationNumbers" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="entities">
+		<xs:sequence>
+			<xs:element name="Entity" type="entity" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="genders">
+		<xs:sequence>
+			<xs:element name="Gender" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="hullIdentificationNumbers">
+		<xs:sequence>
+			<xs:element name="HullIdentificationNumber" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="iMONumbers">
+		<xs:sequence>
+			<xs:element name="IMONumber" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="individual">
+		<xs:sequence>
+			<xs:element name="DOBs" type="dobs" minOccurs="0"/>
+			<xs:element name="PassportDetails" type="passportDetails" minOccurs="0"/>
+			<xs:element name="Nationalities" type="nationalities" minOccurs="0"/>
+			<xs:element name="NationalIdentifierDetails" type="nationalIdentifierDetails" minOccurs="0"/>
+			<xs:element name="Positions" type="positions" minOccurs="0"/>
+			<xs:element name="Genders" type="genders" minOccurs="0"/>
+			<xs:element name="BirthDetails" type="birthDetails" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="individuals">
+		<xs:sequence>
+			<xs:element name="Individual" type="individual" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="lengthOfShipDetails">
+		<xs:sequence>
+			<xs:element name="LengthOfShip" type="DECIMAL" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="location">
+		<xs:sequence>
+			<xs:element name="TownOfBirth" type="STRING" minOccurs="0"/>
+			<xs:element name="CountryOfBirth" type="STRING" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="name">
+		<xs:sequence>
+			<xs:element name="Name1" type="STRING" minOccurs="0"/>
+			<xs:element name="Name2" type="STRING" minOccurs="0"/>
+			<xs:element name="Name3" type="STRING" minOccurs="0"/>
+			<xs:element name="Name4" type="STRING" minOccurs="0"/>
+			<xs:element name="Name5" type="STRING" minOccurs="0"/>
+			<xs:element name="Name6" type="STRING" minOccurs="0"/>
+			<xs:element name="NameType" type="STRING" minOccurs="0"/>
+			<xs:element name="AliasStrength" type="STRING" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="names">
+		<xs:sequence>
+			<xs:element name="Name" type="name" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="nationalIdentifierDetails">
+		<xs:sequence>
+			<xs:element name="NationalIdentifier" type="nationalIdentifier" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="nationalIdentifier">
+		<xs:sequence>
+			<xs:element name="NationalIdentifierNumber" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="NationalIdentifierAdditionalInformation" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="nationalities">
+		<xs:sequence>
+			<xs:element name="Nationality" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="nonLatinName">
+		<xs:sequence>
+			<xs:element name="NameNonLatinScript" type="STRING" minOccurs="0"/>
+			<xs:element name="NonLatinScriptType" type="STRING" minOccurs="0"/>
+			<xs:element name="NonLatinScriptLanguage" type="STRING" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="nonLatinNames">
+		<xs:sequence>
+			<xs:element name="NonLatinName" type="nonLatinName" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="otherContactInformation">
+		<xs:sequence>
+			<xs:element name="Website" type="STRING" minOccurs="0"/>
+			<xs:element name="EmailAddress" type="STRING" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="parentCompanies">
+		<xs:sequence>
+			<xs:element name="ParentCompany" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="passport">
+		<xs:sequence>
+			<xs:element name="PassportNumber" type="STRING" minOccurs="0"/>
+			<xs:element name="PassportAdditionalInformation" type="STRING" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="passportAdditionalDetails">
+		<xs:sequence/>
+	</xs:complexType>
+	<xs:complexType name="passportDetails">
+		<xs:sequence>
+			<xs:element name="Passport" type="passport" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="phoneNumbers">
+		<xs:sequence>
+			<xs:element name="PhoneNumber" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="positions">
+		<xs:sequence>
+			<xs:element name="Position" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="previousFlags">
+		<xs:sequence>
+			<xs:element name="PreviousFlag" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="previousOwnerOperators">
+		<xs:sequence>
+			<xs:element name="PreviousOwnerOperator" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sanctionsImposedIndicators">
+		<xs:sequence>
+			<xs:element name="AssetFreeze" type="xs:boolean"/>
+			<xs:element name="ArmsEmbargo" type="xs:boolean"/>
+			<xs:element name="TargetedArmsEmbargo" type="xs:boolean"/>
+			<xs:element name="CharteringOfShips" type="xs:boolean"/>
+			<xs:element name="ClosureOfRepresentativeOffices" type="xs:boolean"/>
+			<xs:element name="CrewServicingOfShipsAndAircraft" type="xs:boolean"/>
+			<xs:element name="Deflag" type="xs:boolean"/>
+			<xs:element name="PreventionOfBusinessArrangements" type="xs:boolean"/>
+			<xs:element name="ProhibitionOfPortEntry" type="xs:boolean"/>
+			<xs:element name="TravelBan" type="xs:boolean"/>
+			<xs:element name="PreventionOfCharteringOfShips" type="xs:boolean"/>
+			<xs:element name="PreventionOfCharteringOfShipsAndAircraft" type="xs:boolean"/>
+			<xs:element name="TechnicalAssistanceRelatedToAircraft" type="xs:boolean"/>
+			<xs:element name="TrustServicesSanctions" type="xs:boolean"/>
+			<xs:element name="DirectorDisqualificationSanction" type="xs:boolean"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ship">
+		<xs:sequence>
+			<xs:element name="IMONumbers" type="iMONumbers" minOccurs="0"/>
+			<xs:element name="CurrentOwnerOperators" type="currentOwnerOperators" minOccurs="0"/>
+			<xs:element name="PreviousOwnerOperators" type="previousOwnerOperators" minOccurs="0"/>
+			<xs:element name="CurrentBelievedFlagOfShips" type="currentBelievedFlagOfShips" minOccurs="0"/>
+			<xs:element name="PreviousFlags" type="previousFlags" minOccurs="0"/>
+			<xs:element name="TypeOfShipDetails" type="typeOfShips" minOccurs="0"/>
+			<xs:element name="TonnageOfShipDetails" type="tonnageOfShipDetails" minOccurs="0"/>
+			<xs:element name="LengthOfShipDetails" type="lengthOfShipDetails" minOccurs="0"/>
+			<xs:element name="YearsBuilt" type="yearsBuilt" minOccurs="0"/>
+			<xs:element name="HullIdentificationNumbers" type="hullIdentificationNumbers" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ships">
+		<xs:sequence>
+			<xs:element name="Ship" type="ship" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="subsidiaries">
+		<xs:sequence>
+			<xs:element name="Subsidiary" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="titles">
+		<xs:sequence>
+			<xs:element name="Title" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tonnageOfShipDetails">
+		<xs:sequence>
+			<xs:element name="TonnageOfShip" type="DECIMAL" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="typeOfEntities">
+		<xs:sequence>
+			<xs:element name="TypeOfEntity" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="typeOfShips">
+		<xs:sequence>
+			<xs:element name="TypeOfShip" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="websites">
+		<xs:sequence>
+			<xs:element name="Website" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="yearsBuilt">
+		<xs:sequence>
+			<xs:element name="YearBuilt" type="STRING" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+</xs:schema>

@@ -1,35 +1,84 @@
 slug: sanctions_exposure
-name: Sanctions exposure through indirect ownership or control
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Sanctions exposure through ownership or control
+shape_name: ownership or control links to parties listed as sanctioned
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  A company that is not itself listed is owned or controlled, directly or through a chain of
-  other companies, by a person or company that a source lists as sanctioned. Being owned,
-  controlled or directed by a party that a source lists as sanctioned, or being linked to one,
-  is not in itself wrongdoing; the pattern describes the structure only.
+summary: >-
+  An organisation that parties listed as sanctioned own or control, judged with the US, UK and EU tests separately.
 doc: docs/typologies/sanctions-exposure.md
-citations: [ofac_50_percent_2014, fatf_glossary, fatf_bo_legal_persons_2023, fatf_pf_sanctions_evasion_2025, fatf_egmont_concealment_2018, ffiec_appendix_f, icij_faq, opensanctions_glossary]
-graph_pattern: >
-  OWNS paths of at most 6 hops from an Entity with the :Sanctioned flag to the subject. For
-  each sanctioned owner, the effective share is the sum over its paths of the product of the
-  shares along each path, computed once with share_pct_min and once with share_pct_max to give
-  a range; it is a teaching metric, not the OFAC test. CONTROLS and DIRECTOR_OF relationships
-  on the way are treated as control links (a modelling choice). An OFAC-style flag would
-  aggregate blocked owners and pass blocked status down the chain from owner to owned entity
-  (an unconfirmed reading, Open question 1 of the explainer). One finding, and so one alert,
-  per sanctioned owner.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- ofac_50_percent_2014
+- ofac_50_percent_faqs
+- ofsi_general_guidance_2026
+- russia_sanctions_regs_2019
+- eu_best_practices_2024
+- eu_reg_2580_2001
+- ec_asset_freeze_faq_2026
+graph_pattern: >-
+  OWNS and CONTROLS within six relationships of a listed entity, with each regime's own seed list and arithmetic
+  on the published share bands; direct CONTROLS, CONSOLIDATES and DIRECTOR_OF links reported apart.
+parameters:
+  max_hops:
+    default: 6
+    min: 1
+    max: 8
+  max_links:
+    default: 200000
+    min: 1
+    max: 2000000
+  max_paths:
+    default: 1000
+    min: 1
+    max: 10000
+  max_steps:
+    default: 12
+    min: 1
+    max: 120
+  min_reported_share:
+    default: 25.0
+    min: 0.0
+    max: 100.0
+metrics:
+- listed_parties
+- shortest_path
+- ownership_paths
+- paths_capped
+- listed_share_min
+- listed_share_max
+- effective_share_min
+- effective_share_max
+- us_test
+- eu_test
+- uk_test
+- votes_follow_shares
+- unbounded
+- bands_inconsistent
+- control_links
+- consolidation_links
+- director_links
+- us_control_caution
+- uk_control_to_assess
+- uk_nominee_holdings
+- uk_measures_unknown
+- eu_control_criteria
+- lists
+- lists_text
+- assessment
+wording:
+  headline_structural: Organisation with recorded ownership or control links to parties on {lists_text}
+  headline_synthetic: 'Synthetic scenario: organisation with recorded ownership or control links to parties on {lists_text}'
+  detail: '{assessment}'
+  variants:
+    director:
+      headline_structural: Organisation with a current director on {lists_text}
+      headline_synthetic: 'Synthetic scenario: organisation with a current director on {lists_text}'
 false_positives:
-  - A name match that joins a list entry to a different person or company
-  - Minority stakes far below any ownership threshold
-  - Owners whose listing has ended
-  - Listed companies with widely spread shareholding
-  - Lawful counterparties owned by a state
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null
+- Minority stakes
+- Diffuse shareholdings
+- A listed record that is a different party with a similar name
+synthetic_support: high
+generator_scenario: sanctions_exposure
+detector: neonradar_detect.detectors.sanctions_exposure

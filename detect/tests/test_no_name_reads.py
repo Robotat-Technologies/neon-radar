@@ -45,6 +45,12 @@ NAMES = (
 )
 TOKEN = re.compile(rf"(?<![\w$])(?:{'|'.join(NAMES)})(?!\w)")
 PACKAGE = Path(memsource.__file__).parent
+# Wording sentences of verbatim detectors that use a name word as plain English, never as a
+# property or key, by module (path within the package). Each phrase is removed exactly, and
+# only from its own module, before the check; nothing else is exempt.
+PROSE = {
+    "detectors/sanctions_exposure.py": ("whom these records do not name",),  # UK_NOMINEE (M3.5e)
+}
 DETECTORS = sorted((PACKAGE / "detectors").glob("*.py"))
 
 
@@ -53,14 +59,19 @@ def _cypher(text: str) -> str:
     return "\n".join(line.split("//", 1)[0] for line in text.splitlines())
 
 
-def _reads(tree: ast.AST) -> list[str]:
-    """Name properties a piece of Python reads: attributes, subscripts, `get` keys, strings."""
+def _reads(tree: ast.AST, prose: tuple[str, ...] = ()) -> list[str]:
+    """Name properties a piece of Python reads: attributes, subscripts, `get` keys, strings.
+
+    `prose` holds the module's own exempt phrases (PROSE)."""
     found = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr in NAMES:
             found.append(f".{node.attr}")
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            found += [m.group(0) for m in TOKEN.finditer(node.value)]
+            text = node.value
+            for phrase in prose:
+                text = text.replace(phrase, "")
+            found += [m.group(0) for m in TOKEN.finditer(text)]
     return found
 
 
@@ -101,7 +112,7 @@ def test_detectors_and_the_policy_never_read_a_name(path: Path) -> None:
     for node in ast.walk(tree):  # docstrings may say "name"; code may not
         if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
             node.value.value = ""
-    assert _reads(tree) == [], path.name
+    assert _reads(tree, PROSE.get(path.relative_to(PACKAGE).as_posix(), ())) == [], path.name
     calls = {
         n.func.attr
         for n in ast.walk(tree)
@@ -114,5 +125,11 @@ def test_the_check_sees_a_name_read() -> None:
     """The checks above would catch a detector that compared captions or spellings."""
     bad = ast.parse('info = source.node_info(ids)\nif info[x].caption.endswith("ov"):\n    pass\n')
     assert _reads(bad) == [".caption"]
+    phrases = PROSE["detectors/sanctions_exposure.py"]
+    prose = ast.parse('A = "held for, whom these records do not name."\nb = row["name"]\n')
+    assert _reads(prose, phrases) == ["name"]
+    assert _reads(ast.parse('c = "whom these records do not name: n.name"\n'), phrases) == ["name"]
+    assert _reads(ast.parse('A = "whom these records do not name."\n')) == ["name"]
+    assert set(PROSE) <= {p.relative_to(PACKAGE).as_posix() for p in DETECTORS}
     assert TOKEN.findall(_cypher("MATCH (p:Person) WHERE p.names_text CONTAINS $x RETURN p.id"))
     assert not TOKEN.findall(_cypher("RETURN g.graphName AS graph_name // the caption"))

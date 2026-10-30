@@ -1,27 +1,76 @@
 slug: structuring
-name: Structuring (smurfing) below reporting thresholds
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Structuring cash deposits
+shape_name: cash deposits just below a threshold
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Cash is split into many deposits, each just below a reporting threshold, often at several
-  branches or by several people, so that no single deposit reaches the threshold.
+summary: >-
+  Several cash deposits just below a threshold (10,000 in the deposit's currency), within a few days, into the
+  accounts of one holder.
 doc: docs/typologies/structuring.md
-citations: [cfr_31_1010_314, ffiec_appendix_g, ffiec_appendix_f, fatf_pml_2018, fincen_fin_2014_a005, fincen_fin_2025_a003, europol_efecta_2023]
-graph_pattern: >
-  Many PAID relationships with channel 'cash_deposit' (from cash_ledger accounts) into one
-  customer Account, or into several Accounts with the same holder, within a short window,
-  each amount just below a threshold parameter, often through several branches, with a
-  daily total above the threshold.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- cfr_31_1010_100_2026
+- cfr_31_1010_311_2026
+- cfr_31_1010_313_2026
+- cfr_31_1010_314
+- ffiec_appendix_g
+- fincen_fin_2014_a005
+- mlr_reg_27_2017
+graph_pattern: >-
+  Cash deposits (PAID from cash ledger accounts) into the accounts of one LegalEntity, at least three in a 7-day
+  window, within 10 percent below the threshold.
+parameters:
+  threshold:
+    default: 10000.0
+    min: 0.0
+    max: 100000.0
+  band:
+    default: 0.1
+    min: 0.0
+    max: 0.5
+  below_inclusive_currencies:
+    default:
+    - USD
+  window_days:
+    default: 7
+    min: 1
+    max: 70
+  min_deposits:
+    default: 3
+    min: 1
+    max: 30
+  min_band_share:
+    default: 0.5
+    min: 0.0
+    max: 1.0
+  max_candidates:
+    default: 100000
+    min: 1
+    max: 1000000
+metrics:
+- deposits
+- total_amount
+- threshold
+- band_low
+- currency
+- branches
+- accounts
+- days
+- span_days
+- max_day_total
+- band_share
+wording:
+  headline_structural: >-
+    {deposits} cash deposits just below {threshold|money} within {span_days|n:day}, {total_amount|money} in total
+  headline_synthetic: >-
+    Synthetic scenario: {deposits} cash deposits just below {threshold|money} within {span_days|n:day}, {total_amount|money}
+    in total
 false_positives:
-  - Cash businesses banking their daily takings
-  - Deposit caps set by insurers or cash-in-transit contracts
-  - Fixed weekly savings deposits
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null
+- A cash business banking its daily takings
+- A business that caps each cash deposit (an insurer's or a carrier's limit; no source confirmed this)
+- A person saving the same sum every week
+synthetic_support: high
+generator_scenario: structuring
+detector: neonradar_detect.detectors.structuring

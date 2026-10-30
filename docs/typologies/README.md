@@ -8,9 +8,9 @@ One definition file per typology in `detect/typologies/` (the shape is in `contr
 |---|---|---|---|---|---|
 | [`cash_commingling`](cash-commingling.md) | Cash-intensive business commingling | extended | draft | @robotat-com | no |
 | [`circular_flow`](circular-flow.md) | Round-tripping or circular flows | core | draft | @robotat-com | yes |
-| [`dormant_reactivation`](dormant-reactivation.md) | Dormant account reactivation followed by high velocity | core | draft | @robotat-com | no |
-| [`fan_in_collection`](fan-in-collection.md) | Fan-in to a collection account | core | draft | @robotat-com | no |
-| [`fan_out_distribution`](fan-out-distribution.md) | Fan-out distribution from one account | core | draft | @robotat-com | no |
+| [`dormant_reactivation`](dormant-reactivation.md) | Dormant account reactivation | core | draft | @robotat-com | yes |
+| [`fan_in_collection`](fan-in-collection.md) | Fan-in collection | core | draft | @robotat-com | yes |
+| [`fan_out_distribution`](fan-out-distribution.md) | Fan-out distribution | core | draft | @robotat-com | yes |
 | [`formation_agent_cluster`](formation-agent-cluster.md) | Companies clustered around one formation agent | extended | draft | @robotat-com | no |
 | [`layering_chain`](layering-chain.md) | Layering through chains of transfers | core | draft | @robotat-com | no |
 | [`mass_registration_address`](mass-registration-address.md) | Mass registration addresses | core | draft | @robotat-com | no |

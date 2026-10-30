@@ -85,10 +85,12 @@ def paid_ts(record: dict[str, Any]) -> datetime:
 
 @pytest.fixture(scope="session")
 def neo4j_source_factory(neo4j: Any) -> Iterator[Callable[[list[dict[str, Any]]], Source]]:
-    """Records to a Neo4jSource on the shared test database (PHASE-3.md 7.1.5)."""
+    """Records to a Neo4jSource on the shared test database (PHASE-3.md 7.1.5); at the end of
+    the session no GDS projection is left behind (M3.5c acceptance)."""
     import neo4j_mode
 
     yield neo4j_mode.factory(neo4j)
+    neo4j_mode.assert_no_projections(neo4j)
 
 
 if os.environ.get("NR_DETECT_SOURCE") == "neo4j":

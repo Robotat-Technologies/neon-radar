@@ -281,6 +281,14 @@ entries:
     extra_urls: []
     verified: 2026-10-21
     note: "August 2025. Money mules, smurfs (footnote 35), mirror transactions."
+  - key: fincen_mule_advisory_2020
+    title: "FinCEN Advisory FIN-2020-A003: Imposter Scams and Money Mule Schemes Related to COVID-19"
+    publisher: FinCEN
+    year: 2020
+    url: https://www.fincen.gov/sites/default/files/advisory/2020-07-07/Advisory_%20Imposter_and_Money_Mule_COVID_19_508_FINAL.pdf
+    extra_urls: []
+    verified: 2026-10-18
+    note: "7 July 2020. Defines a money mule (p. 5) and says mules may be unwitting, witting or complicit; cited by the fan_in_collection typology. Read by the research note docs/research/2026-10-18-detection/typology-detection-definitions.md (T10) on 18 October 2026, not re-opened by the build (PHASE-3.md 7.8). Its full red-flag list could not be extracted: quote only what was read."
   - key: ffiec_appendix_f
     title: "BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags"
     publisher: FFIEC
@@ -470,3 +478,12 @@ entries:
       - https://eur-lex.europa.eu/eli/reg/2016/679/oj
     verified: 2026-10-21
     note: "Articles 4(1), 4(7) and 10 in the text as adopted, read on legislation.gov.uk on 2026-10-21 (url and first extra URL). EUR-Lex (extra URL) answered with a bot challenge; re-open in a browser. The current consolidated EU text was not opened; the data steward is to confirm that these articles are unchanged."
+  # UK company law: dormant companies (cited by the dormant_reactivation typology, M3.5c)
+  - key: ca_dormant_company_s1169_2006
+    title: Companies Act 2006, section 1169 (dormant companies)
+    publisher: legislation.gov.uk
+    year: 2006
+    url: https://www.legislation.gov.uk/ukpga/2006/46/section/1169
+    extra_urls: []
+    verified: 2026-10-18
+    note: "A company is dormant during any period in which it has no significant accounting transaction, one that section 386 requires to be entered in its accounting records. Read in the version up to date to 17 October 2026 by the research note docs/research/2026-10-18-detection/typology-detection-definitions.md (T39) on 18 October 2026, not re-opened by the build (PHASE-3.md 7.8)."

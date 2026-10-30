@@ -1,30 +1,110 @@
 slug: fan_in_collection
-name: Fan-in to a collection account
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Fan-in collection
+shape_name: many accounts paying into one
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  Many unrelated people send money to one account within a short time, and the account
-  then passes the money on or withdraws it as cash.
+summary: >-
+  Many unrelated accounts pay one account in a short window, which passes the money on; or a connected group of
+  new accounts feeding one or two hubs.
 doc: docs/typologies/fan-in-collection.md
-citations: [fatf_cyber_fraud_2023, fincen_fin_2025_a003, fincen_fin_2014_a005, ffiec_appendix_f, fatf_pml_2018, europol_money_muling, egmont_best_cases_2024]
-graph_pattern: >
-  One Account receiving PAID from many person-held Accounts that had no earlier relationship
-  with it or with each other, within a short window, often from recently opened accounts
-  (opening_date), followed by onward transfers or cash withdrawals. A ring variant uses GDS
-  weakly connected components or Louvain over recent PAID edges.
-parameters: {}
-metrics: []
-wording: null
+citations:
+- ffiec_appendix_f
+- fatf_cyber_fraud_2023
+- europol_money_muling
+- fincen_mule_advisory_2020
+graph_pattern: >-
+  At least ten distinct paying accounts, mostly of people and with no earlier relationship, into one Account within
+  7 days, 80 percent paid on within 72 hours; or a weakly connected component of PAID between new accounts with
+  one to three hubs.
+parameters:
+  window_days:
+    default: 7
+    min: 1
+    max: 70
+  min_senders:
+    default: 10
+    min: 1
+    max: 100
+  min_total:
+    default: 5000.0
+    min: 0.0
+    max: 50000.0
+  min_person_share:
+    default: 0.8
+    min: 0.0
+    max: 1.0
+  prior_days:
+    default: 90
+    min: 1
+    max: 900
+  max_prior_share:
+    default: 0.2
+    min: 0.0
+    max: 1.0
+  onward_hours:
+    default: 72
+    min: 1
+    max: 720
+  min_onward_ratio:
+    default: 0.8
+    min: 0.0
+    max: 1.0
+  new_account_days:
+    default: 90
+    min: 1
+    max: 900
+  ring:
+    default: true
+  min_ring_accounts:
+    default: 5
+    min: 1
+    max: 50
+  max_ring_accounts:
+    default: 200
+    min: 1
+    max: 2000
+  max_candidates:
+    default: 100000
+    min: 1
+    max: 1000000
+metrics:
+- senders
+- total_amount
+- currency
+- window_days
+- person_share
+- prior_share
+- onward_ratio
+- onward_beneficiaries
+- collector_account_days
+- ring_accounts
+- hubs
+- span_days
+- feeding_share
+- fed_payments
+- out_payments
+wording:
+  headline_structural: >-
+    {senders} accounts paid {total_amount|money} into one account within {window_days|n:day}, and {onward_ratio|pct}
+    of it was paid on
+  headline_synthetic: >-
+    Synthetic scenario: {senders} accounts paid {total_amount|money} into one account within {window_days|n:day},
+    and {onward_ratio|pct} of it was paid on
+  variants:
+    ring:
+      headline_structural: >-
+        {ring_accounts} recently opened accounts paying into {hubs|n:collecting account}, {total_amount|money} in
+        total
+      headline_synthetic: >-
+        Synthetic scenario: {ring_accounts} recently opened accounts paying into {hubs|n:collecting account}, {total_amount|money}
+        in total
 false_positives:
-  - Charities and donation drives
-  - Crowdfunding campaigns
-  - Landlords collecting rent
-  - Clubs collecting membership fees
-  - Small online sellers and tutors
-  - School fee and utility accounts
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null
+- Donation drives
+- Rent collection by a landlord
+- Crowdfunding campaigns paying their beneficiary
+synthetic_support: high
+generator_scenario: fan_in_collection
+detector: neonradar_detect.detectors.fan_in_collection

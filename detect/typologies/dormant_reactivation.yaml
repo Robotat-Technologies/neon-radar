@@ -1,37 +1,111 @@
 slug: dormant_reactivation
-name: Dormant account reactivation followed by high velocity
-version: 0.1.0
-status: draft                 # draft | approved | retired  (only a typology researcher sets approved)
-tier: core                    # core | extended | explainer_only
+name: Dormant account reactivation
+shape_name: a burst of payments after a quiet period
+version: 0.2.0
+status: draft
+tier: core
 owner: "@robotat-com"         # typology researcher
 approved_by: null
-summary: >
-  An account or company that was inactive for a long time suddenly receives and sends large
-  volumes within days, sometimes soon after a change of director, owner or account holder. The
-  company version is a company left dormant after incorporation that later starts moving large
-  sums.
+summary: >-
+  An account with little activity for a long time suddenly moves large sums in and out; a company filed as dormant
+  that moves money; a new company that receives large sums and moves them on.
 doc: docs/typologies/dormant-reactivation.md
 citations:
-  - ffiec_appendix_f
-  - fatf_egmont_concealment_2018
-  - fatf_cyber_fraud_2023
-  - fatf_tcsp_2010
-  - star_puppet_masters_2011
-graph_pattern: >
-  An Account with no PAID relationships, inbound or outbound, for a long gap, followed within
-  days by a burst of inbound and outbound PAID by count or total; often soon after a new
-  DIRECTOR_OF, OWNS or HOLDS_ACCOUNT relationship on the holder (by start_date). The company
-  variant is a Company whose incorporation_date lies long before its first payment, or a newly
-  incorporated Company that receives and passes on large sums soon after incorporation.
-parameters: {}
-metrics: []
-wording: null
+- ffiec_appendix_f
+- fatf_egmont_tbml_indicators_2021
+- fatf_egmont_concealment_2018
+- ca_dormant_company_s1169_2006
+graph_pattern: >-
+  A quiet period of at least 180 days (at most two payments, 1,000 in all) followed within 14 days by at least four
+  payments in both directions above max(50,000, ten times the earlier monthly mean).
+parameters:
+  min_gap_days:
+    default: 180
+    min: 1
+    max: 1800
+  max_quiet_payments:
+    default: 2
+    min: 1
+    max: 20
+  max_quiet_amount:
+    default: 1000.0
+    min: 0.0
+    max: 10000.0
+  burst_days:
+    default: 14
+    min: 1
+    max: 140
+  min_burst_payments:
+    default: 4
+    min: 1
+    max: 40
+  min_burst_amount:
+    default: 50000.0
+    min: 0.0
+    max: 500000.0
+  burst_ratio:
+    default: 10.0
+    min: 1.0
+    max: 100.0
+  change_days:
+    default: 30
+    min: 1
+    max: 300
+  company_variants:
+    default: true
+  new_company_days:
+    default: 90
+    min: 1
+    max: 900
+  min_inflow_concentration:
+    default: 0.8
+    min: 0.0
+    max: 1.0
+  min_moved_on:
+    default: 0.8
+    min: 0.0
+    max: 1.0
+  max_candidates:
+    default: 100000
+    min: 1
+    max: 1000000
+metrics:
+- gap_days
+- quiet_payments
+- pre_gap_monthly_mean
+- burst_threshold
+- burst_payments
+- burst_in_amount
+- burst_out_amount
+- burst_amount
+- currency
+- burst_days
+- change_event
+wording:
+  headline_structural: >-
+    Account active again after {gap_days} quiet days: {burst_amount|money} in {burst_payments|n:payment} within
+    {burst_days|n:day}
+  headline_synthetic: >-
+    Synthetic scenario: account active again after {gap_days} quiet days: {burst_amount|money} in {burst_payments|n:payment}
+    within {burst_days|n:day}
+  variants:
+    dormant_company:
+      headline_structural: >-
+        Company whose last accounts were filed as dormant moved {burst_amount|money} in {burst_payments|n:payment}
+        within {burst_days|n:day}
+      headline_synthetic: >-
+        Synthetic scenario: company whose last accounts were filed as dormant moved {burst_amount|money} in {burst_payments|n:payment}
+        within {burst_days|n:day}
+    new_company:
+      headline_structural: >-
+        Recently incorporated company moved {burst_amount|money} in {burst_payments|n:payment} within {burst_days|n:day}
+      headline_synthetic: >-
+        Synthetic scenario: recently incorporated company moved {burst_amount|money} in {burst_payments|n:payment}
+        within {burst_days|n:day}
 false_positives:
-  - Seasonal businesses
-  - Account holders returning from abroad or after an illness
-  - Inheritances and property sale proceeds
-  - A dormant company restarted by new owners, and other genuine acquisitions
-  - Student accounts reactivated at the start of term
-synthetic_support: high       # high | medium | low | none
-generator_scenario: null
-detector: null                # null until implemented
+- Seasonal businesses reopening
+- A property sale paid into a quiet personal account
+- A business restarting under a new owner
+synthetic_support: high
+generator_scenario: dormant_reactivation
+detector: neonradar_detect.detectors.dormant_reactivation

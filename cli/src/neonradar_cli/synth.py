@@ -11,6 +11,9 @@ import typer
 from neonradar_ingest.synth import DEMO_SEED, ER_BENCH_SEED
 
 if TYPE_CHECKING:
+    from neonradar_cli.redact import Where
+    from neonradar_ingest.data.profiles import Profile
+    from neonradar_ingest.data.project import Project
     from neonradar_ingest.synth.commands import Written
 
 app = typer.Typer(help="Synthetic data generator.", no_args_is_help=True)
@@ -44,10 +47,13 @@ def _git_sha() -> str:
     return sha if done.returncode == 0 and len(sha) == 40 else "unknown"
 
 
-def _report(profile: str, command: str, written: Written, extra: dict[str, object]) -> None:
+def _report(
+    profile: str, command: str, written: Written, extra: dict[str, object], *, real: bool = False
+) -> None:
     from neonradar_cli import summary
 
-    typer.echo(f"wrote {written.records_file}")
+    if not real:  # a real profile's output is counts only (PHASE-3.md 7.7 rule 6)
+        typer.echo(f"wrote {written.records_file}")
     summary.emit(
         profile,
         command,
@@ -95,17 +101,36 @@ def overlay_command(
     out: OutOption = None,
 ) -> None:
     """Generate an overlay: accounts and background for the base's organisations, scenarios and
-    look-alikes among new synthetic entities, label files v2 and overlay.json."""
+    look-alikes among new synthetic entities, label files v2 and overlay.json. A real profile
+    passes the real-data gate and access.real_overlay_profiles first, and prints counts only."""
+    from neonradar_cli import redact
     from neonradar_cli.data import profile_or_exit, project_or_exit
+
+    project, chosen = project_or_exit(), profile_or_exit(profile)
+    with redact.guard(chosen, "synth overlay") as where:  # the summary too (7.7 rule 6)
+        _overlay(where, project, chosen, seed, base, out)
+
+
+def _overlay(
+    where: Where, project: Project, chosen: Profile, seed: int | None, base: Path | None,
+    out: Path | None,
+) -> None:  # fmt: skip
+    from neonradar_ingest.data import gate
     from neonradar_ingest.data.profiles import ProfileError
     from neonradar_ingest.synth.commands import SynthError, make_overlay
 
-    project, chosen = project_or_exit(), profile_or_exit(profile)
+    where.step = "gate"  # no traceback kept on an unapproved machine; make_overlay checks again
+    if chosen.real_data:
+        gate.check_real_overlay(project, chosen)
+    where.step = "overlay"
     try:
         written = make_overlay(chosen, seed, base, out, project=project, git_sha=_git_sha())
     except (SynthError, ProfileError) as exc:
+        if chosen.real_data:
+            raise
         typer.echo(f"FAIL  {exc}", err=True)
         raise typer.Exit(code=exc.exit_code) from None
+    where.step = "summary"
     stats = written.stats
     _report(
         chosen.profile,
@@ -115,8 +140,10 @@ def overlay_command(
             "overlay_id": written.overlay_id,
             "eligible_organisations": stats["eligible_organisations"],
             "active_organisations": stats["active_organisations"],
+            "skipped_organisations": stats["skipped_organisations"],
             "scenarios": stats["scenarios"],
         },
+        real=chosen.real_data,
     )
 
 

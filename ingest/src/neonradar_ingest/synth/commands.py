@@ -3,8 +3,9 @@
 `make_world` generates a synthetic profile's register from its world block; `make_overlay`
 streams a base (the profile's world, or `--base`) into the overlay generator and writes the
 records, `labels/` and `overlay.json`. Both validate every record with C1's validator before
-anything is written, and both refuse a holdout seed (G11). Real profiles get their overlay in
-M3.4: `make_overlay` refuses them with exit 3 before it reads anything.
+anything is written, and both refuse a holdout seed (G11). A real profile's overlay (M3.4)
+first passes `gate.check_real_overlay` (exit 3 before anything is read), then reads the
+profile's own records and latest resolution run and writes under its real-data folder only.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from neonradar_contracts.records import (
     validate_batch,
     validate_record,
 )
-from neonradar_ingest.data import layout
+from neonradar_ingest.data import gate, layout
 from neonradar_ingest.data.profiles import Profile
 from neonradar_ingest.data.project import REPO_ROOT, Project
 from neonradar_ingest.synth import labels, overlay, world, writer
@@ -114,6 +115,12 @@ def refuse_protected(what: str, path: Path | None) -> None:
         )
 
 
+def refuse_outside_real(what: str, path: Path | None) -> None:
+    """A real profile's base, resolution run and overlay stay under its real-data folders (4.5)."""
+    if path is not None and not path.resolve().is_relative_to(layout.real_root().resolve()):
+        raise SynthError(f"{what} of a real profile lies outside its real-data folder (4.5)", 3)
+
+
 def refuse_holdout_base(files: Iterable[Path]) -> None:
     """Exit 2 when a base file's manifest names a holdout seed (G11)."""
     holdout = holdout_seeds()
@@ -170,6 +177,7 @@ class BaseIndex:
     """What the overlay command keeps of the base: ids, never records (L18, R4 and R8)."""
 
     kinds: dict[str, str] = field(default_factory=dict)
+    synthetic_only: bool = True  # a real profile's base is its own real records (M3.4)
     ids: set[str] = field(default_factory=set)
     legal_entities: set[str] = field(default_factory=set)
     datasets: set[str] = field(default_factory=set)
@@ -182,10 +190,11 @@ class BaseIndex:
         for path in files:
             for record in iter_records(path):
                 kinds = {self.kinds.get(d) for d in record.get("datasets") or [""]}
-                if kinds != {"synthetic"} or not str(record.get("id", "")).startswith("syn-"):
+                synthetic = kinds == {"synthetic"} and str(record.get("id", "")).startswith("syn-")
+                if self.synthetic_only and not synthetic:
                     raise SynthError(
                         "the base holds a record that is not synthetic: a synthetic profile"
-                        " never reads real records (G9; real profiles come with M3.4)",
+                        " never reads real records (G9)",
                         3,
                     )
                 self.records += 1
@@ -279,13 +288,14 @@ def make_overlay(
     git_sha: str,
     clock: datetime | None = None,
 ) -> Written:
-    """Generate, validate and write the overlay of a synthetic profile (PHASE-3.md 4.5, 7.2.7)."""
-    if profile.real_data:
-        raise SynthError(
-            f"profile {profile.profile} is a real profile: its overlay comes with M3.4", 3
-        )
-    refuse_protected("--base", base)
-    refuse_protected("--out", out)
+    """Generate, validate and write the overlay of a profile (PHASE-3.md 4.5, 7.2.7, 7.7)."""
+    if profile.real_data:  # 7.7 rule 1: the gate, then access.real_overlay_profiles (exit 3)
+        gate.check_real_overlay(project, profile)
+        if base is not None or out is not None:
+            raise SynthError("a real profile's overlay takes no --base or --out (4.5)", 2)
+    protect = refuse_outside_real if profile.real_data else refuse_protected
+    protect("--base", base)
+    protect("--out", out)
     block = profile.overlay
     if block is None or not block.enabled:
         raise SynthError(f"profile {profile.profile} has no enabled overlay block", 2)
@@ -299,16 +309,16 @@ def make_overlay(
             refuse_holdout(world_seed)
         folders = profile.record_dirs(project, seed=world_seed)
     for folder in folders:
-        refuse_protected("a base folder", folder)
+        protect("a base folder", folder)
     files = sorted(path for folder in folders for path in folder.glob("*.ftm.jsonl"))
     if not files:
         raise SynthError(f"no record files in the base ({', '.join(map(str, folders))})", 2)
     for path in files:  # a symlink into a protected folder is refused before it is opened
-        refuse_protected("a base file", path)
-        refuse_protected("a base manifest", manifest_path(path))
+        protect("a base file", path)
+        protect("a base manifest", manifest_path(path))
     refuse_holdout_base(files)
     canonical, run_id = _resolution(profile)
-    refuse_protected("the resolution run", canonical)
+    protect("the resolution run", canonical)
     if profile.resolution.enabled and canonical is None:
         raise SynthError(
             "the profile resolves its base, but it has no resolution run with a canonical.csv:"
@@ -317,7 +327,7 @@ def make_overlay(
         )
     config = block.config(overlay_seed)
     kinds = dataset_kinds()
-    index = BaseIndex(kinds)
+    index = BaseIndex(kinds, synthetic_only=not profile.real_data)
     ov = overlay.generate(index.read(files), kinds, config, default_names(), canonical)
 
     by_schema = Counter(schema for schema, _ in ov.items())
@@ -336,7 +346,7 @@ def make_overlay(
     overlay_id = layout.new_run_id("ov")
     name = f"nr_synthetic-{config.end:%Y%m%d}-overlay"  # the period's end, never the clock
     folder = _target(out or layout.overlay_dir(profile, overlay_id), name)
-    refuse_protected("the output folder", folder)
+    protect("the output folder", folder)
     sha = writer.write_part(folder, name, ov.items(), seed=overlay_seed, git_sha=git_sha)
     texts = labels.files(
         ov.labels,

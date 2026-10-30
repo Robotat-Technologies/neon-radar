@@ -191,6 +191,10 @@ class Overlay(BaseModel):
         if unknown:
             raise ValueError(f"unknown background settings: {', '.join(unknown)}")
         TypeAdapter(BackgroundConfig).validate_python(value)  # the types of the dataclass
+        for key, share in value.items():  # every share is a fraction (M3.4)
+            parts = share if isinstance(share, list | tuple) else [share]
+            if key.endswith("share") and not all(0 <= part <= 1 for part in parts):
+                raise ValueError(f"background.{key} must lie between 0 and 1")
         return value
 
     @model_validator(mode="after")

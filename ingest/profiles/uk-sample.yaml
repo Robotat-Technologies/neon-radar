@@ -48,3 +48,18 @@ sources:
 resolution:
   enabled: true
   config: resolve/config/er.yaml
+# Phase 3 blocks (PHASE-3.md 7.11, M3.4; the data steward approves them in review)
+overlay:
+  enabled: true         # runs only if the data steward adds uk-sample to access.real_overlay_profiles
+  seed: 20261027
+  start: 2025-01-01
+  end: 2026-07-01
+  illicit: 3
+  lookalikes: 3
+  typologies: all
+  background:
+    share: 0.05         # about 2,500 organisations of the 50,000-company slice
+detection:
+  enabled: true
+  window: overlay
+  overrides: {}

@@ -9,3 +9,11 @@ sources:
 resolution:
   enabled: true
   config: resolve/config/er.yaml
+# Phase 3 blocks (PHASE-3.md 7.11, M3.4; the data steward approves them in review)
+overlay:
+  enabled: false        # demo-mini carries its own payments; synth-demo is the overlay demo
+detection:
+  enabled: true
+  window: data          # the PAID time range of the loaded records
+  overrides:
+    mass_registration_address: { top_share: 0.0 }

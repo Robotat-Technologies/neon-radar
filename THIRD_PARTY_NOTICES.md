@@ -78,7 +78,7 @@ SOFTWARE.
 
 | | |
 |---|---|
-| What | 236 nationality values (Companies House nationality values and FCDO citizen names) mapped to lower-case ISO 3166-1 alpha-2 codes; `neonradar_keys.countries.country_code` reads it |
+| What | 236 nationality values (Companies House nationality values and FCDO citizen names) mapped to lower-case FollowTheMoney country codes (ISO 3166-1 alpha-2 for current countries, plus FtM's own codes such as `xk` for Kosovo); `neonradar_keys.countries.country_code` reads it |
 | Derived from | The Companies House list of nationalities ("Nationalities and countries for company filings") and the citizen names of the FCDO Geographical Names Index |
 | Licence | Open Government Licence v3.0 (both sources): https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/ |
 | Attribution | "Contains public sector information licensed under the Open Government Licence v3.0." |

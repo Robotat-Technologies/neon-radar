@@ -1,290 +1,161 @@
-"""Detection runs (PHASE-1.md M1.9b; contracts/C4-alert.md, Runs and storage).
+"""Run the detectors of a profile, apply R-REAL and build the alerts (PHASE-3.md 7.5.3).
 
-`run` executes the detector of every selected typology, builds the C4 alerts, and fails the
-whole run if any alert breaks the contract or the wording lint. A run writes its audit copy,
-`data/runs/<run_id>/alerts.jsonl` and `run.json`, and loads `(:DetectionRun)-[:PRODUCED]->
-(:Alert)-[:FLAGS {role}]->(:Entity)` into Neo4j in one transaction, merged on `run_id`,
-`alert_id` and the alert-subject pair, so a re-run on the same graph finds the same alerts. A
-run id given again (`--run-id`) keeps only what the latest attempt found. A run that fails
-writes `run.json` and a `:DetectionRun` with `status: failed` and no alerts.
+`run_detection` is the one path every caller uses: `neonradar detect run`, `make load`, the
+evaluation harness and the tests. It never writes; the CLI writes `alerts.jsonl` and
+`summary.json` and loads them (C2 1.2.0, L19). Withheld findings are counted by typology and
+reason and never kept. The detectors are the modules the catalog names, run in ORDER. Rendering
+lints every text (`wording.render` raises `WordingError`), so a run never emits text that names
+conduct.
 """
 
+from __future__ import annotations
+
+import hashlib
+import importlib
 import json
-import logging
-import re
-import secrets
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal, Protocol
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from types import ModuleType
+from typing import Any
 
-from neo4j import Driver, ManagedTransaction
-from neo4j.exceptions import DriverError, Neo4jError
+from neonradar_detect import alerts, policy, wording
+from neonradar_detect.catalog import Typology
+from neonradar_detect.source import Source, Window
 
-from neonradar_contracts.alert import RUN_ID_PATTERN, Alert
-from neonradar_detect.alerts import Finding, build_alert, utc_text
-from neonradar_detect.catalog import REPO_ROOT, CatalogError, TypologyFile, load_catalog
-from neonradar_detect.detectors import circular_flow
-
-logger = logging.getLogger(__name__)
-
-RUNS_DIR = REPO_ROOT / "data" / "runs"
-
-
-class DetectorModule(Protocol):
-    """A detector module (neonradar_detect.detectors)."""
-
-    NAME: str
-    VERSION: str
-
-    def detect(self, driver: Driver, database: str, typology: TypologyFile) -> list[Finding]: ...
-
-
-# The detectors a typology file may name. A fixed table, so the catalog selects code but never
-# makes the runner import a module path it reads from a file.
-DETECTORS: Mapping[str, DetectorModule] = {circular_flow.NAME: circular_flow}
-
-MERGE_RUN = "MERGE (r:DetectionRun {run_id: $run.run_id}) SET r += $run"
-# A run id used again (`--run-id`): drop what the earlier attempt produced and this one did not
-# find, and alerts that no run produces any more.
-PRUNE_RUN = """
-MATCH (:DetectionRun {run_id: $run_id})-[p:PRODUCED]->(a:Alert)
-WHERE NOT a.alert_id IN $alert_ids
-DELETE p
-WITH DISTINCT a
-WHERE NOT EXISTS { (:DetectionRun)-[:PRODUCED]->(a) }
-DETACH DELETE a
-"""
-MERGE_ALERTS = """
-MATCH (r:DetectionRun {run_id: $run_id})
-UNWIND $rows AS row
-MERGE (a:Alert {alert_id: row.props.alert_id})
-SET a += row.props
-MERGE (r)-[:PRODUCED]->(a)
-WITH a, row
-CALL (a, row) {
-  MATCH (a)-[old:FLAGS]->(e:Entity)
-  WHERE NOT e.id IN [s IN row.subjects | s.entity_id]
-  DELETE old
-}
-CALL (a, row) {
-  UNWIND row.subjects AS s
-  MATCH (e:Entity {id: s.entity_id})
-  // one FLAGS per alert and subject (C4): drop duplicates made outside the runner
-  OPTIONAL MATCH (a)-[old:FLAGS]->(e)
-  WITH a, s, e, collect(old) AS existing
-  FOREACH (extra IN existing[1..] | DELETE extra)
-  MERGE (a)-[f:FLAGS]->(e)
-  SET f.role = s.role
-  RETURN count(f) AS flagged
-}
-RETURN count(a) AS alerts, sum(flagged) AS flagged
-"""
+# PHASE-1.md 7.2 order; a typology runs when its catalog file names a detector (PHASE-1.md 5.4)
+ORDER = (
+    "structuring",
+    "rapid_pass_through",
+    "layering_chain",
+    "circular_flow",
+    "fan_in_collection",
+    "fan_out_distribution",
+    "dormant_reactivation",
+    "shell_chain",
+    "mass_registration_address",
+    "sanctions_exposure",
+    "formation_agent_cluster",
+    "recycled_directors",
+    "pep_exposure",
+    "cash_commingling",
+    "trade_based_ml",
+)
 
 
-class RunError(RuntimeError):
-    """The run could not start, or it failed (the message says why)."""
+def detectors(catalog: Mapping[str, Typology]) -> dict[str, ModuleType]:
+    """Slug to detector module, in ORDER, for every catalog typology that names a detector."""
+    out: dict[str, ModuleType] = {}
+    for slug in ORDER:
+        typology = catalog.get(slug)
+        if typology is None or not typology.detector:
+            continue
+        module = importlib.import_module(typology.detector)
+        if slug != module.SLUG:
+            raise ValueError(f"{typology.detector} declares {module.SLUG}, not {slug}")
+        out[slug] = module
+    unknown = sorted(set(catalog) - set(ORDER))
+    if unknown:
+        raise ValueError(f"typologies outside ORDER: {unknown}")
+    return out
 
 
 @dataclass(slots=True)
-class RunReport:
-    """What a run did: its id, status, times, typologies, detectors and alerts."""
-
-    run_id: str
-    directory: Path
-    started_at: str
-    finished_at: str = ""
-    status: Literal["ok", "failed"] = "failed"
-    typologies: list[str] = field(default_factory=list)
-    detectors: list[dict[str, str]] = field(default_factory=list)
-    alerts: list[Alert] = field(default_factory=list)
-    error: str | None = None
-
-    def as_json(self) -> dict[str, Any]:
-        """`run.json`: the `:DetectionRun` properties plus the alert ids and any error."""
-        return {
-            "run_id": self.run_id,
-            "status": self.status,
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-            "typologies": self.typologies,
-            "detectors": self.detectors,
-            "alert_count": len(self.alerts),
-            "alert_ids": [alert.alert_id for alert in self.alerts],
-            "error": self.error,
-        }
-
-    def node_properties(self) -> dict[str, Any]:
-        """The `:DetectionRun` properties (C2)."""
-        return {
-            "run_id": self.run_id,
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-            "typologies": self.typologies,
-            "detectors": json.dumps(self.detectors, separators=(",", ":")),
-            "alert_count": len(self.alerts),
-            "status": self.status,
-        }
+class RunResult:
+    alerts: list[dict[str, Any]]
+    summary: dict[str, Any] = field(default_factory=dict)
 
 
-def now_utc() -> datetime:
-    return datetime.now(UTC)
-
-
-def new_run_id(moment: datetime) -> str:
-    """`run-<UTC yyyymmddThhmmss>-<4 hex>` (C4)."""
-    return f"run-{moment.astimezone(UTC):%Y%m%dT%H%M%S}-{secrets.token_hex(2)}"
-
-
-def select(catalog: Mapping[str, TypologyFile], slug: str | None) -> list[TypologyFile]:
-    """The typologies to run: `slug`, or every typology with a detector, by slug."""
-    if slug is not None:
-        if slug not in catalog:
-            raise RunError(f"unknown typology {slug!r}; known: {', '.join(sorted(catalog))}")
-        chosen = [catalog[slug]]
-        if chosen[0].detector is None:
-            raise RunError(f"typology {slug} has no detector yet (detector: null)")
-    else:
-        chosen = [typology for _, typology in sorted(catalog.items()) if typology.detector]
-    for typology in chosen:
-        if typology.detector not in DETECTORS:
-            raise RunError(
-                f"typology {typology.slug} names an unknown detector {typology.detector}"
-            )
-    return chosen
-
-
-def alert_row(alert: Alert) -> dict[str, Any]:
-    """The `:Alert` properties (C2) and the subjects for `FLAGS`."""
-    flags = alert.data_flags
-    return {
-        "props": {
-            "alert_id": alert.alert_id,
-            "typology": alert.typology,
-            "typology_version": alert.typology_version,
-            "priority": alert.priority,
-            "pattern_strength": alert.pattern_strength,
-            "headline": alert.headline,
-            "created_at": alert.created_at,
-            "run_id": alert.run_id,
-            "wording_class": alert.wording_class,
-            "involves_real_entities": flags.involves_real_entities,
-            "synthetic_activity": flags.synthetic_activity,
-            "payload": alert.model_dump_json(),
-        },
-        "subjects": [
-            {"entity_id": subject.entity_id, "role": subject.role} for subject in alert.subjects
-        ],
+def params_sha256(params: Mapping[str, Any]) -> str:
+    """SHA-256 of the parameters actually used, as canonical JSON (sorted keys, no spaces)."""
+    body = {
+        slug: (asdict(p) if hasattr(p, "__dataclass_fields__") else dict(p))
+        for slug, p in sorted(params.items())
     }
+    return hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
-def _store(tx: ManagedTransaction, run: dict[str, Any], alerts: Sequence[Alert]) -> None:
-    tx.run(MERGE_RUN, run=run).consume()
-    ids = [alert.alert_id for alert in alerts]
-    tx.run(PRUNE_RUN, run_id=run["run_id"], alert_ids=ids).consume()
-    rows = [alert_row(alert) for alert in alerts]
-    record = tx.run(MERGE_ALERTS, run_id=run["run_id"], rows=rows).single(strict=True)
-    expected = sum(len(row["subjects"]) for row in rows)
-    if record["alerts"] != len(rows) or record["flagged"] != expected:
-        raise RunError(
-            f"stored {record['alerts']} of {len(rows)} alerts and {record['flagged']} of "
-            f"{expected} FLAGS: a subject is not an :Entity in the graph"
-        )
-
-
-def store(driver: Driver, database: str, report: RunReport) -> None:
-    """Load the run, its alerts, `PRODUCED` and `FLAGS` in one write transaction."""
-    with driver.session(database=database) as session:
-        session.execute_write(_store, report.node_properties(), report.alerts)
-
-
-def _write_files(report: RunReport, *, alerts: bool) -> None:
-    report.directory.mkdir(parents=True, exist_ok=True)
-    if alerts:
-        lines = "".join(alert.model_dump_json() + "\n" for alert in report.alerts)
-        (report.directory / "alerts.jsonl").write_text(lines, encoding="utf-8")
-    text = json.dumps(report.as_json(), indent=2, ensure_ascii=False) + "\n"
-    (report.directory / "run.json").write_text(text, encoding="utf-8")
-
-
-def run(
-    driver: Driver,
-    database: str,
+def run_detection(
+    source: Source,
+    params: Mapping[str, Any],
+    window: Window,
+    catalog: Mapping[str, Typology],
     *,
-    typology: str | None = None,
-    run_id: str | None = None,
-    runs_dir: Path = RUNS_DIR,
-    catalog: Mapping[str, TypologyFile] | None = None,
-    clock: Callable[[], datetime] = now_utc,
-) -> RunReport:
-    """One detection run; raises `RunError` when it cannot start or when it failed."""
-    try:
-        selected = select(load_catalog() if catalog is None else catalog, typology)
-    except (CatalogError, OSError) as error:
-        raise RunError(f"cannot read the typology catalog: {error}") from error
-    started = clock()
-    run_id = run_id or new_run_id(started)
-    # ASCII only: `\d` in the C4 pattern would also accept other scripts' digits.
-    if not re.fullmatch(RUN_ID_PATTERN.removeprefix("^").removesuffix("$"), run_id, re.ASCII):
-        raise RunError(f"run id {run_id!r} must look like run-20261021T101500-7f3a")
-    report = RunReport(run_id=run_id, directory=runs_dir / run_id, started_at=utc_text(started))
-    report.typologies = [item.slug for item in selected]
-    report.detectors = [
-        {
-            "name": DETECTORS[str(item.detector)].NAME,
-            "version": DETECTORS[str(item.detector)].VERSION,
+    run_id: str,
+    created_at: datetime,
+    query_sha256: Mapping[str, str] | None = None,
+    real_registry_alerts: bool = True,
+) -> RunResult:
+    """Run every typology in `params` (slug to its Params) in catalog order.
+    `real_registry_alerts` is `access.real_registry_alerts` (G12, rule (c) in `policy`)."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    per_typology: dict[str, dict[str, Any]] = {}
+    for slug, module in detectors(catalog).items():
+        if slug not in params:
+            continue
+        result = module.run(source, params[slug], window)
+        withheld = {d.value: 0 for d in policy.Decision if d is not policy.Decision.EMIT}
+        emitted = duplicates = 0
+        for finding in result.findings:
+            edges = source.edge_info(finding.edge_ids)
+            ends = alerts.edge_ends(edges)
+            nodes = source.node_info(
+                set(finding.node_ids) | {s.entity_id for s in finding.subjects} | ends
+            )
+            flags = policy.data_flags(finding, nodes, edges)
+            decision = policy.decide(
+                finding, flags, nodes, edges, registry_on_real=real_registry_alerts
+            )
+            if decision is not policy.Decision.EMIT:
+                withheld[decision.value] += 1
+                continue
+            typology = catalog[slug]
+            alert = alerts.build(
+                finding,
+                wording.render(finding, typology, flags.wording_class, nodes, edges),
+                flags,
+                nodes,
+                detector_module=module.__name__,
+                detector_version=module.VERSION,
+                typology_version=typology.version,
+                query_sha256=(query_sha256 or {}).get(slug, ""),
+                run_id=run_id,
+                created_at=created_at,
+                doc_path=typology.doc,
+                citations=typology.citations,
+                false_positives=typology.false_positives,
+                priority_rule=getattr(module, "priority", None),
+            )
+            if alert["alert_id"] in seen:
+                duplicates += 1
+                continue
+            seen.add(alert["alert_id"])
+            out.append(alert)
+            emitted += 1
+        per_typology[slug] = {
+            "findings": len(result.findings),
+            "alerts": emitted,
+            "duplicates": duplicates,
+            "withheld": withheld,
+            "stats": dict(result.stats),
         }
-        for item in selected
-    ]
-    try:
-        for item in selected:
-            module = DETECTORS[str(item.detector)]
-            findings = module.detect(driver, database, item)
-            created = clock()
-            for found in findings:
-                report.alerts.append(
-                    build_alert(
-                        found,
-                        item,
-                        detector_name=module.NAME,
-                        detector_version=module.VERSION,
-                        run_id=run_id,
-                        created_at=created,
-                    )
-                )
-            logger.info("%s: %d alerts", item.slug, len(findings))
-        ids = [alert.alert_id for alert in report.alerts]
-        if len(set(ids)) != len(ids):
-            raise RunError("a detector reported the same evidence twice (duplicate alert ids)")
-        report.status = "ok"
-        report.finished_at = utc_text(clock())
-        _write_files(report, alerts=True)
-        store(driver, database, report)
-    except Exception as error:
-        _fail(driver, database, report, error, clock())
-        raise RunError(f"run {run_id} failed: {error}") from error
-    return report
-
-
-def _fail(
-    driver: Driver, database: str, report: RunReport, error: Exception, now: datetime
-) -> None:
-    """Record a failed run: `run.json` and a `:DetectionRun` with `status: failed`, no alerts
-    (and no `alerts.jsonl`)."""
-    report.status = "failed"
-    report.alerts = []
-    report.error = f"{type(error).__name__}: {error}"
-    report.finished_at = report.finished_at or utc_text(now)
-    try:
-        (report.directory / "alerts.jsonl").unlink(missing_ok=True)
-        _write_files(report, alerts=False)
-    except OSError as write_error:
-        logger.warning(
-            "could not write run.json for the failed run %s: %s", report.run_id, write_error
-        )
-    try:
-        with driver.session(database=database) as session:
-            session.execute_write(_store, report.node_properties(), [])
-    except (DriverError, Neo4jError) as store_error:
-        logger.warning("could not record the failed run %s: %s", report.run_id, store_error)
+    order = {"high": 0, "medium": 1, "low": 2}
+    out.sort(key=lambda a: (order[a["priority"]], -a["pattern_strength"], a["alert_id"]))
+    summary = {
+        "run_id": run_id,
+        "window": {
+            "start": window.start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end": window.end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+        "params_sha256": params_sha256(params),
+        "typologies": per_typology,
+        "alerts": len(out),
+        "withheld": {
+            reason: sum(c["withheld"][reason] for c in per_typology.values())
+            for reason in (d.value for d in policy.Decision if d is not policy.Decision.EMIT)
+        },
+    }
+    return RunResult(out, summary)

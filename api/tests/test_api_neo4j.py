@@ -32,7 +32,7 @@ from neonradar_contracts.api import (
     Subgraph,
     TypologySummary,
 )
-from neonradar_detect import runner
+from neonradar_detect import runs
 from neonradar_graph.loader import collect_files, load_records, read_records, wipe
 from neonradar_graph.mapping import NodeRow, RelationshipRow, to_node_rows, to_relationship_rows
 from neonradar_graph.migrate import migrate
@@ -103,7 +103,7 @@ class SessionGraph(GraphConnection):
 class Stack:
     client: TestClient
     graph: SessionGraph
-    run: runner.RunReport
+    run: runs.RunRecord
     nodes: list[NodeRow]
     rels: list[RelationshipRow]
 
@@ -116,10 +116,10 @@ def stack(neo4j: Neo4jTarget, tmp_path_factory: pytest.TempPathFactory) -> Itera
     records = [*demo, *extra_records(demo)]
     report = load_records(neo4j.driver, records, database=neo4j.database)
     assert not report.failed
-    run = runner.run(
+    run = runs.detect_on_graph(
         neo4j.driver,
         neo4j.database,
-        typology="circular_flow",
+        typologies=["circular_flow"],
         runs_dir=tmp_path_factory.mktemp("runs"),
     )
     assert run.alerts, "demo-mini's round_trip scenario gives at least one alert"

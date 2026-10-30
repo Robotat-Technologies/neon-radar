@@ -1,6 +1,8 @@
 # Round-tripping or circular flows
 
-> **Draft.** Slug `circular_flow`, version 0.1.0, tier `core`, synthetic support `high`. Definition file: [`detect/typologies/circular_flow.yaml`](../../detect/typologies/circular_flow.yaml). A typology researcher checks this page against its sources before the definition is approved.
+> **Draft.** Slug `circular_flow`, version 0.2.0 (this page still describes 0.1.0; see the note below), tier `core`, synthetic support `high`. Definition file: [`detect/typologies/circular_flow.yaml`](../../detect/typologies/circular_flow.yaml). A typology researcher checks this page against its sources before the definition is approved.
+
+> **Version 0.2.0.** This page was written for version 0.1.0; milestone M3.10 rewrites it. The definition file is now at version 0.2.0 (milestone M3.2, still a draft), and its parameters are the reference until then. Its detector differs from the one described under "How the Phase 1 detector applies them": it also reports a circle that ends at another account of the same holder (variant `same_holder`), needs at least `min_hops_same_account` payments (default 3) for a circle back to the very account it left, starts only from payments of at least `min_amount`, keeps every later payment between `min_return_ratio` and `1 + max_hop_gain` times the first amount, allows `max_window_days` up to 140, and follows payments one hop at a time instead of the single query file `queries/circular_flow.cypher`, which is gone. Its pattern strength counts a return ratio above 1 as 1 and is rounded to four decimals. It also adds the metric `return_point` (a fixed phrase for where the funds came back, `the originating account` or `another account of the same holder`, which the headline uses; it never names or identifies an account), allows `max_hops` from 1, bounds the work of one run with `max_starts` (start payments read), `max_branching` (next payments followed from one partial path) and `max_frontier` (partial paths kept at each hop of a batch of starts; the run summary counts what the last two cut), and names the generator v1 scenario `circular_flow` (`generator_scenario`; the demo-mini labels keep Phase 1's `round_trip`). `max_hop_gain` and the cap at 1 answer part of the open question below about a return ratio with no upper bound.
 
 A structure that matches this pattern is not evidence of money laundering or of any other wrongdoing. There are ordinary reasons for almost every pattern described here; the [standing disclaimer](../wording.md#disclaimers) applies to everything NeonRadar shows.
 
@@ -32,7 +34,7 @@ flowchart LR
 
 The definition file measures a match with these metrics: `cycle_length` (the number of payments), `sent_amount` (the first payment), `returned_amount` (the last payment), `currency`, `duration_hours`, `duration_days` and `return_ratio` (returned amount divided by sent amount). An alert headline then reads, for example, "Funds returned to the originating account through 4 transfers within 7 days". It describes the structure and nothing else.
 
-What the graph cannot show: why each payment was made. A `PAID` relationship can carry a `purpose`, but invoices, loan contracts and prices are not part of the graph, so the commercial reason for a circle stays outside it. The Phase 1 detector (milestone M1.9b) looks only for circles that return to the same account; the variant that returns to another account of the same holder is Phase 3 work.
+What the graph cannot show: why each payment was made. A `PAID` relationship can carry a `purpose`, but invoices, loan contracts and prices are not part of the graph, so the commercial reason for a circle stays outside it. The Phase 1 detector (milestone M1.9b) looks only for circles that return to the same account; the variant that returns to another account of the same holder is Phase 3 work (0.1.0; version 0.2.0 has it).
 
 ## Red flags the sources list
 
@@ -56,13 +58,13 @@ The shape alone cannot tell these apart from the pattern. What separates them is
 
 ## Can synthetic data show it?
 
-Yes. The synthetic support is `high` (PHASE-1.md 7.2). A circle is defined entirely by accounts, payment amounts and timestamps, and the generator controls all three. The generator scenario for this typology is `round_trip`. Planted scenarios run only among synthetic entities (guardrail G1); real registry entities may receive synthetic background activity, never a scenario role.
+Yes. The synthetic support is `high` (PHASE-1.md 7.2). A circle is defined entirely by accounts, payment amounts and timestamps, and the generator controls all three. The generator scenario for this typology is `round_trip` (0.1.0; version 0.2.0 names `circular_flow`). Planted scenarios run only among synthetic entities (guardrail G1); real registry entities may receive synthetic background activity, never a scenario role.
 
 What synthetic data cannot show is whether a real circle had a commercial reason. Detection rates measured on synthetic data say nothing about how NeonRadar would perform on real data (README, Limitations).
 
 ## Starting parameters
 
-These come from the definition file. They are starting points for the typology researcher, not facts from the sources (PHASE-1.md 7.2).
+These come from the definition file at version 0.1.0; version 0.2.0 widens some ranges and adds seven parameters: `min_hops_same_account`, `min_amount`, `max_hop_gain`, `same_holder`, and the search bounds `max_starts`, `max_branching` and `max_frontier` (see the note at the top). They are starting points for the typology researcher, not facts from the sources (PHASE-1.md 7.2).
 
 | Parameter | Default | Allowed range | Meaning |
 |---|---|---|---|

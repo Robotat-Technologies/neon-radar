@@ -102,9 +102,9 @@ def test_demo_mini_flags_match_its_records(demo_mini: Neo4jTarget) -> None:
 
 
 def test_invariant_i6_holds_after_a_detection_run(demo_mini: Neo4jTarget, tmp_path: Path) -> None:
-    from neonradar_detect.runner import run  # detection writes the alerts I6 is about
+    from neonradar_detect.runs import detect_on_graph  # detection writes the alerts I6 is about
 
-    report = run(demo_mini.driver, demo_mini.database, runs_dir=tmp_path)
+    report = detect_on_graph(demo_mini.driver, demo_mini.database, runs_dir=tmp_path)
     assert report.alerts, "the run found no alerts, so I6 would pass vacuously"
     assert query(demo_mini, I6) == []
     # The check catches a violation: a synthetic_scenario alert flagging a real node.
@@ -131,9 +131,10 @@ def overlay_violations(db: Neo4jTarget) -> dict[str, int]:
 
 
 def test_overlay_invariants_hold_on_demo_mini(demo_mini: Neo4jTarget, tmp_path: Path) -> None:
-    from neonradar_detect.runner import run  # I17 is about the alerts a detection run writes
+    # I17 is about the alerts a detection run writes
+    from neonradar_detect.runs import detect_on_graph
 
-    report = run(demo_mini.driver, demo_mini.database, runs_dir=tmp_path)
+    report = detect_on_graph(demo_mini.driver, demo_mini.database, runs_dir=tmp_path)
     assert report.alerts, "the run found no alerts, so I17 would pass vacuously"
     assert overlay_violations(demo_mini) == {"I15": 0, "I16": 0, "I17": 0}
 

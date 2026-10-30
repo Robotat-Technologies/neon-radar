@@ -70,7 +70,8 @@ def test_a_typology_has_its_explainer_and_citations_in_file_order(client: TestCl
     known = {entry["key"]: entry for entry in bibliography["entries"]}
     assert [c.key for c in detail.citations] == [k for k in typology.citations if k in known]
     assert all(c.url == known[c.key]["url"] for c in detail.citations)
-    assert detail.parameters["max_window_days"] == {"default": 14, "min": 1, "max": 90}
+    # circular_flow 0.2.0 (PHASE-3.md 7.3.4) widened the bound from Phase 1's 90 days
+    assert detail.parameters["max_window_days"] == {"default": 14, "min": 1, "max": 140}
     assert detail.false_positives == typology.false_positives
 
 

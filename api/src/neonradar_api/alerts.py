@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 BAD_CURSOR: Final = "query.cursor: the cursor is malformed or belongs to other filters"
 NOT_FOUND: Final = "No alert has this id."
-# A new run does not prune alerts of earlier runs, so the fix is a clean graph and a new run.
+# The fix as C3 states it (wipe, reload, re-run). Since C2 1.2.0 (L19) a successful run without
+# --keep-previous already replaces every earlier :Alert and :DetectionRun, so a successful
+# re-run alone clears a stale alert; the detail texts keep C3's wording until C3 changes.
 STALE: Final = (
     "The stored alert does not validate as a C4 alert; wipe and reload the data, then re-run"
     " detection (`neonradar detect run`)."

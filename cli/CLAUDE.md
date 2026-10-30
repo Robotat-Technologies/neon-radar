@@ -41,6 +41,12 @@
     real-data one runs the gate before connecting, inside `redact.guard`, takes only a run
     folder of its profile's resolution folder (G8), and prints counts only (a load through
     `summary.emit`). Tests replace `loader.load`, `get_driver` and `wait_until_ready`.
+  - `graph load --overlay DIR` or `--profile NAME --overlay latest` (M3.4, C2 L18) calls
+    `neonradar_graph.overlay.load_overlay`. A folder in a protected cache folder (real, spikes,
+    holdout, heldout; case-folded) exits 3 before it is read; a real profile's overlay loads only
+    with `--overlay latest`, after `gate.check_real_overlay` (the gate, then
+    `access.real_overlay_profiles`, exit 3), and prints counts only. `graph verify` prints I1 to
+    I17. Tests replace `overlay.load_overlay`.
   - `doctor` exits 1 only on FAIL. Its tests replace `doctor.run` and `doctor.port_in_use`,
     so they never call Docker, uv or pkg-config for real.
   - `contracts export` and `check` import the API app lazily to render `openapi/v1.json`;

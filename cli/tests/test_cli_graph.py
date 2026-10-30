@@ -531,3 +531,113 @@ def test_real_stats_use_the_real_instance_and_print_counts(
     assert result.exit_code == 0, result.output
     assert seen == [(instances.REAL_URI, instances.REAL_DATABASE)]
     assert result.output.splitlines()[0] == "nodes: 3"
+
+
+# graph load --overlay (C2 L18, PHASE-3.md M3.4) ----------------------------------------------
+
+
+def overlay_folder(folder: Path, profile: str, records: list[dict[str, Any]] | None = None) -> Path:
+    folder.mkdir(parents=True)
+    (folder / "overlay.json").write_text(json.dumps({"profile": profile}), encoding="utf-8")
+    lines = "".join(json.dumps(item) + "\n" for item in records or [])
+    (folder / "o.ftm.jsonl").write_text(lines, encoding="utf-8")
+    return folder
+
+
+def use_overlay(monkeypatch: pytest.MonkeyPatch, outcome: LoadReport) -> list[dict[str, Any]]:
+    """Fake `overlay.load_overlay`; returns the calls it received."""
+    from neonradar_graph import overlay
+
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setenv("NEO4J_PASSWORD", "test-password")
+    monkeypatch.setenv("NEO4J_REAL_PASSWORD", "test-real-password")
+
+    def fake(folder: Path, profile: str, instance: Instance, allowed: Any = (), **_: Any) -> Any:
+        calls.append({"profile": profile, "instance": instance, "allowed": list(allowed)})
+        return outcome
+
+    monkeypatch.setattr(overlay, "load_overlay", fake)
+    return calls
+
+
+@pytest.mark.parametrize("protected", ["real", "REAL", "spikes", "Holdout", "heldout"])
+def test_an_overlay_in_a_protected_folder_is_refused_before_it_is_read(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, protected: str
+) -> None:
+    calls = use_overlay(monkeypatch, load_report())
+    folder = overlay_folder(tmp_path / "data" / "cache" / protected / "overlay" / "x", "demo")
+    result = runner.invoke(app, ["graph", "load", "--overlay", str(folder)])
+    assert (result.exit_code, calls) == (3, [])
+    assert "protected data/cache folder" in result.output
+
+
+def test_a_synthetic_overlay_loads_into_the_default_instance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = use_overlay(monkeypatch, load_report(overlay_records=3, overlay_removed=2))
+    folder = str(overlay_folder(tmp_path / "ov", "synth-demo"))
+    result = runner.invoke(app, ["graph", "load", "--overlay", folder])
+    assert result.exit_code == 0, result.output
+    assert calls == [{"profile": "synth-demo", "instance": Instance.DEFAULT, "allowed": []}]
+    assert "overlay ov: 3 records; previous overlay nodes removed: 2" in result.output
+    real = str(overlay_folder(tmp_path / "real", "uk-tiny"))  # a real profile's overlay.json
+    for args, code in [
+        (["--overlay", "latest"], 2),
+        (["--overlay", folder, folder], 2),
+        (["--overlay", folder, "--no-strict"], 2),
+        (["--overlay", real], 3),
+    ]:
+        assert runner.invoke(app, ["graph", "load", *args]).exit_code == code, args
+    assert len(calls) == 1
+
+
+def test_a_real_profile_s_overlay_passes_the_gate_and_the_overlay_list_first(
+    monkeypatch: pytest.MonkeyPatch, data_env: Any, tmp_path: Path
+) -> None:
+    calls = use_overlay(monkeypatch, load_report(overlay_records=3))
+    args = ["graph", "load", "--profile", "uk-tiny", "--overlay", "latest"]
+    result = runner.invoke(app, args)
+    assert (result.exit_code, calls) == (3, [])
+    assert "uk-tiny is not in access.real_data_profiles" in result.output
+    data_env.allow_real("uk-tiny")
+    result = runner.invoke(app, args)
+    assert (result.exit_code, calls) == (3, [])
+    assert "uk-tiny is not in access.real_overlay_profiles" in result.output
+    data_env.allow_real("uk-tiny", real_overlay_profiles=["uk-tiny"])
+    latest = data_env.cache / "real" / "overlay" / "uk-tiny"  # a tmp tree (data_env)
+    latest.mkdir(parents=True)
+    (latest / "LATEST").write_text("ov-20261023T120000-0a0b\n", encoding="utf-8")
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert calls == [{"profile": "uk-tiny", "instance": Instance.REAL, "allowed": ["uk-tiny"]}]
+    printed = json.loads(result.output)
+    assert (printed["overlay_records"], printed["instance_real"]) == (3, True)
+    result = runner.invoke(
+        app, ["graph", "load", "--profile", "uk-tiny", "--overlay", str(tmp_path)]
+    )
+    assert (result.exit_code, len(calls)) == (3, 1)
+
+
+def test_a_doctored_overlay_stops_with_exit_2_before_connecting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The data steward's review question (M3.4): a Directorship naming a base company."""
+    from neonradar_graph import overlay
+
+    def no_driver(*args: Any) -> Any:
+        raise AssertionError("connected before the bridge check")
+
+    monkeypatch.setenv("NEO4J_PASSWORD", "test-password")
+    monkeypatch.setattr(overlay, "get_driver", no_driver)
+    nr = {"v": "1.0", "synthetic": True}
+    rows = [
+        {"id": "syn-ov-co-1", "schema": "Company", "datasets": ["nr_synthetic"],
+         "properties": {"name": ["Synthetic Example Ltd"]}, "nr": nr},
+        {"id": "syn-ov-dir-1", "schema": "Directorship", "datasets": ["nr_synthetic"],
+         "properties": {"director": ["syn-ov-co-1"], "organization": ["syn-co-0000000001"]},
+         "nr": nr},
+    ]  # fmt: skip
+    folder = overlay_folder(tmp_path / "ov", "synth-demo", rows)
+    result = runner.invoke(app, ["graph", "load", "--overlay", str(folder)])
+    assert result.exit_code == 2, result.output
+    assert "the bridge check failed" in result.output and "syn-co-" not in result.output

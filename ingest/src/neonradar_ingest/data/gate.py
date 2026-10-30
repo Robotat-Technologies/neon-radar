@@ -118,3 +118,18 @@ def check_real_data(
 def check_real_instance(project: Project) -> None:
     """The gate for a command that addresses the real-data instance without a profile."""
     _refuse_first(conditions(project, None))
+
+
+def check_real_overlay(project: Project, profile: Profile) -> None:
+    """The gate for an overlay of a real profile (PHASE-3.md 7.7 rule 1, M3.4): the real-data
+    gate for the profile and each dataset it enables, then the profile must be in
+    `access.real_overlay_profiles`. Run before anything of the profile is read."""
+    check_real_data(project, profile)
+    for dataset in profile.enabled_sources(project):
+        check_real_data(project, profile, dataset)
+    if profile.profile not in project.access.real_overlay_profiles:
+        raise RealDataRefused(
+            "access.real_overlay_profiles",
+            f"{profile.profile} is not in access.real_overlay_profiles: the data steward lists a"
+            " real profile there before it gets an overlay (PHASE-3.md 7.7)",
+        )

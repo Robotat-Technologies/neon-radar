@@ -6,7 +6,7 @@ after the real-data gate of M2.2, inside the redaction guard, and every command 
 counts only.
 """
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -292,18 +292,14 @@ def _echo_report(report: LoadReport) -> None:
         _echo_some(items)
 
 
-def _load_default(
-    paths: Sequence[Path], run_dir: Path | None, replace: bool, strict: bool, timeout: float
-) -> LoadReport:
+def _load_default(load: Callable[[], LoadReport]) -> LoadReport:
     """A load into the default instance, with Phase 1's messages."""
     from neonradar_graph import loader
     from neonradar_graph.resolution import ResolutionError
 
     settings = _settings(Instance.DEFAULT)
     try:
-        return loader.load(
-            paths, run_dir, replace, Instance.DEFAULT, strict=strict, timeout_s=timeout
-        )
+        return load()
     except loader.LoadRefused as refused:
         _echo_some([*refused.issues, *refused.skipped])
         typer.echo(f"REFUSED (strict): {refused}")
@@ -354,6 +350,14 @@ def load_command(
             " Non-strict: skip and report.",
         ),
     ] = True,
+    overlay: Annotated[
+        str | None,
+        typer.Option(
+            "--overlay",
+            help="An overlay folder (`synth overlay`) to load onto its profile's base (C2 L18),"
+            " or `latest` with --profile; takes no record paths.",
+        ),
+    ] = None,
     timeout: Timeout = 30,
 ) -> None:
     """Load C1 records into the graph, through a resolution run when given; nodes before
@@ -363,6 +367,13 @@ def load_command(
     from neonradar_graph import loader
     from neonradar_ingest.data import gate, layout
 
+    if overlay is not None:
+        if paths or resolution is not None or no_replace or not strict:
+            raise _fail(
+                "--overlay takes no record paths, --resolution, --no-replace or --no-strict", 2
+            )
+        _finish(*_load_overlay(overlay, profile, timeout))
+        return
     if not paths and profile is None:
         raise _fail("give record paths or --profile NAME", 2)
     chosen = profile_or_exit(profile) if profile is not None else None
@@ -371,7 +382,12 @@ def load_command(
     instance = _instance_of(folders, chosen)
     if instance is Instance.DEFAULT:
         run_dir = _resolution_dir(resolution, chosen, real=False)
-        report = _load_default(folders, run_dir, not no_replace, strict, timeout)
+        report = _load_default(
+            lambda: loader.load(
+                folders, run_dir, not no_replace, Instance.DEFAULT, strict=strict,
+                timeout_s=timeout,
+            )
+        )  # fmt: skip
         _echo_report(report)
     else:
         with redact.guard(chosen, "graph load", real=True) as where:
@@ -397,6 +413,10 @@ def load_command(
             }
             name = chosen if chosen is not None else layout.ALL_PROFILES
             summary.emit(name, "graph load", {**counts, "instance_real": True, **report.counts()})
+    _finish(report, instance)
+
+
+def _finish(report: LoadReport, instance: Instance) -> None:
     if report.failed:
         typer.echo(
             f"FAILED (strict): {len(report.dangling)} dangling reference(s); the rest of the load"
@@ -408,10 +428,93 @@ def load_command(
         typer.echo(f"{'WARN' if warned else 'OK'} in {report.duration_s:.1f} s")
 
 
+def _latest_overlay(profile: Profile) -> Path:
+    from neonradar_ingest.data import layout
+
+    overlay_id = layout.latest_overlay(profile)
+    if overlay_id is None:
+        raise _fail(
+            f"profile {profile.profile} has no overlay: run `neonradar synth overlay --profile"
+            f" {profile.profile}` first",
+            2,
+        )
+    return layout.overlay_dir(profile, overlay_id)
+
+
+def _refuse_protected(folder: Path) -> None:
+    """Exit 3 before anything is read when the folder, or a file in it, lies in a protected
+    cache folder (real data, spike output, holdout or held-out runs; compared case-folded, as
+    the generator's `refuse_protected`). A real profile's overlay loads only with `--profile
+    NAME --overlay latest`, after the real-data gate (G9, G11)."""
+    from neonradar_ingest.synth.commands import SynthError, refuse_protected
+
+    try:
+        refuse_protected("--overlay", folder)
+        for path in (folder / "overlay.json", *folder.glob("*.json*")):
+            refuse_protected("a file of the overlay", path)
+    except SynthError:
+        raise _fail(
+            "the overlay lies in a protected data/cache folder (real data, spike output or the"
+            " holdout runs): a real profile's overlay loads only with --profile NAME --overlay"
+            " latest, after the real-data gate (G9, G11)",
+            3,
+        ) from None
+
+
+def _load_overlay(value: str, name: str | None, timeout: float) -> tuple[LoadReport, Instance]:
+    """`--overlay DIR`, or `--overlay latest` with `--profile` (C2 L18). On a real profile: the
+    gate and `access.real_overlay_profiles` first (exit 3), then counts only."""
+    from neonradar_cli import redact, summary
+    from neonradar_cli.data import profile_or_exit, project_or_exit
+    from neonradar_graph import overlay as ov
+    from neonradar_ingest.data import gate
+
+    chosen = profile_or_exit(name) if name is not None else None
+    if chosen is not None and chosen.real_data:
+        if value != "latest":
+            raise _fail(f"use --profile {chosen.profile} --overlay latest for a real profile", 3)
+        project = project_or_exit()
+        with redact.guard(chosen, "graph load", real=True) as where:
+            where.step = "gate"
+            gate.check_real_overlay(project, chosen)
+            where.step = "overlay"
+            folder = _latest_overlay(chosen)
+            _settings(Instance.REAL)
+            allowed = project.access.real_overlay_profiles
+            report = ov.load_overlay(
+                folder, chosen.profile, Instance.REAL, allowed, timeout_s=timeout
+            )
+            where.step = "summary"
+            counts = {"profile": chosen.profile, "overlay_id": folder.name, "instance_real": True}
+            summary.emit(chosen, "graph load", counts | report.counts(), string_keys=["overlay_id"])
+        return report, Instance.REAL
+    if value == "latest" and chosen is None:
+        raise _fail("--overlay latest needs --profile NAME", 2)
+    folder = _latest_overlay(chosen) if chosen is not None and value == "latest" else Path(value)
+    _refuse_protected(folder)
+    try:
+        named = ov.read_meta(folder)["profile"]
+    except ov.OverlayRefused as error:
+        raise _fail(str(error), error.exit_code) from None
+    target = chosen or profile_or_exit(named)
+    if target.real_data:
+        raise _fail(f"use --profile {target.profile} --overlay latest for a real profile", 3)
+    report = _load_default(
+        lambda: ov.load_overlay(folder, target.profile, Instance.DEFAULT, timeout_s=timeout)
+    )
+    _echo_report(report)
+    typer.echo(
+        f"overlay {folder.name}: {report.overlay_records} records; previous overlay nodes"
+        f" removed: {report.overlay_removed}; detection results removed:"
+        f" {report.detection_results_removed}"
+    )
+    return report, Instance.DEFAULT
+
+
 @app.command(name="verify")
 def verify_command(real: Real = False, timeout: Timeout = 30) -> None:
-    """Check the graph invariants I1 to I14: one line per invariant with its violation count
-    (exit 1 on any violation)."""
+    """Check the graph invariants I1 to I17 (I15 to I17 after I1 to I14): one line per invariant
+    with its violation count (exit 1 on any violation)."""
     from neonradar_graph.verify import verify
 
     with _instance(real, "graph verify") as instance:

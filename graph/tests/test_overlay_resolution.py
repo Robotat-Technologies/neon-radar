@@ -64,7 +64,7 @@ def test_an_overlay_holding_of_a_merged_record_lands_on_its_canonical_node(
     assert sorted(found["id"] for found in holders) == sorted(
         [member["canonical_id"], "syn-p-0901"]
     )
-    assert verify(graph_db.driver, graph_db.database) == {f"I{n}": 0 for n in range(1, 15)}
+    assert verify(graph_db.driver, graph_db.database) == {f"I{n}": 0 for n in range(1, 18)}
     # An account whose only holder is outside the load fails C1 R8 and is dropped, although the
     # graph holds that holder; invariant I4 holds.
     alone = [

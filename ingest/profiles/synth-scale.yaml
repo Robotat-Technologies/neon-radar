@@ -1,0 +1,36 @@
+# ingest/profiles/synth-scale.yaml (PHASE-3.md 7.11)
+profile: synth-scale
+description: >-
+  The scale world at the plan's target: a synthetic register of 142,000 companies and 213,000
+  people with background payments for 3 percent of the companies and two planted scenarios and
+  two look-alikes per typology, about 500,000 nodes and 2.2 million relationships. For the load
+  and query benchmark (M3.9); needs the standard memory profile.
+real_data: false
+sources:
+  nr_synthetic:
+    enabled: true
+    fixtures: []
+    world:
+      name: scale
+      seed: 20261105
+      companies: 142000
+      people: 213000
+      today: 2026-07-01
+      agent_every: 300
+      professional_every: 200
+      districts: 710
+resolution:
+  enabled: false
+overlay:
+  enabled: true
+  seed: null
+  start: 2025-01-01
+  end: 2026-07-01
+  illicit: 2
+  lookalikes: 2
+  typologies: all
+  background: { share: 0.03, personal: false }
+detection:
+  enabled: true
+  window: overlay
+  overrides: {}

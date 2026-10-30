@@ -188,6 +188,42 @@ def profile_dirs(profile: Profile | str) -> list[Path]:
     return [tree / kind / name for kind in ("records", "work", "resolution", "labels")]
 
 
+def worlds_dir(world: str, seed: int) -> Path:
+    """A synthetic world (`neonradar synth world`, PHASE-3.md 4.5): `synthetic/` only."""
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise ValueError(f"seed {seed!r} must be a whole number of at least 0")
+    return CACHE_ROOT / "synthetic" / "worlds" / safe_name("world", world) / str(seed)
+
+
+def _overlay_root(profile: Profile | str) -> Path:
+    name, tree = _profile(profile)
+    return tree / "overlay" / name
+
+
+def overlay_dir(profile: Profile | str, overlay_id: str) -> Path:
+    """One overlay of a profile, under `real/` or `synthetic/` as the profile says (4.5)."""
+    return _overlay_root(profile) / safe_name("overlay id", overlay_id)
+
+
+def latest_overlay(profile: Profile | str) -> str | None:
+    """The overlay id in `overlay/<profile>/LATEST` (written last by `synth overlay`)."""
+    try:
+        overlay_id = (_overlay_root(profile) / LATEST).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return None
+    return safe_name("overlay id", overlay_id)
+
+
+def eval_dir(eval_id: str) -> Path:
+    """A development evaluation (`neonradar eval run`, M3.6): synthetic only."""
+    return CACHE_ROOT / "synthetic" / "eval" / safe_name("evaluation id", eval_id)
+
+
+def holdout_dir(eval_id: str) -> Path:
+    """The human holdout run's folder (M3.12); closed to the build agent (G11)."""
+    return CACHE_ROOT / "holdout" / safe_name("evaluation id", eval_id)
+
+
 def new_run_id(prefix: str) -> str:
     """`<prefix>-<UTC yyyymmddThhmmss>-<4 hex>`, as resolution run ids (4.4)."""
     return f"{safe_name('prefix', prefix)}-{datetime.now(UTC):%Y%m%dT%H%M%S}-{secrets.token_hex(2)}"

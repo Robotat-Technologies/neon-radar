@@ -69,3 +69,9 @@
     bare LegalEntity and PublicBody records and ICIJ records get nothing; scenarios, labels,
     topics and every other schema stay off input entities (`touches_input` must report all
     zeros). New ids use `syn-<kind>-j<seed>-`; account numbers a per-seed block.
+  - Generator v1 (`synth/` beside v0, PHASE-3.md 7.2, ADR-0023): `world.py` and
+    `overlay.py` and the scenario modules are verbatim from the code book (`make spec-check
+    M=M3.3`; change them only through `scripts/spec_extract.py update` or a recorded
+    deviation). `namesource.py` adapts the Phase 1 name modules; extra company words live
+    there, never in `words.py`. `synth world` and `synth overlay` (`synth/commands.py`)
+    validate every record with C1 before writing and refuse holdout seeds (G11).

@@ -30,6 +30,7 @@ RETURN other.id AS company_id, other.name AS company, a.full AS shared_address
 ORDER BY company_id
 LIMIT 25
 ```
+
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
 
 ## @mukhlif-aljabri07

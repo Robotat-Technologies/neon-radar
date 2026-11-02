@@ -30,5 +30,15 @@ RETURN other.id AS company_id, other.name AS company, a.full AS shared_address
 ORDER BY company_id
 LIMIT 25
 ```
+## @mukhlif-aljabri07
 
+```cypher
+MATCH (a:OnbCompany)<-[:DIRECTS]-(p:OnbPerson)-[:DIRECTS]->(b:OnbCompany) WHERE a.id<b.id RETURN p.name AS director,a.name AS company_a,b.name AS company_b ORDER BY director,company_a LIMIT 25
+```
+Finds every pair of companies that share a director, and returns the director's name.
+`WHERE a.id < b.id` keeps each pair only once.
+Companies are not linked to each other directly, so the path needs two hops:
+from one company to its director, and from the director to the other company.
+
+Two or three lines: what the query finds, and why it needs two hops.
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.

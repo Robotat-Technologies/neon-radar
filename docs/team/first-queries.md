@@ -32,3 +32,16 @@ LIMIT 25
 ```
 
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
+
+## @khoder-hammoud
+
+```cypher
+MATCH (a:OnbCompany)<-[:DIRECTS]-(p:OnbPerson)-[:DIRECTS]->(b:OnbCompany)
+WHERE a.id < b.id AND a.jurisdiction <> b.jurisdiction
+RETURN p.name AS director, a.name AS company_a, a.jurisdiction AS country_a,
+       b.name AS company_b, b.jurisdiction AS country_b
+ORDER BY director, company_a
+LIMIT 25
+```
+
+Finds directors who run companies registered in different countries (Philippa Marrowby: gb and ie; Samira Oakhollow: gb and nl). The pattern needs two hops because companies are not linked to each other directly: it goes from one company to its director and from the director on to the other company.

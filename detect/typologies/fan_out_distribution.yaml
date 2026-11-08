@@ -6,9 +6,9 @@ tier: core                    # core | extended | explainer_only
 owner: "@robotat-com"         # typology researcher
 approved_by: null
 summary: >
-  One account sends money to many other accounts within a short time, often in similar or
-  round amounts and to recipients it has not paid before, and the recipients then withdraw the
-  money as cash or send it on to further accounts.
+  One account sends funds to multiple recipient accounts, potentially within a short
+  window. Some recipients may then withdraw the funds or transfer them onward.
+  Ordinary batch payments can produce a similar shape.
 doc: docs/typologies/fan-out-distribution.md
 citations:
   - fincen_fin_2006_g014
@@ -18,11 +18,12 @@ citations:
   - fincen_fin_2025_a003
   - europol_money_muling
 graph_pattern: >
-  One Account with outgoing PAID relationships to many distinct Accounts within a short
-  window, with similar or round amounts, to recipient Accounts that had no earlier PAID
-  relationship with it (and usually none with each other), followed by cash withdrawals
-  (PAID with channel cash_withdrawal to a cash_ledger Account) or a second layer of PAID from
-  the recipients. It can follow a fan-in to the same Account.
+  One Account with outgoing PAID relationships to multiple distinct Accounts,
+  potentially within a short window. Candidate supporting features include similar
+  or round amounts, limited earlier payment history with recipients, and subsequent
+  cash withdrawals (PAID with channel cash_withdrawal to a cash_ledger Account)
+  or onward PAID transfers. These features are optional detection heuristics.
+  The pattern can follow a fan-in to the same Account.
 parameters: {}
 metrics: []
 wording: null

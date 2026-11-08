@@ -6,24 +6,24 @@ A structure that matches this pattern is not evidence of money laundering or of 
 
 ## What it is
 
-Fan-out means that one account sends money to many other accounts within a short time. Each recipient then holds a smaller amount that can stay under withdrawal limits and monitoring thresholds, and can withdraw it as cash or send it on [fatf_cyber_fraud_2023] (Box 17).
+Fan-out describes one account sending funds to multiple recipient accounts, potentially within a short period. In a case documented by FATF, proceeds were split between several accounts to circumvent a payment service provider's cash withdrawal limits and internal monitoring thresholds [fatf_cyber_fraud_2023] (Box 17, p. 28).
 
 FinCEN lists this shape among its indicators for shell companies: "An unusually large number and variety of beneficiaries receive wire transfers from one company" [fincen_fin_2006_g014]. The FFIEC red flags for US bank examiners include the same flag [ffiec_appendix_f].
 
-The shape often appears in networks of money mules. A money mule is a person who receives money from a third party into their account and transfers it on [europol_money_muling]; mules may act "wittingly or unwittingly" [fincen_fin_2025_a003] (see the [glossary](../glossary.md)). FATF describes money mule networks as one of the services professional money launderers offer, and notes that mule bank accounts "serve as the initial layering stage" [fatf_pml_2018]. In cyber-enabled fraud, FATF, INTERPOL and the Egmont Group describe proceeds that are "rapidly layered through a series of 'pass-through' transactions" [fatf_cyber_fraud_2023] (paragraph 28), and "hopping through accounts across different financial, remittance or payment service providers" [fatf_cyber_fraud_2023] (paragraph 29). The report describes a case from France in which funds were moved quickly "to one or several accounts", and splitting the amounts between accounts got around a payment provider's cash withdrawal limits and its internal monitoring thresholds [fatf_cyber_fraud_2023] (Box 17).
+This shape can appear in money mule networks. A money mule is a person who receives money from a third party into their account and transfers it on [europol_money_muling]; mules may act "wittingly or unwittingly" [fincen_fin_2025_a003] (see the [glossary](../glossary.md)). FATF describes money mule networks as one of the services professional money launderers offer, and notes that mule bank accounts "serve as the initial layering stage" [fatf_pml_2018]. In cyber-enabled fraud, FATF, INTERPOL and the Egmont Group describe proceeds that are "rapidly layered through a series of 'pass-through' transactions" [fatf_cyber_fraud_2023] (paragraph 28), and "hopping through accounts across different financial, remittance or payment service providers" [fatf_cyber_fraud_2023] (paragraph 29). The report describes a case from France in which funds were moved quickly "to one or several accounts", and splitting the amounts between accounts got around a payment provider's cash withdrawal limits and its internal monitoring thresholds [fatf_cyber_fraud_2023] (Box 17).
 
 ## How it looks in the graph
 
 In NeonRadar's graph (the [C2 graph schema](../../contracts/C2-graph-schema.md)), every bank account is an `:Account` node and every payment is a `PAID` relationship between two accounts, with an `amount`, a `currency`, a timestamp `ts` and a `channel`. People (`:Person` nodes) and companies hold accounts through `HOLDS_ACCOUNT`.
 
-The pattern centres on one sending account:
+The pattern centres on one sending account. The following are candidate detection features, not mandatory conditions established by the cited authorities:
 
 - one `:Account`, the sender, with outgoing `PAID` relationships to many different accounts within a short window;
 - amounts that are similar to each other, or round;
 - recipients that had no earlier `PAID` relationship with the sender, and usually none with each other;
 - what happens next: the recipients withdraw cash (a `PAID` with `channel = 'cash_withdrawal'` to a bank branch's `cash_ledger` account) or forward the money to a second layer of accounts.
 
-A fan-out can follow a fan-in to the same account. Among FinCEN's money mule indicators is a customer who reports an occupation such as student or retiree yet "receives numerous transfers or deposits, and has a significant number of withdrawals or transfers" [fincen_fin_2025_a003]. See also the typologies `fan_in_collection` and `rapid_pass_through`.
+A fan-out can follow a fan-in to the same account. In its advisory on Chinese money laundering networks, FinCEN separately identifies unexplained wealth inconsistent with a customer's stated occupation and numerous transfers or deposits followed by withdrawals or transfers inconsistent with expected account activity [fincen_fin_2025_a003] (p. 9). See also the typologies `fan_in_collection` and `rapid_pass_through`.
 
 ```mermaid
 flowchart LR
@@ -44,7 +44,8 @@ What the graph cannot show: why the sender paid each recipient. A `PAID` relatio
 - "Payments have no stated purpose, do not reference goods or services, or identify only a contract or invoice number" [fincen_fin_2006_g014].
 - "Frequent involvement of beneficiaries located in high-risk, offshore financial centers" [fincen_fin_2006_g014].
 - On the recipient side: "Rapid or immediate cash withdrawals or transfers of large amounts following the receipt of a funds transfer in order to empty the account" [fatf_cyber_fraud_2023] (Annex A).
-- At one account, fan-in and fan-out together: a customer whose stated occupation (for example student or retiree) does not fit the activity, yet who "receives numerous transfers or deposits, and has a significant number of withdrawals or transfers" [fincen_fin_2025_a003].
+- In its advisory on Chinese money laundering networks, FinCEN separately identifies unexplained wealth inconsistent with a customer's stated occupation [fincen_fin_2025_a003] (p. 9, indicator 4).
+- The same advisory identifies accounts receiving numerous transfers or deposits followed by withdrawals or transfers inconsistent with routine payroll, living expenses or expected activity [fincen_fin_2025_a003] (p. 9, indicator 7).
 
 A red flag is a reason to look closer, not evidence. The FFIEC says its red flags "are not all-inclusive" and warns that a red flag alone does not prove criminal activity [ffiec_appendix_f]. The FATF cyber-fraud report says that a single indicator "may not alone warrant suspicion" but "could prompt further monitoring and examination as appropriate" [fatf_cyber_fraud_2023] (Annex A).
 

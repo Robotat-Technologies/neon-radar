@@ -32,3 +32,21 @@ LIMIT 25
 ```
 
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
+
+
+## @omar-alselek
+
+```cypher
+MATCH (company1:OnbCompany)<-[:DIRECTS]-(person:OnbPerson)-[:DIRECTS]->(company2:OnbCompany)
+WHERE company1.id < company2.id
+  AND company1.synthetic = true
+  AND company2.synthetic = true
+  AND person.synthetic = true
+RETURN person.name AS director,
+       company1.name AS first_company,
+       company2.name AS second_company
+ORDER BY director, first_company, second_company
+LIMIT 20
+```
+
+This query finds pairs of synthetic companies that share the same director. It uses two hops because the path goes from the first company to the director, then from the director to the second company. The ID comparison avoids returning the same pair twice.

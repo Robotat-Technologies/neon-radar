@@ -44,4 +44,4 @@ RETURN path
 LIMIT 25
 ```
 
-Finds every director who runs more than one company at the same registered address, and lists those companies. The path needs two hops: from the director to each company, and from the company to its registered address.
+Finds every director who runs more than one company at the same registered address, and returns the paths that connect them. The path needs two hops: from the director to each company, and from the company to its registered address.

@@ -32,3 +32,14 @@ LIMIT 25
 ```
 
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
+
+## @RouaaShaaban
+
+```cypher
+MATCH (p:OnbPerson)-[:DIRECTS]->(c:OnbCompany)-[:REGISTERED_AT]->(a:OnbAddress)<-[:REGISTERED_AT]-(other:OnbCompany)
+RETURN DISTINCT a.full AS shared_address, p.name AS director, c.name AS company
+ORDER BY director, company
+LIMIT 25
+```
+
+Finds who directs the companies whose registered address is shared with at least one other company. Directors are not linked to addresses directly, so the path goes from the director to the company, from the company to its address, and from the address back to the other companies registered there. DISTINCT keeps one row per director and company.

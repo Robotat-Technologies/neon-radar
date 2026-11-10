@@ -32,3 +32,16 @@ LIMIT 25
 ```
 
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
+
+## @RouaaShaaban
+
+```cypher
+MATCH path = (p:OnbPerson)-[:DIRECTS]->(c:OnbCompany)-[:REGISTERED_AT]->(addr:OnbAddress)
+WITH p, addr, collect(path) AS paths
+WHERE size(paths) > 1
+UNWIND paths AS path
+RETURN path
+LIMIT 25
+```
+
+Finds every director who runs more than one company at the same registered address, and returns the paths that connect them. The path needs two hops: from the director to each company, and from the company to its registered address.

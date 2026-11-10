@@ -36,10 +36,12 @@ Finds every company that shares a registered address with Copperfen Analytics Lt
 ## @RouaaShaaban
 
 ```cypher
-MATCH (p:OnbPerson)-[:DIRECTS]->(c:OnbCompany)-[:REGISTERED_AT]->(a:OnbAddress)<-[:REGISTERED_AT]-(other:OnbCompany)
-RETURN DISTINCT a.full AS shared_address, p.name AS director, c.name AS company
-ORDER BY director, company
+MATCH path = (p:OnbPerson)-[:DIRECTS]->(c:OnbCompany)-[:REGISTERED_AT]->(addr:OnbAddress)
+WITH p, addr, collect(path) AS paths
+WHERE size(paths) > 1
+UNWIND paths AS path
+RETURN path
 LIMIT 25
 ```
 
-Finds who directs the companies whose registered address is shared with at least one other company. Directors are not linked to addresses directly, so the path goes from the director to the company, from the company to its address, and from the address back to the other companies registered there. DISTINCT keeps one row per director and company.
+Finds every director who runs more than one company at the same registered address, and lists those companies. The path needs two hops: from the director to each company, and from the company to its registered address.

@@ -33,6 +33,23 @@ LIMIT 25
 
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
 
+## @amalika1922022-gif
+
+```cypher
+MATCH path =
+  (grandparent:OnbCompany)-[:PARENT_OF]->
+  (parent:OnbCompany)-[:PARENT_OF]->
+  (child:OnbCompany)
+RETURN path
+ORDER BY grandparent.id, parent.id, child.id
+LIMIT 100
+```
+
+Finds two-level parent-company chains across all companies in the synthetic onboarding data, returning up to 100 paths.
+Each path follows two PARENT_OF relationships from an indirect parent through an intermediate company to a subsidiary.
+The result describes company structures, not evidence of wrongdoing.
+
+
 ## @khoder-hammoud
 
 ```cypher

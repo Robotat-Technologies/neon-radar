@@ -9,7 +9,7 @@ A structure that matches this pattern is not evidence of money laundering or of 
 A pass-through account receives money and sends it on almost at once, with "little time elapsing between the deposits and withdrawals" [fincen_fin_2014_a005]. When the account belongs to a company, its transactions "appear to flow through the company in a short period of time with little other perceived purpose" [fatf_egmont_concealment_2018]. In NeonRadar's words, the account works like a pipe rather than a place to keep money: little stays in it. The sources describe several versions of this shape.
 
 - **Funnel accounts.** FinCEN describes a funnel account as "An individual or business account in one geographic area that receives multiple cash deposits", "often in amounts below the cash reporting threshold"; the funds are then withdrawn in a different geographic area, with "little time elapsing between the deposits and withdrawals" [fincen_fin_2014_a005].
-- **Pay-through or transit accounts.** The trade-based money laundering indicators of the FATF and the Egmont Group list an account of a trade entity that "appears to be a 'pay-through' or 'transit' account", with funds moving through it quickly and little balance left at the end of the day [fatf_egmont_tbml_indicators_2021].
+- **Pay-through or transit accounts.** The trade-based money laundering indicators of the FATF and the Egmont Group describe a trade entity's account with rapid movement of high-volume transactions and a small end-of-day balance without clear business reasons [fatf_egmont_tbml_indicators_2021] (Account and transaction activity risk indicators, p. 6).
 - **Transit companies.** The FATF and Egmont Group indicators of concealed beneficial ownership describe a company that "Exclusively facilitates transit transactions and does not appear to generate wealth or income" [fatf_egmont_concealment_2018].
 - **Pass-through transactions in fraud cases.** A 2023 report by the FATF, INTERPOL and the Egmont Group describes fraud proceeds that are "rapidly layered through a series of 'pass-through' transactions", with "hopping through accounts across different financial, remittance or payment service providers" [fatf_cyber_fraud_2023].
 
@@ -21,8 +21,8 @@ The pattern centres on one `:Account`:
 
 - money comes in through incoming `PAID` relationships, often from several accounts with no other link to each other;
 - most of that money leaves again through outgoing `PAID` relationships within hours or a few days (the dwell time);
-- the outgoing payments go to few beneficiaries;
-- only a small residual stays behind, so the balance over time looks like a saw: up, then back to almost zero.
+- the outgoing payments may go to few or several beneficiaries; a small number is not a universal requirement [fatf_egmont_tbml_indicators_2021] (Account and transaction activity risk indicators, p. 6);
+- the recorded outgoing total is close to the recorded incoming total within the observation window; this difference does not establish the account's actual balance.
 
 ```mermaid
 flowchart LR
@@ -35,17 +35,18 @@ flowchart LR
 In the cash version (the funnel account), the incoming payments are cash deposits (`channel = 'cash_deposit'` from a branch's `cash_ledger` account) and the outgoing ones are withdrawals or transfers.
 
 What the graph cannot show: a payment carries no place, so "deposited in one region, withdrawn in another" can only be estimated from the branches and holders involved. Nor does the graph know what activity to expect from an account holder; that needs the holder's type of business (the `sector` property of a company) and a profile of normal activity.
+The C2 schema does not store opening or end-of-day account balances. Establishing an actual balance requires an opening balance and complete transaction coverage in the relevant currency; the difference between recorded incoming and outgoing payments alone is insufficient.
 
 ## Red flags the sources list
 
-- "Almost immediately, all or most of the transfers or deposits are wired to another city or country" [ffiec_appendix_f].
-- A related red flag: "Multiple accounts are used to collect and funnel funds to a small number of foreign beneficiaries" [ffiec_appendix_f].
+- Many small incoming transfers, or deposits using cheques and money orders, are followed almost immediately by onward transfers of all or most of the funds to another city or country, in a manner inconsistent with the customer's business or history [ffiec_appendix_f] (money-laundering indicators, Funds Transfers).
+- A related indicator, listed in the FFIEC's terrorist-financing section, describes multiple accounts collecting and forwarding funds to a small number of foreign beneficiaries [ffiec_appendix_f] (terrorist-financing indicators, Other Transactions That Appear Unusual or Suspicious).
 - Deposits made "in a different geographic region from where the business operates" [fincen_fin_2014_a005].
-- Debits that "do not appear to be related to the stated business activity of the account holder" [fincen_fin_2014_a005].
-- Cheques "pre-signed but the payee and amount lines have been left blank" [fincen_fin_2014_a005].
-- People making deposits who "may have no detailed knowledge" of the account [fincen_fin_2014_a005].
+- For a business account receiving out-of-state deposits, outgoing payments do not appear related to the account holder's stated business activity [fincen_fin_2014_a005] (Funnel Accounts and Trade-Based Money Laundering Red Flags, fourth bullet).
+- For an account receiving out-of-state cash deposits, different handwriting in a cheque's payee and amount fields compared with its signature may indicate that it was signed before those fields were completed [fincen_fin_2014_a005] (same section, fifth bullet).
+- When questioned, people opening or depositing into funnel accounts may lack detailed knowledge of the stated business activity, the account holder in the case of a depositor, or the source of the cash [fincen_fin_2014_a005] (same section, third bullet).
 
-FinCEN warns that no single one of its red flags is conclusive [fincen_fin_2014_a005]. A red flag is a reason to look closer, not evidence. The FFIEC says its red flags "are not all-inclusive" and warns that a red flag alone does not prove criminal activity [ffiec_appendix_f].
+FinCEN warns that no single activity is conclusive. Indicators should be evaluated together with other red flags and the customer's expected transaction activity [fincen_fin_2014_a005] (FinCEN Guidance to U.S. Financial Institutions, first paragraph). A red flag is a reason to look closer, not evidence. The FFIEC says its red flags "are not all-inclusive" and warns that a red flag alone does not prove criminal activity [ffiec_appendix_f].
 
 ## Typical false positives
 
@@ -71,14 +72,13 @@ None in the definition file yet, and PHASE-1.md 7.2 gives no default values. A d
 
 ## Open questions
 
-- The research note summarises the FATF and Egmont Group indicator as a pay-through or transit account "with rapid movement and a small end-of-day balance". Only the words "pay-through" and "transit" are quoted from the source; the reviewer should confirm the rest against the indicator list.
 - The research note says that public transaction generators produce a gather-scatter shape (many in, many out at one account). Those generators have no bibliography entry, so the claim is left out.
 - For the typology researcher: the starting parameter values, and which holder attributes the Phase 3 generator must record so that payment service providers, payroll bureaus and client accounts can be told apart.
 
 ## Sources
 
-- [fatf_cyber_fraud_2023] FATF, INTERPOL and Egmont Group, *Illicit Financial Flows from Cyber-Enabled Fraud*, 2023. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/illicit-financial-flows-cyber-enabled-fraud.html>
-- [fatf_egmont_concealment_2018] FATF and Egmont Group, *Concealment of Beneficial Ownership*, 2018. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Concealment-beneficial-ownership.html>
-- [fatf_egmont_tbml_indicators_2021] FATF and Egmont Group, *Trade-Based Money Laundering: Risk Indicators*, 2021. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Trade-based-money-laundering-indicators.html>
-- [ffiec_appendix_f] FFIEC, *BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags*, living document. <https://bsaaml.ffiec.gov/manual/Appendices/07>
-- [fincen_fin_2014_a005] FinCEN, *FinCEN Advisory FIN-2014-A005: Update on U.S. Currency Restrictions in Mexico: Funnel Accounts and TBML*, 2014. <https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2014-a005>
+- [fatf_cyber_fraud_2023] FATF, INTERPOL and Egmont Group, _Illicit Financial Flows from Cyber-Enabled Fraud_, 2023. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/illicit-financial-flows-cyber-enabled-fraud.html>
+- [fatf_egmont_concealment_2018] FATF and Egmont Group, _Concealment of Beneficial Ownership_, 2018. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Concealment-beneficial-ownership.html>
+- [fatf_egmont_tbml_indicators_2021] FATF and Egmont Group, _Trade-Based Money Laundering: Risk Indicators_, 2021. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Trade-based-money-laundering-indicators.html>
+- [ffiec_appendix_f] FFIEC, _BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags_, living document. <https://bsaaml.ffiec.gov/manual/Appendices/07>
+- [fincen_fin_2014_a005] FinCEN, _FinCEN Advisory FIN-2014-A005: Update on U.S. Currency Restrictions in Mexico: Funnel Accounts and TBML_, 2014. <https://www.fincen.gov/resources/advisories/fincen-advisory-fin-2014-a005>

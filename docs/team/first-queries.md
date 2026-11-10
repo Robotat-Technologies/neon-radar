@@ -45,3 +45,17 @@ LIMIT 25
 ```
 
 Finds directors who run companies registered in different countries (Philippa Marrowby: gb and ie; Samira Oakhollow: gb and nl). The pattern needs two hops because companies are not linked to each other directly: it goes from one company to its director and from the director on to the other company.
+## @mukhlif-aljabri07
+
+```cypher
+MATCH (a:OnbCompany)<-[:DIRECTS]-(p:OnbPerson)-[:DIRECTS]->(b:OnbCompany) 
+WHERE a.id<b.id
+RETURN p.name AS director,a.name AS company_a,b.name AS company_b
+ORDER BY director,company_a
+LIMIT 25
+```
+Finds every pair of companies that share a director, and returns the director's name.
+`WHERE a.id < b.id` keeps each pair only once.
+Companies are not linked to each other directly, so the path needs two hops:
+from one company to its director, and from the director to the other company.
+

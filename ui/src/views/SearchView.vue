@@ -9,6 +9,8 @@ import EntityBadges from '@/components/EntityBadges.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { searchCountText } from '@/lib/search'
 import { useMetaStore } from '@/stores/meta'
+import { messages } from '@/lib/messages'
+import { useLocaleStore } from '@/stores/locale'
 
 const LABELS: readonly SearchLabel[] = [
   'Person',
@@ -24,6 +26,8 @@ const MAX_LENGTH = 200
 const route = useRoute()
 const router = useRouter()
 const metaStore = useMetaStore()
+const localeStore = useLocaleStore()
+const text = computed(() => messages[localeStore.locale])
 
 const query = ref('')
 const labels = ref<SearchLabel[]>([])
@@ -78,12 +82,14 @@ function submit(): void {
 
 <template>
   <section>
-    <h1>Search</h1>
+    <h1>{{ text.search }}</h1>
+
     <form class="search-form" role="search" @submit.prevent="submit">
       <label class="field">
-        <span>Name, address or account number</span>
+        <span>{{ text.searchField }}</span>
         <input
           v-model="query"
+          dir="auto"
           type="search"
           name="q"
           :minlength="MIN_LENGTH"
@@ -92,39 +98,55 @@ function submit(): void {
           data-testid="search-input"
         />
       </label>
+
       <fieldset class="label-filter">
-        <legend>Only these kinds (none ticked: all)</legend>
+        <legend>{{ text.searchKinds }}</legend>
         <label v-for="label in LABELS" :key="label" class="checkbox">
           <input v-model="labels" type="checkbox" :value="label" />
-          {{ label }}
+          {{ text.entityKinds[label] }}
         </label>
       </fieldset>
-      <button type="submit" :disabled="trimmed.length < MIN_LENGTH">Search</button>
-      <p v-if="tooShort" class="muted">Type at least {{ MIN_LENGTH }} characters.</p>
+
+      <button type="submit" :disabled="trimmed.length < MIN_LENGTH">
+        {{ text.search }}
+      </button>
+      <p v-if="tooShort" class="muted">{{ text.searchMinimum }}</p>
     </form>
 
-    <p v-if="loading" class="muted">Searching…</p>
+    <p v-if="loading" class="muted">{{ text.searching }}</p>
     <ErrorMessage v-else-if="error" :error="error" />
+
     <template v-else-if="result">
       <p class="muted" data-testid="search-count">
-        {{ searchCountText(result) }}
+        {{ searchCountText(result, localeStore.locale) }}
       </p>
+
       <ul class="result-list" data-testid="search-results">
         <li v-for="hit in result.items" :key="hit.entity.id" class="card">
           <RouterLink :to="{ name: 'entity', params: { id: hit.entity.id } }">
-            {{ hit.entity.caption }}
+            <bdi>{{ hit.entity.caption }}</bdi>
           </RouterLink>
+
           <div class="meta-line">
-            <span>{{ hit.entity.schema }}</span>
-            <span v-if="hit.matched_name !== hit.entity.caption" class="muted">
-              matched “{{ hit.matched_name }}”
+            <span>
+              {{ text.entityKinds[hit.entity.schema as SearchLabel] ?? hit.entity.schema }}
             </span>
-            <span v-if="hit.entity.countries.length">{{
-              hit.entity.countries.join(', ').toUpperCase()
-            }}</span>
-            <span class="muted">{{
-              hit.entity.datasets.map((slug) => metaStore.datasetTitle(slug)).join(', ')
-            }}</span>
+
+            <span v-if="hit.matched_name !== hit.entity.caption" class="muted">
+              {{ text.matchedName }}:
+              <bdi>{{ hit.matched_name }}</bdi>
+            </span>
+
+            <bdi v-if="hit.entity.countries.length">
+              {{ hit.entity.countries.join(', ').toUpperCase() }}
+            </bdi>
+
+            <span class="muted">
+              <bdi>
+                {{ hit.entity.datasets.map((slug) => metaStore.datasetTitle(slug)).join(', ') }}
+              </bdi>
+            </span>
+
             <EntityBadges :flags="hit.entity.flags" :datasets="hit.entity.datasets" />
           </div>
         </li>

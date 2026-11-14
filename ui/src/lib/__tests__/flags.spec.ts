@@ -44,4 +44,47 @@ describe('datasetsOf', () => {
     expect(datasetsOf({ datasets: 'nr_synthetic' })).toEqual([])
     expect(datasetsOf({})).toEqual([])
   })
+
+  describe('Arabic source-data flags', () => {
+    it('names the source and describes each enabled flag', () => {
+      const all = { ...NONE, sanctioned: true, pep: true, rca: true }
+
+      expect(flagBadges(all, ['Demo source'], 'ar')).toEqual([
+        {
+          kind: 'sanctioned',
+          text: 'مُدرج في \u2068Demo source\u2069 بصفة: خاضع للعقوبات',
+        },
+        {
+          kind: 'pep',
+          text: 'مُدرج في \u2068Demo source\u2069 بصفة: شخص معرّض سياسياً',
+        },
+        {
+          kind: 'rca',
+          text: 'مُدرج في \u2068Demo source\u2069 بصفة: قريب أو شريك مقرّب لشخص معرّض سياسياً',
+        },
+      ])
+    })
+
+    it('does not add flags to synthetic entities', () => {
+      expect(flagBadges(NONE, ['Demo source'], 'ar')).toEqual([])
+      expect(flagBadges({ ...NONE, synthetic: true }, ['Demo source'], 'ar')).toEqual([])
+    })
+
+    it('keeps alternative sources distinct and removes duplicate names', () => {
+      expect(joinDatasetNames(['A', 'B', 'A'], 'ar')).toBe('\u2068A\u2069 أو \u2068B\u2069')
+
+      expect(joinDatasetNames(['A', 'B', 'C'], 'ar')).toBe(
+        '\u2068A\u2069، \u2068B\u2069 أو \u2068C\u2069',
+      )
+    })
+
+    it('handles a missing source name without inventing one', () => {
+      expect(flagBadges({ ...NONE, pep: true }, [], 'ar')).toEqual([
+        {
+          kind: 'pep',
+          text: 'مُدرج في مجموعة البيانات المصدرية بصفة: شخص معرّض سياسياً',
+        },
+      ])
+    })
+  })
 })

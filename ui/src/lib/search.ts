@@ -6,8 +6,19 @@ import type { SearchResponse } from '@/api/types'
 export const SEARCH_WINDOW = 200
 
 /** The line above the hits, for example `About 25 matches for “lea”.` */
-export function searchCountText(answer: SearchResponse): string {
+export function searchCountText(answer: SearchResponse, locale: 'en' | 'ar' = 'en'): string {
   const total = answer.total_estimate
+  if (locale === 'ar') {
+    const query = `\u2068${answer.query}\u2069`
+
+    if (answer.items.length === 0) return `لا توجد نتائج مطابقة لـ«${query}».`
+    if (total >= SEARCH_WINDOW) {
+      return `${SEARCH_WINDOW} نتيجة مطابقة أو أكثر لـ«${query}».`
+    }
+
+    const about = total > answer.items.length ? 'تقريباً: ' : ''
+    return `${about}عدد النتائج المطابقة لـ«${query}»: ${total}.`
+  }
   if (answer.items.length === 0) return `No matches for “${answer.query}”.`
   if (total >= SEARCH_WINDOW) return `${SEARCH_WINDOW} or more matches for “${answer.query}”.`
   const noun = total === 1 ? 'match' : 'matches'

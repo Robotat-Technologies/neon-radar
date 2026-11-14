@@ -9,6 +9,7 @@ COPY ui/package.json ui/package-lock.json ./
 # No dependency in the lock file needs an install script on Linux (only fsevents, macOS).
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY ui/ ./
+COPY contracts/wording/ /src/contracts/wording/
 RUN npm run build
 
 # nginx 1.30.6 (stable), Alpine.

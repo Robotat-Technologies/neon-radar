@@ -17,7 +17,15 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  server: { proxy: apiProxy },
+  server: {
+    proxy: apiProxy,
+    fs: {
+      allow: [
+        fileURLToPath(new URL('./', import.meta.url)),
+        fileURLToPath(new URL('../contracts/wording/', import.meta.url)),
+      ],
+    },
+  },
   preview: { proxy: apiProxy },
   // Cytoscape and fcose make one chunk of about 560 kB, loaded only by the graph pages.
   build: { chunkSizeWarningLimit: 600 },

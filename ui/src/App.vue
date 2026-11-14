@@ -1,12 +1,15 @@
 <script setup lang="ts">
-// The shell: navigation, the notices from GET /meta on every page, then the page. No page that
-// shows entities or alerts renders before the notices are there, and every navigation refreshes
-// them, so the notice follows what is loaded.
-import { onMounted, onUnmounted } from 'vue'
+// The shell keeps the API notices visible before displaying page data.
+import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 
 import NoticeBanner from '@/components/NoticeBanner.vue'
+import { messages } from '@/lib/messages'
+import { useLocaleStore } from '@/stores/locale'
 import { useMetaStore } from '@/stores/meta'
+
+const localeStore = useLocaleStore()
+const text = computed(() => messages[localeStore.locale])
 
 const metaStore = useMetaStore()
 const removeAfterEach = useRouter().afterEach(() => {
@@ -21,12 +24,24 @@ onUnmounted(removeAfterEach)
 
 <template>
   <header class="site-header">
-    <RouterLink to="/" class="brand">NeonRadar</RouterLink>
-    <nav aria-label="Main">
-      <RouterLink to="/">Search</RouterLink>
-      <RouterLink to="/alerts">Alerts</RouterLink>
-      <RouterLink to="/sources">Data sources</RouterLink>
+    <RouterLink to="/" class="brand">
+      <bdi>NeonRadar</bdi>
+    </RouterLink>
+
+    <nav :aria-label="text.mainNavigation">
+      <RouterLink to="/">{{ text.search }}</RouterLink>
+      <RouterLink to="/alerts">{{ text.alerts }}</RouterLink>
+      <RouterLink to="/sources">{{ text.dataSources }}</RouterLink>
     </nav>
+
+    <button
+      type="button"
+      :lang="localeStore.isArabic ? 'en' : 'ar'"
+      :dir="localeStore.isArabic ? 'ltr' : 'rtl'"
+      @click="localeStore.toggleLocale()"
+    >
+      {{ text.switchLanguage }}
+    </button>
   </header>
 
   <main class="page">
@@ -38,18 +53,23 @@ onUnmounted(removeAfterEach)
       />
       <RouterView />
     </template>
+
     <div v-else-if="metaStore.error" class="error" role="alert" data-testid="meta-error">
-      <p>
-        NeonRadar could not load its notices from the API, so it shows no data.
-        {{ metaStore.error }}
-      </p>
-      <button type="button" @click="metaStore.load()">Try again</button>
+      <p>{{ text.noticesUnavailable }}</p>
+      <p dir="auto">{{ metaStore.error }}</p>
+      <button type="button" @click="metaStore.load()">
+        {{ text.retry }}
+      </button>
     </div>
-    <p v-else class="muted">Loading…</p>
+
+    <p v-else class="muted">{{ text.loading }}</p>
   </main>
 
   <footer v-if="metaStore.meta" class="site-footer muted">
-    NeonRadar {{ metaStore.meta.app_version }} · contracts {{ metaStore.meta.contracts_version }} ·
-    graph schema {{ metaStore.meta.schema_version }}
+    <bdi>NeonRadar {{ metaStore.meta.app_version }}</bdi>
+    · {{ text.contracts }}
+    <bdi>{{ metaStore.meta.contracts_version }}</bdi>
+    · {{ text.graphSchema }}
+    <bdi>{{ metaStore.meta.schema_version }}</bdi>
   </footer>
 </template>

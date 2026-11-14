@@ -395,3 +395,7 @@ pre.mono {
     margin-block-end: var(--space-2);
   }
 }
+
+.notice {
+  text-align: start;
+}

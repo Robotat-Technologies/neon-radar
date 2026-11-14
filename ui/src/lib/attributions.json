@@ -1,0 +1,38 @@
+{
+  "gb_companies_house": {
+    "original": "Contains public sector information licensed under the Open Government Licence v3.0. Source: Companies House.",
+    "arabic": "يتضمن معلومات من القطاع العام مرخّصة بموجب ترخيص الحكومة المفتوحة، الإصدار 3.0. المصدر: Companies House."
+  },
+  "gleif_lei": {
+    "original": "LEI data from the GLEIF Global LEI Index, available under CC0 1.0. NeonRadar is not affiliated with or endorsed by GLEIF.",
+    "arabic": "بيانات معرّفات الكيانات القانونية من مؤشر GLEIF العالمي، متاحة بموجب CC0 1.0. لا يتبع NeonRadar مؤسسة GLEIF ولا يحظى بتأييدها."
+  },
+  "icij_offshore_leaks": {
+    "original": "Always cite the International Consortium of Investigative Journalists when using this data.",
+    "arabic": "يجب دائماً ذكر الاتحاد الدولي للصحفيين الاستقصائيين عند استخدام هذه البيانات."
+  },
+  "opensanctions_default": {
+    "original": "Contains data from OpenSanctions (https://www.opensanctions.org), (c) OpenSanctions Datenbanken GmbH, licensed under CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/), provided without warranty. Converted and filtered by NeonRadar.",
+    "arabic": "يتضمن بيانات من OpenSanctions ‏(https://www.opensanctions.org)، وحقوق النشر محفوظة لشركة OpenSanctions Datenbanken GmbH. البيانات مرخّصة بموجب CC BY-NC 4.0 ‏(https://creativecommons.org/licenses/by-nc/4.0/)، ومقدّمة دون ضمان. حوّلها NeonRadar ورشّحها."
+  },
+  "gb_fcdo_sanctions": {
+    "original": "Contains public sector information licensed under the Open Government Licence v3.0. Source: UK Sanctions List, Foreign, Commonwealth and Development Office. Converted to FollowTheMoney records by NeonRadar.",
+    "arabic": "يتضمن معلومات من القطاع العام مرخّصة بموجب ترخيص الحكومة المفتوحة، الإصدار 3.0. المصدر: قائمة العقوبات البريطانية، وزارة الخارجية والكومنولث والتنمية. حوّلها NeonRadar إلى سجلات FollowTheMoney."
+  },
+  "us_ofac_sdn": {
+    "original": "Source: US Department of the Treasury, Office of Foreign Assets Control, Specially Designated Nationals and Blocked Persons List (public domain). NeonRadar is not affiliated with OFAC. Converted to FollowTheMoney records by NeonRadar.",
+    "arabic": "المصدر: وزارة الخزانة الأمريكية، مكتب مراقبة الأصول الأجنبية، قائمة المواطنين المحدّدين خصيصاً والأشخاص المحظورين؛ وهي في الملك العام. لا يتبع NeonRadar مكتب OFAC. حوّلها NeonRadar إلى سجلات FollowTheMoney."
+  },
+  "un_sc_sanctions": {
+    "original": "Source: United Nations Security Council Consolidated List. Converted to FollowTheMoney records by NeonRadar.",
+    "arabic": "المصدر: القائمة الموحّدة لمجلس الأمن التابع للأمم المتحدة. حوّلها NeonRadar إلى سجلات FollowTheMoney."
+  },
+  "eu_fsf": {
+    "original": "Source: European Commission, Financial Sanctions Files, reused under the Commission's reuse policy (Decision 2011/833/EU). Only the information published in the Official Journal of the EU is deemed authentic. Converted to FollowTheMoney records by NeonRadar.",
+    "arabic": "المصدر: المفوضية الأوروبية، ملفات العقوبات المالية، المعاد استخدامها بموجب سياسة المفوضية لإعادة الاستخدام، القرار 2011/833/EU. تُعدّ المعلومات المنشورة في الجريدة الرسمية للاتحاد الأوروبي وحدها أصلية معتمدة. حوّلها NeonRadar إلى سجلات FollowTheMoney."
+  },
+  "gb_parliament_members": {
+    "original": "Contains Parliamentary information licensed under the Open Parliament Licence v3.0. Converted to FollowTheMoney records by NeonRadar.",
+    "arabic": "يتضمن معلومات برلمانية مرخّصة بموجب ترخيص البرلمان المفتوح، الإصدار 3.0. حوّلها NeonRadar إلى سجلات FollowTheMoney."
+  }
+}

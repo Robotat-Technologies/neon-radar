@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // Alerts (/alerts): the alert queue in the API's order (priority, then pattern strength),
 // filtered by priority, typology or entity, a page at a time.
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-
+import { messages } from '@/lib/messages'
+import { useLocaleStore } from '@/stores/locale'
 import { api } from '@/api/client'
 import type { AlertListParams, AlertPriority, AlertSummary, TypologySummary } from '@/api/types'
 import AlertList from '@/components/AlertList.vue'
@@ -12,6 +13,8 @@ import { PRIORITIES } from '@/lib/alerts'
 
 const route = useRoute()
 const router = useRouter()
+const localeStore = useLocaleStore()
+const uiText = computed(() => messages[localeStore.locale])
 
 const items = ref<AlertSummary[]>([])
 const nextCursor = ref<string | null>(null)
@@ -85,41 +88,50 @@ function applyFilters(): void {
 
 <template>
   <section>
-    <h1>Alerts</h1>
-    <p class="muted">
-      Each alert is a structural pattern that matches a typology's graph pattern. Alerts are ordered
-      by priority, then pattern strength. Pattern strength is a heuristic: it says how closely the
-      evidence matches the pattern, nothing more.
-    </p>
+    <h1>{{ uiText.alerts }}</h1>
+    <p class="muted">{{ uiText.alertsExplanation }}</p>
+
     <form class="filters" @submit.prevent="applyFilters">
       <label class="inline-field">
-        Priority
+        {{ uiText.priority }}
         <select v-model="priority">
-          <option value="">any</option>
-          <option v-for="value in PRIORITIES" :key="value" :value="value">{{ value }}</option>
+          <option value="">{{ uiText.any }}</option>
+          <option v-for="value in PRIORITIES" :key="value" :value="value">
+            {{ uiText.priorityNames[value] }}
+          </option>
         </select>
       </label>
+
       <label class="inline-field">
-        Typology
+        {{ uiText.typology }}
         <select v-model="typology">
-          <option value="">any</option>
-          <option v-for="item in typologies" :key="item.slug" :value="item.slug">
+          <option value="">{{ uiText.any }}</option>
+          <option v-for="item in typologies" :key="item.slug" :value="item.slug" dir="auto">
             {{ item.name }}
           </option>
         </select>
       </label>
-      <button type="submit">Apply</button>
+
+      <button type="submit">{{ uiText.apply }}</button>
+
       <span v-if="entityId" class="muted">
-        Only alerts that name {{ entityId }} (<RouterLink :to="{ name: 'alerts' }"
-          >show all</RouterLink
+        {{ uiText.alertsForEntity }}
+        <bdi>{{ entityId }}</bdi>
+        (<RouterLink :to="{ name: 'alerts' }">{{ uiText.showAll }}</RouterLink
         >)
       </span>
     </form>
 
     <ErrorMessage v-if="error" :error="error" />
-    <p v-else-if="!loading && items.length === 0" class="muted">No alerts match.</p>
+    <p v-else-if="!loading && items.length === 0" class="muted">
+      {{ uiText.noAlerts }}
+    </p>
+
     <AlertList v-if="items.length" :alerts="items" />
-    <p v-if="loading" class="muted">Loading…</p>
-    <button v-else-if="nextCursor" type="button" @click="loadPage(nextCursor)">More alerts</button>
+
+    <p v-if="loading" class="muted">{{ uiText.loading }}</p>
+    <button v-else-if="nextCursor" type="button" @click="loadPage(nextCursor)">
+      {{ uiText.moreAlerts }}
+    </button>
   </section>
 </template>

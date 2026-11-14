@@ -17,19 +17,49 @@ const FLAG_PHRASES: ReadonlyArray<readonly [FlagKind, string]> = [
 ]
 
 /** "A", "A or B", "A, B or C": a record comes from one of them (C1 gives each record one dataset). */
-export function joinDatasetNames(names: readonly string[]): string {
+/** Joins possible source datasets without implying that every source lists the flag. */
+export function joinDatasetNames(names: readonly string[], locale: 'en' | 'ar' = 'en'): string {
   const unique = [...new Set(names)]
-  if (unique.length === 0) return 'its source dataset'
-  if (unique.length === 1) return unique[0] as string
-  return `${unique.slice(0, -1).join(', ')} or ${unique[unique.length - 1]}`
+
+  if (unique.length === 0) {
+    return locale === 'ar' ? 'مجموعة البيانات المصدرية' : 'its source dataset'
+  }
+
+  const displayNames = locale === 'ar' ? unique.map((name) => `\u2068${name}\u2069`) : unique
+
+  if (displayNames.length === 1) return displayNames[0] as string
+
+  const separator = locale === 'ar' ? '، ' : ', '
+  const or = locale === 'ar' ? ' أو ' : ' or '
+
+  return `${displayNames.slice(0, -1).join(separator)}${or}${displayNames[displayNames.length - 1]}`
 }
 
-/** "listed in <dataset> as sanctioned" and the like, one per flag that is set. */
-export function flagBadges(flags: NodeFlags, datasetNames: readonly string[]): FlagBadge[] {
+/** Describes source-published flags, always naming the possible source datasets. */
+export function flagBadges(
+  flags: NodeFlags,
+  datasetNames: readonly string[],
+  locale: 'en' | 'ar' = 'en',
+): FlagBadge[] {
   const source = joinDatasetNames(datasetNames)
-  return FLAG_PHRASES.filter(([kind]) => flags[kind]).map(([kind, phrase]) => ({
+
+  if (locale === 'en') {
+    return FLAG_PHRASES.filter(([kind]) => flags[kind]).map(([kind, phrase]) => ({
+      kind,
+      text: `listed in ${source} ${phrase}`,
+    }))
+  }
+
+  const arabicSource = joinDatasetNames(datasetNames, 'ar')
+  const phrases: Record<FlagKind, string> = {
+    sanctioned: 'خاضع للعقوبات',
+    pep: 'شخص معرّض سياسياً',
+    rca: 'قريب أو شريك مقرّب لشخص معرّض سياسياً',
+  }
+
+  return FLAG_PHRASES.filter(([kind]) => flags[kind]).map(([kind]) => ({
     kind,
-    text: `listed in ${source} ${phrase}`,
+    text: `مُدرج في ${arabicSource} بصفة: ${phrases[kind]}`,
   }))
 }
 

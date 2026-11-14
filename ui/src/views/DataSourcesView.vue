@@ -1,42 +1,72 @@
 <script setup lang="ts">
-// Data sources (/sources): the dataset registry from GET /meta with licences, attribution and
-// what is loaded. The real data notice points here ("listed with their licences on the Data
-// sources page").
+// Dataset registry from GET /meta, including licences, attribution and loaded counts.
 import { computed } from 'vue'
 
 import ExternalLink from '@/components/ExternalLink.vue'
+import { messages } from '@/lib/messages'
+import { useLocaleStore } from '@/stores/locale'
 import { useMetaStore } from '@/stores/meta'
-
+import { localizedAttribution } from '@/lib/attribution-translations'
 const metaStore = useMetaStore()
+const localeStore = useLocaleStore()
+const text = computed(() => messages[localeStore.locale])
 const datasets = computed(() => metaStore.meta?.datasets ?? [])
 </script>
 
 <template>
   <section>
-    <h1>Data sources</h1>
-    <p class="muted">
-      Every dataset NeonRadar knows about, whether or not anything from it is loaded. Records are
-      shown as each source published them.
-    </p>
+    <h1>{{ text.dataSources }}</h1>
+    <p class="muted">{{ text.sourcesDescription }}</p>
+
     <ul class="result-list" data-testid="datasets">
       <li v-for="dataset in datasets" :key="dataset.slug" class="card">
-        <strong>{{ dataset.title }}</strong>
-        <span v-if="dataset.synthetic" class="badge badge--synthetic">Synthetic</span>
+        <strong
+          ><bdi>{{ dataset.title }}</bdi></strong
+        >
+        <span v-if="dataset.synthetic" class="badge badge--synthetic">
+          {{ text.synthetic }}
+        </span>
+
         <dl class="properties">
-          <dt>records loaded</dt>
-          <dd>{{ dataset.record_count === null ? 'unknown' : dataset.record_count }}</dd>
-          <dt>licence</dt>
+          <dt>{{ text.recordsLoaded }}</dt>
           <dd>
-            <ExternalLink :href="dataset.licence_url">{{ dataset.licence_id }}</ExternalLink>
+            <bdi>{{ dataset.record_count === null ? text.unknown : dataset.record_count }}</bdi>
           </dd>
+
+          <dt>{{ text.licence }}</dt>
+          <dd>
+            <ExternalLink :href="dataset.licence_url">
+              <bdi>{{ dataset.licence_id }}</bdi>
+            </ExternalLink>
+          </dd>
+
           <template v-if="dataset.attribution">
-            <dt>attribution</dt>
-            <dd>{{ dataset.attribution }}</dd>
+            <dt>{{ text.attribution }}</dt>
+            <dd>
+              <p dir="auto">
+                {{ localizedAttribution(dataset.slug, dataset.attribution, localeStore.locale) }}
+              </p>
+
+              <details
+                v-if="
+                  localeStore.isArabic &&
+                  localizedAttribution(dataset.slug, dataset.attribution, 'ar') !==
+                    dataset.attribution
+                "
+              >
+                <summary>{{ text.originalAttribution }}</summary>
+                <p dir="auto">{{ dataset.attribution }}</p>
+              </details>
+            </dd>
           </template>
-          <dt>personal data</dt>
-          <dd>{{ dataset.personal_data ? 'may include personal data' : 'no' }}</dd>
-          <dt>identifier</dt>
-          <dd class="mono">{{ dataset.slug }}</dd>
+
+          <dt>{{ text.personalData }}</dt>
+          <dd>{{ dataset.personal_data ? text.mayIncludePersonalData : text.no }}</dd>
+
+          <dt>{{ text.identifier }}</dt>
+          <dd class="mono">
+            <bdi>{{ dataset.slug }}</bdi>
+          </dd>
         </dl>
       </li>
     </ul>

@@ -50,3 +50,16 @@ LIMIT 20
 ```
 
 This query finds pairs of synthetic companies that share the same director. It uses two hops because the path goes from the first company to the director, then from the director to the second company. The ID comparison avoids returning the same pair twice.
+
+## @abdullah-ald
+
+```cypher
+MATCH (first:OnbCompany)<-[:DIRECTS]-(director:OnbPerson)-[:DIRECTS]->(second:OnbCompany)
+WHERE first.id < second.id
+RETURN director.name AS director, first.name AS first_company, first.jurisdiction AS first_jurisdiction,
+       second.name AS second_company, second.jurisdiction AS second_jurisdiction
+ORDER BY director, first_company, second_company
+LIMIT 25
+```
+
+Finds pairs of companies that have the same recorded director, including each company's recorded jurisdiction. The pattern needs two hops because it goes from the first company to the director and then from that director to the second company. Comparing the company ids keeps each pair once instead of returning it again in the opposite order.

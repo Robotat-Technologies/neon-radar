@@ -25,7 +25,7 @@ make setup        # Python and npm packages, pre-commit hooks, .env with a gener
 make demo-mini
 ```
 
-`make demo-mini` creates `.env` if it is missing, fetches the pinned GDS jar if it is missing, starts Neo4j and waits until it is healthy, applies the schema migrations, wipes the graph and loads `data/fixtures/demo-mini/`, runs detection, builds and starts the API and the UI, and waits until both are healthy. It ends like this:
+`make demo-mini` creates `.env` if it is missing, starts building the API and UI images in the background, fetches the pinned GDS jar if it is missing, starts Neo4j and waits until it is healthy, applies the schema migrations, wipes the graph and loads `data/fixtures/demo-mini/`, runs detection, waits for the image build to finish, starts the API and the UI, and waits until both are healthy. The build's messages go to a temporary log file, which is printed if the build fails. It ends like this:
 
 ```text
 NeonRadar demo-mini is running on synthetic data:

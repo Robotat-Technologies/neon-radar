@@ -154,11 +154,20 @@ demo-data: ## into the Neo4j at NEO4J_URI: migrate, wipe, load demo-mini, detect
 demo-mini: ## the synthetic demo in Docker: Neo4j, API and UI on 127.0.0.1, then the URLs and the time
 	@set -e; start=$$(date +%s); \
 	if [ -z "$${NEO4J_PASSWORD:-}" ]; then bash scripts/ensure_env.sh; fi; \
+	build_log=$$(mktemp "$${TMPDIR:-/tmp}/neonradar-build.XXXXXX"); \
+	echo "Building the API and the UI in the background (log: $$build_log) ..."; \
+	docker compose --profile app build api ui >"$$build_log" 2>&1 & build_pid=$$!; \
+	trap 'kill $$build_pid 2>/dev/null || true' EXIT; \
 	bash scripts/fetch_gds.sh; \
 	docker compose up -d --wait neo4j; \
 	NEO4J_URI="bolt://$$(docker compose port neo4j 7687)" $(MAKE) --no-print-directory demo-data; \
-	echo "Building and starting the API and the UI (the first build takes a few minutes) ..."; \
-	docker compose --profile app up -d --build --wait || { \
+	echo "Waiting for the API and UI build to finish ..."; \
+	wait $$build_pid || { \
+		echo "The API or the UI image did not build. Its output:" >&2; \
+		cat "$$build_log" >&2; exit 1; }; \
+	trap - EXIT; rm -f "$$build_log"; \
+	echo "Starting the API and the UI ..."; \
+	docker compose --profile app up -d --wait || { \
 		echo "The API or the UI did not become healthy: docker compose --profile app logs api ui" >&2; \
 		exit 1; }; \
 	url() { echo "http://localhost:$$(docker compose port "$$1" "$$2" | sed 's/.*://')"; }; \

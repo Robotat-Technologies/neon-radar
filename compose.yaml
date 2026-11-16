@@ -48,8 +48,8 @@ services:
           create_host_path: false
     mem_limit: "${NEO4J_MEM_LIMIT:-5g}"
     healthcheck:
-      # While it starts, Docker checks every second, so `--wait` returns as soon as it is ready
-      # (start_interval needs Docker Engine 25 or later).
+      # During the start period Docker checks every second, so `--wait` returns sooner
+      # (start_interval; needs Docker Engine 25 or later and a start_period).
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' || exit 1"]
       interval: 5s
       timeout: 10s
@@ -113,6 +113,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+      # Needed by start_interval; Compose rejects start_interval without a start_period.
       start_period: 10s
       start_interval: 1s
 

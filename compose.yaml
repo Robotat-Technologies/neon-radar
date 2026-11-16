@@ -48,11 +48,14 @@ services:
           create_host_path: false
     mem_limit: "${NEO4J_MEM_LIMIT:-5g}"
     healthcheck:
+      # While it starts, Docker checks every second, so `--wait` returns as soon as it is ready
+      # (start_interval needs Docker Engine 25 or later).
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' || exit 1"]
       interval: 5s
       timeout: 10s
       retries: 30
       start_period: 30s
+      start_interval: 1s
 
   # The demo (`make demo-mini`): API and UI images built from this repository, started only with
   # the "app" profile, so `make up` still starts Neo4j alone. Both publish on 127.0.0.1 only.
@@ -86,6 +89,7 @@ services:
       timeout: 6s
       retries: 30
       start_period: 10s
+      start_interval: 1s
 
   ui:
     profiles: [app]
@@ -109,6 +113,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 10s
+      start_interval: 1s
 
   # The real-data instance (PHASE-2.md 4.1, C2 L17, M2.0). Real profiles load only here, never
   # into neo4j above, which the API, the UI, the tests and the agent use. Its only database is
@@ -163,6 +169,7 @@ services:
       timeout: 10s
       retries: 30
       start_period: 30s
+      start_interval: 1s
 
 volumes:
   neo4j_data:

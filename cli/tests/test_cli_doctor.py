@@ -74,15 +74,53 @@ def test_env_file(tmp_path: Path) -> None:
     assert doctor.check_env_file(tmp_path).status is Status.OK
 
 
-def test_ports(monkeypatch: pytest.MonkeyPatch) -> None:
+PORT_SETTINGS = ("NEO4J_HTTP_PORT", "NEO4J_BOLT_PORT", "NR_API_PORT", "NR_UI_PORT")
+
+
+def default_ports(monkeypatch: pytest.MonkeyPatch, root: Path) -> dict[int, doctor.PortUse]:
+    """The ports with no setting moving them, whatever this machine's environment sets."""
+    for name in PORT_SETTINGS:
+        monkeypatch.delenv(name, raising=False)
+    return doctor.configured_ports(root)
+
+
+def test_ports(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    ports = default_ports(monkeypatch, tmp_path)
+    assert set(ports) == {7474, 7687, 8000, 8080, 5173}
     monkeypatch.setattr(doctor, "port_in_use", lambda port: port != 5173)
-    assert doctor.check_port(7474, {7474}).detail == "used by the NeonRadar stack"
-    assert doctor.check_port(5173, set()).detail == "free"
-    assert doctor.check_port(7687, set()).status is Status.FAIL
-    assert doctor.check_port(8000, set()).status is Status.WARN
-    assert doctor.check_port(8080, set()) == doctor.Check(
-        "port 8080", Status.WARN, "in use by another program; the demo UI needs it"
+    assert doctor.check_port(7474, {7474}, ports).detail == "used by the NeonRadar stack"
+    assert doctor.check_port(5173, set(), ports).detail == "free"
+    assert doctor.check_port(7687, set(), ports).status is Status.FAIL
+    assert doctor.check_port(8000, set(), ports).status is Status.WARN
+    assert doctor.check_port(8080, set(), ports) == doctor.Check(
+        "port 8080",
+        Status.WARN,
+        "in use by another program; the demo UI needs it, or set NR_UI_PORT in .env",
     )
+    assert "NEO4J_URI" in doctor.check_port(7687, set(), ports).detail
+
+
+def test_a_port_no_setting_moves_names_none(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ports = default_ports(monkeypatch, tmp_path)
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: True)
+    assert doctor.check_port(5173, set(), ports).detail == (
+        "in use by another program; the UI dev server needs it"
+    )
+
+
+def test_port_help_only_when_a_port_is_busy() -> None:
+    busy = doctor.Check("port 7687", Status.FAIL, "in use by another program")
+    free = doctor.Check("port 7474", Status.OK, "free")
+    other = doctor.Check("Docker memory", Status.WARN, "small profile")
+    assert doctor.port_help([free, other]) is None
+    assert doctor.port_help([free, busy]) == doctor.PORT_HELP
+
+
+def test_port_help_covers_every_system() -> None:
+    for text in ("Linux:", "macOS:", "Windows:", "docker ps", ".env", "NEO4J_URI"):
+        assert text in doctor.PORT_HELP
 
 
 def test_stack_ports_reads_docker_ps(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -90,6 +128,21 @@ def test_stack_ports_reads_docker_ps(monkeypatch: pytest.MonkeyPatch) -> None:
     output = "127.0.0.1:7474->7474/tcp, 127.0.0.1:7687->7687/tcp\n127.0.0.1:8000->8000/tcp"
     fake(monkeypatch, {(*ps, "--format", "{{.Ports}}"): output})
     assert doctor.stack_ports() == {7474, 7687, 8000}
+
+
+def test_ports_follow_the_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("NEO4J_BOLT_PORT", "7690")
+    ports = doctor.configured_ports(tmp_path)
+    assert 7690 in ports
+    assert 7687 not in ports
+
+
+def test_ports_follow_the_env_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("NR_UI_PORT", raising=False)
+    (tmp_path / ".env").write_text("NR_UI_PORT=8081\n")
+    ports = doctor.configured_ports(tmp_path)
+    assert 8081 in ports
+    assert 8080 not in ports
 
 
 def test_port_in_use_sees_a_listening_socket() -> None:
@@ -136,6 +189,17 @@ def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
         "Python", "uv", "Docker", "Compose", ".env", *ports, "Docker memory", "ICU", *phase_2
     ]  # fmt: skip
     assert all(check.status is not Status.FAIL for check in checks[-len(phase_2) :])
+
+
+def test_run_checks_uses_the_configured_ports(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake(monkeypatch, {}, installed=())
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
+    monkeypatch.setenv("NEO4J_BOLT_PORT", "7690")
+    names = [check.name for check in doctor.run_checks(tmp_path)]
+    assert "port 7690" in names
+    assert "port 7687" not in names
 
 
 # Phase 2 checks (PHASE-2.md M2.0): OK or WARN only, never FAIL.

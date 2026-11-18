@@ -59,11 +59,12 @@ class PortUse:
     setting: str | None  # what moves the port in .env; None when nothing does
 
 
-class ComposePorts(BaseSettings):
-    """The host ports compose.yaml publishes: environment variables first, then `.env`."""
+class ComposeSettings(BaseSettings):
+    """What Compose reads for compose.yaml: environment variables first, then `.env`."""
 
     model_config = SettingsConfigDict(env_file_encoding="utf-8", extra="ignore")
 
+    compose_project_name: str = ""
     neo4j_http_port: int = 7474
     neo4j_bolt_port: int = 7687
     nr_api_port: int = 8000
@@ -77,7 +78,7 @@ class ComposePorts(BaseSettings):
 def configured_ports(root: Path) -> dict[int, PortUse]:
     """The ports to check, moved to the ports `.env` or the environment sets, as Compose reads
     them. Moving the Bolt port also needs NEO4J_URI, which the API and the CLI connect to."""
-    ports = ComposePorts(_env_file=root / ".env")
+    ports = ComposeSettings(_env_file=root / ".env")
     return {
         ports.neo4j_http_port: PortUse("Neo4j Browser", Status.FAIL, "NEO4J_HTTP_PORT"),
         ports.neo4j_bolt_port: PortUse("Neo4j Bolt", Status.FAIL, "NEO4J_BOLT_PORT and NEO4J_URI"),
@@ -154,6 +155,20 @@ def check_env_file(root: Path) -> Check:
     if (root / ".env").is_file():
         return Check(".env", Status.OK, "present")
     return Check(".env", Status.WARN, "missing; the Neo4j stack reads it (copy .env.example)")
+
+
+def check_project_name(root: Path) -> Check:
+    """WARN when COMPOSE_PROJECT_NAME names another project, as `make reset` and
+    `data purge --graph` refuse it; the name itself is not printed (real_graph does the same)."""
+    name = ComposeSettings(_env_file=root / ".env").compose_project_name.strip()
+    if name and name != COMPOSE_PROJECT:
+        return Check(
+            "project name",
+            Status.WARN,
+            f"COMPOSE_PROJECT_NAME names another project; doctor, make reset and data purge"
+            f" --graph know only {COMPOSE_PROJECT} (compose.yaml): unset it",
+        )
+    return Check("project name", Status.OK, f"{COMPOSE_PROJECT} (compose.yaml)")
 
 
 def port_in_use(port: int) -> bool:
@@ -365,6 +380,7 @@ def run_checks(root: Path = REPO_ROOT) -> list[Check]:
         check_docker(info),
         check_compose(),
         check_env_file(root),
+        check_project_name(root),
         *(check_port(port, stack, ports) for port in ports),
         check_memory(info),
         check_icu(),

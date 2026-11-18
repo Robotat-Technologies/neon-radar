@@ -178,6 +178,34 @@ def test_icu(monkeypatch: pytest.MonkeyPatch) -> None:
     assert doctor.check_icu() == doctor.Check("ICU", Status.OK, "78.1")
 
 
+@pytest.mark.parametrize("name", [None, "neonradar", " neonradar ", ""])
+def test_project_name_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str | None) -> None:
+    monkeypatch.delenv("COMPOSE_PROJECT_NAME", raising=False)
+    if name is not None:
+        monkeypatch.setenv("COMPOSE_PROJECT_NAME", name)
+    assert doctor.check_project_name(tmp_path) == doctor.Check(
+        "project name", Status.OK, "neonradar (compose.yaml)"
+    )
+
+
+def test_project_name_warns_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "neonradar-test")
+    check = doctor.check_project_name(tmp_path)
+    assert check.status is Status.WARN
+    assert "unset it" in check.detail
+    assert "neonradar-test" not in check.detail  # the name itself is never printed
+
+
+def test_project_name_warns_from_the_env_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("COMPOSE_PROJECT_NAME", raising=False)
+    (tmp_path / ".env").write_text("COMPOSE_PROJECT_NAME=other\n")
+    assert doctor.check_project_name(tmp_path).status is Status.WARN
+
+
 def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fake(monkeypatch, {}, installed=())
     monkeypatch.setattr(doctor, "port_in_use", lambda port: False)
@@ -186,7 +214,8 @@ def test_run_checks_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     ports = ["port 7474", "port 7687", "port 8000", "port 8080", "port 5173"]
     phase_2 = ["disk space", "DuckDB", "real data", "DuckDB spill", "neo4j-real", "real profiles"]
     assert names == [
-        "Python", "uv", "Docker", "Compose", ".env", *ports, "Docker memory", "ICU", *phase_2
+        "Python", "uv", "Docker", "Compose", ".env", "project name", *ports, "Docker memory", "ICU",
+        *phase_2,
     ]  # fmt: skip
     assert all(check.status is not Status.FAIL for check in checks[-len(phase_2) :])
 

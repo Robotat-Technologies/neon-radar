@@ -45,3 +45,19 @@ LIMIT 25
 ```
 
 Finds pairs of companies that have the same recorded director, including each company's recorded jurisdiction. The pattern needs two hops because it goes from the first company to the director and then from that director to the second company. Comparing the company ids keeps each pair once instead of returning it again in the opposite order.
+
+## @BORHOMJKJ0
+
+```cypher
+MATCH (p:OnbPerson)-[:DIRECTS]->(c:OnbCompany)-[:REGISTERED_AT]->(a:OnbAddress)
+WITH DISTINCT p, c, a
+ORDER BY p.id, a.full, c.id
+WITH p, count(DISTINCT c) AS company_count, collect(DISTINCT a.full) AS addresses
+WHERE size(addresses) > 1
+RETURN p.id AS director_id, p.name AS director, company_count, addresses
+ORDER BY director_id
+LIMIT 25
+```
+
+Finds recorded directors whose companies use more than one registered address.
+The path needs two hops: from each person to a directed company, then from that company to its registered address. Distinct counts avoid duplicate company rows; ordering makes the address lists repeatable and `LIMIT` bounds the result. This describes a structure, without making a judgement about the people or companies.

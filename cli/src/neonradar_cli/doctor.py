@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import Field, ValidationError, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PROJECT = "neonradar"  # `name:` in compose.yaml (M1.4)
@@ -62,6 +64,49 @@ PORTS = {
     8080: ("the demo UI", Status.WARN),
     5173: ("the UI dev server", Status.WARN),
 }
+
+
+class StackSettings(BaseSettings):
+    """Compose overrides for doctor only; the real-data purge keeps its fixed project guard."""
+
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8", extra="ignore", case_sensitive=True
+    )
+
+    compose_project_name: str = Field(
+        default=COMPOSE_PROJECT,
+        validation_alias="COMPOSE_PROJECT_NAME",
+        pattern=r"^[a-z0-9][a-z0-9_-]*$",
+    )
+    neo4j_http_port: int = Field(default=7474, validation_alias="NEO4J_HTTP_PORT", ge=1, le=65535)
+    neo4j_bolt_port: int = Field(default=7687, validation_alias="NEO4J_BOLT_PORT", ge=1, le=65535)
+    nr_api_port: int = Field(default=8000, validation_alias="NR_API_PORT", ge=1, le=65535)
+    nr_ui_port: int = Field(default=8080, validation_alias="NR_UI_PORT", ge=1, le=65535)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def compose_values(cls, value: Any, info: ValidationInfo) -> Any:
+        """An empty override uses Compose's default, even if .env holds another value."""
+        name = info.field_name or ""
+        if value == "":
+            return cls.model_fields[name].default
+        if (
+            name != "compose_project_name"
+            and isinstance(value, str)
+            and re.fullmatch(r"[0-9]+", value) is None
+        ):
+            raise ValueError("expected an integer TCP port")
+        return value
+
+    def ports(self) -> list[tuple[int, tuple[str, Status]]]:
+        """The configured published ports, followed by Vite's separate development port."""
+        return [
+            (self.neo4j_http_port, PORTS[7474]),
+            (self.neo4j_bolt_port, PORTS[7687]),
+            (self.nr_api_port, PORTS[8000]),
+            (self.nr_ui_port, PORTS[8080]),
+            (5173, PORTS[5173]),
+        ]
 
 
 def run(*args: str) -> str | None:
@@ -146,15 +191,15 @@ def port_in_use(port: int) -> bool:
     return False
 
 
-def stack_ports() -> set[int]:
+def stack_ports(project: str = COMPOSE_PROJECT) -> set[int]:
     """Host ports published by containers of the NeonRadar Compose project."""
-    label = f"label=com.docker.compose.project={COMPOSE_PROJECT}"
+    label = f"label=com.docker.compose.project={project}"
     output = run("docker", "ps", "--filter", label, "--format", "{{.Ports}}") or ""
     return {int(port) for port in re.findall(r":(\d+)->", output)}
 
 
-def check_port(port: int, stack: set[int]) -> Check:
-    purpose, severity = PORTS[port]
+def check_port(port: int, stack: set[int], details: tuple[str, Status] | None = None) -> Check:
+    purpose, severity = details or PORTS[port]
     if port in stack:
         return Check(f"port {port}", Status.OK, "used by the NeonRadar stack")
     if not port_in_use(port):
@@ -274,10 +319,10 @@ def check_spill(root: Path) -> Check:
     return Check("DuckDB spill", Status.OK, "no leftover folders")
 
 
-def check_real_instance(info: dict[str, Any] | None) -> Check:
+def check_real_instance(info: dict[str, Any] | None, project_name: str = COMPOSE_PROJECT) -> Check:
     if info is None:
         return Check("neo4j-real", Status.OK, "not running (Docker is not reachable)")
-    project = f"label=com.docker.compose.project={COMPOSE_PROJECT}"
+    project = f"label=com.docker.compose.project={project_name}"
     service = "label=com.docker.compose.service=neo4j-real"
     names = run("docker", "ps", "--filter", project, "--filter", service, "--format", "{{.Names}}")
     if names:
@@ -310,8 +355,29 @@ def check_real_profiles(access: dict[str, Any]) -> Check:
 
 
 def run_checks(root: Path = REPO_ROOT) -> list[Check]:
+    configuration: list[Check] = []
+    settings: StackSettings | None = None
+    try:
+        settings = StackSettings(_env_file=root / ".env")
+    except ValidationError as error:
+        fields = sorted(
+            {str(issue["loc"][0]).upper() for issue in error.errors(include_input=False)}
+        )
+        configuration.append(
+            Check(
+                "Compose config",
+                Status.FAIL,
+                f"invalid {', '.join(fields)}; use a lowercase Compose project name and TCP ports"
+                " from 1 to 65535 (values omitted)",
+            )
+        )
+    except OSError, UnicodeError:
+        configuration.append(Check("Compose config", Status.FAIL, "could not read .env settings"))
     info = docker_info()
-    stack = stack_ports() if info else set()
+    stack = stack_ports(settings.compose_project_name) if info and settings else set()
+    ports = (
+        [check_port(port, stack, details) for port, details in settings.ports()] if settings else []
+    )
     access = read_access(root)
     return [
         check_python(),
@@ -319,13 +385,16 @@ def run_checks(root: Path = REPO_ROOT) -> list[Check]:
         check_docker(info),
         check_compose(),
         check_env_file(root),
-        *(check_port(port, stack) for port in PORTS),
+        *configuration,
+        *ports,
         check_memory(info),
         check_icu(),
         check_disk(root),
         check_duckdb(),
         check_real_data(root, access),
         check_spill(root),
-        check_real_instance(info),
+        check_real_instance(info, settings.compose_project_name)
+        if settings
+        else Check("neo4j-real", Status.WARN, "not checked; invalid Compose settings"),
         check_real_profiles(access),
     ]

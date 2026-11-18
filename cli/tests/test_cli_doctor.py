@@ -12,6 +12,12 @@ from neonradar_cli.doctor import Status
 GIB = 1024**3
 
 
+@pytest.fixture(autouse=True)
+def isolated_stack_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in doctor.StackSettings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+
+
 def fake(
     monkeypatch: pytest.MonkeyPatch,
     outputs: dict[tuple[str, ...], str],
@@ -90,6 +96,114 @@ def test_stack_ports_reads_docker_ps(monkeypatch: pytest.MonkeyPatch) -> None:
     output = "127.0.0.1:7474->7474/tcp, 127.0.0.1:7687->7687/tcp\n127.0.0.1:8000->8000/tcp"
     fake(monkeypatch, {(*ps, "--format", "{{.Ports}}"): output})
     assert doctor.stack_ports() == {7474, 7687, 8000}
+
+
+def test_stack_settings_read_dotenv_then_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / ".env"
+    path.write_text(
+        "COMPOSE_PROJECT_NAME=qa-file\nNEO4J_HTTP_PORT=17474\nNEO4J_BOLT_PORT=17687\n"
+        "NR_API_PORT=18000\nNR_UI_PORT=18080\nNEO4J_PASSWORD=synthetic-password\n"
+    )
+    settings = doctor.StackSettings(_env_file=path)
+    assert settings.compose_project_name == "qa-file"
+    assert [port for port, _ in settings.ports()] == [17474, 17687, 18000, 18080, 5173]
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "qa-environment")
+    monkeypatch.setenv("NR_UI_PORT", "28080")
+    settings = doctor.StackSettings(_env_file=path)
+    assert settings.compose_project_name == "qa-environment"
+    assert settings.nr_ui_port == 28080
+    assert settings.neo4j_http_port == 17474
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "")
+    monkeypatch.setenv("NR_UI_PORT", "")
+    settings = doctor.StackSettings(_env_file=path)
+    assert settings.compose_project_name == "neonradar"
+    assert settings.nr_ui_port == 8080
+
+
+def test_run_checks_recognizes_the_selected_stack(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text(
+        "COMPOSE_PROJECT_NAME=qa-check\nNEO4J_HTTP_PORT=17474\nNEO4J_BOLT_PORT=17687\n"
+        "NR_API_PORT=18000\nNR_UI_PORT=18080\n"
+    )
+    ps = ("docker", "ps", "--filter", "label=com.docker.compose.project=qa-check")
+    fake(
+        monkeypatch,
+        {
+            ("docker", "info", "--format", "{{json .}}"): json.dumps(
+                {"ServerVersion": "29.7.2", "MemTotal": 8 * GIB}
+            ),
+            (
+                *ps,
+                "--format",
+                "{{.Ports}}",
+            ): "127.0.0.1:17474->7474/tcp, 127.0.0.1:17687->7687/tcp, "
+            "127.0.0.1:18000->8000/tcp, 127.0.0.1:18080->8080/tcp",
+            (
+                *ps,
+                "--filter",
+                "label=com.docker.compose.service=neo4j-real",
+                "--format",
+                "{{.Names}}",
+            ): "qa-check-neo4j-real-1",
+        },
+    )
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: True)
+    checks = {check.name: check for check in doctor.run_checks(tmp_path)}
+    for port in (17474, 17687, 18000, 18080):
+        assert checks[f"port {port}"].detail == "used by the NeonRadar stack"
+    assert "port 7474" not in checks
+    assert checks["neo4j-real"].status is Status.WARN
+
+
+def test_another_program_on_the_configured_bolt_port_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("NEO4J_BOLT_PORT", "17687")
+    fake(monkeypatch, {})
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: port == 17687)
+    checks = {check.name: check for check in doctor.run_checks(tmp_path)}
+    assert checks["port 17687"] == doctor.Check(
+        "port 17687", Status.FAIL, "in use by another program; Neo4j Bolt needs it"
+    )
+    assert "port 7687" not in checks
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("NR_UI_PORT", "70000"),
+        ("NR_API_PORT", "1.5"),
+        ("NEO4J_HTTP_PORT", "private-value"),
+        ("COMPOSE_PROJECT_NAME", "Private.Value"),
+    ],
+)
+def test_invalid_settings_are_reported_without_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str, value: str
+) -> None:
+    monkeypatch.setenv(name, value)
+    fake(monkeypatch, {})
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: pytest.fail("invalid port was probed"))
+    checks = doctor.run_checks(tmp_path)
+    invalid = next(check for check in checks if check.name == "Compose config")
+    assert invalid.status is Status.FAIL
+    assert name in invalid.detail and value not in invalid.detail
+    assert all(not check.name.startswith("port ") for check in checks)
+
+
+def test_data_env_clears_an_inherited_compose_project(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    from neonradar_cli import real_graph
+
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "qa-parent-process")
+    request.getfixturevalue("data_env")
+    assert os.environ.get("COMPOSE_PROJECT_NAME") is None
+    real_graph.check_project_name()
+    assert doctor.COMPOSE_PROJECT == "neonradar"
 
 
 def test_port_in_use_sees_a_listening_socket() -> None:

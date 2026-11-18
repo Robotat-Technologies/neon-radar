@@ -14,7 +14,7 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 | Free ports `7474`, `7687`, `8000` and `8080` on `127.0.0.1` | Neo4j Browser, Bolt, the API and the UI |
 | Network access on the first run | to pull the Neo4j, uv Python, Node and nginx images, download the pinned Graph Data Science jar (about 64 MB, checked against its SHA-256) and install packages while the images build; later runs need none |
 
-`uv run neonradar doctor` checks Docker, Compose, `.env`, the ports (including 8080 for the demo UI), ICU and the memory Docker has.
+`uv run neonradar doctor` checks Docker, Compose, `.env`, the Compose project name, the ports (including 8080 for the demo UI, at the numbers `.env` sets), ICU and the memory Docker has.
 
 ## Run it
 
@@ -83,7 +83,7 @@ The demo replaces whatever is in the graph: it deletes every node except the sch
 
 Neo4j restarting with `OutOfMemoryError`, an image build that stops with `Killed` or exit code 137, or a laptop that slows to a crawl all mean Docker has too little memory: switch to the small profile (`make down`, edit `.env`, `make demo-mini`), close other containers, or give Docker's VM more memory. More in [architecture/local-stack.md](architecture/local-stack.md).
 
-**Ports.** `port is already allocated` or `address already in use` means another program listens on one of the ports. Find it with `lsof -nP -iTCP:8080 -sTCP:LISTEN` (or `uv run neonradar doctor`) and stop it, or move NeonRadar's side: `NR_UI_PORT=8081 make demo-mini` for the UI (then `make e2e E2E_BASE_URL=http://localhost:8081`), `NR_API_PORT` for the API, and `NEO4J_HTTP_PORT` or `NEO4J_BOLT_PORT` for Neo4j. You can also put these in `.env`; if you move the Bolt port, set `NEO4J_URI` there to match so that the other `neonradar` commands find it. The printed URLs always show the ports in use.
+**Ports.** `port is already allocated` or `address already in use` means another program listens on one of the ports. Find it with `lsof -nP -iTCP:8080 -sTCP:LISTEN` (or `uv run neonradar doctor`, which prints the commands for Linux, macOS and Windows) and stop it, or move NeonRadar's side: `NR_UI_PORT=8081 make demo-mini` for the UI (then `make e2e E2E_BASE_URL=http://localhost:8081`), `NR_API_PORT` for the API, and `NEO4J_HTTP_PORT` or `NEO4J_BOLT_PORT` for Neo4j. You can also put these in `.env`; if you move the Bolt port, set `NEO4J_URI` there to match so that the other `neonradar` commands find it. The printed URLs always show the ports in use.
 
 **Other problems.**
 

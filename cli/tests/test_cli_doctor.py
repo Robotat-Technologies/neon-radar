@@ -115,6 +115,23 @@ def test_memory(memory: int | None, status: Status) -> None:
     assert doctor.check_memory(None).detail == "not checked; Docker is not reachable"
 
 
+def test_memory_for_the_small_profile_gives_its_settings() -> None:
+    detail = doctor.check_memory({"ServerVersion": "29.7.2", "MemTotal": 4 * GIB}).detail
+    assert detail == (
+        "4.0 GiB; the standard profile needs 5.0 GiB, so use the small profile: set"
+        " NEO4J_HEAP=1G, NEO4J_PAGECACHE=512M and NEO4J_MEM_LIMIT=2500m in .env"
+        " (see .env.example), then make down && make up"
+    )
+
+
+def test_too_little_memory_says_how_to_give_docker_more() -> None:
+    detail = doctor.check_memory({"ServerVersion": "29.7.2", "MemTotal": 2 * GIB}).detail
+    assert detail == (
+        "2.0 GiB; Neo4j needs at least 2.5 GiB (the small profile): give Docker more memory"
+        " (Docker Desktop: Settings, Resources, Memory)"
+    )
+
+
 def test_icu(monkeypatch: pytest.MonkeyPatch) -> None:
     fake(monkeypatch, {}, installed=())
     assert doctor.check_icu().detail.startswith("pkg-config not found")

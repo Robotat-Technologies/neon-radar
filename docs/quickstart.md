@@ -14,7 +14,7 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 | Free ports `7474`, `7687`, `8000` and `8080` on `127.0.0.1` | Neo4j Browser, Bolt, the API and the UI |
 | Network access on the first run | to pull the Neo4j, uv Python, Node and nginx images, download the pinned Graph Data Science jar (about 64 MB, checked against its SHA-256) and install packages while the images build; later runs need none |
 
-`uv run neonradar doctor` checks Docker, Compose, `.env`, the Compose project name, the ports (including 8080 for the demo UI, at the numbers `.env` sets), ICU and the memory Docker has.
+`uv run neonradar doctor` checks Docker, Compose, `.env`, the Compose project name, the ports (including 8080 for the demo UI, as `.env` or the environment sets them), ICU and the memory Docker has.
 
 ## Run it
 

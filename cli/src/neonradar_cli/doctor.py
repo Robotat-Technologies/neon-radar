@@ -17,9 +17,10 @@ import time
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
+from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -59,33 +60,87 @@ class PortUse:
     setting: str | None  # what moves the port in .env; None when nothing does
 
 
-class ComposeSettings(BaseSettings):
-    """What Compose reads for compose.yaml: environment variables first, then `.env`."""
+Port = Annotated[int, Field(ge=1, le=65535)]
 
-    model_config = SettingsConfigDict(env_file_encoding="utf-8", extra="ignore")
+
+class ComposeSettings(BaseSettings):
+    """What Compose reads for compose.yaml: environment variables first, then `.env`. An empty
+    value means the default, as `${NR_UI_PORT:-8080}` does."""
+
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8", extra="ignore", env_ignore_empty=True
+    )
 
     compose_project_name: str = ""
-    neo4j_http_port: int = 7474
-    neo4j_bolt_port: int = 7687
-    nr_api_port: int = 8000
-    nr_ui_port: int = 8080
+    neo4j_http_port: Port = 7474
+    neo4j_bolt_port: Port = 7687
+    nr_api_port: Port = 8000
+    nr_ui_port: Port = 8080
+
+
+def compose_settings(root: Path) -> ComposeSettings:
+    """The settings, or the defaults when one is not valid (check_compose_ports reports it)."""
+    try:
+        return ComposeSettings(_env_file=root / ".env")
+    except ValidationError:
+        return ComposeSettings.model_construct()
 
 
 # Neo4j runs only in the Compose stack, so another program on its ports blocks `make up`. The API
 # and the UI dev server may also run as plain processes (`make demo-dev`), which doctor cannot tell
 # apart from other programs, and the demo UI (`make demo-mini`) can move to another port
 # (NR_UI_PORT), so a busy port there is only a warning.
+def port_uses(settings: ComposeSettings) -> list[tuple[int, PortUse]]:
+    """Each port with its use; moving the Bolt port also needs NEO4J_URI, which the API and the
+    CLI connect to."""
+    return [
+        (settings.neo4j_http_port, PortUse("Neo4j Browser", Status.FAIL, "NEO4J_HTTP_PORT")),
+        (
+            settings.neo4j_bolt_port,
+            PortUse("Neo4j Bolt", Status.FAIL, "NEO4J_BOLT_PORT and NEO4J_URI"),
+        ),
+        (settings.nr_api_port, PortUse("the API", Status.WARN, "NR_API_PORT")),
+        (settings.nr_ui_port, PortUse("the demo UI", Status.WARN, "NR_UI_PORT")),
+        (5173, PortUse("the UI dev server", Status.WARN, None)),  # Vite's default
+    ]
+
+
 def configured_ports(root: Path) -> dict[int, PortUse]:
-    """The ports to check, moved to the ports `.env` or the environment sets, as Compose reads
-    them. Moving the Bolt port also needs NEO4J_URI, which the API and the CLI connect to."""
-    ports = ComposeSettings(_env_file=root / ".env")
-    return {
-        ports.neo4j_http_port: PortUse("Neo4j Browser", Status.FAIL, "NEO4J_HTTP_PORT"),
-        ports.neo4j_bolt_port: PortUse("Neo4j Bolt", Status.FAIL, "NEO4J_BOLT_PORT and NEO4J_URI"),
-        ports.nr_api_port: PortUse("the API", Status.WARN, "NR_API_PORT"),
-        ports.nr_ui_port: PortUse("the demo UI", Status.WARN, "NR_UI_PORT"),
-        5173: PortUse("the UI dev server", Status.WARN, None),  # Vite's default
-    }
+    """The ports to check, at the numbers `.env` or the environment sets, as Compose reads them.
+    When two uses share a port, the stricter one is kept (check_compose_ports warns)."""
+    ports: dict[int, PortUse] = {}
+    for port, use in port_uses(compose_settings(root)):
+        if port not in ports or (
+            use.severity is Status.FAIL and ports[port].severity is not Status.FAIL
+        ):
+            ports[port] = use
+    return ports
+
+
+def check_compose_ports(root: Path) -> Check:
+    """FAIL when a port setting is not a port number, WARN when two uses share a port. Names
+    the settings, never their values."""
+    try:
+        settings = ComposeSettings(_env_file=root / ".env")
+    except ValidationError as error:
+        names = sorted({str(issue["loc"][0]).upper() for issue in error.errors()})
+        return Check(
+            "Compose ports",
+            Status.FAIL,
+            f"{' and '.join(names)} in .env or the environment is not a port number (1 to 65535);"
+            " doctor checks the default port instead",
+        )
+    by_port: dict[int, list[str]] = {}
+    for port, use in port_uses(settings):
+        by_port.setdefault(port, []).append(use.setting.split()[0] if use.setting else str(port))
+    shared = [names for names in by_port.values() if len(names) > 1]
+    if shared:
+        return Check(
+            "Compose ports",
+            Status.WARN,
+            f"{' and '.join(shared[0])} set the same port; give each its own port in .env",
+        )
+    return Check("Compose ports", Status.OK, "valid")
 
 
 def run(*args: str) -> str | None:
@@ -160,7 +215,7 @@ def check_env_file(root: Path) -> Check:
 def check_project_name(root: Path) -> Check:
     """WARN when COMPOSE_PROJECT_NAME names another project, as `make reset` and
     `data purge --graph` refuse it; the name itself is not printed (real_graph does the same)."""
-    name = ComposeSettings(_env_file=root / ".env").compose_project_name.strip()
+    name = compose_settings(root).compose_project_name.strip()
     if name and name != COMPOSE_PROJECT:
         return Check(
             "project name",
@@ -211,7 +266,7 @@ another COMPOSE_PROJECT_NAME. A container shows in `docker ps`; stop it with `do
 Otherwise find the program on the port, then stop it:
   Linux:   ss -ltnp 'sport = :<port>'           then  kill <pid>
   macOS:   lsof -nP -iTCP:<port> -sTCP:LISTEN   then  kill <pid>
-  Windows: netstat -ano | findstr :<port>       then  taskkill /PID <pid>
+  Windows: netstat -ano | findstr /c:":<port> "  then  taskkill /PID <pid>
 Or move NeonRadar to a free port in .env (the settings are in .env.example); if you move the
 Bolt port, set NEO4J_URI to match."""
 
@@ -380,6 +435,7 @@ def run_checks(root: Path = REPO_ROOT) -> list[Check]:
         check_docker(info),
         check_compose(),
         check_env_file(root),
+        check_compose_ports(root),
         check_project_name(root),
         *(check_port(port, stack, ports) for port in ports),
         check_memory(info),

@@ -1,0 +1,39 @@
+{
+  "name": "NeonRadar development",
+  "dockerComposeFile": "compose.dev.yaml",
+  "service": "dev",
+  "runServices": [
+    "neo4j",
+    "dev"
+  ],
+  "workspaceFolder": "/workspaces/neonradar",
+  "remoteUser": "dev",
+  "overrideCommand": false,
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [
+    8000,
+    5174
+  ],
+  "portsAttributes": {
+    "8000": {
+      "label": "NeonRadar API",
+      "onAutoForward": "notify"
+    },
+    "5174": {
+      "label": "NeonRadar UI",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "typescript.tsdk": "ui/node_modules/typescript/lib"
+      },
+      "extensions": [
+        "ms-python.python",
+        "Vue.volar",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

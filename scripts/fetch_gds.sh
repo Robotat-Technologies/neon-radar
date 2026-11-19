@@ -34,7 +34,7 @@ mkdir -p "$dir"
 tmp="$(mktemp "$dir/.download.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 echo "Downloading GDS ${GDS_VERSION} from github.com (about 64 MB) ..."
-curl --fail --silent --show-error --location --retry 3 --connect-timeout 20 --max-time 900 \
+curl --http1.1 --fail --silent --show-error --location --retry 3 --connect-timeout 20 --max-time 900 \
   --output "$tmp" "$GDS_URL"
 actual="$(sha256 "$tmp")"
 if [ "$actual" != "$GDS_SHA256" ]; then

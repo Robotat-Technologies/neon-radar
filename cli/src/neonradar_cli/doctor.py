@@ -17,9 +17,11 @@ import time
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
+from pydantic import Field, ValidationError
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_PROJECT = "neonradar"  # `name:` in compose.yaml (M1.4)
@@ -51,17 +53,94 @@ class Check:
         return f"{self.status:<5} {self.name:<14} {self.detail}"
 
 
+@dataclass(frozen=True)
+class PortUse:
+    purpose: str
+    severity: Status
+    setting: str | None  # what moves the port in .env; None when nothing does
+
+
+Port = Annotated[int, Field(ge=1, le=65535)]
+
+
+class ComposeSettings(BaseSettings):
+    """What Compose reads for compose.yaml: environment variables first, then `.env`. An empty
+    value means the default, as `${NR_UI_PORT:-8080}` does."""
+
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8", extra="ignore", env_ignore_empty=True
+    )
+
+    compose_project_name: str = ""
+    neo4j_http_port: Port = 7474
+    neo4j_bolt_port: Port = 7687
+    nr_api_port: Port = 8000
+    nr_ui_port: Port = 8080
+
+
+def compose_settings(root: Path) -> ComposeSettings:
+    """The settings, or the defaults when one is not valid (check_compose_ports reports it)."""
+    try:
+        return ComposeSettings(_env_file=root / ".env")
+    except ValidationError:
+        return ComposeSettings.model_construct()
+
+
 # Neo4j runs only in the Compose stack, so another program on its ports blocks `make up`. The API
 # and the UI dev server may also run as plain processes (`make demo-dev`), which doctor cannot tell
 # apart from other programs, and the demo UI (`make demo-mini`) can move to another port
 # (NR_UI_PORT), so a busy port there is only a warning.
-PORTS = {
-    7474: ("Neo4j Browser", Status.FAIL),
-    7687: ("Neo4j Bolt", Status.FAIL),
-    8000: ("the API", Status.WARN),
-    8080: ("the demo UI", Status.WARN),
-    5173: ("the UI dev server", Status.WARN),
-}
+def port_uses(settings: ComposeSettings) -> list[tuple[int, PortUse]]:
+    """Each port with its use; moving the Bolt port also needs NEO4J_URI, which the API and the
+    CLI connect to."""
+    return [
+        (settings.neo4j_http_port, PortUse("Neo4j Browser", Status.FAIL, "NEO4J_HTTP_PORT")),
+        (
+            settings.neo4j_bolt_port,
+            PortUse("Neo4j Bolt", Status.FAIL, "NEO4J_BOLT_PORT and NEO4J_URI"),
+        ),
+        (settings.nr_api_port, PortUse("the API", Status.WARN, "NR_API_PORT")),
+        (settings.nr_ui_port, PortUse("the demo UI", Status.WARN, "NR_UI_PORT")),
+        (5173, PortUse("the UI dev server", Status.WARN, None)),  # Vite's default
+    ]
+
+
+def configured_ports(root: Path) -> dict[int, PortUse]:
+    """The ports to check, at the numbers `.env` or the environment sets, as Compose reads them.
+    When two uses share a port, the stricter one is kept (check_compose_ports warns)."""
+    ports: dict[int, PortUse] = {}
+    for port, use in port_uses(compose_settings(root)):
+        if port not in ports or (
+            use.severity is Status.FAIL and ports[port].severity is not Status.FAIL
+        ):
+            ports[port] = use
+    return ports
+
+
+def check_compose_ports(root: Path) -> Check:
+    """FAIL when a port setting is not a port number, WARN when two uses share a port. Names
+    the settings, never their values."""
+    try:
+        settings = ComposeSettings(_env_file=root / ".env")
+    except ValidationError as error:
+        names = sorted({str(issue["loc"][0]).upper() for issue in error.errors()})
+        return Check(
+            "Compose ports",
+            Status.FAIL,
+            f"{' and '.join(names)} in .env or the environment is not a port number (1 to 65535);"
+            " doctor checks the default port instead",
+        )
+    by_port: dict[int, list[str]] = {}
+    for port, use in port_uses(settings):
+        by_port.setdefault(port, []).append(use.setting.split()[0] if use.setting else str(port))
+    shared = [names for names in by_port.values() if len(names) > 1]
+    if shared:
+        return Check(
+            "Compose ports",
+            Status.WARN,
+            f"{' and '.join(shared[0])} set the same port; give each its own port in .env",
+        )
+    return Check("Compose ports", Status.OK, "valid")
 
 
 def run(*args: str) -> str | None:
@@ -133,6 +212,20 @@ def check_env_file(root: Path) -> Check:
     return Check(".env", Status.WARN, "missing; the Neo4j stack reads it (copy .env.example)")
 
 
+def check_project_name(root: Path) -> Check:
+    """WARN when COMPOSE_PROJECT_NAME names another project, as `make reset` and
+    `data purge --graph` refuse it; the name itself is not printed (real_graph does the same)."""
+    name = compose_settings(root).compose_project_name.strip()
+    if name and name != COMPOSE_PROJECT:
+        return Check(
+            "project name",
+            Status.WARN,
+            f"COMPOSE_PROJECT_NAME names another project; doctor, make reset and data purge"
+            f" --graph know only {COMPOSE_PROJECT} (compose.yaml): unset it",
+        )
+    return Check("project name", Status.OK, f"{COMPOSE_PROJECT} (compose.yaml)")
+
+
 def port_in_use(port: int) -> bool:
     """True if a program accepts connections on this port on 127.0.0.1 or ::1."""
     for family, host in ((socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")):
@@ -153,13 +246,35 @@ def stack_ports() -> set[int]:
     return {int(port) for port in re.findall(r":(\d+)->", output)}
 
 
-def check_port(port: int, stack: set[int]) -> Check:
-    purpose, severity = PORTS[port]
+def check_port(port: int, stack: set[int], ports: dict[int, PortUse]) -> Check:
+    use = ports[port]
     if port in stack:
         return Check(f"port {port}", Status.OK, "used by the NeonRadar stack")
     if not port_in_use(port):
         return Check(f"port {port}", Status.OK, "free")
-    return Check(f"port {port}", severity, f"in use by another program; {purpose} needs it")
+    detail = f"in use by another program; {use.purpose} needs it"
+    if use.setting:
+        detail += f", or set {use.setting} in .env"
+    return Check(f"port {port}", use.severity, detail)
+
+
+# Printed once after the checks when a port is busy (docs/quickstart.md, "Ports", says the same).
+PORT_HELP = """\
+A busy port: another program listens on it, so NeonRadar cannot use it. Often it is a Neo4j
+installed on this machine, another project's containers, or a NeonRadar stack started under
+another COMPOSE_PROJECT_NAME. A container shows in `docker ps`; stop it with `docker stop <name>`.
+Otherwise find the program on the port, then stop it:
+  Linux:   ss -ltnp 'sport = :<port>'           then  kill <pid>
+  macOS:   lsof -nP -iTCP:<port> -sTCP:LISTEN   then  kill <pid>
+  Windows: netstat -ano | findstr /c:":<port> "  then  taskkill /PID <pid>
+Or move NeonRadar to a free port in .env (the settings are in .env.example); if you move the
+Bolt port, set NEO4J_URI to match."""
+
+
+def port_help(checks: list[Check]) -> str | None:
+    """PORT_HELP when any port check is not OK, otherwise None."""
+    busy = any(check.name.startswith("port ") and check.status is not Status.OK for check in checks)
+    return PORT_HELP if busy else None
 
 
 def check_memory(info: dict[str, Any] | None) -> Check:
@@ -313,13 +428,16 @@ def run_checks(root: Path = REPO_ROOT) -> list[Check]:
     info = docker_info()
     stack = stack_ports() if info else set()
     access = read_access(root)
+    ports = configured_ports(root)
     return [
         check_python(),
         check_uv(),
         check_docker(info),
         check_compose(),
         check_env_file(root),
-        *(check_port(port, stack) for port in PORTS),
+        check_compose_ports(root),
+        check_project_name(root),
+        *(check_port(port, stack, ports) for port in ports),
         check_memory(info),
         check_icu(),
         check_disk(root),

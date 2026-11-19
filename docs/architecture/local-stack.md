@@ -19,7 +19,7 @@ OK    APOC   5.26.32
 OK    GDS    2.13.4
 ```
 
-`neonradar doctor` checks Docker, Compose, `.env`, the ports and the memory Docker has.
+`neonradar doctor` checks Docker, Compose, `.env`, the Compose project name, the ports (as `.env` or the environment sets them) and the memory Docker has.
 
 ## What runs
 
@@ -75,5 +75,5 @@ All algorithms are available, but an algorithm uses at most 4 CPU cores and the 
 | `.env` exists but has no password (`ensure_env: .env has no NEO4J_PASSWORD`) | delete `.env`, run `bash scripts/ensure_env.sh`, then `make reset CONFIRM=yes` if a database already exists with another password |
 | `make down`, `make logs` or `make reset` fail with `Set NEO4J_PASSWORD in .env` | Compose needs the variable even to stop: `NEO4J_PASSWORD=unused make down` (likewise for `logs` and `reset`), then fix `.env` as above |
 | `container neonradar-neo4j-1 is unhealthy` | `make logs`. A password changed after the first start shows up as failed health checks: see above |
-| Port 7474 or 7687 already in use | `neonradar doctor` shows it; stop the other program or the other Neo4j |
+| Port 7474 or 7687 already in use | `neonradar doctor` shows it and prints how to find and stop the program on Linux, macOS and Windows; or move the port in `.env` |
 | Neo4j restarts with `OutOfMemoryError` | use a bigger profile, or give Docker more memory |

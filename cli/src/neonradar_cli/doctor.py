@@ -26,6 +26,7 @@ COMPOSE_PROJECT = "neonradar"  # `name:` in compose.yaml (M1.4)
 GIB = 1024**3
 STANDARD_MEMORY = 5 * GIB  # NEO4J_MEM_LIMIT=5g, the "standard" memory profile (M1.4)
 SMALL_MEMORY = 2500 * 1024**2  # NEO4J_MEM_LIMIT=2500m, the "small" memory profile
+SMALL_PROFILE = "NEO4J_HEAP=1G, NEO4J_PAGECACHE=512M and NEO4J_MEM_LIMIT=2500m"  # .env.example
 GB = 1000**3
 DISK_NEEDED = 25 * GB  # free space uk-sample needs (PHASE-2.md 1.1)
 DAY = 86_400
@@ -172,8 +173,20 @@ def check_memory(info: dict[str, Any] | None) -> Check:
     if total >= STANDARD_MEMORY:
         return Check("Docker memory", Status.OK, f"{found}; standard memory profile")
     if total >= SMALL_MEMORY:
-        return Check("Docker memory", Status.WARN, f"{found}; use the small profile in .env")
-    return Check("Docker memory", Status.FAIL, f"{found}; Neo4j needs at least 2.5 GiB")
+        return Check(
+            "Docker memory",
+            Status.WARN,
+            # doctor does not read .env's memory settings, so it cannot tell which profile is set
+            f"{found}; too little for the standard profile (NEO4J_MEM_LIMIT=5g, and 6 GB if other"
+            f" containers run): if .env still has it, set {SMALL_PROFILE} (the small profile, see"
+            " .env.example), then make down && make up",
+        )
+    return Check(
+        "Docker memory",
+        Status.FAIL,
+        f"{found}; Neo4j needs at least 2500 MiB (NEO4J_MEM_LIMIT=2500m, the small profile): give"
+        " Docker more memory (Docker Desktop: Settings, Resources, Memory)",
+    )
 
 
 def check_icu() -> Check:

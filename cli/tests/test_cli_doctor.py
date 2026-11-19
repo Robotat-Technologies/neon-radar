@@ -107,7 +107,15 @@ def test_port_in_use_is_false_when_nothing_listens() -> None:
 
 @pytest.mark.parametrize(
     ("memory", "status"),
-    [(8 * GIB, Status.OK), (4 * GIB, Status.WARN), (2 * GIB, Status.FAIL), (None, Status.WARN)],
+    [
+        (8 * GIB, Status.OK),
+        (5 * GIB, Status.OK),
+        (4 * GIB, Status.WARN),
+        (2500 * 1024**2, Status.WARN),
+        (2500 * 1024**2 - 1, Status.FAIL),
+        (2 * GIB, Status.FAIL),
+        (None, Status.WARN),
+    ],
 )
 def test_memory(memory: int | None, status: Status) -> None:
     info = {"ServerVersion": "29.7.2", "MemTotal": memory}
@@ -118,18 +126,25 @@ def test_memory(memory: int | None, status: Status) -> None:
 def test_memory_for_the_small_profile_gives_its_settings() -> None:
     detail = doctor.check_memory({"ServerVersion": "29.7.2", "MemTotal": 4 * GIB}).detail
     assert detail == (
-        "4.0 GiB; the standard profile needs 5.0 GiB, so use the small profile: set"
-        " NEO4J_HEAP=1G, NEO4J_PAGECACHE=512M and NEO4J_MEM_LIMIT=2500m in .env"
-        " (see .env.example), then make down && make up"
+        "4.0 GiB; too little for the standard profile (NEO4J_MEM_LIMIT=5g, and 6 GB if other"
+        " containers run): if .env still has it, set NEO4J_HEAP=1G, NEO4J_PAGECACHE=512M and"
+        " NEO4J_MEM_LIMIT=2500m (the small profile, see .env.example), then make down && make up"
     )
 
 
 def test_too_little_memory_says_how_to_give_docker_more() -> None:
     detail = doctor.check_memory({"ServerVersion": "29.7.2", "MemTotal": 2 * GIB}).detail
     assert detail == (
-        "2.0 GiB; Neo4j needs at least 2.5 GiB (the small profile): give Docker more memory"
-        " (Docker Desktop: Settings, Resources, Memory)"
+        "2.0 GiB; Neo4j needs at least 2500 MiB (NEO4J_MEM_LIMIT=2500m, the small profile): give"
+        " Docker more memory (Docker Desktop: Settings, Resources, Memory)"
     )
+
+
+def test_small_profile_matches_env_example() -> None:
+    example = (doctor.REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+    for setting in ("NEO4J_HEAP=1G", "NEO4J_PAGECACHE=512M", "NEO4J_MEM_LIMIT=2500m"):
+        assert setting in doctor.SMALL_PROFILE
+        assert setting in example
 
 
 def test_icu(monkeypatch: pytest.MonkeyPatch) -> None:

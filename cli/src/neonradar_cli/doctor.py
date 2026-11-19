@@ -176,14 +176,16 @@ def check_memory(info: dict[str, Any] | None) -> Check:
         return Check(
             "Docker memory",
             Status.WARN,
-            f"{found}; the standard profile needs {STANDARD_MEMORY / GIB:.1f} GiB, so use the small"
-            f" profile: set {SMALL_PROFILE} in .env (see .env.example), then make down && make up",
+            # doctor does not read .env's memory settings, so it cannot tell which profile is set
+            f"{found}; too little for the standard profile (NEO4J_MEM_LIMIT=5g, and 6 GB if other"
+            f" containers run): if .env still has it, set {SMALL_PROFILE} (the small profile, see"
+            " .env.example), then make down && make up",
         )
     return Check(
         "Docker memory",
         Status.FAIL,
-        f"{found}; Neo4j needs at least 2.5 GiB (the small profile): give Docker more memory"
-        " (Docker Desktop: Settings, Resources, Memory)",
+        f"{found}; Neo4j needs at least 2500 MiB (NEO4J_MEM_LIMIT=2500m, the small profile): give"
+        " Docker more memory (Docker Desktop: Settings, Resources, Memory)",
     )
 
 

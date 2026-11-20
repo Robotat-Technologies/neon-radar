@@ -194,6 +194,7 @@ export const graphStyle: StylesheetJson = [
       color: INK,
     },
   },
+  { selector: 'edge.filtered', style: { display: 'none' } },
   {
     selector: 'edge.highlighted',
     style: { width: screen(8), 'line-color': ALERT, 'target-arrow-color': ALERT, 'z-index': 20 },

@@ -13,6 +13,13 @@ const router = createRouter({
       component: () => import('@/views/EntityView.vue'),
       props: true,
     },
+    {
+      path: '/entities/:id/network',
+      name: 'network',
+      component: () => import('@/views/NetworkView.vue'),
+      props: true,
+      meta: { fullScreen: true },
+    },
     { path: '/alerts', name: 'alerts', component: () => import('@/views/AlertsView.vue') },
     {
       path: '/alerts/:id',

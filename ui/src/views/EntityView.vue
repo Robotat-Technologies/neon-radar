@@ -92,6 +92,9 @@ function openNode(id: string): void {
     <section aria-labelledby="network-heading">
       <div class="section-header">
         <h2 id="network-heading">Network</h2>
+        <RouterLink :to="{ name: 'network', params: { id: entity.id }, query: { hops: depth } }">
+          Open full-screen network
+        </RouterLink>
         <label class="inline-field">
           Hops
           <select v-model.number="depth" data-testid="network-depth">

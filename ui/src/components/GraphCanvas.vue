@@ -11,7 +11,12 @@ import type { GraphNode, Subgraph } from '@/api/types'
 import EntityBadges from '@/components/EntityBadges.vue'
 import { datasetsOf } from '@/lib/flags'
 import GraphLegend from '@/components/GraphLegend.vue'
-import { opensEntityPage, toCytoscapeElements } from '@/lib/graph'
+import {
+  opensEntityPage,
+  relationshipFamily,
+  type RelationshipFamily,
+  toCytoscapeElements,
+} from '@/lib/graph'
 import { chooseEdgeLabels, showsAccountLabel } from '@/lib/graph-labels'
 import { fcoseLayout, GRAPH_FONT, graphStyle, LABEL_PX, stepText } from '@/lib/graph-style'
 
@@ -24,8 +29,11 @@ const props = defineProps<{
   highlightEdgeIds?: readonly string[]
   /** The alert path: each edge id with its step number. */
   edgeSteps?: Readonly<Record<string, number>>
+  /** Only the canvas, filling its container (the full-screen page brings its own panels). */
+  bare?: boolean
+  hiddenFamilies?: readonly RelationshipFamily[]
 }>()
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{ select: [id: string]; zoom: [percent: number] }>()
 
 const container = ref<HTMLElement | null>(null)
 const syntheticEdges = computed(
@@ -68,6 +76,7 @@ function updateLabels(): void {
   const view = { x1: 0, y1: 0, x2: graph.width(), y2: graph.height() }
   const { overview, shown } = chooseEdgeLabels(edges, nodes, view)
   const relativeZoom = graph.zoom() / fittedZoom
+  emit('zoom', Math.round(relativeZoom * 100))
   graph.batch(() => {
     graph.edges().forEach((edge) => {
       edge.toggleClass('label-on', shown.has(edge.id()))
@@ -84,6 +93,30 @@ function updateLabels(): void {
 function scheduleLabels(): void {
   if (!frame) frame = requestAnimationFrame(updateLabels)
 }
+
+function applyFilter(): void {
+  if (!cy) return
+  const hidden = new Set(props.hiddenFamilies ?? [])
+  cy.batch(() => {
+    cy?.edges().forEach((edge) => {
+      edge.toggleClass('filtered', hidden.has(relationshipFamily(edge.data('type'))))
+    })
+  })
+  scheduleLabels()
+}
+
+/** Zoom by a factor around the centre of the view (the toolbar's buttons). */
+function zoomBy(factor: number): void {
+  if (!cy) return
+  const centre = { x: cy.width() / 2, y: cy.height() / 2 }
+  cy.zoom({ level: cy.zoom() * factor, renderedPosition: centre })
+}
+
+function fit(): void {
+  cy?.fit(undefined, 30)
+}
+
+defineExpose({ zoomBy, fit })
 
 function applyHighlights(): void {
   if (!cy) return
@@ -118,10 +151,12 @@ function render(): void {
     if (opensEntityPage(event.target.data() as GraphNode)) emit('select', String(event.target.id()))
   })
   applyHighlights()
+  applyFilter()
 }
 
 onMounted(render)
 watch(() => props.subgraph, render)
+watch(() => props.hiddenFamilies, applyFilter, { deep: true })
 watch(() => [props.focusIds, props.highlightEdgeIds, props.edgeSteps], applyHighlights, {
   deep: true,
 })
@@ -134,7 +169,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <figure class="graph">
+  <figure class="graph" :class="{ 'graph--bare': props.bare }">
     <div
       ref="container"
       class="graph__canvas"
@@ -142,7 +177,7 @@ onBeforeUnmount(() => {
       :aria-label="props.label"
       data-testid="graph-canvas"
     ></div>
-    <figcaption class="graph__legend">
+    <figcaption v-if="!props.bare" class="graph__legend">
       <p>
         {{ props.subgraph.nodes.length }} nodes, {{ props.subgraph.edges.length }} relationships, of
         which {{ syntheticEdges }} are synthetic. A dashed outline marks a synthetic node; select a
@@ -155,7 +190,7 @@ onBeforeUnmount(() => {
         {{ props.subgraph.limits.max_edges }} relationships.
       </strong>
     </figcaption>
-    <details class="graph__nodes">
+    <details v-if="!props.bare" class="graph__nodes">
       <summary>Nodes in this graph ({{ props.subgraph.nodes.length }})</summary>
       <ul>
         <li v-for="node in props.subgraph.nodes" :key="node.id" class="row">

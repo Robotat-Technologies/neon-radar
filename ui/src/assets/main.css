@@ -397,6 +397,147 @@ button.graph-legend__item[aria-pressed='false'] strong {
   text-decoration: line-through;
 }
 
+.graph--bare {
+  position: absolute;
+  inset: 0;
+}
+
+.graph--bare .graph__canvas {
+  block-size: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Full-screen network (design C2): the graph fills the page, panels float over it. */
+
+.page--full {
+  display: flex;
+  flex-direction: column;
+  max-inline-size: none;
+  min-block-size: calc(100dvh - 3.5rem);
+  padding-block: var(--space-2) var(--space-3);
+}
+
+.page--full .notices {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  margin-block-end: var(--space-2);
+}
+
+.page--full .notice {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  font-size: 0.8rem;
+}
+
+.netview {
+  position: relative;
+  flex: 1;
+  display: grid;
+  min-block-size: 34rem;
+}
+
+.netview > * {
+  grid-area: 1 / 1;
+}
+
+.netview__stage {
+  position: relative;
+  display: grid;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel {
+  z-index: 1;
+  margin: var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 12%);
+  font-size: 0.9rem;
+}
+
+.panel h1 {
+  font-size: 1.2rem;
+  margin-block: 0 var(--space-2);
+}
+
+.panel p {
+  margin-block: 0 var(--space-2);
+}
+
+.netview__entity,
+.netview__legend {
+  align-self: start;
+  justify-self: start;
+  inline-size: min(18rem, 100% - 2 * var(--space-3));
+}
+
+.netview__toolbar {
+  align-self: start;
+  justify-self: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+}
+
+.netview__toolbar button {
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  border-color: var(--color-muted);
+  color: var(--color-text);
+}
+
+.netview__hops {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-2);
+  color: var(--color-muted);
+}
+
+.netview__hops button[aria-pressed='true'] {
+  background: var(--color-text);
+  color: var(--color-surface);
+  font-weight: 600;
+}
+
+.netview__zoom {
+  min-inline-size: 3.5rem;
+}
+
+.netview__legend {
+  align-self: end;
+}
+
+.netview__legend summary {
+  font-weight: 600;
+}
+
+.netview__legend .graph-legend {
+  margin-block-start: var(--space-2);
+  gap: var(--space-2);
+}
+
+.netview__table {
+  position: absolute;
+  inset-block: 4.5rem 0;
+  inset-inline-end: 0;
+  inline-size: min(26rem, 100% - 2 * var(--space-3));
+  overflow: auto;
+}
+
+.netview :is(a, button, summary):focus-visible {
+  outline: 3px solid var(--color-link);
+  outline-offset: 2px;
+}
+
 /* Explanation steps */
 
 .steps {
@@ -427,6 +568,27 @@ button.graph-legend__item[aria-pressed='false'] strong {
 
   .graph__canvas {
     block-size: 22rem;
+  }
+
+  .netview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .netview__stage {
+    min-block-size: 75dvh;
+  }
+
+  .netview .panel {
+    position: static;
+    align-self: stretch;
+    margin: 0;
+    inline-size: auto;
+  }
+
+  .netview__stage .netview__toolbar {
+    margin: var(--space-2);
   }
 
   .properties {

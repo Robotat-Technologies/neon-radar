@@ -122,3 +122,18 @@ test(`the entity page of ${company.name} shows its network`, async ({ page }) =>
   await expect(network.getByTestId('graph-canvas').locator('canvas').first()).toBeVisible()
   await expect(network.locator('figcaption')).toContainText(/^\s*([2-9]|\d{2,}) nodes/)
 })
+
+test(`the full-screen network of ${company.name} keeps the notices and its controls`, async ({
+  page,
+}) => {
+  await page.goto(`/entities/${company.id}`)
+  await page.getByRole('link', { name: 'Open full-screen network' }).click()
+  await expect(page.getByTestId('standing-disclaimer')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(company.name)
+  await expect(page.getByTestId('graph-canvas').locator('canvas').first()).toBeVisible()
+  await page.getByRole('button', { name: '2 hops' }).click()
+  await expect(page).toHaveURL(/\/network\?hops=2$/)
+  const money = page.getByRole('button', { name: 'Money' })
+  await money.click()
+  await expect(money).toHaveAttribute('aria-pressed', 'false')
+})

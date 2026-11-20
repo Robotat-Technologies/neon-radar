@@ -533,6 +533,40 @@ button.graph-legend__item[aria-pressed='false'] strong {
   overflow: auto;
 }
 
+.netview__alerts {
+  align-self: end;
+  justify-self: end;
+  inline-size: min(22rem, 100% - 2 * var(--space-3));
+  max-block-size: 70%;
+  overflow: auto;
+}
+
+.netview__alerts-head,
+.netview__alerts-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.netview__alerts h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.netview__steps {
+  margin-block: var(--space-2);
+  padding-inline-start: var(--space-4);
+  font-size: 0.85rem;
+}
+
+.netview__steps .step[aria-pressed='true'] {
+  border-color: #ea580c;
+  outline-color: #ea580c;
+}
+
 .netview :is(a, button, summary):focus-visible {
   outline: 3px solid var(--color-link);
   outline-offset: 2px;
@@ -582,6 +616,7 @@ button.graph-legend__item[aria-pressed='false'] strong {
 
   .netview .panel {
     position: static;
+    max-block-size: none;
     align-self: stretch;
     margin: 0;
     inline-size: auto;

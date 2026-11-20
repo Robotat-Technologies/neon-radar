@@ -15,8 +15,33 @@ export function nodeClasses(node: GraphNode): string[] {
   return classes
 }
 
+/** The relationship families of the network's visual language; each has its own line style. */
+export type RelationshipFamily =
+  'money' | 'ownership' | 'roles' | 'account' | 'address' | 'match' | 'other'
+
+const FAMILY: Partial<Record<GraphEdge['type'], RelationshipFamily>> = {
+  PAID: 'money',
+  OWNS: 'ownership',
+  CONTROLS: 'ownership',
+  CONSOLIDATES: 'ownership',
+  DIRECTOR_OF: 'roles',
+  REPRESENTS: 'roles',
+  HOLDS_POSITION: 'roles',
+  EMPLOYED_BY: 'roles',
+  MEMBER_OF: 'roles',
+  FAMILY_OF: 'roles',
+  ASSOCIATE_OF: 'roles',
+  HOLDS_ACCOUNT: 'account',
+  HAS_ADDRESS: 'address',
+  POSSIBLY_SAME_AS: 'match',
+}
+
+export function relationshipFamily(type: GraphEdge['type']): RelationshipFamily {
+  return FAMILY[type] ?? 'other'
+}
+
 export function edgeClasses(edge: GraphEdge): string[] {
-  const classes = [`type-${edge.type.toLowerCase()}`]
+  const classes = [`type-${edge.type.toLowerCase()}`, `family-${relationshipFamily(edge.type)}`]
   if (edge.properties.synthetic === true) classes.push('synthetic')
   return classes
 }
@@ -50,11 +75,29 @@ export function opensEntityPage(node: Pick<GraphNode, 'schema'>): boolean {
   return node.schema !== 'Sanction'
 }
 
-/** The label drawn on an edge: the amount for a payment, otherwise the relationship type. */
+/**
+ * The text drawn next to an edge, from the edge's own properties only: the amount of a payment,
+ * the share band of an ownership, the recorded role, otherwise the relationship type in words.
+ */
 export function edgeLabel(edge: Pick<GraphEdge, 'type' | 'properties'>): string {
-  const { amount, currency } = edge.properties
-  if (edge.type === 'PAID' && typeof amount === 'number' && typeof currency === 'string') {
-    return formatAmount(amount, currency)
+  const { amount, currency, role, share_pct_min: min, share_pct_max: max } = edge.properties
+  const nominee = edge.properties.is_nominee === true ? 'nominee ' : ''
+  switch (edge.type) {
+    case 'PAID':
+      return typeof amount === 'number' && typeof currency === 'string'
+        ? formatAmount(amount, currency)
+        : 'paid'
+    case 'OWNS':
+      if (typeof min === 'number' && typeof max === 'number') return `owns ${min}–${max}%`
+      return typeof min === 'number' ? `owns ${min}% or more` : 'owns'
+    case 'HOLDS_ACCOUNT':
+      return 'holds'
+    case 'POSSIBLY_SAME_AS':
+      return 'possible match, not confirmed'
+    default:
+      if (relationshipFamily(edge.type) !== 'ownership' && typeof role === 'string' && role) {
+        return `${nominee}${role}`
+      }
+      return edge.type.toLowerCase().replace(/_/g, ' ')
   }
-  return edge.type
 }

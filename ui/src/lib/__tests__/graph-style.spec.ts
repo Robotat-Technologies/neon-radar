@@ -20,7 +20,7 @@ function styled() {
           type: 'PAID',
           properties: {},
         },
-        classes: ['type-paid', 'synthetic'],
+        classes: ['type-paid', 'family-money', 'synthetic'],
       },
       {
         data: {
@@ -30,7 +30,7 @@ function styled() {
           type: 'OWNS',
           properties: {},
         },
-        classes: ['type-owns'],
+        classes: ['type-owns', 'family-ownership'],
       },
       {
         data: {
@@ -40,7 +40,7 @@ function styled() {
           type: 'POSSIBLY_SAME_AS',
           properties: {},
         },
-        classes: ['type-possibly_same_as'],
+        classes: ['type-possibly_same_as', 'family-match'],
       },
     ],
   })
@@ -57,23 +57,35 @@ describe('graphStyle', () => {
     )
   })
 
-  it('keeps a synthetic relationship dashed while it is highlighted', () => {
+  it('gives each relationship family its own colour, line and marker', () => {
     const cy = styled()
-    cy.edges().addClass('highlighted')
-    expect(cy.getElementById('e1').style('line-style')).toBe('dashed')
-    expect(cy.getElementById('e2').style('line-style')).toBe('solid')
-    expect(cy.getElementById('e1').style('width')).toBe('4px')
+    const paid = cy.getElementById('e1')
+    const owns = cy.getElementById('e2')
+    expect(paid.style('line-color')).toBe('rgb(15,118,110)')
+    expect(paid.style('line-style')).toBe('solid')
+    expect(owns.style('line-outline-color')).toBe('rgb(29,78,216)')
+    expect(owns.style('target-arrow-fill')).toBe('hollow')
   })
 
-  it('draws a possible match dashed and without an arrow, also when highlighted', () => {
+  it('draws the alert path above the family style and keeps its dash', () => {
     const cy = styled()
-    const match = cy.getElementById('gbch-co-T0000001|psa|syn-a')
-    expect(match.style('line-style')).toBe('dashed')
-    expect(match.style('target-arrow-shape')).toBe('none')
-    expect(cy.getElementById('e2').style('target-arrow-shape')).toBe('triangle')
-    cy.edges().addClass('highlighted')
-    expect(match.style('line-style')).toBe('dashed')
-    expect(match.style('target-arrow-shape')).toBe('none')
+    cy.edges().addClass('alert-path')
+    expect(cy.getElementById('e1').style('width')).toBe('4.5px')
+    expect(cy.getElementById('e1').style('z-index')).toBe('10')
+    expect(cy.getElementById('gbch-co-T0000001|psa|syn-a').style('line-style')).toBe('dashed')
+    cy.getElementById('e1').addClass('highlighted')
+    expect(cy.getElementById('e1').style('width')).toBe('8px')
+  })
+
+  it('shows text only on elements the zoom rule switched on', () => {
+    const cy = styled()
+    const paid = cy.getElementById('e1')
+    expect(paid.style('label')).toBe('')
+    paid.data('properties', { amount: 10, currency: 'EUR' }).addClass('label-on')
+    expect(paid.style('label')).toBe('EUR 10.00')
+    paid.data('step', 2)
+    cy.style().update()
+    expect(paid.style('label')).toBe('Step 2: EUR 10.00')
   })
 
   it('never sets a dash style in the highlight rules', () => {

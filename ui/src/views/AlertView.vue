@@ -52,6 +52,14 @@ const highlightedEdges = computed(() => {
   const step = alert.value?.explanation.steps.find((item) => item.order === selectedStep.value)
   return step ? step.edge_ids : []
 })
+/** Every relationship of the explanation with its step number: the alert path. */
+const edgeSteps = computed(() =>
+  Object.fromEntries(
+    (alert.value?.explanation.steps ?? []).flatMap((step) =>
+      step.edge_ids.map((id) => [id, step.order] as const),
+    ),
+  ),
+)
 const metrics = computed(() => Object.entries(alert.value?.metrics ?? {}))
 const evidenceWindow = computed(() => alert.value?.evidence.window ?? null)
 
@@ -101,6 +109,7 @@ function openNode(id: string): void {
         :subgraph="detail.evidence"
         :focus-ids="subjectIds"
         :highlight-edge-ids="highlightedEdges"
+        :edge-steps="edgeSteps"
         label="Evidence subgraph of this alert"
         @select="openNode"
       />

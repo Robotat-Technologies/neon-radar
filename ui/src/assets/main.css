@@ -355,6 +355,48 @@ pre.mono {
   padding-inline-start: var(--space-4);
 }
 
+.graph__legend p {
+  margin-block: 0 var(--space-2);
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text);
+}
+
+.graph-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.graph-legend svg {
+  flex: none;
+}
+
+button.graph-legend__item {
+  min-block-size: 2rem;
+  padding-inline: var(--space-2);
+  border-color: var(--color-muted);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+button.graph-legend__item[aria-pressed='false'] {
+  border-style: dashed;
+  color: var(--color-muted);
+}
+
+button.graph-legend__item[aria-pressed='false'] strong {
+  text-decoration: line-through;
+}
+
 /* Explanation steps */
 
 .steps {

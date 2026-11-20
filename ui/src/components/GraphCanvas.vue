@@ -10,6 +10,7 @@ import { RouterLink } from 'vue-router'
 import type { GraphNode, Subgraph } from '@/api/types'
 import EntityBadges from '@/components/EntityBadges.vue'
 import { datasetsOf } from '@/lib/flags'
+import GraphLegend from '@/components/GraphLegend.vue'
 import { opensEntityPage, toCytoscapeElements } from '@/lib/graph'
 import { chooseEdgeLabels, showsAccountLabel } from '@/lib/graph-labels'
 import { fcoseLayout, GRAPH_FONT, graphStyle, LABEL_PX, stepText } from '@/lib/graph-style'
@@ -142,10 +143,13 @@ onBeforeUnmount(() => {
       data-testid="graph-canvas"
     ></div>
     <figcaption class="graph__legend">
-      {{ props.subgraph.nodes.length }} nodes, {{ props.subgraph.edges.length }} relationships, of
-      which {{ syntheticEdges }} are synthetic. A dashed outline marks a synthetic node; select a
-      node to open it (sanction records stay in the graph and do not open). Zoom in to read the text
-      on the relationships.
+      <p>
+        {{ props.subgraph.nodes.length }} nodes, {{ props.subgraph.edges.length }} relationships, of
+        which {{ syntheticEdges }} are synthetic. A dashed outline marks a synthetic node; select a
+        node to open it (sanction records stay in the graph and do not open). Zoom in to read the
+        text on the relationships.
+      </p>
+      <GraphLegend />
       <strong v-if="props.subgraph.truncated">
         The graph was cut at {{ props.subgraph.limits.max_nodes }} nodes and
         {{ props.subgraph.limits.max_edges }} relationships.

@@ -33,46 +33,15 @@ LIMIT 25
 
 Finds every company that shares a registered address with Copperfen Analytics Ltd (`onb-co-04`). Companies are not linked to each other directly, so the path needs two hops: from the company out to its address, and from the address back to the other companies registered there.
 
-## @amalika1922022-gif
+## @abdullah-ald
 
 ```cypher
-MATCH path =
-  (grandparent:OnbCompany)-[:PARENT_OF]->
-  (parent:OnbCompany)-[:PARENT_OF]->
-  (child:OnbCompany)
-RETURN path
-ORDER BY grandparent.id, parent.id, child.id
-LIMIT 100
-```
-
-Finds two-level parent-company chains across all companies in the synthetic onboarding data, returning up to 100 paths.
-Each path follows two PARENT_OF relationships from an indirect parent through an intermediate company to a subsidiary.
-The result describes company structures, not evidence of wrongdoing.
-
-
-## @khoder-hammoud
-
-```cypher
-MATCH (a:OnbCompany)<-[:DIRECTS]-(p:OnbPerson)-[:DIRECTS]->(b:OnbCompany)
-WHERE a.id < b.id AND a.jurisdiction <> b.jurisdiction
-RETURN p.name AS director, a.name AS company_a, a.jurisdiction AS country_a,
-       b.name AS company_b, b.jurisdiction AS country_b
-ORDER BY director, company_a
+MATCH (first:OnbCompany)<-[:DIRECTS]-(director:OnbPerson)-[:DIRECTS]->(second:OnbCompany)
+WHERE first.id < second.id
+RETURN director.name AS director, first.name AS first_company, first.jurisdiction AS first_jurisdiction,
+       second.name AS second_company, second.jurisdiction AS second_jurisdiction
+ORDER BY director, first_company, second_company
 LIMIT 25
 ```
 
-Finds directors who run companies registered in different countries (Philippa Marrowby: gb and ie; Samira Oakhollow: gb and nl). The pattern needs two hops because companies are not linked to each other directly: it goes from one company to its director and from the director on to the other company.
-## @mukhlif-aljabri07
-
-```cypher
-MATCH (a:OnbCompany)<-[:DIRECTS]-(p:OnbPerson)-[:DIRECTS]->(b:OnbCompany) 
-WHERE a.id<b.id
-RETURN p.name AS director,a.name AS company_a,b.name AS company_b
-ORDER BY director,company_a
-LIMIT 25
-```
-Finds every pair of companies that share a director, and returns the director's name.
-`WHERE a.id < b.id` keeps each pair only once.
-Companies are not linked to each other directly, so the path needs two hops:
-from one company to its director, and from the director to the other company.
-
+Finds pairs of companies that have the same recorded director, including each company's recorded jurisdiction. The pattern needs two hops because it goes from the first company to the director and then from that director to the second company. Comparing the company ids keeps each pair once instead of returning it again in the opposite order.

@@ -13,6 +13,7 @@ Many companies list the same address as their registered address. The FATF and E
 A trust and company service provider (TCSP) is a person or business that provides any of a set of services to third parties, among them acting as a formation agent of legal persons, acting as or arranging for another person to act as a director or secretary of a company, and providing a registered office or business address [fatf_glossary] (DNFBP, item f). So a mass registration address is usually the address of a TCSP [fatf_egmont_concealment_2018] (Annex E, indicator 11), a business whose services include providing addresses [fatf_glossary] (DNFBP, item f). FATF found that TCSPs "have often been used, wittingly or unwittingly, in the conduct of money laundering activities" [fatf_tcsp_2010] (p. 6); that is a statement about how a service can be misused, not about any provider.
 
 The address alone says little. FinCEN's indicator joins it to payments: "Transacting businesses share the same address, provide only a registered agent's address, ..." [fincen_fin_2006_g014]. Companies that share an address and also pay each other are a more specific pattern than a mass registration address alone.
+The address alone says little. FinCEN's indicator joins it to payments: "Transacting businesses share the same address, provide only a registered agent's address, or raise other address-related inconsistencies" [fincen_fin_2006_g014]. Companies that share an address and also pay each other are a more specific pattern than a mass registration address alone.
 
 ## How it looks in the graph
 
@@ -50,6 +51,14 @@ From the FATF and Egmont Group indicators [fatf_egmont_concealment_2018] (Annex 
 The FATF and Egmont Group trade-based indicators include "A trade entity is registered at an address that is likely to be a mass registration address", with a high-density residential building or a post-box address as examples [fatf_egmont_tbml_indicators_2021] (p. 5). FinCEN lists "Transacting businesses share the same address, provide only a registered agent's address, ..." [fincen_fin_2006_g014].
 
 A red flag is a reason to look closer, not evidence [ffiec_appendix_f] (introduction); see [wording](../wording.md), documentation rule 5.
+- legal persons "registered at an address that is also listed against numerous other companies or legal arrangements, indicating the use of a mailbox service" (indicator 4);
+- legal persons "registered at an address that cannot be located on internet mapping services (such as Google Maps)" (indicator 4);
+- legal persons "registered at an address that does not match the profile of the company" (indicator 4);
+- "Address of mass registration (usually the address of a TCSP that manages a number of shell companies on behalf of its customers)" (indicator 11);
+- "Only a post-box address (often used in the absence of professional TCSP services and in conjunction with informal nominees)" (indicator 12).
+
+The FATF and Egmont Group trade-based indicators include "A trade entity is registered at an address that is likely to be a mass registration address", with high-density residential buildings, post-box addresses, commercial buildings or industrial complexes as examples, "especially when there is no reference to a specific unit" [fatf_egmont_tbml_indicators_2021] (structural risk indicators, p. 3). FinCEN lists "Transacting businesses share the same address, provide only a registered agent's address, or raise other address-related inconsistencies" [fincen_fin_2006_g014]; the FFIEC red flags list a nearly identical one under "Shell Company Activity" [ffiec_appendix_f].
+A red flag is a reason to look closer, not evidence [ffiec_appendix_f]; see [wording](../wording.md), documentation rule 5.
 
 ## Typical false positives
 
@@ -62,6 +71,7 @@ NeonRadar's catalog lists these look-alikes:
 - errors in the source register: the Puppet Masters study notes that "virtually all company registry information is unverified information" [star_puppet_masters_2011] (p. 156).
 
 Sharing a registered address is common: companies "established and managed by TCSPs will often share the same bulk address" [fatf_egmont_concealment_2018] (p. 181), and providing a registered office is one of the services TCSPs offer [fatf_glossary] (DNFBP, item f). NeonRadar's standing disclaimer names shared registered agents among the legitimate reasons for the structures it shows ([wording](../wording.md)).
+Sharing a registered address is common and lawful: providing a registered office is one of the services TCSPs offer [fatf_glossary], FATF's TCSP study found that "the majority of TCSPs appear to be established for legitimate purposes" [fatf_tcsp_2010] (para. 10, p. 5), and NeonRadar's standing disclaimer names shared registered agents among the legitimate reasons for the structures it shows ([wording](../wording.md)).
 
 ## Can synthetic data show it?
 

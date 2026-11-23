@@ -2,7 +2,7 @@
 
 Short and mandatory, because an unbounded list gets ignored ([project plan](../plan/neonradar-project-plan.md), "Learning track"). Each sprint has a list for everyone and one for the squad that needs it most. The plan's sprints map onto the build phases as each heading shows. Squad names follow [docs/team/roles.md](../team/roles.md).
 
-The links below point to official publisher pages and documentation. Write what you read, and what still confuses you, in your [learning log](README.md#your-learning-log).
+Every link below goes to an official page that was opened on 21 October 2026, by this milestone or, where marked, by milestone M1.10a. Where an official page could not be opened by the build, the title is given without a link and marked "link to be added". Write what you read, and what still confuses you, in your [learning log](README.md#your-learning-log).
 
 ## Sprint 0 (Phase 1: foundation and contracts)
 
@@ -10,8 +10,8 @@ The links below point to official publisher pages and documentation. Write what 
 
 - **Neo4j graph data modelling.** Neo4j, [What is graph data modeling?](https://neo4j.com/docs/getting-started/data-modeling/) (Getting Started guide): the modelling process in six steps, with links to the full tutorial and a glossary of nodes, relationships, labels, indexes and constraints. Then compare it with NeonRadar's own model in [C2: Graph schema](../../contracts/C2-graph-schema.md).
 - **One FATF typology report**, either of:
-  - FATF and Egmont Group, [*Concealment of Beneficial Ownership*](https://www.fatf-gafi.org/en/publications/Methodsandtrends/Concealment-beneficial-ownership.html) (2018) [fatf_egmont_concealment_2018]. The publisher page links to the full report. Official copies of its [executive summary](https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-Executive-summary.pdf) and [Annex E](https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/FATF-Egmont-Concealment-beneficial-ownership-annex-E.pdf) cover indicators of concealed beneficial ownership, such as mass registration addresses and nominees.
-  - FATF, [*Professional Money Laundering*](https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/Professional-Money-Laundering.pdf.coredownload.pdf) (2018) [fatf_pml_2018]. It covers professional launderers, mule networks and networks of company accounts.
+  - FATF and Egmont Group, *Concealment of Beneficial Ownership* (2018) [fatf_egmont_concealment_2018]. The full report on fatf-gafi.org: link to be added (the site refuses automated access, so the build could not open it; the bibliography entry has the address the research note used). The Egmont Group hosts official copies of its [executive summary](https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-Executive-summary.pdf) and of [Annex E](https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-annex-E.pdf), the indicators of concealed beneficial ownership, such as mass registration addresses and nominees (both opened by milestone M1.10a).
+  - FATF, *Professional Money Laundering* (2018) [fatf_pml_2018]: link to be added, for the same reason. It covers professional launderers, mule networks and networks of company accounts.
 - **FollowTheMoney documentation.** [FollowTheMoney](https://followthemoney.tech/), the data model behind NeonRadar's record format: start with the introduction and the entity schemata explorer, then read [C1: NeonRadar Record](../../contracts/C1-record.md) to see which schemata NeonRadar uses.
 
 **The Data ingestion squad also reads:**
@@ -64,5 +64,5 @@ Read these alongside the list, in any sprint:
 
 ## Sources
 
-- [fatf_egmont_concealment_2018] FATF and Egmont Group, *Concealment of Beneficial Ownership*, 2018. <https://www.fatf-gafi.org/en/publications/Methodsandtrends/Concealment-beneficial-ownership.html>. Executive summary and Annex E: <https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-Executive-summary.pdf>, <https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/FATF-Egmont-Concealment-beneficial-ownership-annex-E.pdf>
-- [fatf_pml_2018] FATF, *Professional Money Laundering*, 2018. <https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/Professional-Money-Laundering.pdf.coredownload.pdf>
+- [fatf_egmont_concealment_2018] FATF and Egmont Group, *Concealment of Beneficial Ownership*, 2018. Address in the bibliography; link to be added after a person opens it in a browser. Executive summary and Annex E: <https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-Executive-summary.pdf>, <https://egmontgroup.org/wp-content/uploads/2021/10/FATF-Egmont-Concealment-beneficial-ownership-annex-E.pdf>
+- [fatf_pml_2018] FATF, *Professional Money Laundering*, 2018. Address in the bibliography; link to be added after a person opens it in a browser.

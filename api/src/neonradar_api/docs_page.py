@@ -102,9 +102,6 @@ PAGE: Final = f"""<!doctype html>
 <h1>NeonRadar API v1</h1>
 <p>Read-only, served from this machine. Repeatable parameters take comma-separated values.
 The <a href="{API_PREFIX}/openapi.json">OpenAPI document</a> describes every response.</p>
-<p><strong>Availability:</strong> Ownership, paths and resolution are not implemented yet
-(HTTP 501; planned for M2.12). Copilot questions are also not implemented yet
-(HTTP 501; planned for Phase 4). Their descriptions below specify planned behavior.</p>
 </main>
 <script>{SCRIPT}</script>
 </body>

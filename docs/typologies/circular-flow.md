@@ -45,7 +45,7 @@ A red flag is a reason to look closer, not evidence. The FFIEC says its red flag
 
 ## Typical false positives
 
-The definition file and the project's look-alike list (PHASE-1.md 7.2) propose these benign examples:
+Money goes round in circles in ordinary finance every day. The definition file and the project's look-alike list (PHASE-1.md 7.2) name these:
 
 - **Refunds and payment reversals.** A payment goes out and the same amount comes back.
 - **Loan drawdown followed by repayment.** A lender pays out a loan and the borrower pays it back, sometimes through another account.
@@ -80,7 +80,7 @@ The detector `neonradar_detect.detectors.circular_flow` (milestone M1.9b; query 
 - the time from the first payment to the last is at most `max_window_days`;
 - the first and the last payment are in the same currency, and the last amount divided by the first (the return ratio) is at least `min_return_ratio`.
 
-The fixture `detect/tests/fixtures/circular_flow/` holds two passing cycles (A and B) and three rejection cases: C breaks time order, D exceeds the time window, and E falls below the minimum return ratio. The expected results are in `expected.json`.
+The fixture `detect/tests/fixtures/circular_flow/` holds one cycle that passes and one cycle that breaks each rule in turn, with the expected result in `expected.json`.
 
 ### Pattern strength
 

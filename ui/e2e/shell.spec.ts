@@ -156,6 +156,29 @@ test('the alert page shows steps, the evidence graph and citations', async ({ pa
   )
 })
 
+test('downloads the alert evidence as JSON and CSV', async ({ page }) => {
+  const external = await mockApi(page)
+  await page.goto(`/alerts/${alert.alert_id}`)
+  const jsonDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download JSON' }).click()
+  const jsonFile = await jsonDownload
+  expect(jsonFile.suggestedFilename()).toBe(`${alert.alert_id}-evidence.json`)
+  expect(JSON.parse(readFileSync((await jsonFile.path())!, 'utf-8'))).toEqual({
+    alert,
+    evidence: subgraph,
+  })
+
+  const csvDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download CSV' }).click()
+  const csvFile = await csvDownload
+  expect(csvFile.suggestedFilename()).toBe(`${alert.alert_id}-evidence.csv`)
+  const csv = readFileSync((await csvFile.path())!, 'utf-8')
+  expect(csv).toContain('"Section","Item","Field","Value"')
+  expect(csv).toContain(subgraph.nodes[0].id)
+  expect(csv).toContain(subgraph.edges[0].id)
+  expect(external).toEqual([])
+})
+
 for (const width of [1280, 390]) {
   test(`no page scrolls sideways at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })

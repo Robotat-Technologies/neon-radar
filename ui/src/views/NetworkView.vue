@@ -11,6 +11,7 @@ import EntityBadges from '@/components/EntityBadges.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import GraphCanvas from '@/components/GraphCanvas.vue'
 import GraphLegend from '@/components/GraphLegend.vue'
+import NetworkAlertPanel from '@/components/NetworkAlertPanel.vue'
 import { edgeLabel, opensEntityPage, type RelationshipFamily } from '@/lib/graph'
 
 const props = defineProps<{ id: string }>()
@@ -24,6 +25,8 @@ const hidden = ref<RelationshipFamily[]>([])
 const zoom = ref(100)
 const showTable = ref(false)
 const graph = ref<InstanceType<typeof GraphCanvas> | null>(null)
+const edgeSteps = ref<Record<string, number>>({})
+const highlighted = ref<string[]>([])
 
 const hops = computed(() => {
   const value = Number(route.query.hops)
@@ -57,6 +60,13 @@ watch(
 )
 
 const entity = computed(() => detail.value?.entity ?? null)
+const edgeIds = computed(() => new Set((network.value?.edges ?? []).map((edge) => edge.id)))
+
+function showPath(steps: Record<string, number>, edges: string[]): void {
+  edgeSteps.value = steps
+  highlighted.value = edges
+}
+
 const captions = computed(
   () => new Map((network.value?.nodes ?? []).map((node) => [node.id, node.caption])),
 )
@@ -102,6 +112,8 @@ function openNode(id: string): void {
         :subgraph="network"
         :focus-ids="[entity.id]"
         :hidden-families="hidden"
+        :edge-steps="edgeSteps"
+        :highlight-edge-ids="highlighted"
         :label="`Network of ${entity.caption} within ${hops} hops. The table view lists the same nodes and relationships.`"
         @select="openNode"
         @zoom="zoom = $event"
@@ -136,6 +148,15 @@ function openNode(id: string): void {
       <summary>Show</summary>
       <GraphLegend toggleable :hidden="hidden" @toggle="toggle" />
     </details>
+
+    <NetworkAlertPanel
+      v-if="detail?.alerts.length && network"
+      :alerts="detail.alerts"
+      :edge-ids="edgeIds"
+      :hops="hops"
+      @path="showPath"
+      @hops="setHops"
+    />
 
     <section v-if="showTable && network" class="panel netview__table" aria-label="Table view">
       <h2>Nodes ({{ network.nodes.length }})</h2>

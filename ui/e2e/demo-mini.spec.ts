@@ -123,6 +123,20 @@ test(`the entity page of ${company.name} shows its network`, async ({ page }) =>
   await expect(network.locator('figcaption')).toContainText(/^\s*([2-9]|\d{2,}) nodes/)
 })
 
+test('the full-screen network of an alert subject shows the alert and its steps', async ({
+  page,
+}) => {
+  await page.goto('/alerts')
+  await page.getByRole('link', { name: SYNTHETIC_SCENARIO }).first().click()
+  await page.locator('h2:has-text("Subjects") + ul a').first().click()
+  await page.getByRole('link', { name: 'Open full-screen network' }).click()
+  const panel = page.getByRole('region', { name: /^Alert 1 of \d+$/ })
+  await expect(panel).toBeVisible()
+  const step = panel.getByTestId('network-alert-steps').getByRole('button').first()
+  await step.click()
+  await expect(step).toHaveAttribute('aria-pressed', 'true')
+})
+
 test(`the full-screen network of ${company.name} keeps the notices and its controls`, async ({
   page,
 }) => {

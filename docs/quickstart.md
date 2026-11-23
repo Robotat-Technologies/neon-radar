@@ -8,9 +8,10 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 |---|---|
 | macOS or Linux (on Windows, WSL 2) with 16 GB of memory; 8 GB works with the small profile below | Neo4j, the API and the UI run side by side |
 | Docker Desktop or Docker Engine (engine version 25 or later) with Compose v2.20.2 or later; give Docker's VM at least 6 GB (Docker Desktop, Settings, Resources) | everything runs in containers |
-| [uv](https://docs.astral.sh/uv/) 0.13 (it installs Python 3.14) | the `neonradar` command loads the data |
+| `git`, `make`, `curl` and a C and C++ compiler (macOS: `xcode-select --install`; Debian or Ubuntu: `sudo apt-get install git make curl build-essential`) | `git` clones the repository, `make` runs the commands below, `curl` fetches the uv and nvm installers, and PyICU is compiled during `make setup` (without a compiler it stops with `No such file or directory: 'c++'`) |
+| [uv](https://docs.astral.sh/uv/) 0.13 (it installs Python 3.14): `curl -LsSf https://astral.sh/uv/0.13.9/install.sh \| sh`, then open a new terminal | the `neonradar` command loads the data; the repository refuses uv 0.14 and later |
 | ICU headers and `pkg-config` (macOS: `brew install icu4c pkg-config` and point `PKG_CONFIG_PATH` at icu4c's `lib/pkgconfig`; Debian or Ubuntu: `sudo apt-get install pkg-config libicu-dev`) | PyICU, which FollowTheMoney needs, builds from source |
-| Node.js 24.12 or later | `make setup` installs the UI's packages; `make e2e` runs the browser test |
+| Node.js 24.12 or later, from [nodejs.org](https://nodejs.org/en/download) or a version manager such as [nvm](https://github.com/nvm-sh/nvm) (`nvm install 24`); check with `node --version`. The `nodejs` package of Debian and Ubuntu is too old (Ubuntu 24.04 has 18.19) | `make setup` installs the UI's packages; `make e2e` runs the browser test. With an older Node, `make setup` still finishes and only prints `npm WARN EBADENGINE`, and `doctor` does not check Node |
 | Free ports `7474`, `7687`, `8000` and `8080` on `127.0.0.1` | Neo4j Browser, Bolt, the API and the UI |
 | Network access on the first run | to pull the Neo4j, uv Python, Node and nginx images, download the pinned Graph Data Science jar (about 64 MB, checked against its SHA-256) and install packages while the images build; later runs need none |
 

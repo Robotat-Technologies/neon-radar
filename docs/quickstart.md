@@ -19,7 +19,7 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 ## Run it
 
 ```bash
-git clone https://github.com/robotat-com/neon-radar.git
+git clone https://github.com/Robotat-Technologies/neon-radar.git
 cd neon-radar
 make setup        # Python and npm packages, pre-commit hooks, .env with a generated Neo4j password
 make demo-mini

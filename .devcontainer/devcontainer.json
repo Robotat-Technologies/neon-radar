@@ -1,0 +1,53 @@
+{
+  "name": "NeonRadar development",
+  "dockerComposeFile": ["../compose.yaml", "compose.dev.yaml"],
+  "service": "dev",
+  "runServices": ["dev", "neo4j"],
+  "workspaceFolder": "/workspaces/neonradar",
+  "remoteUser": "dev",
+  "overrideCommand": false,
+  "shutdownAction": "stopCompose",
+  "features": {
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "24",
+      "pnpmVersion": "none"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "mounts": [
+    "source=neonradar-claude-config-${devcontainerId},target=/home/dev/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/dev/.claude"
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb"
+  },
+  "forwardPorts": ["neo4j:7474", "neo4j:7687", 8000, 5173],
+  "portsAttributes": {
+    "8000": {
+      "label": "NeonRadar API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "NeonRadar UI",
+      "onAutoForward": "notify"
+    }
+  },
+  "initializeCommand": "bash scripts/ensure_env.sh",
+  "postCreateCommand": "make setup",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "typescript.tsdk": "ui/node_modules/typescript/lib"
+      },
+      "extensions": [
+        "ms-python.python",
+        "Vue.volar",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

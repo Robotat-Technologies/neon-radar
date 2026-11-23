@@ -132,7 +132,7 @@ entries:
     verified: 2026-10-16
     note: "PEPs, their family members and close associates; PEP measures are preventive. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser."
   - key: fatf_cyber_fraud_2023
-    title: Illicit Financial Flows from Cyber-Enabled Fraud
+    title: Illicit Financial Flows from Cyber-enabled Fraud
     publisher: FATF, INTERPOL and Egmont Group
     year: 2023
     url: https://www.fatf-gafi.org/en/publications/Methodsandtrends/illicit-financial-flows-cyber-enabled-fraud.html
@@ -141,7 +141,7 @@ entries:
     verified: 2026-10-15
     note: "November 2023. Mule accounts, pass-through transactions and account hopping. fatf-gafi.org blocks automated clients; not re-opened by the build; re-open in a browser. Mirror PDF read 2026-10-21 for paragraphs 28-29, Boxes 17 and 23 and Annex A."
   - key: fatf_cyber_fraud_2026
-    title: Cyber-Enabled Fraud - Digitalisation and ML/TF/PF Risks
+    title: Cyber-Enabled Fraud - Digitalisation and Money Laundering, Terrorist Financing and Proliferation Financing Risks
     publisher: FATF
     year: 2026
     url: https://www.fatf-gafi.org/content/fatf-gafi/en/publications/Methodsandtrends/cyber-enabled-fraud-digitalisation-ml-tf-pf-risks.html
@@ -199,7 +199,7 @@ entries:
     note: Living page. What a financial intelligence unit does.
   # Europol
   - key: europol_efecta_2023
-    title: "European Financial and Economic Crime Threat Assessment 2023: The Other Side of the Coin"
+    title: "European Financial and Economic Crime Threat Assessment 2023: The Other Side of the Coin - An Analysis of Financial and Economic Crime"
     publisher: Europol
     year: 2023
     url: https://www.europol.europa.eu/cms/sites/default/files/documents/The%20Other%20Side%20of%20the%20Coin%20-%20Analysis%20of%20Financial%20and%20Economic%20Crime%20(EN).pdf
@@ -232,7 +232,7 @@ entries:
     verified: 2026-10-21
     note: "Announcement page; the PDF host blocks automated fetching. Originator and beneficiary data must travel with a payment chain."
   - key: wolfsberg_correspondent_2022
-    title: Financial Crime Principles for Correspondent Banking
+    title: Wolfsberg Financial Crime Principles for Correspondent Banking
     publisher: Wolfsberg Group
     year: 2022
     url: https://wolfsberg-group.org/resources/203/91
@@ -274,7 +274,7 @@ entries:
     verified: 2026-10-21
     note: "Shell companies, nominee incorporation services and transaction indicators. It says: \"Most shell companies are formed by individuals and businesses for legitimate purposes\" (Background section, read 2026-10-21)."
   - key: fincen_fin_2025_a003
-    title: "FinCEN Advisory FIN-2025-A003: Use of Chinese Money Laundering Networks by Mexico-Based Transnational Criminal Organizations"
+    title: "FinCEN Advisory FIN-2025-A003: The Use of Chinese Money Laundering Networks by Mexico-Based Transnational Criminal Organizations"
     publisher: FinCEN
     year: 2025
     url: https://www.fincen.gov/system/files/2025-08/FinCEN-Advisory-CMLN-508.pdf
@@ -282,7 +282,7 @@ entries:
     verified: 2026-10-21
     note: "August 2025. Money mules, smurfs (footnote 35), mirror transactions."
   - key: ffiec_appendix_f
-    title: "BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing Red Flags"
+    title: "BSA/AML Examination Manual, Appendix F: Money Laundering and Terrorist Financing \"Red Flags\""
     publisher: FFIEC
     year: null
     url: https://bsaaml.ffiec.gov/manual/Appendices/07
@@ -306,7 +306,7 @@ entries:
     verified: 2026-10-16
     note: "Living document. Risk factors for cash-intensive businesses. bsaaml.ffiec.gov answers automated clients with a bot challenge (a CAPTCHA); not re-opened by the build; re-open in a browser."
   - key: cfr_31_1010_314
-    title: "31 CFR 1010.314: Structured transactions"
+    title: "31 CFR § 1010.314 - Structured transactions"
     publisher: US Code of Federal Regulations
     year: null
     url: https://www.law.cornell.edu/cfr/text/31/1010.314
@@ -331,7 +331,7 @@ entries:
     verified: 2026-10-21
     note: "Living page. FATF does not recommend a specific threshold; 25 percent spread from early registers and the EU directive; the trend is toward lower thresholds."
   - key: eba_qa_2022_6622
-    title: Single Rulebook Q&A 2022_6622
+    title: "Single Rulebook Q&A: 2022_6622 Approach to determining indirect ownership control powers under the legal definition of a beneficial owner"
     publisher: European Banking Authority
     year: 2022
     url: https://www.eba.europa.eu/single-rule-book-qa/qna/view/publicId/2022_6622
@@ -417,7 +417,7 @@ entries:
     verified: 2026-10-16
     note: "20 July 2016. Announces the first civil forfeiture complaints (allegations). On 2026-10-21 justice.gov answered automated clients with a bot challenge that points to the /archives/opa/pr/ address (extra URL); not re-opened by the build; re-open in a browser."
   - key: doj_1mdb_complaint_2025
-    title: Verified complaint for forfeiture in rem, C.D. Cal. 2:25-cv-00474
+    title: VERIFIED COMPLAINT FOR FORFEITURE IN REM, Case 2:25-cv-00474
     publisher: US Department of Justice
     year: 2025
     url: https://www.justice.gov/opa/media/1385611/dl

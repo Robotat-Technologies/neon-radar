@@ -10,6 +10,7 @@ import AlertDataLabel from '@/components/AlertDataLabel.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import ExternalLink from '@/components/ExternalLink.vue'
 import GraphCanvas from '@/components/GraphCanvas.vue'
+import { downloadEvidence } from '@/lib/evidence-export'
 import { formatMetric, formatStrength, formatTimestamp, humanizeKey } from '@/lib/format'
 import { useMetaStore } from '@/stores/meta'
 
@@ -97,6 +98,14 @@ function openNode(id: string): void {
 
     <section aria-labelledby="evidence-heading">
       <h2 id="evidence-heading">Evidence</h2>
+      <p>Download the alert and its evidence graph for offline review.</p>
+      <div class="export-actions" role="group" aria-label="Download evidence">
+        <button type="button" @click="downloadEvidence(detail, 'json')">Download JSON</button>
+        <button type="button" @click="downloadEvidence(detail, 'csv')">Download CSV</button>
+      </div>
+      <p v-if="detail.evidence.truncated" class="muted">
+        The evidence graph is truncated; downloads contain only the graph returned for this alert.
+      </p>
       <GraphCanvas
         :subgraph="detail.evidence"
         :focus-ids="subjectIds"

@@ -27,6 +27,8 @@ It runs on a laptop, with no cloud account and no bill. It works offline and pho
 - **Not real-time.** There is no streaming ingestion.
 - **Not a hosted service.** There is no public demo instance that holds user data.
 
+Common questions, such as whether NeonRadar accuses anyone and whether it can be used on real people, are answered in [docs/faq.md](docs/faq.md).
+
 ## Limitations
 
 Synthetic transactions are not real money laundering: every planted scenario is invented, and so is every payment in the demo. Detection rates measured on synthetic data say nothing about how NeonRadar would perform on real data. NeonRadar is not a certified compliance system and makes no one compliant with any law or regulation.

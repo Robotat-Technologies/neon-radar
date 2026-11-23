@@ -28,7 +28,7 @@ Held alongside squad membership.
 | Project lead | @robotat-com | Scope; cuts work from the kill list when a gate slips; the daily standup |
 | Tech lead | @robotat-com | The graph schema decision and the repository structure; approves and freezes the contracts |
 | Squad mentors | @robotat-com | Review pull requests and unblock people; do not write the squad's code |
-| Release manager | @robotat-com | Keeps `main` green, cuts the demo build, runs the Friday demo. Rotates weekly; `project.yaml` is updated each Monday |
+| Release manager | @robotat-com | Keeps `main` green, cuts the demo build, runs the Friday demo ([demo-day.md](demo-day.md)). Rotates weekly; `project.yaml` is updated each Monday |
 | Data steward | @robotat-com | Licence checks on every data source, `DATA_SOURCES.md`, the synthetic data guarantees |
 | Typology researchers | @robotat-com | Read the typology literature, write each definition and what a false positive looks like; the only people who approve a typology |
 | Technical writer | @robotat-com | The README, the quickstart, the typology explainers |

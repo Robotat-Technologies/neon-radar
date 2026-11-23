@@ -3,12 +3,13 @@
 // shows entities or alerts renders before the notices are there, and every navigation refreshes
 // them, so the notice follows what is loaded.
 import { onMounted, onUnmounted } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 import NoticeBanner from '@/components/NoticeBanner.vue'
 import { useMetaStore } from '@/stores/meta'
 
 const metaStore = useMetaStore()
+const route = useRoute()
 const removeAfterEach = useRouter().afterEach(() => {
   void metaStore.refresh()
 })
@@ -29,7 +30,7 @@ onUnmounted(removeAfterEach)
     </nav>
   </header>
 
-  <main class="page">
+  <main class="page" :class="{ 'page--full': route.meta.fullScreen }">
     <template v-if="metaStore.meta && metaStore.noticeKind">
       <NoticeBanner
         :standing="metaStore.meta.disclaimers.standing"

@@ -2,7 +2,7 @@
 // outline (the shape gives the schema, a dashed outline marks a synthetic node). Relationships
 // carry the colour, and each family differs in colour, line, end marker and text, so any one of
 // them tells it apart (also without colour). The alert path overrides the family style. Text
-// keeps one size on screen whatever the zoom; the graph component decides when it shows. Highlights
+// keeps one size on screen whatever the zoom; graph-labels.ts decides when it shows. Highlights
 // change width and colour only, never the dash, so a synthetic node stays marked.
 import type { EdgeSingular, NodeSingular, StylesheetJson } from 'cytoscape'
 

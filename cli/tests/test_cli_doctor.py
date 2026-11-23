@@ -144,6 +144,16 @@ def test_ports_follow_the_env_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert 8080 not in ports
 
 
+def test_an_empty_environment_value_wins_over_env_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("NR_UI_PORT", "")  # Compose: the shell wins, and ${NR_UI_PORT:-8080} is 8080
+    (tmp_path / ".env").write_text("NR_UI_PORT=18080\n")
+    ports = doctor.configured_ports(tmp_path)
+    assert 8080 in ports
+    assert 18080 not in ports
+
+
 def test_an_empty_port_setting_means_the_default(tmp_path: Path) -> None:
     (tmp_path / ".env").write_text("NR_UI_PORT=\n")  # Compose's ${NR_UI_PORT:-8080} gives 8080
     assert 8080 in doctor.configured_ports(tmp_path)

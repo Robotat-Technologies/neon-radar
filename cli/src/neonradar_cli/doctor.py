@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import yaml
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -67,15 +67,21 @@ class ComposeSettings(BaseSettings):
     """What Compose reads for compose.yaml: environment variables first, then `.env`. An empty
     value means the default, as `${NR_UI_PORT:-8080}` does."""
 
-    model_config = SettingsConfigDict(
-        env_file_encoding="utf-8", extra="ignore", env_ignore_empty=True
-    )
+    model_config = SettingsConfigDict(env_file_encoding="utf-8", extra="ignore")
 
     compose_project_name: str = ""
     neo4j_http_port: Port = 7474
     neo4j_bolt_port: Port = 7687
     nr_api_port: Port = 8000
     nr_ui_port: Port = 8080
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def empty_means_default(cls, value: Any, info: ValidationInfo) -> Any:
+        """An empty value means the default, wherever it is set (the validator from #159)."""
+        if value == "" and info.field_name:
+            return cls.model_fields[info.field_name].default
+        return value
 
 
 def compose_settings(root: Path) -> ComposeSettings:

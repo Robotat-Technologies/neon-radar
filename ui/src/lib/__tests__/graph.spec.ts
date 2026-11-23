@@ -39,7 +39,7 @@ describe('toCytoscapeElements', () => {
 
     expect(company?.classes).toEqual(['schema-company', 'synthetic'])
     expect(account?.classes).toEqual(['schema-bankaccount', 'synthetic'])
-    expect(holds?.classes).toEqual(['type-holds_account', 'synthetic'])
+    expect(holds?.classes).toEqual(['type-holds_account', 'family-account', 'synthetic'])
   })
 
   it('marks source-data flags and leaves synthetic off for real nodes', () => {
@@ -87,13 +87,33 @@ describe('toCytoscapeElements', () => {
 })
 
 describe('edgeLabel', () => {
-  it('shows a payment amount with its currency and the type otherwise', () => {
+  it('shows a payment amount with its currency', () => {
     expect(edgeLabel({ type: 'PAID', properties: { amount: 115200.0, currency: 'EUR' } })).toBe(
       'EUR 115,200.00',
     )
     expect(edgeLabel({ type: 'PAID', properties: { amount: 5, currency: 'JPY' } })).toBe('JPY 5')
-    expect(edgeLabel({ type: 'HOLDS_ACCOUNT', properties: {} })).toBe('HOLDS_ACCOUNT')
-    expect(edgeLabel({ type: 'PAID', properties: {} })).toBe('PAID')
+    expect(edgeLabel({ type: 'PAID', properties: {} })).toBe('paid')
+  })
+
+  it('shows the share band, the recorded role or the type in words', () => {
+    const owns = { share_pct_min: 75, share_pct_max: 100, role: 'ownership-of-shares-75-to-100' }
+    expect(edgeLabel({ type: 'OWNS', properties: owns })).toBe('owns 75–100%')
+    expect(edgeLabel({ type: 'OWNS', properties: { share_pct_min: 25 } })).toBe('owns 25% or more')
+    expect(edgeLabel({ type: 'OWNS', properties: {} })).toBe('owns')
+    expect(edgeLabel({ type: 'DIRECTOR_OF', properties: { role: 'director' } })).toBe('director')
+    expect(
+      edgeLabel({ type: 'DIRECTOR_OF', properties: { role: 'director', is_nominee: true } }),
+    ).toBe('nominee director')
+    expect(edgeLabel({ type: 'HAS_ADDRESS', properties: { role: 'registered' } })).toBe(
+      'registered',
+    )
+    expect(edgeLabel({ type: 'HOLDS_ACCOUNT', properties: { role: 'account holder' } })).toBe(
+      'holds',
+    )
+    expect(edgeLabel({ type: 'POSSIBLY_SAME_AS', properties: {} })).toBe(
+      'possible match, not confirmed',
+    )
+    expect(edgeLabel({ type: 'SUCCEEDED_BY', properties: {} })).toBe('succeeded by')
   })
 })
 

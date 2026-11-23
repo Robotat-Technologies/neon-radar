@@ -3,7 +3,7 @@
 // list, because a canvas says nothing to a screen reader.
 import cytoscape, { type Core, type LayoutOptions } from 'cytoscape'
 import fcose from 'cytoscape-fcose'
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import type { GraphNode, Subgraph } from '@/api/types'
@@ -23,6 +23,9 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: string] }>()
 
 const container = ref<HTMLElement | null>(null)
+const syntheticEdges = computed(
+  () => props.subgraph.edges.filter((edge) => edge.properties.synthetic === true).length,
+)
 let cy: Core | null = null
 
 function applyHighlights(): void {
@@ -43,6 +46,9 @@ function render(): void {
     minZoom: 0.2,
     maxZoom: 3,
   })
+  // Every text shows for now; text sizes are in screen pixels, so they follow the zoom.
+  cy.elements().addClass('label-on')
+  cy.on('zoom', () => cy?.style().update())
   cy.on('tap', 'node', (event) => {
     if (opensEntityPage(event.target.data() as GraphNode)) emit('select', String(event.target.id()))
   })
@@ -68,9 +74,9 @@ onBeforeUnmount(() => {
       data-testid="graph-canvas"
     ></div>
     <figcaption class="graph__legend">
-      {{ props.subgraph.nodes.length }} nodes, {{ props.subgraph.edges.length }} relationships. A
-      dashed outline marks a synthetic node; select a node to open it (sanction records stay in the
-      graph and do not open).
+      {{ props.subgraph.nodes.length }} nodes, {{ props.subgraph.edges.length }} relationships, of
+      which {{ syntheticEdges }} are synthetic. A dashed outline marks a synthetic node; select a
+      node to open it (sanction records stay in the graph and do not open).
       <strong v-if="props.subgraph.truncated">
         The graph was cut at {{ props.subgraph.limits.max_nodes }} nodes and
         {{ props.subgraph.limits.max_edges }} relationships.

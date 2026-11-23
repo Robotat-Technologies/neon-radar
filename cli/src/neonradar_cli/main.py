@@ -63,9 +63,15 @@ def main(
 
 @app.command(name="doctor")
 def doctor_command() -> None:
-    """Check this machine: one line per check with OK, WARN or FAIL; exit 1 on any FAIL."""
+    """Check this machine: one line per check with OK, WARN or FAIL; exit 1 on any FAIL.
+
+    When a port is busy, one help block follows the checks."""
     checks = doctor.run_checks()
     for check in checks:
         typer.echo(check.line())
+    help_text = doctor.port_help(checks)
+    if help_text:
+        typer.echo()
+        typer.echo(help_text)
     if any(check.status is doctor.Status.FAIL for check in checks):
         raise typer.Exit(code=1)

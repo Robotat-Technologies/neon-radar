@@ -7,14 +7,14 @@ One command starts the NeonRadar demo on your machine: a Neo4j graph loaded with
 | What | Why |
 |---|---|
 | macOS or Linux (on Windows, WSL 2) with 16 GB of memory; 8 GB works with the small profile below | Neo4j, the API and the UI run side by side |
-| Docker Desktop or Docker Engine with Compose v2.20 or later; give Docker's VM at least 6 GB (Docker Desktop, Settings, Resources) | everything runs in containers |
+| Docker Desktop or Docker Engine (engine version 25 or later) with Compose v2.20.2 or later; give Docker's VM at least 6 GB (Docker Desktop, Settings, Resources) | everything runs in containers |
 | [uv](https://docs.astral.sh/uv/) 0.13 (it installs Python 3.14) | the `neonradar` command loads the data |
 | ICU headers and `pkg-config` (macOS: `brew install icu4c pkg-config` and point `PKG_CONFIG_PATH` at icu4c's `lib/pkgconfig`; Debian or Ubuntu: `sudo apt-get install pkg-config libicu-dev`) | PyICU, which FollowTheMoney needs, builds from source |
 | Node.js 24.12 or later | `make setup` installs the UI's packages; `make e2e` runs the browser test |
 | Free ports `7474`, `7687`, `8000` and `8080` on `127.0.0.1` | Neo4j Browser, Bolt, the API and the UI |
 | Network access on the first run | to pull the Neo4j, uv Python, Node and nginx images, download the pinned Graph Data Science jar (about 64 MB, checked against its SHA-256) and install packages while the images build; later runs need none |
 
-`uv run neonradar doctor` checks Docker, Compose, `.env`, the ports (including 8080 for the demo UI), ICU and the memory Docker has.
+`uv run neonradar doctor` checks Docker, Compose, `.env`, the Compose project name, the ports (including 8080 for the demo UI, as `.env` or the environment sets them), ICU and the memory Docker has.
 
 ## Run it
 
@@ -25,7 +25,7 @@ make setup        # Python and npm packages, pre-commit hooks, .env with a gener
 make demo-mini
 ```
 
-`make demo-mini` creates `.env` if it is missing, fetches the pinned GDS jar if it is missing, starts Neo4j and waits until it is healthy, applies the schema migrations, wipes the graph and loads `data/fixtures/demo-mini/`, runs detection, builds and starts the API and the UI, and waits until both are healthy. It ends like this:
+`make demo-mini` creates `.env` if it is missing, starts building the API and UI images in the background, fetches the pinned GDS jar if it is missing, starts Neo4j and waits until it is healthy, applies the schema migrations, wipes the graph and loads `data/fixtures/demo-mini/`, runs detection, waits for the image build to finish, starts the API and the UI, and waits until both are healthy. The build's messages go to a temporary log file, which is printed if the build fails. It ends like this:
 
 ```text
 NeonRadar demo-mini is running on synthetic data:
@@ -83,7 +83,7 @@ The demo replaces whatever is in the graph: it deletes every node except the sch
 
 Neo4j restarting with `OutOfMemoryError`, an image build that stops with `Killed` or exit code 137, or a laptop that slows to a crawl all mean Docker has too little memory: switch to the small profile (`make down`, edit `.env`, `make demo-mini`), close other containers, or give Docker's VM more memory. More in [architecture/local-stack.md](architecture/local-stack.md).
 
-**Ports.** `port is already allocated` or `address already in use` means another program listens on one of the ports. Find it with `lsof -nP -iTCP:8080 -sTCP:LISTEN` (or `uv run neonradar doctor`) and stop it, or move NeonRadar's side: `NR_UI_PORT=8081 make demo-mini` for the UI (then `make e2e E2E_BASE_URL=http://localhost:8081`), `NR_API_PORT` for the API, and `NEO4J_HTTP_PORT` or `NEO4J_BOLT_PORT` for Neo4j. You can also put these in `.env`; if you move the Bolt port, set `NEO4J_URI` there to match so that the other `neonradar` commands find it. The printed URLs always show the ports in use.
+**Ports.** `port is already allocated` or `address already in use` means another program listens on one of the ports. Find it with `lsof -nP -iTCP:8080 -sTCP:LISTEN` (or `uv run neonradar doctor`, which prints the commands for Linux, macOS and Windows) and stop it, or move NeonRadar's side: `NR_UI_PORT=8081 make demo-mini` for the UI (then `make e2e E2E_BASE_URL=http://localhost:8081`), `NR_API_PORT` for the API, and `NEO4J_HTTP_PORT` or `NEO4J_BOLT_PORT` for Neo4j. You can also put these in `.env`; if you move the Bolt port, set `NEO4J_URI` there to match so that the other `neonradar` commands find it. The printed URLs always show the ports in use.
 
 **Other problems.**
 

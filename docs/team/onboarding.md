@@ -2,7 +2,7 @@
 
 Access, tools and first-week steps for each new collaborator, and how the team list stays current. Each step names who does it. Roles resolve to people in `people` in [project.yaml](../build/project.yaml); until the team joins, @robotat-com holds every role ([OD-6](../build/operator-decisions.md), [roles.md](roles.md)).
 
-Copy the list into your first pull request description or a Trello comment and tick it as you go. If a step is wrong or missing, fix this page in a pull request: that is a good first contribution.
+Copy the list into your first pull request description or a comment on your task card, and tick it as you go. If a step is wrong or missing, fix this page in a pull request: that is a good first contribution.
 
 ## 1. Access (before day one)
 

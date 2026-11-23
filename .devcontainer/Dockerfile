@@ -1,6 +1,3 @@
-# Use the same pinned Node and Python images as the application.
-FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS node
-
 FROM ghcr.io/astral-sh/uv:python3.14-trixie@sha256:81ff59d597a2483d6dfa5a65bf4e021f6e9df8aa68dd6fa3ab5052d2d76fc97b
 
 USER root
@@ -18,16 +15,34 @@ RUN apt-get update \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=node /usr/local/bin/node /usr/local/bin/node
-COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+# Use HTTP/1.1 and retry interrupted Node binary downloads.
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'for arg in "$@"; do' \
+    '  case "$arg" in' \
+    '    https://nodejs.org/dist/*/node-*-linux-*.tar.xz)' \
+    '      exec /usr/bin/curl --http1.1 --retry 5 --retry-all-errors --retry-delay 3 "$@" ;;' \
+    '  esac' \
+    'done' \
+    'exec /usr/bin/curl --http1.1 "$@"' \
+    > /usr/local/bin/curl \
+    && chmod +x /usr/local/bin/curl
 
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
-    && useradd --create-home --shell /bin/bash --uid 1000 dev
+RUN useradd --create-home --shell /bin/bash --uid 1000 dev \
+    && mkdir -p /home/dev/.claude \
+    && chown dev:dev /home/dev/.claude
 
+# Allow Claude's installation script for root-run feature installation.
+RUN printf '%s\n' \
+    'allow-scripts=@anthropic-ai/claude-code' \
+    'fetch-retries=5' \
+    'fetch-timeout=300000' \
+    'maxsockets=2' \
+    >> /root/.npmrc
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    npm_config_include=optional
 
 WORKDIR /workspaces/neonradar
 

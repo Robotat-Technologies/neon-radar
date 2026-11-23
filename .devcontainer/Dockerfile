@@ -24,7 +24,7 @@ RUN printf '%s\n' \
     '      exec /usr/bin/curl --http1.1 --retry 5 --retry-all-errors --retry-delay 3 "$@" ;;' \
     '  esac' \
     'done' \
-    'exec /usr/bin/curl --http1.1 "$@"' \
+    'exec /usr/bin/curl "$@"' \
     > /usr/local/bin/curl \
     && chmod +x /usr/local/bin/curl
 

@@ -105,8 +105,19 @@ configuration and a machine meeting the declared requirements.
 Windows Git Bash and linked-worktree instructions do not apply to
 a normal Codespaces checkout.
 
-Codespaces usage consumes the account's compute and storage allowance.
-Check the account's current quota and pricing before leaving it running.
+The personal free tier includes 120 core hours per month, equivalent
+to 30 hours on a 4-core machine. Check the account's current allowance
+and pricing before use.
+
+Use the small Neo4j memory profile in Codespaces. Set these values
+in the root `.env`:
+
+```dotenv
+NEO4J_HEAP=1G
+NEO4J_PAGECACHE=512M
+NEO4J_MEM_LIMIT=2500m
+```
+
 Keep forwarded ports private and stop the Codespace when finished.
 
 The `.claude` volume persists configuration across container recreation
@@ -183,8 +194,9 @@ No Docker daemon is installed inside the development container.
 Run Docker-dependent targets such as `make up`, `make demo-mini`
 and Testcontainers integration tests from a suitable host environment.
 
-`NR_TEST_NEO4J_URI` targets the Compose database. Enable `ALLOW_WIPE=1`
-only for tests against a disposable synthetic database.
+`NR_TEST_NEO4J_URI` targets the Compose database. Enable
+`NR_TEST_ALLOW_WIPE=1` only for tests against a disposable synthetic
+database.
 
 ## Troubleshooting
 

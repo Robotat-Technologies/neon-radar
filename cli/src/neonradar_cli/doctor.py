@@ -306,7 +306,8 @@ def check_memory(info: dict[str, Any] | None) -> Check:
         "Docker memory",
         Status.FAIL,
         f"{found}; Neo4j needs at least 2500 MiB (NEO4J_MEM_LIMIT=2500m, the small profile): give"
-        " Docker more memory (Docker Desktop: Settings, Resources, Memory)",
+        " Docker more memory (Docker Desktop on macOS: Settings, Resources, Memory; on Windows with"
+        " WSL 2: set memory=6GB under [wsl2] in %UserProfile%\\.wslconfig, then wsl --shutdown)",
     )
 
 

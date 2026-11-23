@@ -222,7 +222,8 @@ def test_too_little_memory_says_how_to_give_docker_more() -> None:
     detail = doctor.check_memory({"ServerVersion": "29.7.2", "MemTotal": 2 * GIB}).detail
     assert detail == (
         "2.0 GiB; Neo4j needs at least 2500 MiB (NEO4J_MEM_LIMIT=2500m, the small profile): give"
-        " Docker more memory (Docker Desktop: Settings, Resources, Memory)"
+        " Docker more memory (Docker Desktop on macOS: Settings, Resources, Memory; on Windows with"
+        " WSL 2: set memory=6GB under [wsl2] in %UserProfile%\\.wslconfig, then wsl --shutdown)"
     )
 
 

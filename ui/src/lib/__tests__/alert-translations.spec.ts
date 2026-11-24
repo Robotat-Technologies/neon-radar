@@ -34,7 +34,7 @@ describe('Arabic alert translations', () => {
     )
 
     expect(localizedAlertText('Refunds and payment reversals', typology, 'ar')).toBe(
-      'ردّ المبالغ وعكس عمليات الدفع',
+      'إعادة المبالغ المدفوعة أو التراجع عن عمليات الدفع',
     )
 
     expect(localizedAlertText('Loan drawdown followed by repayment', typology, 'ar')).toBe(
@@ -42,7 +42,7 @@ describe('Arabic alert translations', () => {
     )
 
     expect(localizedAlertText('Intra-group cash pooling and treasury sweeps', typology, 'ar')).toBe(
-      'تجميع السيولة داخل المجموعة والتحويلات الآلية لإدارة أرصدة الخزينة',
+      'تجميع الأموال داخل مجموعة الشركات والتحويلات الآلية لتنظيم أرصدة حساباتها',
     )
   })
 
@@ -80,7 +80,30 @@ describe('Arabic alert translations', () => {
     const translated = localizedCycleSummary(original, typology, 'ar')
 
     expect(translated).toContain('عددها 1')
-    expect(translated).toContain('\u20681\u2069 ساعة')
+    expect(translated).toContain('خلال ساعة واحدة.')
+  })
+
+  it.each([
+    ['1', 'hour', 'ساعة واحدة'],
+    ['2', 'hours', 'ساعتين'],
+    ['6', 'hours', '\u20686\u2069 ساعات'],
+    ['12', 'hours', '\u206812\u2069 ساعة'],
+    ['1.5', 'hours', '\u20681.5\u2069 ساعة'],
+    ['2', 'days', 'يومين'],
+    ['3', 'days', '\u20683\u2069 أيام'],
+    ['6', 'days', '\u20686\u2069 أيام'],
+    ['10', 'days', '\u206810\u2069 أيام'],
+    ['11', 'days', '\u206811\u2069 يوماً'],
+    ['12', 'days', '\u206812\u2069 يوماً'],
+    ['100', 'days', '\u2068100\u2069 يوم'],
+    ['3.7', 'days', '\u20683.7\u2069 يوم'],
+  ])('formats a duration of %s %s in Arabic', (duration, unit, expected) => {
+    const original =
+      `GBP 100 left account Account A and GBP 95 came back to it ` +
+      `after passing through one other account in ${duration} ${unit}.`
+
+    expect(localizedCycleSummary(original, typology, 'ar')).toContain(`خلال ${expected}.`)
+    expect(localizedCycleSummary(original, typology, 'en')).toBe(original)
   })
 
   it('keeps unfamiliar text, unknown months and other typologies unchanged', () => {

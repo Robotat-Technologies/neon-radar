@@ -6,7 +6,6 @@ import ExternalLink from '@/components/ExternalLink.vue'
 import { messages } from '@/lib/messages'
 import { useLocaleStore } from '@/stores/locale'
 import { useMetaStore } from '@/stores/meta'
-import { localizedAttribution } from '@/lib/attribution-translations'
 const metaStore = useMetaStore()
 const localeStore = useLocaleStore()
 const text = computed(() => messages[localeStore.locale])
@@ -42,22 +41,7 @@ const datasets = computed(() => metaStore.meta?.datasets ?? [])
 
           <template v-if="dataset.attribution">
             <dt>{{ text.attribution }}</dt>
-            <dd>
-              <p dir="auto">
-                {{ localizedAttribution(dataset.slug, dataset.attribution, localeStore.locale) }}
-              </p>
-
-              <details
-                v-if="
-                  localeStore.isArabic &&
-                  localizedAttribution(dataset.slug, dataset.attribution, 'ar') !==
-                    dataset.attribution
-                "
-              >
-                <summary>{{ text.originalAttribution }}</summary>
-                <p dir="auto">{{ dataset.attribution }}</p>
-              </details>
-            </dd>
+            <dd dir="auto">{{ dataset.attribution }}</dd>
           </template>
 
           <dt>{{ text.personalData }}</dt>

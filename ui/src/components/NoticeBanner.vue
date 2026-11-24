@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Local translations are shown only for matching source notices.
+// Matching translations follow the selected locale; unknown notices retain their original text.
 import { computed } from 'vue'
 
 import { messages } from '@/lib/messages'
@@ -19,12 +19,7 @@ const notice = computed(() => localizedDataNotice(props.notice, props.kind, loca
 
 <template>
   <section class="notices" :aria-label="text.notices">
-    <p
-      class="notice notice--standing"
-      role="note"
-      :dir="localeStore.isArabic ? 'rtl' : 'ltr'"
-      data-testid="standing-disclaimer"
-    >
+    <p class="notice notice--standing" role="note" dir="auto" data-testid="standing-disclaimer">
       {{ standing }}
     </p>
 
@@ -32,7 +27,7 @@ const notice = computed(() => localizedDataNotice(props.notice, props.kind, loca
       class="notice"
       :class="props.kind === 'synthetic_demo' ? 'notice--synthetic' : 'notice--real'"
       role="note"
-      :dir="localeStore.isArabic ? 'rtl' : 'ltr'"
+      dir="auto"
       data-testid="data-notice"
       :data-notice-kind="props.kind"
     >

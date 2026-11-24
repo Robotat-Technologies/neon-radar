@@ -5,6 +5,7 @@ import { h } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { useLocaleStore } from '@/stores/locale'
 import App from '@/App.vue'
+import NoticeBanner from '@/components/NoticeBanner.vue'
 import type { FetchLike } from '@/api/client'
 import { localizedDataNotice, standingNoticeText } from '@/lib/notice-translations'
 import type { MetaResponse } from '@/api/types'
@@ -163,7 +164,31 @@ describe('App shell', () => {
         expect(wrapper.get('[data-testid="data-notice"]').text()).toBe(
           localizedDataNotice(disclaimers.synthetic_demo, 'synthetic_demo', 'ar'),
         )
+        expect(wrapper.get('.notices').findAll('p')).toHaveLength(2)
 
+        const changedStanding = `${disclaimers.standing} Updated.`
+        const changedNotice = `${disclaimers.synthetic_demo} Updated.`
+        const fallback = mount(NoticeBanner, {
+          props: {
+            standing: changedStanding,
+            kind: 'synthetic_demo',
+            notice: changedNotice,
+          },
+        })
+
+        try {
+          const standing = fallback.get('[data-testid="standing-disclaimer"]')
+          const notice = fallback.get('[data-testid="data-notice"]')
+
+          expect(standing.text()).toBe(changedStanding)
+          expect(notice.text()).toBe(changedNotice)
+          expect(standing.attributes('dir')).toBe('auto')
+          expect(notice.attributes('dir')).toBe('auto')
+          expect(fallback.findAll('p')).toHaveLength(2)
+          expect(document.documentElement.dir).toBe('rtl')
+        } finally {
+          fallback.unmount()
+        }
         await wrapper.get('header button').trigger('click')
 
         expect(localeStore.locale).toBe('en')

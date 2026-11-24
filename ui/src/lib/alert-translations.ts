@@ -4,14 +4,14 @@ const circularTexts: Record<string, string> = {
   'Round-tripping or circular flows': 'التحويلات الدائرية أو عودة الأموال إلى منشئها',
 
   'Funds leave an account, pass through other accounts and return to the originator or to a party under the same control.':
-    'تخرج الأموال من حساب، وتمر عبر حسابات أخرى، ثم تعود إلى الطرف الذي بدأ التحويل أو إلى طرف خاضع للسيطرة نفسها.',
+    'تخرج الأموال من حساب، وتمر عبر حسابات أخرى، ثم تعود إلى الطرف الذي بدأ التحويل أو إلى طرف آخر تتحكّم به الجهة نفسها.',
 
-  'Refunds and payment reversals': 'ردّ المبالغ وعكس عمليات الدفع',
+  'Refunds and payment reversals': 'إعادة المبالغ المدفوعة أو التراجع عن عمليات الدفع',
 
   'Loan drawdown followed by repayment': 'سحب مبلغ قرض ثم سداده',
 
   'Intra-group cash pooling and treasury sweeps':
-    'تجميع السيولة داخل المجموعة والتحويلات الآلية لإدارة أرصدة الخزينة',
+    'تجميع الأموال داخل مجموعة الشركات والتحويلات الآلية لتنظيم أرصدة حساباتها',
 }
 
 function normalize(value: string): string {
@@ -117,7 +117,29 @@ export function localizedCycleSummary(value: string, typology: string, locale: L
   }
 
   const accountCount = accountCounts[count] ?? count
-  const durationUnit = unit === 'days' ? 'يوم' : 'ساعة'
+  const durationValue = Number(duration.replace(/,/g, ''))
+  const isDays = unit === 'days'
+  const lastTwoDigits = durationValue % 100
 
-  return `خرج مبلغ ${isolate(`${sentCurrency} ${sent}`)} من الحساب ${isolate(origin)}، وعاد إليه مبلغ ${isolate(`${returnedCurrency} ${returned}`)} بعد المرور عبر حسابات أخرى عددها ${accountCount}، خلال ${isolate(duration)} ${durationUnit}.`
+  let durationText: string
+
+  if (durationValue === 1) {
+    durationText = isDays ? 'يوم واحد' : 'ساعة واحدة'
+  } else if (durationValue === 2) {
+    durationText = isDays ? 'يومين' : 'ساعتين'
+  } else {
+    let durationUnit = isDays ? 'يوم' : 'ساعة'
+
+    if (Number.isInteger(durationValue)) {
+      if (durationValue === 0 || (lastTwoDigits >= 3 && lastTwoDigits <= 10)) {
+        durationUnit = isDays ? 'أيام' : 'ساعات'
+      } else if (lastTwoDigits >= 11 && lastTwoDigits <= 99) {
+        durationUnit = isDays ? 'يوماً' : 'ساعة'
+      }
+    }
+
+    durationText = `${isolate(duration)} ${durationUnit}`
+  }
+
+  return `خرج مبلغ ${isolate(`${sentCurrency} ${sent}`)} من الحساب ${isolate(origin)}، وعاد إليه مبلغ ${isolate(`${returnedCurrency} ${returned}`)} بعد المرور عبر حسابات أخرى عددها ${accountCount}، خلال ${durationText}.`
 }

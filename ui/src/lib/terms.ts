@@ -13,7 +13,7 @@ const arabicTerms: Record<string, string> = {
   origin_holder: 'صاحب الحساب الذي بدأت منه التحويلات',
   draft: 'مسودة',
   approved: 'معتمد',
-  retired: 'متقاعد',
+  retired: 'متوقف العمل به',
   Person: 'شخص',
   Company: 'شركة',
   Organization: 'منظمة',

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-// Preserve the distinction between synthetic entities and synthetic background activity.
+// Show "Synthetic" when an alert involves only synthetic entities.
+// When real entities are involved but all evidence is generated, explain that
+// the pattern lies in synthetic background activity instead.
 import { computed } from 'vue'
 
 import { alertDataLabel, type AlertDataFlags } from '@/lib/alerts'

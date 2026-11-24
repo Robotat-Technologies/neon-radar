@@ -47,7 +47,7 @@ function applyLanguage(): void {
             const data = edge.data() as GraphEdge
             const label = edgeLabel(data)
 
-            return label === data.type ? displayTerm(data.type, localeStore.locale) : label
+            return label
           },
         },
       },

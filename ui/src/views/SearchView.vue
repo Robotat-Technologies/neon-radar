@@ -110,7 +110,7 @@ function submit(): void {
       <button type="submit" :disabled="trimmed.length < MIN_LENGTH">
         {{ text.search }}
       </button>
-      <p v-if="tooShort" class="muted">{{ text.searchMinimum }}</p>
+      <p v-if="tooShort" class="muted">{{ text.searchMinimum(MIN_LENGTH) }}</p>
     </form>
 
     <p v-if="loading" class="muted">{{ text.searching }}</p>

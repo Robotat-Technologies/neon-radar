@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Rows of the alert queue; API headlines retain their original wording.
+// Alert queue rows; known headlines are translated, with original text as fallback.
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { localizedAlertHeadline, localizedAlertText } from '@/lib/alert-translations'
@@ -35,7 +35,7 @@ const text = computed(() => messages[localeStore.locale])
         </span>
         <bdi>{{
           localizedAlertText(
-            alert.typology === 'circular_flow'
+            localeStore.isArabic && alert.typology === 'circular_flow'
               ? 'Round-tripping or circular flows'
               : alert.typology.replace(/_/g, ' '),
             alert.typology,

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-// The shell keeps the API notices visible before displaying page data.
+// The shell displays the notices from GET /meta before any page data.
+// Pages render only after the notices load successfully. Every navigation refreshes
+// them so the displayed notice follows the datasets currently loaded.
 import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 

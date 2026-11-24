@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Alert (/alerts/:id): evidence, explanation, references and metrics.
-// API content retains its original wording; interface labels are translated.
+// Supported API text is translated only when it matches a known English template.
+// Unmatched text retains its original wording.
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { displayTerm } from '@/lib/terms'
@@ -146,13 +147,17 @@ function openNode(id: string): void {
 
     <section aria-labelledby="evidence-heading">
       <h2 id="evidence-heading">{{ text.evidence }}</h2>
-      <p>Download the alert and its evidence graph for offline review.</p>
-      <div class="export-actions" role="group" aria-label="Download evidence">
-        <button type="button" @click="downloadEvidence(detail, 'json')">Download JSON</button>
-        <button type="button" @click="downloadEvidence(detail, 'csv')">Download CSV</button>
+      <p>{{ text.downloadEvidenceDescription }}</p>
+      <div class="export-actions" role="group" :aria-label="text.downloadEvidence">
+        <button type="button" @click="downloadEvidence(detail, 'json')">
+          {{ text.downloadJson }}
+        </button>
+        <button type="button" @click="downloadEvidence(detail, 'csv')">
+          {{ text.downloadCsv }}
+        </button>
       </div>
       <p v-if="detail.evidence.truncated" class="muted">
-        The evidence graph is truncated; downloads contain only the graph returned for this alert.
+        {{ text.evidenceTruncated }}
       </p>
 
       <GraphCanvas

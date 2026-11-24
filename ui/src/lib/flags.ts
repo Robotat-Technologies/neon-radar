@@ -16,8 +16,10 @@ const FLAG_PHRASES: ReadonlyArray<readonly [FlagKind, string]> = [
   ['rca', 'as a relative or close associate of a politically exposed person'],
 ]
 
-/** "A", "A or B", "A, B or C": a record comes from one of them (C1 gives each record one dataset). */
-/** Joins possible source datasets without implying that every source lists the flag. */
+/**
+ * Joins possible source datasets without implying that every source lists the flag.
+ * C1 assigns each record to one dataset, so multiple possible sources are joined with "or".
+ */
 export function joinDatasetNames(names: readonly string[], locale: 'en' | 'ar' = 'en'): string {
   const unique = [...new Set(names)]
 
@@ -41,9 +43,9 @@ export function flagBadges(
   datasetNames: readonly string[],
   locale: 'en' | 'ar' = 'en',
 ): FlagBadge[] {
-  const source = joinDatasetNames(datasetNames)
-
   if (locale === 'en') {
+    const source = joinDatasetNames(datasetNames)
+
     return FLAG_PHRASES.filter(([kind]) => flags[kind]).map(([kind, phrase]) => ({
       kind,
       text: `listed in ${source} ${phrase}`,

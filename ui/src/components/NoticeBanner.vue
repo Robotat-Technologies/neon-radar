@@ -19,7 +19,12 @@ const notice = computed(() => localizedDataNotice(props.notice, props.kind, loca
 
 <template>
   <section class="notices" :aria-label="text.notices">
-    <p class="notice notice--standing" role="note" dir="auto" data-testid="standing-disclaimer">
+    <p
+      class="notice notice--standing"
+      role="note"
+      :dir="localeStore.isArabic && standing !== props.standing ? 'rtl' : 'auto'"
+      data-testid="standing-disclaimer"
+    >
       {{ standing }}
     </p>
 
@@ -27,7 +32,7 @@ const notice = computed(() => localizedDataNotice(props.notice, props.kind, loca
       class="notice"
       :class="props.kind === 'synthetic_demo' ? 'notice--synthetic' : 'notice--real'"
       role="note"
-      dir="auto"
+      :dir="localeStore.isArabic && notice !== props.notice ? 'rtl' : 'auto'"
       data-testid="data-notice"
       :data-notice-kind="props.kind"
     >

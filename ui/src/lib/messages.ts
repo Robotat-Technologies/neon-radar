@@ -12,7 +12,7 @@ export const messages = {
     switchLanguage: 'التبديل إلى العربية',
     searchField: 'Name, address or account number',
     searchKinds: 'Only these kinds (none ticked: all)',
-    searchMinimum: 'Type at least 2 characters.',
+    searchMinimum: (minimum: number) => `Minimum number of characters: ${minimum}.`,
     searching: 'Searching…',
     matchedName: 'Matched name',
     entityKinds: {
@@ -45,6 +45,12 @@ export const messages = {
     moreAlerts: 'More alerts',
     patternStrength: 'Pattern strength',
     evidence: 'Evidence',
+    downloadEvidenceDescription: 'Download the alert and its evidence graph for offline review.',
+    downloadEvidence: 'Download evidence',
+    downloadJson: 'Download JSON',
+    downloadCsv: 'Download CSV',
+    evidenceTruncated:
+      'The evidence graph is truncated; downloads contain only the graph returned for this alert.',
     explanation: 'Explanation',
     subjects: 'Subjects',
     otherExplanations: 'Other explanations for this structure',
@@ -100,7 +106,6 @@ export const messages = {
     pageNotFoundDescription: 'There is no page at this address.',
     goToSearch: 'Go to search',
     notices: 'Notices',
-    originalAttribution: 'Original attribution',
   },
 
   ar: {
@@ -117,7 +122,7 @@ export const messages = {
     switchLanguage: 'Switch to English',
     searchField: 'الاسم أو العنوان أو رقم الحساب',
     searchKinds: 'تصفية حسب النوع (دون تحديد: جميع الأنواع)',
-    searchMinimum: 'أدخل حرفين على الأقل.',
+    searchMinimum: (minimum: number) => `الحد الأدنى لعدد المحارف: ${minimum}.`,
     searching: 'جارٍ البحث…',
     matchedName: 'الاسم المطابق',
     entityKinds: {
@@ -150,6 +155,13 @@ export const messages = {
     moreAlerts: 'المزيد من التنبيهات',
     patternStrength: 'قوة مطابقة النمط',
     evidence: 'الأدلة',
+    downloadEvidenceDescription:
+      'نزّل التنبيه والرسم البياني لأدلته لمراجعتهما دون اتصال بالإنترنت.',
+    downloadEvidence: 'تنزيل الأدلة',
+    downloadJson: 'تنزيل JSON',
+    downloadCsv: 'تنزيل CSV',
+    evidenceTruncated:
+      'الرسم البياني للأدلة غير مكتمل؛ تتضمن الملفات المنزّلة فقط الرسم الذي أعادته واجهة برمجة التطبيقات لهذا التنبيه.',
     explanation: 'الشرح',
     subjects: 'الكيانات المعنية بالتنبيه',
     otherExplanations: 'تفسيرات أخرى لهذه البنية',
@@ -205,6 +217,5 @@ export const messages = {
     pageNotFoundDescription: 'لا توجد صفحة على هذا العنوان.',
     goToSearch: 'الانتقال إلى البحث',
     notices: 'التنويهات',
-    originalAttribution: ' نسب المحتوى الأصلي',
   },
 }

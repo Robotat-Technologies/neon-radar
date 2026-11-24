@@ -1,20 +1,27 @@
 <script setup lang="ts">
-// An API error as a sentence for people (the problem's detail when there is one).
+// Known UI errors are translated; other API details retain their original text.
 import { computed } from 'vue'
 
 import { ApiError } from '@/api/client'
+import { messages } from '@/lib/messages'
+import { useLocaleStore } from '@/stores/locale'
 
 const props = defineProps<{ error: unknown }>()
 
+const localeStore = useLocaleStore()
+const text = computed(() => messages[localeStore.locale])
+
 const message = computed(() => {
   if (props.error instanceof ApiError) {
-    if (props.error.status === 404) return 'Nothing with this id was found.'
+    if (props.error.status === 404) return text.value.entityNotFound
+    if (props.error.status === 0) return text.value.apiUnavailable
     return props.error.message
   }
-  return 'Something went wrong while loading this page.'
+
+  return text.value.pageLoadError
 })
 </script>
 
 <template>
-  <p class="error" role="alert">{{ message }}</p>
+  <p class="error" role="alert" dir="auto">{{ message }}</p>
 </template>

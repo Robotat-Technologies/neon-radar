@@ -3,9 +3,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
-
+import { useLocaleStore } from '@/stores/locale'
 import App from '@/App.vue'
+import NoticeBanner from '@/components/NoticeBanner.vue'
 import type { FetchLike } from '@/api/client'
+import { localizedDataNotice, standingNoticeText } from '@/lib/notice-translations'
 import type { MetaResponse } from '@/api/types'
 import { useMetaStore } from '@/stores/meta'
 import { disclaimers, meta, registry } from './fixtures'
@@ -128,5 +130,86 @@ describe('App shell', () => {
     release(metaAnswer(meta(registry({ gleif_lei: 3 }))))
     await flushPromises()
     expect(wrapper.get('[data-testid="data-notice"]').text()).toBe(disclaimers.real_data)
+  })
+
+  describe('Arabic interface', () => {
+    it('switches language and direction and displays the corresponding notices', async () => {
+      const previousLocale = localStorage.getItem('neonradar-locale')
+      const previousLang = document.documentElement.getAttribute('lang')
+      const previousDir = document.documentElement.getAttribute('dir')
+
+      setActivePinia(createPinia())
+      const localeStore = useLocaleStore()
+      localeStore.setLocale('en')
+      useMetaStore().meta = meta(registry({ nr_synthetic: 120 }))
+
+      const { wrapper } = await mountApp()
+
+      try {
+        expect(wrapper.get('nav').text()).toContain('Search')
+
+        await wrapper.get('header button').trigger('click')
+
+        expect(localeStore.locale).toBe('ar')
+        expect(document.documentElement.lang).toBe('ar')
+        expect(document.documentElement.dir).toBe('rtl')
+        expect(wrapper.get('nav').text()).toContain('البحث')
+        expect(wrapper.get('nav').text()).toContain('التنبيهات')
+        expect(wrapper.get('nav').text()).toContain('مصادر البيانات')
+        expect(wrapper.get('.notices').attributes('aria-label')).toBe('التنويهات')
+
+        expect(wrapper.get('[data-testid="standing-disclaimer"]').text()).toBe(
+          standingNoticeText(disclaimers.standing, 'ar'),
+        )
+        expect(wrapper.get('[data-testid="data-notice"]').text()).toBe(
+          localizedDataNotice(disclaimers.synthetic_demo, 'synthetic_demo', 'ar'),
+        )
+        expect(wrapper.get('.notices').findAll('p')).toHaveLength(2)
+
+        const changedStanding = `${disclaimers.standing} Updated.`
+        const changedNotice = `${disclaimers.synthetic_demo} Updated.`
+        const fallback = mount(NoticeBanner, {
+          props: {
+            standing: changedStanding,
+            kind: 'synthetic_demo',
+            notice: changedNotice,
+          },
+        })
+
+        try {
+          const standing = fallback.get('[data-testid="standing-disclaimer"]')
+          const notice = fallback.get('[data-testid="data-notice"]')
+
+          expect(standing.text()).toBe(changedStanding)
+          expect(notice.text()).toBe(changedNotice)
+          expect(standing.attributes('dir')).toBe('auto')
+          expect(notice.attributes('dir')).toBe('auto')
+          expect(fallback.findAll('p')).toHaveLength(2)
+          expect(document.documentElement.dir).toBe('rtl')
+        } finally {
+          fallback.unmount()
+        }
+        await wrapper.get('header button').trigger('click')
+
+        expect(localeStore.locale).toBe('en')
+        expect(document.documentElement.lang).toBe('en')
+        expect(document.documentElement.dir).toBe('ltr')
+        expect(wrapper.get('nav').text()).toContain('Search')
+
+        expect(wrapper.get('[data-testid="standing-disclaimer"]').text()).toBe(disclaimers.standing)
+        expect(wrapper.get('[data-testid="data-notice"]').text()).toBe(disclaimers.synthetic_demo)
+      } finally {
+        wrapper.unmount()
+
+        if (previousLocale === null) localStorage.removeItem('neonradar-locale')
+        else localStorage.setItem('neonradar-locale', previousLocale)
+
+        if (previousLang === null) document.documentElement.removeAttribute('lang')
+        else document.documentElement.setAttribute('lang', previousLang)
+
+        if (previousDir === null) document.documentElement.removeAttribute('dir')
+        else document.documentElement.setAttribute('dir', previousDir)
+      }
+    })
   })
 })

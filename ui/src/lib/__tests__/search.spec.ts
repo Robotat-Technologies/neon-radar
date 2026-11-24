@@ -26,4 +26,30 @@ describe('searchCountText', () => {
     expect(searchCountText(answer(SEARCH_WINDOW, 20))).toBe('200 or more matches for “lea”.')
     expect(searchCountText(answer(SEARCH_WINDOW + 1, 20))).toBe('200 or more matches for “lea”.')
   })
+
+  describe('Arabic search counts', () => {
+    const query = '\u2068lea\u2069'
+
+    it('reports no matches in Arabic', () => {
+      expect(searchCountText(answer(0, 0), 'ar')).toBe(`لا توجد نتائج مطابقة لـ«${query}».`)
+    })
+
+    it('reports the count when all matches are shown', () => {
+      expect(searchCountText(answer(3, 3), 'ar')).toBe(`عدد النتائج المطابقة لـ«${query}»: 3.`)
+    })
+
+    it('preserves the estimate wording', () => {
+      expect(searchCountText(answer(25, 20), 'ar')).toBe(
+        `تقريباً: عدد النتائج المطابقة لـ«${query}»: 25.`,
+      )
+    })
+
+    it('preserves the search window lower bound', () => {
+      for (const total of [SEARCH_WINDOW, SEARCH_WINDOW + 1]) {
+        expect(searchCountText(answer(total, 20), 'ar')).toBe(
+          `200 نتيجة مطابقة أو أكثر لـ«${query}».`,
+        )
+      }
+    })
+  })
 })

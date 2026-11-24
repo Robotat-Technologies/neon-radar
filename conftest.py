@@ -75,7 +75,7 @@ def data_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DataEnv:
     monkeypatch.setattr(layout, "CACHE_ROOT", env.cache)
     monkeypatch.setattr(gate, "ENV_FILE", env.env_file)
     monkeypatch.setenv("NR_PROJECT_FILE", str(env.project))
-    for name in ("CI", "CODESPACES", "NR_REAL_DATA_MACHINE"):
+    for name in ("CI", "CODESPACES", "NR_REAL_DATA_MACHINE", "COMPOSE_PROJECT_NAME"):
         monkeypatch.delenv(name, raising=False)
     # Only httpx.MockTransport may answer: the real transports refuse every request.
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", _no_network)

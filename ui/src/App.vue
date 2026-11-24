@@ -6,6 +6,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 
 import NoticeBanner from '@/components/NoticeBanner.vue'
+import NotificationHost from '@/components/NotificationHost.vue'
 import { useMetaStore } from '@/stores/meta'
 
 const metaStore = useMetaStore()
@@ -52,4 +53,6 @@ onUnmounted(removeAfterEach)
     NeonRadar {{ metaStore.meta.app_version }} · contracts {{ metaStore.meta.contracts_version }} ·
     graph schema {{ metaStore.meta.schema_version }}
   </footer>
+
+  <NotificationHost />
 </template>

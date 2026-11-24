@@ -66,12 +66,13 @@ describe('App shell', () => {
     expect(wrapper.get('[data-testid="data-notice"]').text()).toBe(disclaimers.real_data)
   })
 
-  it('shows no page when the notices cannot be loaded', async () => {
+  it('shows no page, but keeps the notification host, when the notices cannot be loaded', async () => {
     stubMetaSequence(new TypeError('Failed to fetch'))
     const { wrapper } = await mountApp()
 
     expect(wrapper.find('[data-testid="meta-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="page"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="notification-host"]')).toHaveLength(1)
   })
 
   it('loads the notices from GET /api/v1/meta', async () => {

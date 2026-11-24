@@ -101,6 +101,8 @@ export const messages = {
     goToSearch: 'Go to search',
     notices: 'Notices',
     originalAttribution: 'Original attribution',
+    downloadStarted: 'Download started.',
+    downloadFailed: 'The download could not start.',
   },
 
   ar: {
@@ -206,5 +208,7 @@ export const messages = {
     goToSearch: 'الانتقال إلى البحث',
     notices: 'التنويهات',
     originalAttribution: ' نسب المحتوى الأصلي',
+    downloadStarted: 'بدأ التنزيل.',
+    downloadFailed: 'تعذّر بدء التنزيل.',
   },
 }

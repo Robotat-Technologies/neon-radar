@@ -1,6 +1,7 @@
 // Export the complete alert detail without another API request. CSV uses one field per row
 // so nodes, relationships and nested provenance remain readable in a spreadsheet.
 import type { AlertDetail } from '@/api/types'
+import { notify } from '@/lib/notifications'
 
 type Cell = string | number | boolean | null
 
@@ -56,4 +57,18 @@ export function downloadEvidence(detail: AlertDetail, format: 'json' | 'csv'): v
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Downloads and says so. "Started", not "saved": the browser decides whether a file is kept. */
+export function downloadWithNotice(
+  detail: AlertDetail,
+  format: 'json' | 'csv',
+  text: { started: string; failed: string },
+): void {
+  try {
+    downloadEvidence(detail, format)
+    notify({ severity: 'info', message: text.started, dedupeKey: 'evidence-download' })
+  } catch {
+    notify({ severity: 'error', message: text.failed, dedupeKey: 'evidence-download' })
+  }
 }

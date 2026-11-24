@@ -10,13 +10,16 @@ import AlertDataLabel from '@/components/AlertDataLabel.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import ExternalLink from '@/components/ExternalLink.vue'
 import GraphCanvas from '@/components/GraphCanvas.vue'
-import { downloadEvidence } from '@/lib/evidence-export'
+import { downloadWithNotice } from '@/lib/evidence-export'
 import { formatMetric, formatStrength, formatTimestamp, humanizeKey } from '@/lib/format'
+import { messages } from '@/lib/messages'
+import { useLocaleStore } from '@/stores/locale'
 import { useMetaStore } from '@/stores/meta'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const metaStore = useMetaStore()
+const localeStore = useLocaleStore()
 
 const detail = ref<AlertDetail | null>(null)
 const error = ref<unknown>(null)
@@ -74,6 +77,14 @@ function toggleStep(order: number): void {
 function openNode(id: string): void {
   void router.push({ name: 'entity', params: { id } })
 }
+
+function download(current: AlertDetail, format: 'json' | 'csv'): void {
+  const text = messages[localeStore.locale]
+  downloadWithNotice(current, format, {
+    started: text.downloadStarted,
+    failed: text.downloadFailed,
+  })
+}
 </script>
 
 <template>
@@ -100,8 +111,8 @@ function openNode(id: string): void {
       <h2 id="evidence-heading">Evidence</h2>
       <p>Download the alert and its evidence graph for offline review.</p>
       <div class="export-actions" role="group" aria-label="Download evidence">
-        <button type="button" @click="downloadEvidence(detail, 'json')">Download JSON</button>
-        <button type="button" @click="downloadEvidence(detail, 'csv')">Download CSV</button>
+        <button type="button" @click="download(detail, 'json')">Download JSON</button>
+        <button type="button" @click="download(detail, 'csv')">Download CSV</button>
       </div>
       <p v-if="detail.evidence.truncated" class="muted">
         The evidence graph is truncated; downloads contain only the graph returned for this alert.

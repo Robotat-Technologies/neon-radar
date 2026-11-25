@@ -1,6 +1,7 @@
 """`neonradar data` and `neonradar ingest build` (PHASE-2.md M2.2 deliverables 11 and 12)."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,15 @@ runner = CliRunner()
 def reports(data_env: Any, profile: str) -> list[dict[str, Any]]:
     folder = data_env.cache / "reports" / profile
     return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.iterdir())]
+
+
+def test_data_env_clears_an_inherited_compose_project(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "qa-parent-process")
+    request.getfixturevalue("data_env")
+    assert os.environ.get("COMPOSE_PROJECT_NAME") is None
+    real_graph.check_project_name()
 
 
 def test_data_profiles_shows_each_gate_condition(data_env: Any) -> None:

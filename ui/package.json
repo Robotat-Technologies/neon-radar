@@ -22,7 +22,8 @@
     "cytoscape-fcose": "^2.2.0",
     "pinia": "^4.1.0",
     "vue": "^3.5.44",
-    "vue-router": "^5.4.0"
+    "vue-router": "^5.4.0",
+    "vue-sonner": "2.0.9"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

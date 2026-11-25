@@ -176,6 +176,8 @@ test('downloads the alert evidence as JSON and CSV', async ({ page }) => {
   expect(csv).toContain('"Section","Item","Field","Value"')
   expect(csv).toContain(subgraph.nodes[0].id)
   expect(csv).toContain(subgraph.edges[0].id)
+  // One notification says the downloads started; the second replaces the first.
+  await expect(page.locator('[data-sonner-toast]')).toHaveText(['Download started.'])
   expect(external).toEqual([])
 })
 

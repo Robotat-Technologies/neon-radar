@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { readExample } from '@/__tests__/fixtures'
 import type { Alert, AlertDetail, Subgraph } from '@/api/types'
-import { evidenceCsv } from '@/lib/evidence-export'
+import { downloadWithNotice, evidenceCsv } from '@/lib/evidence-export'
+import { notify } from '@/lib/notifications'
+
+vi.mock('@/lib/notifications', () => ({ notify: vi.fn<typeof notify>() }))
 
 function detail(): AlertDetail {
   return {
@@ -44,5 +47,35 @@ describe('evidenceCsv', () => {
     expect(evidenceCsv(example)).toContain('"Nodes","","","[]"')
     expect(evidenceCsv(example)).toContain('"Relationships","","","[]"')
     expect(evidenceCsv(example)).toContain('"Graph","Evidence graph","truncated","true"')
+  })
+})
+
+describe('downloadWithNotice', () => {
+  const text = { started: 'Download started.', failed: 'The download could not start.' }
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    vi.mocked(notify).mockClear()
+  })
+
+  it('says the download started, not that a file was saved', () => {
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:evidence', revokeObjectURL: () => {} })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    downloadWithNotice(detail(), 'json', text)
+    expect(notify).toHaveBeenCalledExactlyOnceWith({
+      severity: 'info',
+      message: 'Download started.',
+      dedupeKey: 'evidence-download',
+    })
+  })
+
+  it('reports a download that cannot start, without the raw error', () => {
+    vi.stubGlobal('URL', {}) // URL.createObjectURL is missing, so the download throws
+    downloadWithNotice(detail(), 'csv', text)
+    expect(notify).toHaveBeenCalledExactlyOnceWith({
+      severity: 'error',
+      message: 'The download could not start.',
+      dedupeKey: 'evidence-download',
+    })
   })
 })

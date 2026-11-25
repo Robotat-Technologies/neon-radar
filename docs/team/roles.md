@@ -41,6 +41,8 @@ Freezing a contract, approving a typology, accepting an architecture decision re
 
 ## When people join
 
+The full list, with access, tools, the first week and leaving, is the [onboarding checklist](onboarding.md). In short:
+
 1. The project lead adds each GitHub handle to `people.interns` in `project.yaml`, assigns squads and cross-cutting roles there, and updates this file to match.
 2. Everyone does [Assignment 1](assignment-1.md) and starts a learning log ([docs/learning/README.md](../learning/README.md)).
 3. The project lead fills in the Assignee column of [Assignment 2](assignment-2.md), one person per typology.

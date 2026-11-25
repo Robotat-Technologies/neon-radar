@@ -155,7 +155,7 @@ def run(*args: str) -> str | None:
     if shutil.which(args[0]) is None:
         return None
     try:
-        # Fixed argument lists from this module, never shell strings or user input.
+        # Structured argument lists, including configured filters, never shell strings.
         result = subprocess.run(  # noqa: S603
             args, capture_output=True, text=True, timeout=20, check=False
         )
@@ -227,8 +227,8 @@ def check_project_name(root: Path) -> Check:
         return Check(
             "project name",
             Status.WARN,
-            f"COMPOSE_PROJECT_NAME names another project; doctor, make reset and data purge"
-            f" --graph know only {COMPOSE_PROJECT} (compose.yaml): unset it",
+            f"COMPOSE_PROJECT_NAME names another project; make reset and data purge"
+            f" --graph know only {COMPOSE_PROJECT} (compose.yaml): unset it before using them",
         )
     return Check("project name", Status.OK, f"{COMPOSE_PROJECT} (compose.yaml)")
 
@@ -246,9 +246,9 @@ def port_in_use(port: int) -> bool:
     return False
 
 
-def stack_ports() -> set[int]:
-    """Host ports published by containers of the NeonRadar Compose project."""
-    label = f"label=com.docker.compose.project={COMPOSE_PROJECT}"
+def stack_ports(project_name: str = COMPOSE_PROJECT) -> set[int]:
+    """Host ports published by containers of the selected NeonRadar Compose project."""
+    label = f"label=com.docker.compose.project={project_name}"
     output = run("docker", "ps", "--filter", label, "--format", "{{.Ports}}") or ""
     return {int(port) for port in re.findall(r":(\d+)->", output)}
 
@@ -409,19 +409,22 @@ def check_spill(root: Path) -> Check:
     return Check("DuckDB spill", Status.OK, "no leftover folders")
 
 
-def check_real_instance(info: dict[str, Any] | None) -> Check:
+def check_real_instance(info: dict[str, Any] | None, project_name: str = COMPOSE_PROJECT) -> Check:
     if info is None:
         return Check("neo4j-real", Status.OK, "not running (Docker is not reachable)")
-    project = f"label=com.docker.compose.project={COMPOSE_PROJECT}"
     service = "label=com.docker.compose.service=neo4j-real"
-    names = run("docker", "ps", "--filter", project, "--filter", service, "--format", "{{.Names}}")
-    if names:
-        return Check(
-            "neo4j-real",
-            Status.WARN,
-            "the real-data instance is running; stop it with `make down-real` when you are done",
-        )
-    return Check("neo4j-real", Status.OK, "not running")
+    # The default project too: a real-data instance started there still needs the reminder.
+    for name in dict.fromkeys((COMPOSE_PROJECT, project_name)):
+        project = f"label=com.docker.compose.project={name}"
+        if run("docker", "ps", "--filter", project, "--filter", service, "--format", "{{.Names}}"):
+            break
+    else:
+        return Check("neo4j-real", Status.OK, "not running")
+    return Check(
+        "neo4j-real",
+        Status.WARN,
+        "the real-data instance is running; stop it with `make down-real` when you are done",
+    )
 
 
 def check_real_profiles(access: dict[str, Any]) -> Check:
@@ -446,7 +449,8 @@ def check_real_profiles(access: dict[str, Any]) -> Check:
 
 def run_checks(root: Path = REPO_ROOT) -> list[Check]:
     info = docker_info()
-    stack = stack_ports() if info else set()
+    project_name = compose_settings(root).compose_project_name.strip() or COMPOSE_PROJECT
+    stack = stack_ports(project_name) if info else set()
     access = read_access(root)
     ports = configured_ports(root)
     return [
@@ -464,6 +468,6 @@ def run_checks(root: Path = REPO_ROOT) -> list[Check]:
         check_duckdb(),
         check_real_data(root, access),
         check_spill(root),
-        check_real_instance(info),
+        check_real_instance(info, project_name),
         check_real_profiles(access),
     ]

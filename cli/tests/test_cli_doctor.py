@@ -130,6 +130,79 @@ def test_stack_ports_reads_docker_ps(monkeypatch: pytest.MonkeyPatch) -> None:
     assert doctor.stack_ports() == {7474, 7687, 8000}
 
 
+@pytest.mark.parametrize("setting_source", ["env-file", "environment"])
+def test_run_checks_recognizes_the_selected_project(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, setting_source: str
+) -> None:
+    (tmp_path / ".env").write_text(
+        "COMPOSE_PROJECT_NAME=qa-file\nNEO4J_HTTP_PORT=17474\nNEO4J_BOLT_PORT=17687\n"
+        "NR_API_PORT=18000\nNR_UI_PORT=18080\n"
+    )
+    project_name = "qa-file"
+    if setting_source == "environment":
+        project_name = "qa-environment"
+        monkeypatch.setenv("COMPOSE_PROJECT_NAME", project_name)
+    ps = ("docker", "ps", "--filter", f"label=com.docker.compose.project={project_name}")
+    fake(
+        monkeypatch,
+        {
+            ("docker", "info", "--format", "{{json .}}"): json.dumps(
+                {"ServerVersion": "29.7.2", "MemTotal": 8 * GIB}
+            ),
+            (*ps, "--format", "{{.Ports}}"): (
+                "127.0.0.1:17474->7474/tcp, 127.0.0.1:17687->7687/tcp, "
+                "127.0.0.1:18000->8000/tcp, 127.0.0.1:18080->8080/tcp"
+            ),
+            (
+                *ps,
+                "--filter",
+                "label=com.docker.compose.service=neo4j-real",
+                "--format",
+                "{{.Names}}",
+            ): f"{project_name}-neo4j-real-1",
+        },
+    )
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: True)
+    checks = {check.name: check for check in doctor.run_checks(tmp_path)}
+    for port in (17474, 17687, 18000, 18080):
+        assert checks[f"port {port}"].status is Status.OK
+        assert checks[f"port {port}"].detail == "used by the NeonRadar stack"
+    assert checks["project name"].status is Status.WARN
+    assert "make reset and data purge --graph" in checks["project name"].detail
+    assert project_name not in checks["project name"].detail
+    assert checks["neo4j-real"].status is Status.WARN
+    assert project_name not in checks["neo4j-real"].detail
+    assert doctor.COMPOSE_PROJECT == "neonradar"
+
+
+def test_run_checks_does_not_own_another_projects_ports(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("COMPOSE_PROJECT_NAME=qa-selected\nNEO4J_BOLT_PORT=17687\n")
+    default_ps = ("docker", "ps", "--filter", "label=com.docker.compose.project=neonradar")
+    fake(
+        monkeypatch,
+        {
+            ("docker", "info", "--format", "{{json .}}"): json.dumps(
+                {"ServerVersion": "29.7.2", "MemTotal": 8 * GIB}
+            ),
+            (*default_ps, "--format", "{{.Ports}}"): "127.0.0.1:17687->7687/tcp",
+            (
+                *default_ps,
+                "--filter",
+                "label=com.docker.compose.service=neo4j-real",
+                "--format",
+                "{{.Names}}",
+            ): "neonradar-neo4j-real-1",
+        },
+    )
+    monkeypatch.setattr(doctor, "port_in_use", lambda port: port == 17687)
+    checks = {check.name: check for check in doctor.run_checks(tmp_path)}
+    assert checks["port 17687"].status is Status.FAIL
+    assert "in use by another program" in checks["port 17687"].detail
+    assert checks["neo4j-real"].status is Status.WARN
+
+
 def test_ports_follow_the_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("NEO4J_BOLT_PORT", "7690")
     ports = doctor.configured_ports(tmp_path)
@@ -368,6 +441,9 @@ def test_real_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     fake(monkeypatch, {ps: ""})
     assert doctor.check_real_instance(info).status is Status.OK
     assert doctor.check_real_instance(None).status is Status.OK
+    qa_ps = (ps[0], ps[1], ps[2], "label=com.docker.compose.project=qa", *ps[4:])
+    fake(monkeypatch, {ps: "", qa_ps: "qa-neo4j-real-1"})
+    assert doctor.check_real_instance(info, "qa").status is Status.WARN
 
 
 def test_real_profiles() -> None:

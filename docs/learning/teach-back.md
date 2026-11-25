@@ -2,6 +2,8 @@
 
 Thirty minutes on a Thursday, two or three people present something they learned to the rest of the team. Across the project everyone presents at least once. Sessions are recorded, and the good ones become documentation ([project plan](../plan/neonradar-project-plan.md), "Learning track"). The plan asks for six recorded sessions ("Definition of done": "Six teach-back sessions held, with everyone having presented at least once").
 
+The team's other weekly session is the Friday [demo day](../team/demo-day.md), where squads show what works.
+
 ## Sessions and rota
 
 The dates below are the plan. Dates are informational ([OD-1](../build/operator-decisions.md)): the project lead confirms each session or moves it. The community manager (`people.community_manager` in [project.yaml](../build/project.yaml)) fills in the presenters, two or three per session, so that everyone on the team presents once before the end. Presenters add their own topic.

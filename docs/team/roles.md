@@ -33,7 +33,7 @@ Held alongside squad membership.
 | Typology researchers | @robotat-com | Read the typology literature, write each definition and what a false positive looks like; the only people who approve a typology |
 | Technical writer | @robotat-com | The README, the quickstart, the typology explainers |
 | Demo producer | @robotat-com | The story the demo tells, the scripted walkthrough, the recorded video |
-| Community manager | @robotat-com | `CONTRIBUTING.md`, good first issues, the issue and pull request templates, the teach-back rota ([teach-back.md](../learning/teach-back.md)) |
+| Community manager | @robotat-com | `CONTRIBUTING.md`, good first issues, the issue and pull request templates, the teach-back rota ([teach-back.md](../learning/teach-back.md)), the issue triage rota ([issue-triage.md](issue-triage.md)) |
 
 ## Decisions that stay with people
 

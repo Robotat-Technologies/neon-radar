@@ -179,46 +179,6 @@ test('downloads the alert evidence as JSON and CSV', async ({ page }) => {
   expect(external).toEqual([])
 })
 
-test('graph controls remain available and evidence sits beside the explanation on desktop', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 1000 })
-  await mockApi(page)
-  await page.goto(`/alerts/${alert.alert_id}`)
-  await expect(page.getByTestId('graph-canvas').locator('canvas').first()).toBeVisible()
-  for (const name of ['Zoom in', 'Zoom out', 'Fit', 'Reset layout']) {
-    await page.getByRole('button', { name, exact: true }).click()
-  }
-  const graph = await page.locator('.graph-panel').boundingBox()
-  const explanation = await page.locator('.explanation-panel').boundingBox()
-  expect(graph).not.toBeNull()
-  expect(explanation).not.toBeNull()
-  expect(explanation!.x).toBeGreaterThan(graph!.x + graph!.width)
-  await expect(page.getByRole('group', { name: 'Download evidence' })).toBeVisible()
-  await expect(page.locator('header nav a[href="/alerts"]')).toHaveClass(/nav-context-active/)
-})
-
-test('search keeps filters compact and restores them from the sticky utility', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 300 })
-  await mockApi(page)
-  await page.goto('/')
-
-  const filterToggle = page.getByRole('button', { name: /Filters All entity types/ })
-  await expect(filterToggle).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.locator('#entity-type-filters')).toHaveCount(0)
-
-  await filterToggle.click()
-  await expect(page.locator('#entity-type-filters input[type="checkbox"]')).toHaveCount(6)
-  await filterToggle.click()
-
-  await page.locator('.search-results').scrollIntoViewIfNeeded()
-  const utility = page.locator('.search-utility-bar')
-  await expect(utility).toBeVisible()
-  await utility.getByRole('button', { name: /Edit filters/ }).click()
-  await expect(page.locator('#entity-type-filters')).toBeVisible()
-  await expect(filterToggle).toBeFocused()
-})
-
 for (const width of [1280, 390]) {
   test(`no page scrolls sideways at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })

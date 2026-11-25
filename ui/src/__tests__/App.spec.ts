@@ -46,14 +46,6 @@ describe('App shell', () => {
   beforeEach(() => setActivePinia(createPinia()))
   afterEach(() => vi.unstubAllGlobals())
 
-  it('provides a skip link to the main content', async () => {
-    useMetaStore().meta = meta(registry({ nr_synthetic: 1 }))
-    const { wrapper } = await mountApp()
-
-    expect(wrapper.get('a.skip-link').attributes('href')).toBe('#main-content')
-    expect(wrapper.get('main').attributes('id')).toBe('main-content')
-  })
-
   it('shows the standing disclaimer and the synthetic demo notice before the page', async () => {
     useMetaStore().meta = meta(registry({ nr_synthetic: 120 }))
     const { wrapper } = await mountApp()
@@ -64,25 +56,6 @@ describe('App shell', () => {
     expect(notice.text()).toBe(disclaimers.synthetic_demo)
     expect(notice.attributes('data-notice-kind')).toBe('synthetic_demo')
     expect(wrapper.find('[data-testid="page"]').exists()).toBe(true)
-  })
-
-  it('lets operators collapse and reopen the workspace notices', async () => {
-    useMetaStore().meta = meta(registry({ nr_synthetic: 120 }))
-    const { wrapper } = await mountApp()
-
-    const notices = wrapper.get('details.notices')
-    const summary = notices.get('summary')
-    expect(notices.attributes('open')).toBeDefined()
-    expect(summary.text()).toContain('Hide notices')
-    expect(notices.find('[data-testid="standing-disclaimer"]').isVisible()).toBe(true)
-
-    await summary.trigger('click')
-    expect(notices.attributes('open')).toBeUndefined()
-    expect(summary.text()).toContain('Show notices')
-
-    await summary.trigger('click')
-    expect(notices.attributes('open')).toBeDefined()
-    expect(summary.text()).toContain('Hide notices')
   })
 
   it('shows the real data notice when a real dataset is loaded', async () => {

@@ -10,7 +10,6 @@ import AlertDataLabel from '@/components/AlertDataLabel.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import ExternalLink from '@/components/ExternalLink.vue'
 import GraphCanvas from '@/components/GraphCanvas.vue'
-import UiIcon from '@/components/UiIcon.vue'
 import { downloadEvidence } from '@/lib/evidence-export'
 import { formatMetric, formatStrength, formatTimestamp, humanizeKey } from '@/lib/format'
 import { useMetaStore } from '@/stores/meta'
@@ -22,46 +21,28 @@ const metaStore = useMetaStore()
 const detail = ref<AlertDetail | null>(null)
 const error = ref<unknown>(null)
 const typology = ref<TypologyDetail | null>(null)
-const typologyError = ref<unknown>(null)
 const selectedStep = ref<number | null>(null)
 let request = 0
-let typologyRequest = 0
-
-async function loadTypology(slug: string, detailRequest: number): Promise<void> {
-  const current = ++typologyRequest
-  typology.value = null
-  typologyError.value = null
-  try {
-    const reference = await api.getTypology(slug)
-    if (detailRequest === request && current === typologyRequest) typology.value = reference
-  } catch (caught) {
-    if (detailRequest === request && current === typologyRequest) typologyError.value = caught
-  }
-}
 
 async function load(id: string): Promise<void> {
   const current = ++request
   detail.value = null
   error.value = null
   typology.value = null
-  typologyError.value = null
   selectedStep.value = null
   try {
     const answer = await api.getAlert(id)
     if (current !== request) return
     detail.value = answer
-    await loadTypology(answer.alert.typology, current)
+    try {
+      const reference = await api.getTypology(answer.alert.typology)
+      if (current === request) typology.value = reference
+    } catch {
+      // The alert still shows its typology slug and citation keys without the catalog entry.
+    }
   } catch (caught) {
     if (current === request) error.value = caught
   }
-}
-
-function retryAlert(): void {
-  void load(props.id)
-}
-
-function retryTypology(): void {
-  if (alert.value) void loadTypology(alert.value.typology, request)
 }
 
 watch(() => props.id, load, { immediate: true })
@@ -96,72 +77,47 @@ function openNode(id: string): void {
 </script>
 
 <template>
-  <div v-if="error" class="alert-detail__error">
-    <ErrorMessage :error="error" />
-    <button type="button" @click="retryAlert">Try again</button>
-  </div>
-  <p v-else-if="!detail || !alert" class="muted alert-detail__loading">Loading alert…</p>
-  <article v-else class="alert alert-detail">
-    <RouterLink class="back-link" to="/alerts">← Back to alerts</RouterLink>
-    <header class="page-header page-header--split">
-      <div>
-        <p class="eyebrow">EVIDENCE REVIEW</p>
-        <h1 data-testid="alert-headline">{{ alert.headline }}</h1>
-        <p class="mono muted">{{ alert.alert_id }}</p>
-        <div class="meta-line">
-          <span class="badge" :class="`badge--${alert.priority}`"
-            >{{ alert.priority }} priority</span
-          >
-          <span>Pattern strength {{ formatStrength(alert.pattern_strength) }}</span>
-          <AlertDataLabel :flags="alert.data_flags" />
-        </div>
+  <ErrorMessage v-if="error" :error="error" />
+  <p v-else-if="!detail || !alert" class="muted">Loading…</p>
+  <article v-else class="alert">
+    <header class="page-header">
+      <p class="muted">{{ alert.alert_id }}</p>
+      <h1 data-testid="alert-headline">{{ alert.headline }}</h1>
+      <div class="meta-line">
+        <span class="badge" :class="`badge--${alert.priority}`">{{ alert.priority }} priority</span>
+        <span>Pattern strength {{ formatStrength(alert.pattern_strength) }}</span>
+        <span class="muted">Created {{ formatTimestamp(alert.created_at) }}</span>
+        <AlertDataLabel :flags="alert.data_flags" />
       </div>
-      <div class="export-block">
-        <div class="export-actions" role="group" aria-label="Download evidence">
-          <button class="button-primary" type="button" @click="downloadEvidence(detail, 'json')">
-            <UiIcon name="download" />Download JSON
-          </button>
-          <button type="button" @click="downloadEvidence(detail, 'csv')">
-            <UiIcon name="download" />Download CSV
-          </button>
-        </div>
-        <p class="muted">Alert and evidence · ready for offline review</p>
-      </div>
+      <p>
+        Matches the graph pattern of
+        <strong>{{ typology?.name ?? alert.typology.replace(/_/g, ' ') }}</strong
+        >. {{ alert.explanation.summary }}
+      </p>
     </header>
-    <p class="alert-summary">
-      Matches the graph pattern of
-      <strong>{{ typology?.name ?? alert.typology.replace(/_/g, ' ') }}</strong
-      >.
-      {{ alert.explanation.summary }}
-    </p>
-    <p v-if="detail.evidence.truncated" class="notice notice--standing">
-      The evidence graph is truncated; downloads contain only the graph returned for this alert.
-    </p>
 
-    <div class="investigation-grid">
-      <section class="panel graph-panel" aria-labelledby="evidence-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">FOLLOW THE CONNECTIONS</p>
-            <h2 id="evidence-heading">Evidence network</h2>
-          </div>
-          <UiIcon name="network" />
-        </div>
-        <GraphCanvas
-          :subgraph="detail.evidence"
-          :focus-ids="subjectIds"
-          :highlight-edge-ids="highlightedEdges"
-          label="Evidence subgraph of this alert"
-          @select="openNode"
-        />
-      </section>
-      <section class="panel explanation-panel" aria-labelledby="steps-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">UNDERSTAND THE PATTERN</p>
-            <h2 id="steps-heading">Explanation</h2>
-          </div>
-        </div>
+    <section aria-labelledby="evidence-heading">
+      <h2 id="evidence-heading">Evidence</h2>
+      <p>Download the alert and its evidence graph for offline review.</p>
+      <div class="export-actions" role="group" aria-label="Download evidence">
+        <button type="button" @click="downloadEvidence(detail, 'json')">Download JSON</button>
+        <button type="button" @click="downloadEvidence(detail, 'csv')">Download CSV</button>
+      </div>
+      <p v-if="detail.evidence.truncated" class="muted">
+        The evidence graph is truncated; downloads contain only the graph returned for this alert.
+      </p>
+      <GraphCanvas
+        :subgraph="detail.evidence"
+        :focus-ids="subjectIds"
+        :highlight-edge-ids="highlightedEdges"
+        label="Evidence subgraph of this alert"
+        @select="openNode"
+      />
+    </section>
+
+    <div class="columns">
+      <section aria-labelledby="steps-heading">
+        <h2 id="steps-heading">Explanation</h2>
         <p class="muted">Select a step to highlight its relationships in the graph.</p>
         <ol class="steps" data-testid="explanation-steps">
           <li v-for="step in alert.explanation.steps" :key="step.order">
@@ -171,90 +127,77 @@ function openNode(id: string): void {
               :aria-pressed="selectedStep === step.order"
               @click="toggleStep(step.order)"
             >
-              <span class="step__number" aria-hidden="true">{{ step.order }}</span
-              ><span>{{ step.text }}</span>
+              {{ step.text }}
             </button>
           </li>
         </ol>
-      </section>
-    </div>
 
-    <div class="columns supporting-panels">
-      <section class="panel" aria-labelledby="subjects-heading">
-        <h2 id="subjects-heading">Subjects & context</h2>
+        <h2>Subjects</h2>
         <ul class="plain-list">
           <li v-for="subject in alert.subjects" :key="subject.entity_id" class="row">
-            <RouterLink :to="{ name: 'entity', params: { id: subject.entity_id } }">{{
-              subject.caption
-            }}</RouterLink>
+            <RouterLink :to="{ name: 'entity', params: { id: subject.entity_id } }">
+              {{ subject.caption }}
+            </RouterLink>
             <span class="muted">{{ humanizeKey(subject.role) }}</span>
           </li>
         </ul>
-        <h3>Other explanations for this structure</h3>
-        <ul class="context-list">
+
+        <h2>Other explanations for this structure</h2>
+        <ul class="plain-list">
           <li v-for="note in alert.explanation.false_positive_notes" :key="note">{{ note }}</li>
         </ul>
       </section>
-      <section class="panel" aria-labelledby="metrics-heading">
-        <h2 id="metrics-heading">Recorded metrics</h2>
+
+      <section aria-labelledby="metrics-heading">
+        <h2 id="metrics-heading">Metrics</h2>
         <dl class="properties">
           <dt>pattern strength</dt>
           <dd>{{ formatStrength(alert.pattern_strength) }}</dd>
-          <template v-for="[key, value] in metrics" :key="key"
-            ><dt>{{ humanizeKey(key) }}</dt>
-            <dd>{{ formatMetric(value) }}</dd></template
-          >
-          <template v-if="evidenceWindow"
-            ><dt>window</dt>
+          <template v-for="[key, value] in metrics" :key="key">
+            <dt>{{ humanizeKey(key) }}</dt>
+            <dd>{{ formatMetric(value) }}</dd>
+          </template>
+          <template v-if="evidenceWindow">
+            <dt>window</dt>
             <dd>
               {{ formatTimestamp(evidenceWindow.start) }} to
               {{ formatTimestamp(evidenceWindow.end) }}
-            </dd></template
-          >
-          <dt>created</dt>
-          <dd>{{ formatTimestamp(alert.created_at) }}</dd>
+            </dd>
+          </template>
           <dt>datasets</dt>
           <dd>
             {{ alert.data_flags.datasets.map((slug) => metaStore.datasetTitle(slug)).join(', ') }}
           </dd>
         </dl>
-      </section>
-      <section class="panel" aria-labelledby="typology-heading">
-        <h2 id="typology-heading">Typology & sources</h2>
+
+        <h2>Typology</h2>
         <p>
           <strong>{{ typology?.name ?? alert.typology }}</strong>
-        </p>
-        <p class="muted">
-          Version {{ alert.typology_version
-          }}<template v-if="typology"> · {{ typology.status }} definition</template>
+          <span class="muted">
+            ({{ alert.typology }}, version {{ alert.typology_version
+            }}<template v-if="typology">, definition status {{ typology.status }}</template
+            >)
+          </span>
         </p>
         <p v-if="typology">{{ typology.summary }}</p>
-        <div v-if="typologyError" class="alert-detail__typology-error" role="status">
-          <p class="error">The typology reference could not be loaded.</p>
-          <p class="muted">
-            The alert's evidence and explanation remain available, using its recorded typology
-            reference and citation keys.
-          </p>
-          <button type="button" @click="retryTypology">Try again</button>
-        </div>
+        <p class="muted">Explainer: {{ alert.explanation.typology_reference.doc_path }}</p>
+        <h3>Sources</h3>
         <ul class="plain-list" data-testid="citations">
-          <li v-for="item in citations" :key="item.key">
-            <template v-if="item.citation"
-              ><ExternalLink :href="item.citation.url">{{ item.citation.title }}</ExternalLink
-              ><span class="source-caption muted"
-                >{{ item.citation.publisher
-                }}<template v-if="item.citation.year !== null"
-                  >, {{ item.citation.year }}</template
-                ></span
-              ></template
-            >
+          <li v-for="item in citations" :key="item.key" class="row">
+            <template v-if="item.citation">
+              <ExternalLink :href="item.citation.url">{{ item.citation.title }}</ExternalLink>
+              <span class="muted">
+                {{ item.citation.publisher
+                }}<template v-if="item.citation.year !== null">, {{ item.citation.year }}</template>
+              </span>
+            </template>
             <span v-else>{{ item.key }}</span>
           </li>
         </ul>
-        <p class="mono muted">Explainer: {{ alert.explanation.typology_reference.doc_path }}</p>
       </section>
     </div>
-    <details class="reproduce panel">
+
+    <details class="reproduce">
       <summary>How to reproduce this finding</summary>
       <dl class="properties">
         <dt>detector</dt>

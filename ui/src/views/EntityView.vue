@@ -19,10 +19,8 @@ const metaStore = useMetaStore()
 
 const detail = ref<EntityDetail | null>(null)
 const error = ref<unknown>(null)
-const detailLoading = ref(false)
 const network = ref<Subgraph | null>(null)
 const networkError = ref<unknown>(null)
-const networkLoading = ref(false)
 const depth = ref(1)
 
 // Only the latest request may write its answer, so a slow earlier answer never replaces it.
@@ -33,30 +31,24 @@ async function loadDetail(id: string): Promise<void> {
   const request = ++detailRequest
   detail.value = null
   error.value = null
-  detailLoading.value = true
   try {
     const answer = await api.getEntity(id)
     if (request === detailRequest) detail.value = answer
   } catch (caught) {
     if (request === detailRequest) error.value = caught
-  } finally {
-    if (request === detailRequest) detailLoading.value = false
   }
 }
 
 async function loadNetwork(id: string, hops: number): Promise<void> {
   const request = ++networkRequest
-  network.value = null
   networkError.value = null
-  networkLoading.value = true
   try {
     const answer = await api.getNetwork(id, { depth: hops })
     if (request === networkRequest) network.value = answer
   } catch (caught) {
     if (request !== networkRequest) return
+    network.value = null
     networkError.value = caught
-  } finally {
-    if (request === networkRequest) networkLoading.value = false
   }
 }
 
@@ -82,124 +74,91 @@ const properties = computed(() =>
 )
 const relationshipCounts = computed(() => Object.entries(detail.value?.relationship_counts ?? {}))
 
-function retryDetail(): void {
-  void loadDetail(props.id)
-}
-
-function retryNetwork(): void {
-  void loadNetwork(props.id, depth.value)
-}
-
 function openNode(id: string): void {
   if (id !== props.id) void router.push({ name: 'entity', params: { id } })
 }
 </script>
 
 <template>
-  <section v-if="error" aria-labelledby="entity-error-heading">
-    <h1 id="entity-error-heading">Entity details</h1>
-    <ErrorMessage :error="error" />
-    <button type="button" :disabled="detailLoading" @click="retryDetail">Try again</button>
-  </section>
-  <p v-else-if="detailLoading || !detail || !entity" class="muted">Loading entity details…</p>
+  <ErrorMessage v-if="error" :error="error" />
+  <p v-else-if="!detail || !entity" class="muted">Loading…</p>
   <article v-else class="entity">
-    <RouterLink class="back-link" to="/">← Back to search</RouterLink>
     <header class="page-header">
-      <p class="eyebrow">ENTITY EXPLORER</p>
+      <p class="muted">{{ entity.schema }} · {{ entity.id }}</p>
       <h1>{{ entity.caption }}</h1>
-      <p class="mono muted">{{ entity.schema }} · {{ entity.id }}</p>
       <EntityBadges :flags="entity.flags" :datasets="entity.datasets" />
     </header>
 
-    <div class="investigation-grid">
-      <section class="panel graph-panel" aria-labelledby="network-heading">
-        <div class="section-header">
-          <h2 id="network-heading">Network</h2>
-          <label class="inline-field">
-            Hops
-            <select v-model.number="depth" data-testid="network-depth">
-              <option :value="1">1</option>
-              <option :value="2">2</option>
-              <option :value="3">3</option>
-            </select>
-          </label>
-        </div>
-        <template v-if="networkError">
-          <ErrorMessage :error="networkError" />
-          <button type="button" :disabled="networkLoading" @click="retryNetwork">Try again</button>
-        </template>
-        <GraphCanvas
-          v-else-if="network"
-          :subgraph="network"
-          :focus-ids="[entity.id]"
-          :label="`Network of ${entity.caption} within ${depth} hops`"
-          @select="openNode"
-        />
-        <p v-else-if="networkLoading" class="muted">Loading the network…</p>
+    <section aria-labelledby="network-heading">
+      <div class="section-header">
+        <h2 id="network-heading">Network</h2>
+        <label class="inline-field">
+          Hops
+          <select v-model.number="depth" data-testid="network-depth">
+            <option :value="1">1</option>
+            <option :value="2">2</option>
+            <option :value="3">3</option>
+          </select>
+        </label>
+      </div>
+      <ErrorMessage v-if="networkError" :error="networkError" />
+      <GraphCanvas
+        v-else-if="network"
+        :subgraph="network"
+        :focus-ids="[entity.id]"
+        :label="`Network of ${entity.caption} within ${depth} hops`"
+        @select="openNode"
+      />
+      <p v-else class="muted">Loading the network…</p>
+    </section>
+
+    <div class="columns">
+      <section aria-labelledby="details-heading">
+        <h2 id="details-heading">Details</h2>
+        <dl class="properties">
+          <template v-if="detail.names.length">
+            <dt>names</dt>
+            <dd>{{ detail.names.join('; ') }}</dd>
+          </template>
+          <template v-if="entity.countries.length">
+            <dt>countries</dt>
+            <dd>{{ entity.countries.join(', ').toUpperCase() }}</dd>
+          </template>
+          <template v-for="[key, values] in identifiers" :key="`id-${key}`">
+            <dt>{{ humanizeKey(key) }}</dt>
+            <dd>{{ values.join(', ') }}</dd>
+          </template>
+          <template v-for="[key, value] in properties" :key="`p-${key}`">
+            <dt>{{ humanizeKey(key) }}</dt>
+            <dd>{{ formatValue(value) }}</dd>
+          </template>
+        </dl>
       </section>
 
-      <div class="columns">
-        <section aria-labelledby="details-heading">
-          <h2 id="details-heading">Details</h2>
-          <p
-            v-if="
-              detail.names.length === 0 &&
-              entity.countries.length === 0 &&
-              !identifiers.length &&
-              !properties.length
-            "
-            class="muted"
-          >
-            No additional details are recorded.
-          </p>
-          <dl v-else class="properties">
-            <template v-if="detail.names.length">
-              <dt>names</dt>
-              <dd>{{ detail.names.join('; ') }}</dd>
-            </template>
-            <template v-if="entity.countries.length">
-              <dt>countries</dt>
-              <dd>{{ entity.countries.join(', ').toUpperCase() }}</dd>
-            </template>
-            <template v-for="[key, values] in identifiers" :key="`id-${key}`">
-              <dt>{{ humanizeKey(key) }}</dt>
-              <dd>{{ values.join(', ') }}</dd>
-            </template>
-            <template v-for="[key, value] in properties" :key="`p-${key}`">
-              <dt>{{ humanizeKey(key) }}</dt>
-              <dd>{{ formatValue(value) }}</dd>
-            </template>
-          </dl>
-        </section>
+      <section aria-labelledby="relationships-heading">
+        <h2 id="relationships-heading">Relationships</h2>
+        <p v-if="relationshipCounts.length === 0" class="muted">None recorded.</p>
+        <dl v-else class="properties">
+          <template v-for="[type, count] in relationshipCounts" :key="type">
+            <dt>{{ type }}</dt>
+            <dd>{{ count }}</dd>
+          </template>
+        </dl>
 
-        <section aria-labelledby="relationships-heading">
-          <h2 id="relationships-heading">Relationships</h2>
-          <p v-if="relationshipCounts.length === 0" class="muted">None recorded.</p>
-          <dl v-else class="properties">
-            <template v-for="[type, count] in relationshipCounts" :key="type">
-              <dt>{{ type }}</dt>
-              <dd>{{ count }}</dd>
+        <h2>Sources</h2>
+        <ul class="plain-list">
+          <li v-for="record in detail.provenance" :key="`${record.dataset}-${record.record_id}`">
+            {{ metaStore.datasetTitle(record.dataset) }}, record {{ record.record_id }}
+            <template v-if="safeHref(record.source_url)">
+              (<ExternalLink :href="record.source_url">source page</ExternalLink>)
             </template>
-          </dl>
-
-          <h3 id="sources-heading">Source records</h3>
-          <p v-if="detail.provenance.length === 0" class="muted">
-            No source records are available.
-          </p>
-          <ul v-else class="plain-list" aria-labelledby="sources-heading">
-            <li v-for="record in detail.provenance" :key="`${record.dataset}-${record.record_id}`">
-              {{ metaStore.datasetTitle(record.dataset) }}, record {{ record.record_id }}
-              <template v-if="safeHref(record.source_url)">
-                (<ExternalLink :href="record.source_url">source page</ExternalLink>)
-              </template>
-              <template v-else-if="record.source_url">(source: {{ record.source_url }})</template>
-            </li>
-          </ul>
-        </section>
-      </div>
+            <template v-else-if="record.source_url">(source: {{ record.source_url }})</template>
+          </li>
+        </ul>
+      </section>
     </div>
 
-    <section class="panel" aria-labelledby="alerts-heading">
+    <section aria-labelledby="alerts-heading">
       <h2 id="alerts-heading">Alerts that name this entity</h2>
       <p v-if="detail.alerts.length === 0" class="muted">No alert names this entity.</p>
       <template v-else>
